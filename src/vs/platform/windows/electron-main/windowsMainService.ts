@@ -320,6 +320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
+			forceNewWindow: openConfig.forceNewWindow,
 		};
 	}
 
@@ -1016,10 +1017,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
+				const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
+
 				const pathsToOpen = await Promise.all(lastSessionWindows.map(async lastSessionWindow => {
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
+						// Never restore the agents window from the previous session.
+						// It is only opened explicitly via `--agents`; otherwise a
+						// previously-opened agents workspace would "stick" and reopen on every launch.
+						if (agentSessionsWorkspaceUri && isEqual(lastSessionWindow.workspace.configPath, agentSessionsWorkspaceUri)) {
+							return undefined;
+						}
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
 							return pathToOpen;

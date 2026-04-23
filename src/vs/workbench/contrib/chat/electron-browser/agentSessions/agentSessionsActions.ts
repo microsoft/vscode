@@ -5,46 +5,37 @@
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION } from '../../common/constants.js';
 
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.openAgentsWindow',
+			id: OPEN_AGENTS_WINDOW_COMMAND_ID,
 			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
+			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: true,
 			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
-				when: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate())
+				when: OPEN_AGENTS_WINDOW_PRECONDITION,
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const openerService = accessor.get(IOpenerService);
-		const productService = accessor.get(IProductService);
+	async run(accessor: ServicesAccessor, options?: { forceNewWindow?: boolean }) {
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+		const nativeHostService = accessor.get(INativeHostService);
 
-		if (environmentService.isBuilt && (isMacintosh || isWindows) && productService.embedded?.urlProtocol) {
-			await openerService.open(URI.from({ scheme: productService.embedded.urlProtocol, authority: Schemas.file }), { openExternal: true });
+		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
+			await nativeHostService.launchSiblingApp();
 		} else {
-			const nativeHostService = accessor.get(INativeHostService);
-			await nativeHostService.openAgentsWindow();
+			await nativeHostService.openAgentsWindow({ forceNewWindow: options?.forceNewWindow ?? true });
 		}
 	}
 }

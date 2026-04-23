@@ -204,6 +204,7 @@ export interface IChatFileContribution {
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IExtensionContributions {

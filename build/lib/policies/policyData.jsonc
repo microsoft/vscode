@@ -69,6 +69,21 @@
             "included": false
         },
         {
+            "key": "chat.approvedAccountOrganizations",
+            "name": "ChatApprovedAccountOrganizations",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.118",
+            "localization": {
+                "description": {
+                    "key": "chat.approvedAccountOrganizations.policy.description",
+                    "value": "Setting this policy to a non-empty list activates the Approved Account gate: all AI features are disabled until the user signs into a GitHub account whose organizations intersect this list AND the account-side policy data has resolved. Comparison is case-insensitive. Use '*' as a wildcard to accept any signed-in GitHub or GHE account (use this for GHE deployments where the organization list is not surfaced)."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": false
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",
@@ -193,6 +208,51 @@
             "included": true
         },
         {
+            "key": "chat.agent.networkFilter",
+            "name": "ChatAgentNetworkFilter",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.networkFilter",
+                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.allowedNetworkDomains",
+            "name": "ChatAgentAllowedNetworkDomains",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.allowedNetworkDomains",
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, this also configures terminal sandbox networking. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": true
+        },
+        {
+            "key": "chat.agent.deniedNetworkDomains",
+            "name": "ChatAgentDeniedNetworkDomains",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.agent.deniedNetworkDomains",
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, this also configures terminal sandbox networking. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": true
+        },
+        {
             "key": "chat.editMode.hidden",
             "name": "DeprecatedEditModeHidden",
             "category": "InteractiveSession",
@@ -235,6 +295,35 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.enabled",
+            "name": "ChatAgentSandboxEnabled",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.enabledSetting",
+                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "agentSandbox.enabledSetting.offDescription",
+                        "value": "Disable sandboxing for agent mode tools."
+                    },
+                    {
+                        "key": "agentSandbox.enabledSetting.onDescription",
+                        "value": "Enable sandboxing for agent mode tools."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "off",
+            "enum": [
+                "off",
+                "on"
+            ],
             "included": true
         },
         {

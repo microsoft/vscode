@@ -11,8 +11,9 @@ import { URI } from '../../../../../util/vs/base/common/uri';
 import {
 	ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString
 } from '../../../../../vscodeTypes';
+import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import {
-	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall
+	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
@@ -151,6 +152,17 @@ describe('CopilotCLITools', () => {
 			const markdownParts = parts.filter(p => p instanceof ChatResponseMarkdownPart);
 			expect(markdownParts).toHaveLength(1);
 			expect((markdownParts[0] as any).value?.value || (markdownParts[0] as any).value).toContain('All tests are passing.');
+		});
+
+		it('preserves response details on the final rebuilt response turn', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi there' } }
+			];
+			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, 'Base • 2x');
+			expect(turns).toHaveLength(2);
+			const responseTurn = turns[1] as ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'Base • 2x' });
 		});
 
 		it('converts file attachments to references on user messages', () => {
@@ -338,6 +350,50 @@ describe('CopilotCLITools', () => {
 			expect(requestTurn.modeInstructions2!.uri).toBeUndefined();
 			expect(requestTurn.modeInstructions2!.name).toBe('builtin-agent');
 			expect(requestTurn.modeInstructions2!.isBuiltin).toBe(true);
+		});
+
+		it('prefixes prompt with /autopilot when agentMode is autopilot', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Fix the bug', attachments: [], agentMode: 'autopilot' } },
+				{ type: 'assistant.message', data: { content: 'Done' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/autopilot Fix the bug');
+		});
+
+		it('prefixes prompt with /plan when agentMode is plan', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Create a plan', attachments: [], agentMode: 'plan' } },
+				{ type: 'assistant.message', data: { content: 'Here is the plan' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/plan Create a plan');
+		});
+
+		it('does not prefix prompt when agentMode is not set', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
+		});
+
+		it('does not prefix prompt when agentMode is an unknown value', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [], agentMode: 'unknown-mode' } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
 		});
 	});
 
@@ -1128,6 +1184,118 @@ describe('CopilotCLITools', () => {
 			// grep tool at level 3 also resolves to root L0
 			const grep = toolParts.find(p => p.toolCallId === 'grep-1')!;
 			expect(grep.subAgentInvocationId).toBe('L0');
+		});
+	});
+
+	describe('isTodoRelatedSqlQuery', () => {
+		it('returns true for INSERT into todos', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO todos (title, status) VALUES (\'task\', \'pending\')')).toBe(true);
+		});
+
+		it('returns true for UPDATE todos', () => {
+			expect(isTodoRelatedSqlQuery('UPDATE todos SET status = \'done\' WHERE id = 1')).toBe(true);
+		});
+
+		it('returns true for DELETE from todos', () => {
+			expect(isTodoRelatedSqlQuery('DELETE FROM todos WHERE id = 1')).toBe(true);
+		});
+
+		it('returns true for CREATE TABLE todos', () => {
+			expect(isTodoRelatedSqlQuery('CREATE TABLE todos (id INTEGER PRIMARY KEY, title TEXT)')).toBe(true);
+		});
+
+		it('returns true for queries targeting todo_deps table', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO todo_deps (todo_id, dep_id) VALUES (1, 2)')).toBe(true);
+		});
+
+		it('returns false for SELECT-only queries on todos', () => {
+			expect(isTodoRelatedSqlQuery('SELECT * FROM todos')).toBe(false);
+		});
+
+		it('returns false for queries not targeting todos or todo_deps', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO tasks (title) VALUES (\'task\')')).toBe(false);
+		});
+
+		it('returns false for empty query', () => {
+			expect(isTodoRelatedSqlQuery('')).toBe(false);
+		});
+
+		it('is case insensitive', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO TODOS (title) VALUES (\'task\')')).toBe(true);
+		});
+
+		it('handles multiline queries', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO\n  todos\n  (title) VALUES (\'task\')')).toBe(true);
+		});
+
+		it('returns true for DROP TABLE todos', () => {
+			expect(isTodoRelatedSqlQuery('DROP TABLE todos')).toBe(true);
+		});
+
+		it('returns true for ALTER TABLE todo_deps', () => {
+			expect(isTodoRelatedSqlQuery('ALTER TABLE todo_deps ADD COLUMN priority INTEGER')).toBe(true);
+		});
+	});
+
+	describe('updateTodoListFromSqlItems', () => {
+		it('invokes the manage_todo_list tool with mapped items', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[
+					{ id: '1', title: 'First task', description: 'desc1', status: 'pending' },
+					{ id: '2', title: 'Second task', description: 'desc2', status: 'in_progress' },
+					{ id: '3', title: 'Third task', description: '', status: 'done' },
+					{ id: '4', title: 'Fourth task', description: 'blocked desc', status: 'blocked' },
+				],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			expect(toolsService.invokeToolCalls).toHaveLength(1);
+			expect(toolsService.invokeToolCalls[0].name).toBe('manage_todo_list');
+			expect(toolsService.invokeToolCalls[0].input).toEqual({
+				operation: 'write',
+				todoList: [
+					{ id: 0, title: 'First task', description: 'desc1', status: 'not-started' },
+					{ id: 1, title: 'Second task', description: 'desc2', status: 'in-progress' },
+					{ id: 2, title: 'Third task', description: '', status: 'completed' },
+					{ id: 3, title: 'Fourth task', description: 'blocked desc', status: 'not-started' },
+				],
+			});
+		});
+
+		it('maps unknown status to not-started', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[{ id: '1', title: 'task', description: '', status: 'unknown_status' as never }],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			const input = toolsService.invokeToolCalls[0].input as { todoList: { status: string }[] };
+			expect(input.todoList[0].status).toBe('not-started');
+		});
+
+		it('uses sequential ids starting from 0', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[
+					{ id: '100', title: 'a', description: '', status: 'pending' },
+					{ id: '200', title: 'b', description: '', status: 'done' },
+				],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			const input = toolsService.invokeToolCalls[0].input as { todoList: { id: number }[] };
+			expect(input.todoList[0].id).toBe(0);
+			expect(input.todoList[1].id).toBe(1);
 		});
 	});
 });

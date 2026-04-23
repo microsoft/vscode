@@ -49,7 +49,6 @@ import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { ICompletedToolCallRound, InlineChat2Prompt, LARGE_FILE_LINE_THRESHOLD } from '../../prompts/node/inline/inlineChat2Prompt';
 import { InlineChatEditCodePrompt } from '../../prompts/node/inline/inlineChatEditCodePrompt';
 import { ToolName } from '../../tools/common/toolNames';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { CopilotToolMode } from '../../tools/common/toolsRegistry';
 import { isToolValidationError, isValidatedToolInput, IToolsService } from '../../tools/common/toolsService';
 import { InlineChatProgressMessages } from './progressMessages';
@@ -306,6 +305,8 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IToolsService private readonly _toolsService: IToolsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async executeEdit(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -313,7 +314,7 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		assertType(documentContext);
 
 		const isLargeFile = documentContext.document.lineCount > LARGE_FILE_LINE_THRESHOLD;
-		const availableTools = await this._getAvailableTools(request, isLargeFile);
+		const availableTools = await this._getAvailableTools(request, endpoint, isLargeFile);
 
 		const previousRounds: ICompletedToolCallRound[] = [];
 		let failedEditCount = 0;
@@ -432,20 +433,16 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 
 		const requestOptions: IMakeChatRequestOptions['requestOptions'] = {
 			tool_choice: 'auto',
-			tools: normalizeToolSchema(
-				endpoint.family,
-				inlineChatTools.map(tool => ({
-					type: 'function',
-					function: {
-						name: tool.name,
-						description: tool.description,
-						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
-					},
-				})),
-				(tool, rule) => {
-					this._logService.warn(`Tool ${tool} failed validation: ${rule}`);
+			// Inline chat only uses internal tools with known-good schemas,
+			// skip expensive normalizeToolSchema validation
+			tools: inlineChatTools.map(tool => ({
+				type: 'function' as const,
+				function: {
+					name: tool.name,
+					description: tool.description,
+					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
 				},
-			)
+			})),
 		};
 
 		const toolCalls: IToolCall[] = [];
@@ -460,6 +457,12 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 			userInitiatedRequest: true,
 			location: ChatLocation.Editor,
 			requestOptions,
+			modelCapabilities: {
+				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
+					? request.modelConfiguration.reasoningEffort
+					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
 				conversationId: telemetry.sessionId,
@@ -543,14 +546,9 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		return { fetchResult, toolCalls, failedEdits, allCallResults };
 	}
 
-	private async _getAvailableTools(request: vscode.ChatRequest, isLargeFile: boolean): Promise<vscode.LanguageModelToolInformation[]> {
+	private async _getAvailableTools(request: vscode.ChatRequest, model: IChatEndpoint, isLargeFile: boolean): Promise<vscode.LanguageModelToolInformation[]> {
 		assertType(request.location2 instanceof ChatRequestEditorData);
 
-		// const exitTool = this._toolsService.getTool(INLINE_CHAT_EXIT_TOOL_NAME);
-		// if (!exitTool) {
-		// 	this._logService.error('MISSING inline chat exit tool');
-		// 	throw new Error('Missing inline chat exit tool');
-		// }
 
 		const enabledTools = new Set(InlineChatIntent._EDIT_TOOLS);
 		if (!request.location2.selection.isEmpty) {
@@ -569,7 +567,7 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 			),
 		};
 
-		const agentTools = await this._instantiationService.invokeFunction(getAgentTools, fakeRequest);
+		const agentTools = await this._instantiationService.invokeFunction(getAgentTools, fakeRequest, model);
 		let editTools = agentTools.filter(tool => enabledTools.has(tool.name));
 
 		if (editTools.length === 0) {
@@ -608,6 +606,8 @@ class InlineChatEditHeuristicStrategy implements IInlineChatEditStrategy {
 	constructor(
 		private readonly _intent: InlineChatIntent,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async executeEdit(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -656,6 +656,12 @@ class InlineChatEditHeuristicStrategy implements IInlineChatEditStrategy {
 			messages: renderResult.messages,
 			userInitiatedRequest: true,
 			location: ChatLocation.Editor,
+			modelCapabilities: {
+				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
+					? request.modelConfiguration.reasoningEffort
+					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
 				conversationId: telemetry.sessionId,

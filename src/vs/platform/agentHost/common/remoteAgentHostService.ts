@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
@@ -22,6 +23,12 @@ export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
+/**
+ * Configuration key that controls whether online dev tunnels and
+ * configured SSH remote agent hosts are auto-connected at startup.
+ */
+export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoConnect';
+
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',
@@ -35,9 +42,31 @@ export interface IRemoteAgentHostWebSocketConnection {
 
 export interface IRemoteAgentHostSSHConnection {
 	readonly type: RemoteAgentHostEntryType.SSH;
+	/**
+	 * The WebSocket address used by the agent host protocol client to
+	 * communicate with the remote agent host process. This is typically a
+	 * forwarded local port (e.g. `localhost:4321`) established by the SSH
+	 * tunnel — it is NOT the SSH hostname itself.
+	 */
 	readonly address: string;
-	/** SSH config host alias — if set, the tunnel is re-established on startup. */
+	/**
+	 * SSH config host alias (e.g. `myserver`). When set, the SSH tunnel is
+	 * automatically re-established on startup using the user's SSH config.
+	 * This takes precedence over {@link hostName} when constructing the
+	 * VS Code Remote SSH authority.
+	 */
 	readonly sshConfigHost?: string;
+	/**
+	 * The actual SSH hostname or IP address of the remote machine
+	 * (e.g. `myserver.example.com`). This is the host that the SSH
+	 * client connects to, and is used to construct the VS Code Remote
+	 * SSH authority when {@link sshConfigHost} is not available.
+	 */
+	readonly hostName: string;
+	/** SSH username for the remote machine. */
+	readonly user?: string;
+	/** SSH port on the remote machine (default 22). */
+	readonly port?: number;
 }
 
 export interface IRemoteAgentHostTunnelConnection {
@@ -46,6 +75,12 @@ export interface IRemoteAgentHostTunnelConnection {
 	readonly tunnelId: string;
 	/** Dev tunnel cluster region. */
 	readonly clusterId: string;
+	/**
+	 * User-defined display name for this tunnel (derived from tunnel tags).
+	 * Used as the tunnel name in the VS Code Remote Tunnels authority
+	 * (e.g. `tunnel+<label>`). Falls back to {@link tunnelId} if not set.
+	 */
+	readonly label?: string;
 	/** Auth provider used to connect to this tunnel. */
 	readonly authProvider?: 'github' | 'microsoft';
 }
@@ -135,8 +170,25 @@ export interface IRemoteAgentHostService {
 	 * Register a pre-connected agent connection.
 	 * Used by the SSH and tunnel services to inject relay-backed connections
 	 * without going through the WebSocket connect flow.
+	 *
+	 * The optional `transportDisposable` represents the underlying transport
+	 * (e.g. an SSH tunnel relay or tunnel-relay session) and is owned by this
+	 * service for the lifetime of the entry. It will be disposed when:
+	 *   - the entry is removed via {@link removeRemoteAgentHost}
+	 *   - the entry is reconciled away (config-driven removal)
+	 *   - this service itself is disposed
+	 * Callers should put any teardown that needs to happen on entry removal
+	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
+	 * into this disposable, so a single removal path tears down the whole stack.
 	 */
-	addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
+
+	/**
+	 * Look up the {@link IRemoteAgentHostEntry} for a given address.
+	 * Checks both configured entries from settings and dynamically
+	 * registered entries (e.g. tunnel connections).
+	 */
+	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined;
 }
 
 /** Metadata about a single remote connection. */
@@ -159,9 +211,10 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string): void { }
-	async addSSHConnection(): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
+	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
@@ -241,10 +294,13 @@ export interface IRawRemoteAgentHostEntry {
 	readonly name: string;
 	readonly connectionToken?: string;
 	readonly sshConfigHost?: string;
+	readonly sshHostName?: string;
+	readonly sshUser?: string;
+	readonly sshPort?: number;
 }
 
 export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry | undefined {
-	if (raw.sshConfigHost) {
+	if (raw.sshConfigHost || raw.sshHostName || raw.sshUser || raw.sshPort) {
 		return {
 			name: raw.name,
 			connectionToken: raw.connectionToken,
@@ -252,6 +308,9 @@ export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHost
 				type: RemoteAgentHostEntryType.SSH,
 				address: raw.address,
 				sshConfigHost: raw.sshConfigHost,
+				hostName: raw.sshHostName ?? raw.address,
+				user: raw.sshUser,
+				port: raw.sshPort,
 			},
 		};
 	}
@@ -273,6 +332,9 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 				sshConfigHost: entry.connection.sshConfigHost,
+				sshHostName: entry.connection.hostName,
+				sshUser: entry.connection.user,
+				sshPort: entry.connection.port,
 			};
 		case RemoteAgentHostEntryType.WebSocket:
 			return {

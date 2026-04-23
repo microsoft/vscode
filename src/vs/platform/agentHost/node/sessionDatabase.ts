@@ -74,6 +74,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			`ALTER TABLE file_edits_v3 RENAME TO file_edits`,
 		].join(';\n'),
 	},
+	{
+		version: 4,
+		sql: [
+			`ALTER TABLE turns ADD COLUMN event_id TEXT`,
+			`CREATE INDEX IF NOT EXISTS idx_turns_event_id ON turns(event_id)`,
+		].join(';\n'),
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -188,6 +195,30 @@ export class SessionDatabase implements ISessionDatabase {
 	protected _closed: Promise<void> | true | undefined;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
+	/**
+	 * Serializes `setMetadata` writes per key. `@vscode/sqlite3` runs in
+	 * parallelized mode, so two `db.run()` calls on the same connection
+	 * can be dispatched to the libuv thread pool and complete out of
+	 * submission order. For "last writer wins" keys (notably `configValues`
+	 * via {@link setMetadata}), that meant a fast-following second write
+	 * could be overtaken by the first and silently lose its value — see
+	 * the "Session Config persistence across restarts" integration test.
+	 * Sequencing by key preserves intra-key order while still allowing
+	 * writes for different keys to run concurrently.
+	 */
+	private readonly _metadataSequencer = new SequencerByKey<string>();
+
+	/**
+	 * In-flight write operations. Tracked so {@link whenIdle} can await them
+	 * before the process exits — without this, a `SIGTERM` arriving between
+	 * a fire-and-forget mutating call (e.g. `setMetadata`) being invoked and
+	 * its underlying SQLite query completing would silently drop the write.
+	 * Every public mutating method routes its returned promise through
+	 * {@link _track}; reads (`getMetadata`, `getFileEdits`, ...) skip
+	 * tracking since shutdown does not need to wait for them.
+	 */
+	private readonly _pendingWrites = new Set<Promise<unknown>>();
+
 	constructor(
 		private readonly _path: string,
 		private readonly _migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
@@ -244,23 +275,92 @@ export class SessionDatabase implements ISessionDatabase {
 
 	// ---- Turns ----------------------------------------------------------
 
-	async createTurn(turnId: string): Promise<void> {
-		const db = await this._ensureDb();
-		await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+	createTurn(turnId: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+		});
 	}
 
-	async deleteTurn(turnId: string): Promise<void> {
+	deleteTurn(turnId: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
+		});
+	}
+
+	setTurnEventId(turnId: string, eventId: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			// Only set the event ID if not already set — steering messages
+			// trigger additional user.message events within the same turn,
+			// and we must preserve the first (boundary) event ID.
+			await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ? AND event_id IS NULL', [eventId, turnId]);
+		});
+	}
+
+	async getTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?', [turnId]);
+		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	async getNextTurnEventId(turnId: string): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(
+			db,
+			`SELECT event_id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?) ORDER BY rowid LIMIT 1`,
+			[turnId],
+		);
+		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	async getFirstTurnEventId(): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
+		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	truncateFromTurn(turnId: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			// Delete the target turn and all turns inserted after it (by rowid order).
+			// File edits cascade-delete via the foreign key constraint.
+			await dbRun(db,
+				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
+				[turnId],
+			);
+		});
+	}
+
+	deleteTurnsAfter(turnId: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			// Delete all turns inserted after the given turn (by rowid order),
+			// keeping the given turn itself.
+			// File edits cascade-delete via the foreign key constraint.
+			await dbRun(db,
+				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
+				[turnId],
+			);
+		});
+	}
+
+	deleteAllTurns(): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbExec(db, 'DELETE FROM turns');
+		});
 	}
 
 	// ---- File edits -----------------------------------------------------
 
-	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
-		return this._fileEditSequencer.queue(edit.filePath, async () => {
+	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
+		return this._track(() => this._fileEditSequencer.queue(edit.filePath, async () => {
 			const db = await this._ensureDb();
-			// Ensure the turn exists — the onTurnStart event that calls
-			// createTurn() is fire-and-forget and may not have completed yet.
+			// Ensure the turn exists — lazily insert since the turn record
+			// may not have been created by an explicit createTurn() call.
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
 			await dbRun(
 				db,
@@ -279,7 +379,7 @@ export class SessionDatabase implements ISessionDatabase {
 					edit.removedLines ?? null,
 				],
 			);
-		});
+		}));
 	}
 
 	async getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]> {
@@ -295,6 +395,47 @@ export class SessionDatabase implements ISessionDatabase {
 				WHERE tool_call_id IN (${placeholders})
 				ORDER BY rowid`,
 			toolCallIds,
+		);
+		return rows.map(row => ({
+			turnId: row.turn_id as string,
+			toolCallId: row.tool_call_id as string,
+			filePath: row.file_path as string,
+			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
+			originalPath: row.original_path as string | undefined ?? undefined,
+			addedLines: row.added_lines as number | undefined ?? undefined,
+			removedLines: row.removed_lines as number | undefined ?? undefined,
+		}));
+	}
+
+	async getAllFileEdits(): Promise<IFileEditRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
+				FROM file_edits
+				ORDER BY rowid`,
+			[],
+		);
+		return rows.map(row => ({
+			turnId: row.turn_id as string,
+			toolCallId: row.tool_call_id as string,
+			filePath: row.file_path as string,
+			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
+			originalPath: row.original_path as string | undefined ?? undefined,
+			addedLines: row.added_lines as number | undefined ?? undefined,
+			removedLines: row.removed_lines as number | undefined ?? undefined,
+		}));
+	}
+
+	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
+				FROM file_edits
+				WHERE turn_id = ?
+				ORDER BY rowid`,
+			[turnId],
 		);
 		return rows.map(row => ({
 			turnId: row.turn_id as string,
@@ -335,9 +476,96 @@ export class SessionDatabase implements ISessionDatabase {
 		return row?.value as string | undefined;
 	}
 
-	async setMetadata(key: string, value: string): Promise<void> {
+	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+		const keys = Object.keys(obj) as (keyof T & string)[];
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		const result = {} as { [K in keyof T]: string | undefined };
+		if (keys.length === 0) {
+			return result;
+		}
 		const db = await this._ensureDb();
-		await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+		const placeholders = keys.map(() => '?').join(',');
+		const rows = await dbAll(db, `SELECT key, value FROM session_metadata WHERE key IN (${placeholders})`, keys);
+		for (const key of keys) {
+			result[key] = undefined;
+		}
+		for (const row of rows) {
+			result[row.key as keyof T] = row.value as string;
+		}
+		return result;
+	}
+
+	setMetadata(key: string, value: string): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(key, async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+		}));
+	}
+
+	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			// Defer FK checks to commit time so we can update turns.id and
+			// file_edits.turn_id in any order without mid-statement violations.
+			// This pragma auto-resets after the transaction ends.
+			await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
+			await dbExec(db, 'BEGIN TRANSACTION');
+			try {
+				// Delete turns not present in the mapping (e.g. turns beyond
+				// the fork point). File edits cascade-delete via FK.
+				const oldIds = [...mapping.keys()];
+				if (oldIds.length > 0) {
+					const placeholders = oldIds.map(() => '?').join(',');
+					await dbRun(db,
+						`DELETE FROM turns WHERE id NOT IN (${placeholders})`,
+						oldIds,
+					);
+				}
+
+				// Remap the remaining turn IDs to their new values
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
+					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				}
+				await dbExec(db, 'COMMIT');
+			} catch (err) {
+				await dbExec(db, 'ROLLBACK');
+				throw err;
+			}
+		});
+	}
+
+	/**
+	 * Resolves once all currently in-flight write operations have settled.
+	 * Used by graceful shutdown to flush pending fire-and-forget writes
+	 * before the process exits. Should be called from a path where no
+	 * further writes are expected; loops until idle to also drain any
+	 * writes that get queued while we're awaiting.
+	 */
+	async whenIdle(): Promise<void> {
+		while (this._pendingWrites.size > 0) {
+			await Promise.allSettled([...this._pendingWrites]);
+		}
+	}
+
+	async vacuumInto(targetPath: string) {
+		const db = await this._ensureDb();
+		await dbRun(db, 'VACUUM INTO ?', [targetPath]);
+	}
+
+	/**
+	 * Wrap a mutating operation's promise so {@link whenIdle} can await it.
+	 * Invoke at the **outermost** layer of every public mutating method so
+	 * that any internal awaits (notably `_ensureDb()`) are covered too —
+	 * tracking only the leaf `dbRun`/`dbExec` would miss the window
+	 * between the method being called and the query actually being queued.
+	 */
+	private _track<T>(fn: () => Promise<T>): Promise<T> {
+		const p = fn();
+		this._pendingWrites.add(p);
+		const untrack = () => { this._pendingWrites.delete(p); };
+		p.then(untrack, untrack);
+		return p;
 	}
 
 	async close() {

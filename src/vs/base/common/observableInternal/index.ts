@@ -11,13 +11,13 @@ export { type IObservable, type IObservableWithChange, type IObserver, type IRea
 export { disposableObservableValue } from './observables/observableValue.js';
 export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './observables/derived.js';
 export { type IDerivedReader } from './observables/derivedImpl.js';
-export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './utils/promise.js';
+export { ObservableLazy, ObservableLazyPromise, ObservablePromise, ObservableResolvedPromise, PromiseResult, } from './utils/promise.js';
 export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation.js';
 export {
 	debouncedObservable, debouncedObservable2, derivedObservableWithCache,
 	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
 	recomputeInitiallyAndOnChange,
-	signalFromObservable, wasEventTriggeredRecently,
+	signalFromObservable, throttledObservable, wasEventTriggeredRecently,
 	isObservable,
 } from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';

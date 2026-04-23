@@ -7,11 +7,13 @@ import { ITelemetryService } from '../../telemetry/common/telemetry';
 
 interface IChatWebSocketConnectionTelemetryProperties {
 	conversationId: string;
-	requestId: string;
+	initiatingRequestId: string;
 	gitHubRequestId: string;
 }
 
 interface IChatWebSocketRequestTelemetryProperties extends IChatWebSocketConnectionTelemetryProperties {
+	modelId: string | undefined;
+	requestId: string | undefined;
 	turnId: string | undefined;
 	previousTurnId: string | undefined;
 	hadActiveRequest: boolean;
@@ -26,6 +28,7 @@ export interface IChatWebSocketConnectErrorTelemetryProperties extends IChatWebS
 	connectDurationMs: number;
 	responseStatusCode: number | undefined;
 	responseStatusText: string | undefined;
+	networkError: string | undefined;
 }
 
 export interface IChatWebSocketCloseTelemetryProperties extends IChatWebSocketRequestTelemetryProperties {
@@ -61,6 +64,11 @@ export interface IChatWebSocketRequestSentTelemetryProperties extends IChatWebSo
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdSet: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	compactionThreshold: number | undefined;
+	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	connectionDurationMs: number;
 	totalSentMessageCount: number;
 	totalReceivedMessageCount: number;
@@ -86,6 +94,12 @@ export interface IChatWebSocketRequestOutcomeTelemetryProperties extends IChatWe
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdSet: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	compactionThreshold: number | undefined;
+	promptTokenCount: number;
+	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	connectionDurationMs: number;
 	requestDurationMs: number;
 	totalSentMessageCount: number;
@@ -113,14 +127,14 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report a successful WebSocket connection.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
-				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"connectDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to establish the WebSocket connection in milliseconds", "isMeasurement": true }
 			}
 		*/
 		telemetryService.sendTelemetryEvent('websocket.connected', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
-			requestId: properties.requestId,
+			initiatingRequestId: properties.initiatingRequestId,
 			gitHubRequestId: properties.gitHubRequestId,
 		}, {
 			connectDurationMs: properties.connectDurationMs,
@@ -136,20 +150,22 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report a failed WebSocket connection attempt.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
-				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Error message for the failed connection" },
 				"connectDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the connection error in milliseconds", "isMeasurement": true },
 				"responseStatusCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP response status code from the failed connection attempt", "isMeasurement": true },
-				"responseStatusText": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP response status text from the failed connection attempt" }
+				"responseStatusText": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP response status text from the failed connection attempt" },
+				"networkError": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The underlying network error code and message from the dispatch layer" }
 			}
 		*/
 		telemetryService.sendTelemetryErrorEvent('websocket.connectError', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
-			requestId: properties.requestId,
+			initiatingRequestId: properties.initiatingRequestId,
 			gitHubRequestId: properties.gitHubRequestId,
 			error: properties.error,
 			responseStatusText: properties.responseStatusText,
+			networkError: properties.networkError,
 		}, {
 			connectDurationMs: properties.connectDurationMs,
 			responseStatusCode: properties.responseStatusCode,
@@ -165,11 +181,13 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report a WebSocket connection close event.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"turnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the turn" },
 				"previousTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Turn id of the previous request on this connection" },
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"closeReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Human-readable description of the close code" },
 				"closeEventReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Close event reason string from server" },
 				"closeEventWasClean": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection closed cleanly" },
@@ -183,10 +201,12 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryEvent('websocket.close', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
+			initiatingRequestId: properties.initiatingRequestId,
 			turnId: properties.turnId,
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			closeReason: properties.closeReason,
 			closeEventReason: properties.closeEventReason,
 			closeEventWasClean: properties.closeEventWasClean,
@@ -210,11 +230,13 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report a runtime error on an established WebSocket connection.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"turnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the turn" },
 				"previousTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Turn id of the previous request on this connection" },
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Error message" },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
@@ -225,10 +247,12 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryErrorEvent('websocket.error', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
+			initiatingRequestId: properties.initiatingRequestId,
 			turnId: properties.turnId,
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			error: properties.error,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
@@ -249,7 +273,7 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report when a WebSocket connection is closed during setup before fully opening.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
-				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"closeReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Human-readable description of the close code" },
 				"closeEventReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Close event reason string from server" },
@@ -260,7 +284,7 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryErrorEvent('websocket.closeDuringSetup', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
-			requestId: properties.requestId,
+			initiatingRequestId: properties.initiatingRequestId,
 			gitHubRequestId: properties.gitHubRequestId,
 			closeReason: properties.closeReason,
 			closeEventReason: properties.closeEventReason,
@@ -280,14 +304,21 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report when a request is sent over the WebSocket connection.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"turnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the turn" },
 				"previousTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Turn id of the previous request on this connection" },
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
+				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
+				"modelMaxPromptTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum prompt tokens for the model", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"sentMessageCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character count of this sent message payload", "isMeasurement": true },
@@ -298,15 +329,22 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryEvent('websocket.requestSent', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
+			initiatingRequestId: properties.initiatingRequestId,
 			turnId: properties.turnId,
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			compactionThreshold: properties.compactionThreshold,
+			tokenCountMax: properties.tokenCountMax,
+			modelMaxPromptTokens: properties.modelMaxPromptTokens,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			sentMessageCharacters: properties.sentMessageCharacters,
@@ -325,11 +363,13 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report when a received websocket message fails JSON parsing.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"turnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the turn" },
 				"previousTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Turn id of the previous request on this connection" },
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Parse error message" },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
@@ -341,10 +381,12 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryErrorEvent('websocket.messageParseError', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
+			initiatingRequestId: properties.initiatingRequestId,
 			turnId: properties.turnId,
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			error: properties.error,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
@@ -366,15 +408,23 @@ export class ChatWebSocketTelemetrySender {
 				"owner": "chrmarti",
 				"comment": "Report terminal outcome for a websocket request.",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the conversation" },
+				"initiatingRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request that initiated the connection" },
 				"turnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the turn" },
 				"previousTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Turn id of the previous request on this connection" },
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"requestOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Terminal outcome of the websocket request" },
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
+				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
+				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
+				"modelMaxPromptTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum prompt tokens for the model", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"totalSentCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total characters sent over this connection", "isMeasurement": true },
@@ -393,10 +443,12 @@ export class ChatWebSocketTelemetrySender {
 		*/
 		telemetryService.sendTelemetryEvent('websocket.requestOutcome', { github: true, microsoft: true }, {
 			conversationId: properties.conversationId,
+			initiatingRequestId: properties.initiatingRequestId,
 			turnId: properties.turnId,
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			requestOutcome: properties.requestOutcome,
 			closeReason: properties.closeReason,
 			serverErrorMessage: properties.serverErrorMessage,
@@ -406,6 +458,12 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			compactionThreshold: properties.compactionThreshold,
+			promptTokenCount: properties.promptTokenCount,
+			tokenCountMax: properties.tokenCountMax,
+			modelMaxPromptTokens: properties.modelMaxPromptTokens,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			totalSentCharacters: properties.totalSentCharacters,

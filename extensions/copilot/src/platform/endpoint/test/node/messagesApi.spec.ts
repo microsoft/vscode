@@ -732,13 +732,12 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			enableThinking: true,
-			reasoningEffort: 'high',
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
@@ -748,13 +747,12 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			// supportsReasoningEffort is undefined
 		});
 		const options = createMinimalOptions({
-			enableThinking: true,
-			reasoningEffort: 'high',
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -764,13 +762,12 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: [],
 		});
 		const options = createMinimalOptions({
-			enableThinking: true,
-			reasoningEffort: 'medium',
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'medium' },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -780,8 +777,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			enableThinking: false,
-			reasoningEffort: 'high',
+			modelCapabilities: { enableThinking: false, reasoningEffort: 'high' },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -796,13 +792,12 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			enableThinking: true,
-			reasoningEffort: 'xhigh' as any,
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'xhigh' as any },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -815,8 +810,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		});
 		mockConfig.setConfig(ConfigKey.AnthropicThinkingBudget, 10000);
 		const options = createMinimalOptions({
-			enableThinking: true,
-			reasoningEffort: 'low',
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'low' },
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);

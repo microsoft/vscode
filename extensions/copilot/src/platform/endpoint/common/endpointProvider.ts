@@ -54,6 +54,8 @@ export type IChatModelCapabilities = {
 		max_thinking_budget?: number;
 		min_thinking_budget?: number;
 		reasoning_effort?: string[];
+		tool_search?: boolean;
+		context_editing?: boolean;
 	};
 };
 
@@ -68,7 +70,7 @@ type ICompletionModelCapabilities = {
 	type: 'completion';
 	family: string;
 	tokenizer: TokenizerType;
-}
+};
 
 export enum ModelSupportedEndpoint {
 	ChatCompletions = '/chat/completions',

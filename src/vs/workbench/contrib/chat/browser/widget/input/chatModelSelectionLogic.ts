@@ -9,7 +9,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 /**
  * Describes the context needed for model selection decisions.
  */
-export interface IModelSelectionContext {
+interface IModelSelectionContext {
 	readonly location: ChatAgentLocation;
 	readonly currentModeKind: ChatModeKind;
 	readonly isInlineChatV2Enabled: boolean;

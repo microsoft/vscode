@@ -13,7 +13,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { alreadyOpenResult, createBrowserPageLink, findExistingPageByHost } from './browserToolHelpers.js';
+import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
@@ -24,6 +25,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -52,9 +54,9 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existing = await findExistingPageByHost(this.editorService, undefined, params.url);
-			if (existing) {
-				return alreadyOpenResult(existing);
+			const existingResult = await getExistingPagesResult(this.editorService, this.browserViewService, undefined, params.url, { excludeIds: true });
+			if (existingResult) {
+				return existingResult;
 			}
 		}
 

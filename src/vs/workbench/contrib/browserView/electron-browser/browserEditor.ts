@@ -14,15 +14,14 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { IBrowserEditorViewState, IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,10 +38,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
-import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -355,8 +353,6 @@ export class BrowserEditor extends EditorPane {
 	get browserContainer(): HTMLElement { return this._browserContainer; }
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
-	private _overlayPauseHeading!: HTMLElement;
-	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
@@ -378,10 +374,17 @@ export class BrowserEditor extends EditorPane {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
+
+		// Be sure to hide the view when the workbench is reloading, as `clearInput()` may not be called.
+		this._register(this.lifecycleService.onWillShutdown((e) => {
+			if (e.reason === ShutdownReason.RELOAD) {
+				this._model?.setVisible(false);
+			}
+		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -458,10 +461,12 @@ export class BrowserEditor extends EditorPane {
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
 		const overlayPauseMessage = $('.browser-overlay-paused-message');
-		this._overlayPauseHeading = $('.browser-overlay-paused-heading');
-		this._overlayPauseDetail = $('.browser-overlay-paused-detail');
-		overlayPauseMessage.appendChild(this._overlayPauseHeading);
-		overlayPauseMessage.appendChild(this._overlayPauseDetail);
+		const overlayPauseHeading = $('.browser-overlay-paused-heading');
+		const overlayPauseDetail = $('.browser-overlay-paused-detail');
+		overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
+		overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
+		overlayPauseMessage.appendChild(overlayPauseHeading);
+		overlayPauseMessage.appendChild(overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
 		placeholderContents.appendChild(this._overlayPauseContainer);
 
@@ -534,6 +539,15 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
+		// Set initial navigation state from the input so that the UI is populated while the model is loading.
+		this.updateNavigationState({
+			url: input.url || '',
+			title: input.title || '',
+			canGoBack: false,
+			canGoForward: false,
+			certificateError: undefined
+		});
+
 		// Resolve the browser view model from the input
 		const model = await input.resolve();
 
@@ -587,31 +601,6 @@ export class BrowserEditor extends EditorPane {
 				this._onDidFocus?.fire();
 				this.ensureBrowserFocus();
 			}
-		}));
-
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
-			logBrowserOpen(this.telemetryService, (() => {
-				switch (location) {
-					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
-					case BrowserNewPageLocation.Foreground: return 'browserLinkForeground';
-					case BrowserNewPageLocation.NewWindow: return 'browserLinkNewWindow';
-				}
-			})());
-
-			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
-			const viewState: IBrowserEditorViewState = { url };
-			this.editorService.openEditor({
-				resource: URI.revive(resource),
-				options: {
-					pinned: true,
-					inactive: location === BrowserNewPageLocation.Background,
-					auxiliary: {
-						bounds: position,
-						compact: true
-					},
-					viewState
-				}
-			}, targetGroup);
 		}));
 
 		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {
@@ -709,14 +698,6 @@ export class BrowserEditor extends EditorPane {
 		// Only show the pause message for notification overlays
 		const hasNotificationOverlay = overlappingOverlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
 		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
-
-		if (hasNotificationOverlay) {
-			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
-			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
-		} else {
-			this._overlayPauseHeading.textContent = '';
-			this._overlayPauseDetail.textContent = '';
-		}
 	}
 
 	private updateErrorDisplay(): void {

@@ -8,10 +8,12 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CustomizationHarness, CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IExternalCustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { SessionType } from '../../common/chatSessionsService.js';
+import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 
 suite('CustomizationHarnessService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,10 +22,39 @@ suite('CustomizationHarnessService', () => {
 		if (harnesses.length === 0) {
 			harnesses = [createVSCodeHarnessDescriptor([PromptsStorage.extension])];
 		}
-		return new CustomizationHarnessServiceBase(harnesses, harnesses[0].id);
+		const promptsService: IPromptsService = new MockPromptsService();
+		const service = new CustomizationHarnessServiceBase(harnesses, harnesses[0].id, promptsService);
+		store.add(service);
+		return service;
 	}
 
 	suite('registerExternalHarness', () => {
+		test('forwards item provider changes via onDidChangeSlashCommands with sessionType', () => {
+			const service = createService();
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const harnessId = 'test-harness';
+			const externalDescriptor: IHarnessDescriptor = {
+				id: harnessId,
+				label: 'Test Harness',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [],
+				},
+			};
+
+			store.add(service.registerExternalHarness(externalDescriptor));
+
+			let firedSessionType: string | undefined;
+			const listener = store.add(service.onDidChangeSlashCommands(e => firedSessionType = e.sessionType));
+			store.add(listener);
+
+			emitter.fire();
+			assert.strictEqual(firedSessionType, harnessId);
+		});
+
 		test('adds harness to available list', () => {
 			const service = createService();
 			assert.strictEqual(service.availableHarnesses.get().length, 1);
@@ -90,7 +121,7 @@ suite('CustomizationHarnessService', () => {
 			assert.strictEqual(service.activeHarness.get(), 'test-ext');
 
 			reg.dispose();
-			assert.strictEqual(service.activeHarness.get(), CustomizationHarness.VSCode);
+			assert.strictEqual(service.activeHarness.get(), SessionType.Local);
 		});
 
 		test('allows switching to external harness', () => {
@@ -147,7 +178,7 @@ suite('CustomizationHarnessService', () => {
 				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill' },
 			];
 
-			const itemProvider: IExternalCustomizationItemProvider = {
+			const itemProvider: ICustomizationItemProvider = {
 				onDidChange: emitter.event,
 				provideChatSessionCustomizations: async () => testItems,
 			};
@@ -296,6 +327,67 @@ suite('CustomizationHarnessService', () => {
 
 			// Active stays on 'cli' because the static harness with the same id is restored
 			assert.strictEqual(service.activeHarness.get(), 'cli');
+		});
+	});
+
+	suite('getSlashCommands', () => {
+		test('uses the active harness provider for prompt and skill items', async () => {
+
+
+			const testSessionType = 'test-session-type';
+
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const service = createService({
+				id: testSessionType,
+				label: 'Test Extension',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [
+						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something' },
+						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill' },
+						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me' },
+						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false },
+					],
+				},
+			});
+
+			const commands = await service.getSlashCommands(testSessionType, CancellationToken.None);
+			assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type })), [
+				{ name: 'fix', type: PromptsType.prompt },
+				{ name: 'lint', type: PromptsType.skill },
+			]);
+		});
+
+		test('falls back to promptsService when the active harness has no provider', async () => {
+
+			const testSessionType = 'test-session-type';
+			const promptsService = new class extends MockPromptsService {
+				override async getPromptSlashCommands() {
+					return [
+						{ uri: URI.parse('file:///workspace/.github/prompts/explain.prompt.md'), name: 'explain', type: PromptsType.prompt, storage: PromptsStorage.local, userInvocable: false, when: undefined, sessionTypes: [testSessionType] },
+						{ uri: URI.parse('file:///workspace/.github/skills/review/SKILL.md'), name: 'review', type: PromptsType.skill, storage: PromptsStorage.user, userInvocable: true, when: undefined },
+					];
+				}
+				override isValidSlashCommandName() { return true; }
+			};
+			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
+			store.add(service);
+			{
+				const commands = await service.getSlashCommands(testSessionType, CancellationToken.None);
+				assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type, userInvocable: command.userInvocable, sessionTypes: command.sessionTypes })), [
+					{ name: 'explain', type: PromptsType.prompt, userInvocable: false, sessionTypes: [testSessionType] },
+					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
+				]);
+			}
+			{
+				const commands = await service.getSlashCommands(SessionType.Local, CancellationToken.None);
+				assert.deepStrictEqual(commands.map(command => ({ name: command.name, type: command.type, userInvocable: command.userInvocable, sessionTypes: command.sessionTypes })), [
+					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
+				]);
+			}
 		});
 	});
 

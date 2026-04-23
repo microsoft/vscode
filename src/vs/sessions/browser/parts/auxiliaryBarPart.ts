@@ -5,6 +5,7 @@
 
 import '../../../workbench/browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import './media/auxiliaryBarPart.css';
+import { localize } from '../../../nls.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -13,9 +14,8 @@ import { INotificationService } from '../../../platform/notification/common/noti
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from '../../../workbench/common/contextkeys.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
-import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { sessionsAuxiliaryBarBackground } from '../../common/theme.js';
+import { ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER } from '../../../workbench/common/theme.js';
+import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground, agentsBadgeBackground, agentsBadgeForeground } from '../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -35,6 +35,7 @@ import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/a
 import { getFlatContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -55,6 +56,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 	private static readonly RUN_SCRIPT_DROPDOWN_MENU_ID = MenuId.for('AgentSessionsRunScriptDropdown');
+	private static readonly DEFAULT_MINIMUM_WIDTH = 270;
 
 	// Run script dropdown management
 	private readonly _runScriptDropdown = this._register(new MutableDisposable<DropdownWithPrimaryActionViewItem>());
@@ -62,10 +64,15 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private readonly _runScriptMenuListener = this._register(new MutableDisposable<IDisposable>());
 
 	// Sessions-specific auxiliary bar dimensions (intentionally not tied to the sessions SidebarPart values)
-	override readonly minimumWidth: number = 270;
+	override get minimumWidth(): number {
+		return AuxiliaryBarPart.DEFAULT_MINIMUM_WIDTH;
+	}
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean {
+		return this.hasAttachedEditorRequiringSidebarSpace() ? false : super.snap;
+	}
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -83,7 +90,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 380);
+		return Math.max(width, 340);
 	}
 
 	readonly priority = LayoutPriority.Low;
@@ -119,7 +126,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.AuxiliaryBar,
 			Extensions.Auxiliary,
 			Menus.AuxiliaryBarTitle,
-			Menus.AuxiliaryBarTitleLeft,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -134,6 +140,17 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.EDITOR_PART) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		parent.setAttribute('role', 'complementary');
+		parent.setAttribute('aria-label', localize('auxiliaryBarAriaLabel', "Session Details"));
 	}
 
 	override updateStyles(): void {
@@ -142,10 +159,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const container = assertReturnsDefined(this.getContainer());
 
 		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(sessionsAuxiliaryBarBackground) || '');
-		container.style.setProperty('--part-border-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || 'transparent');
-		container.style.backgroundColor = this.getColor(sessionsAuxiliaryBarBackground) || '';
-		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
+		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
+		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
 
 		// Clear borders - the card appearance uses border-radius instead
 		container.style.borderLeftColor = '';
@@ -174,13 +191,13 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			iconSize: 16,
 			get overflowActionSize() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? 40 : 30; },
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(sessionsAuxiliaryBarBackground),
-				inactiveBackgroundColor: theme.getColor(sessionsAuxiliaryBarBackground),
+				activeBackgroundColor: theme.getColor(agentsPanelBackground),
+				inactiveBackgroundColor: theme.getColor(agentsPanelBackground),
 				get activeBorderBottomColor() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? theme.getColor(PANEL_ACTIVE_TITLE_BORDER) : theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER); },
 				get activeForegroundColor() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND); },
 				get inactiveForegroundColor() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND); },
-				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
-				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+				badgeBackground: theme.getColor(agentsBadgeBackground),
+				badgeForeground: theme.getColor(agentsBadgeForeground),
 				get dragAndDropBorder() { return $this.getCompositeBarPosition() === CompositeBarPosition.TITLE ? theme.getColor(PANEL_DRAG_AND_DROP_BORDER) : theme.getColor(ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER); }
 			}),
 			compact: true
@@ -245,6 +262,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			};
 			this._runScriptDropdown.value.update(dropdownAction, dropdownActions);
 		}
+	}
+
+	private hasAttachedEditorRequiringSidebarSpace(): boolean {
+		return this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+			&& this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }

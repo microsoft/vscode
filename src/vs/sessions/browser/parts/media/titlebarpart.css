@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container {
+	justify-content: initial;
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;
@@ -59,19 +63,26 @@
 	align-items: center;
 }
 
-/* Separator before right layout toolbar (only when session actions toolbar also has actions) */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions)::before {
-	content: '';
-	width: 1px;
-	height: 16px;
-	margin: 0 8px;
-	background-color: var(--vscode-disabledForeground);
+/* Add spacing between the session action group and the right layout actions. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
+	margin-left: 8px;
 }
 
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Secondary sidebar toggle uses icon variants for toggle state — no background needed */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked {
+	background: none;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked:hover,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
@@ -110,11 +121,6 @@
 	display: flex;
 }
 
-/* Hide the entire titlebar left when the sidebar is visible */
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left {
-	display: none !important;
-}
-
 /* Remove the titlebar shadow in agent sessions */
 .agent-sessions-workbench.monaco-workbench .part.titlebar {
 	box-shadow: none;
@@ -123,4 +129,38 @@
 /* macOS native: the spacer uses window-controls-container but should not block dragging */
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;
+}
+
+/* ---- Phone Layout: Minimal Titlebar ---- */
+
+/* On phone, ensure the titlebar left is visible (it holds the hamburger area)
+	even when sidebar is hidden. Override the nosidebar rule. */
+.agent-sessions-workbench.phone-layout.nosidebar .part.titlebar > .sessions-titlebar-container > .titlebar-left {
+	display: flex !important;
+}
+
+/* But hide the toolbar content inside it — only structural element remains */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
+	display: none !important;
+}
+
+/* Hide the window controls spacer on phone (no native traffic lights on mobile) */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container {
+	display: none !important;
+}
+
+/* Keep the center (session title) visible and full-width on phone */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-center {
+	flex: 1;
+	min-width: 0;
+}
+
+/* On phone, hide ALL right-side action containers (session actions + layout actions) */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
+	display: none !important;
+}
+
+/* Ensure safe area padding on top for notch */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
+	padding-top: env(safe-area-inset-top);
 }

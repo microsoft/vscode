@@ -6,7 +6,7 @@
 import * as l10n from '@vscode/l10n';
 import { shouldInclude } from '../../../../util/common/glob';
 import { Result } from '../../../../util/common/result';
-import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
+import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { raceCancellationError, raceTimeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
@@ -33,7 +33,7 @@ import { Change } from '../../../git/vscode/git';
 import { logExecTime, LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';
 import { IAdoCodeSearchService } from '../../../remoteCodeSearch/common/adoCodeSearchService';
-import { CodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
+import { SemanticCodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
 import { ICodeSearchAuthenticationService } from '../../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { isGitHubRemoteRepository } from '../../../remoteRepositories/common/utils';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
@@ -168,10 +168,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the authentication state changes, update repos
-		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			this.updateRepoStatuses(undefined, new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
-		}));
+		// When the github authentication state changes, update repos only if the session actually changed
+		{
+			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
+			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			this._register(this._authenticationService.onDidAuthenticationChange(() => {
+				const anySessionId = this._authenticationService.anyGitHubSession?.id;
+				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
+				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+					return;
+				}
+				lastAnyGitHubSessionId = anySessionId;
+				lastPermissiveGitHubSessionId = permissiveSessionId;
+				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
+			}));
+		}
 
 		this._register(Event.any(
 			this._authenticationService.onDidAdoAuthenticationChange,
@@ -544,13 +555,13 @@ export class CodeSearchChunkSearch extends Disposable {
 					localSearchCts.cancel();
 					throw e;
 				})
-				: Promise.resolve({ chunks: [], outOfSync: false });
+				: Promise.resolve<SemanticCodeSearchResult>({ chunks: [], outOfSync: false });
 
 			const localSearchOperation = raceTimeout(this.searchLocalDiff(diffArray, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
 				localSearchCts.cancel();
 			});
 
-			let codeSearchResults: CodeSearchResult | undefined;
+			let codeSearchResults: SemanticCodeSearchResult | undefined;
 			let localResults: DiffSearchResult | undefined;
 			try {
 				codeSearchResults = await raceCancellationError(codeSearchOperation, token);
@@ -662,7 +673,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			// Also force it to search the local diff too so we can can override stale code-search results.
 			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
 
-			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo.callTracker, token);
+			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
 			if (externalResult) {
 				const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
 				const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
@@ -709,7 +720,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('codeSearchChunkSearch.perf.doCodeSearchWithRetry', { status }, { execTime });
 	})
-	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult | undefined> {
+	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult | undefined> {
 		const results = await Promise.all(repos.map(repo => {
 			return repo.searchRepo({ silent: true }, this._embeddingType, query.queryText, sizing.maxResultCountHint, options, telemetryInfo, token);
 		}));
@@ -840,7 +851,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		// Update external ingest index if enabled
 		const externalIndexEnabled = this.isExternalIngestEnabled();
 		if (externalIndexEnabled) {
-			const result = await raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo.callTracker, onProgress, token), token);
+			const result = await raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token), token);
 			if (result.isError()) {
 				return Result.error(result.err);
 			}
@@ -978,7 +989,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		return undefined;
 	}
 
-	public deleteExternalIngestWorkspaceIndex(callTracker: CallTracker, token: CancellationToken): Promise<void> {
-		return this._externalIngestIndex.value.deleteIndex(callTracker, token);
+	public deleteExternalIngestWorkspaceIndex(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<void> {
+		return this._externalIngestIndex.value.deleteIndex(telemetryInfo, token);
 	}
 }

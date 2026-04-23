@@ -21,6 +21,7 @@
 .monaco-action-bar .action-item .chat-session-option-picker {
 	align-items: center;
 	overflow: hidden;
+	padding: 2px 3px;
 
 	.chat-session-option-label {
 		overflow: hidden;

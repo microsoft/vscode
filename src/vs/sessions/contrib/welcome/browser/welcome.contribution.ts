@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWeb } from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -18,6 +19,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { SessionsWalkthroughOverlay, WalkthroughOutcome } from './sessionsWalkthrough.js';
 import { WELCOME_COMPLETE_KEY } from '../../../common/welcome.js';
 
@@ -113,6 +115,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -128,12 +131,65 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			return;
 		}
 
+		if (isWeb) {
+			// On web, show the walkthrough if the user is not authenticated.
+			// Auth is handled by the walkthrough's GitHub button via
+			// IAuthenticationService. Discovery runs separately after auth.
+			this._checkWebAuth();
+			this._watchWebAuth();
+			return;
+		}
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 		if (isFirstLaunch) {
 			this.showWalkthrough();
 		} else {
 			this.showWalkthroughIfNeeded();
 		}
+	}
+
+	/**
+	 * Web-only: check if the user has a GitHub session. If not, show the
+	 * walkthrough so they can sign in. If they're already authenticated,
+	 * skip the walkthrough and let discovery handle the rest.
+	 */
+	private async _checkWebAuth(): Promise<void> {
+		try {
+			const sessions = await this.authenticationService.getSessions('github');
+			if (sessions.length > 0) {
+				this.logService.info('[sessions welcome] GitHub session found on web, skipping walkthrough');
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				return;
+			}
+		} catch {
+			// Provider not available yet — show walkthrough
+		}
+		this.showWalkthrough();
+	}
+
+	/**
+	 * Web-only: react to GitHub session loss. When the user's last GitHub
+	 * session is removed (token expired, secret storage wiped, or explicit
+	 * sign-out from the account menu), clear the welcome completion marker
+	 * and show the sign-in walkthrough again. Without this, passive sign-out
+	 * leaves the user on a seemingly-working workbench with a stale UI.
+	 */
+	private _watchWebAuth(): void {
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== 'github' || !e.event.removed?.length) {
+				return;
+			}
+			try {
+				const remaining = await this.authenticationService.getSessions('github');
+				if (remaining.length > 0) {
+					return;
+				}
+			} catch {
+				// Provider became unavailable — treat as signed out
+			}
+			this.logService.info('[sessions welcome] GitHub session removed on web, re-showing walkthrough');
+			this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+			this.showWalkthrough();
+		}));
 	}
 
 	private showWalkthroughIfNeeded(): void {

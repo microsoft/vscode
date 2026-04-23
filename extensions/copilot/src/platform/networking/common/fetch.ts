@@ -21,12 +21,16 @@ export interface RequestId {
 }
 
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
+	const serverExperiments = headers.get('X-Copilot-Experiment') || '';
+	const capiExpAssignmentContext = headers.get('x-copilot-api-exp-assignment-context') || '';
 	return {
 		headerRequestId: headers.get('x-request-id') || '',
 		gitHubRequestId: headers.get('x-github-request-id') || '',
 		completionId: json && json.id ? json.id : '',
 		created: json && json.created ? json.created : 0,
-		serverExperiments: headers.get('X-Copilot-Experiment') || '',
+		serverExperiments: serverExperiments && capiExpAssignmentContext
+			? `${serverExperiments};${capiExpAssignmentContext}`
+			: serverExperiments || capiExpAssignmentContext,
 		deploymentId: headers.get('azureml-model-deployment') || '',
 	};
 }
@@ -83,17 +87,6 @@ export interface ICopilotToolCall {
 	name: string;
 	arguments: string;
 	id: string;
-}
-
-export interface IServerToolCall {
-	/** Indicates this is a server-side tool call (e.g., tool_search, websearch) - not validated/executed by client */
-	isServer: true;
-	name: string;
-	id: string;
-	/** The parsed input arguments for this tool call */
-	args?: unknown;
-	/** The parsed result returned by the server for this tool call */
-	result?: unknown;
 }
 
 export interface ICopilotToolCallStreamUpdate {
@@ -158,8 +151,6 @@ export interface IResponseDelta {
 	statefulMarker?: string;
 	/** Context management information from Anthropic Messages API */
 	contextManagement?: ContextManagementResponse | OpenAIContextManagementResponse;
-	/** Server-side tool calls (e.g., tool_search) - reported for logging but not validated/executed */
-	serverToolCalls?: IServerToolCall[];
 }
 
 export function isOpenAIContextManagementResponse(value: ContextManagementResponse | OpenAIContextManagementResponse): value is OpenAIContextManagementResponse {
@@ -297,7 +288,17 @@ export interface OpenAiResponsesFunctionTool extends OpenAiFunctionDef {
 	type: 'function';
 }
 
-export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool): tool is OpenAiFunctionTool {
+/** OpenAI Responses API client-executed tool_search tool declaration. See https://developers.openai.com/api/docs/guides/tools-tool-search */
+export interface OpenAiToolSearchTool {
+	type: 'tool_search';
+	execution: 'client';
+	/** Description for client-executed tool search. */
+	description?: string;
+	/** Parameters schema for client-executed tool search. */
+	parameters?: Record<string, unknown>;
+}
+
+export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool): tool is OpenAiFunctionTool {
 	return (tool as OpenAiFunctionTool).function !== undefined;
 }
 
@@ -313,12 +314,12 @@ export type StreamOptions = {
 	 * All other chunks will also include a usage field, but with a null value. NOTE: If the stream is interrupted, you may not receive the final usage chunk which contains the total token usage for the request.
 	 */
 	include_usage?: boolean;
-}
+};
 
 export type Prediction = {
 	type: 'content';
 	content: string | { type: string; text: string }[];
-}
+};
 
 /** based on https://platform.openai.com/docs/api-reference/chat/create
  *

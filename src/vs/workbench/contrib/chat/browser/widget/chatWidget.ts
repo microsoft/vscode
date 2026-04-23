@@ -66,7 +66,6 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
-import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
@@ -85,6 +84,8 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 
 const $ = dom.$;
 
@@ -356,7 +357,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					attachmentCapabilities: this.attachmentCapabilities,
-					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
+					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+					sessionType: getChatSessionType(this.viewModel.model.sessionResource)
 				});
 			this._onDidChangeParsedInput.fire();
 		}
@@ -403,6 +405,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
@@ -465,6 +468,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				} else {
 					this.updateChatViewVisibility();
 				}
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ProgressBorder)) {
+				this.updateWorkingProgressBorder();
 			}
 		}));
 
@@ -655,6 +661,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private get inlineInputPart(): ChatInputPart {
 		return this.inlineInputPartDisposable.value!;
+	}
+
+	private updateWorkingProgressBorder(): void {
+		const inputPart = this.inputPartDisposable.value;
+		if (!inputPart) {
+			return;
+		}
+		const inputContainer = inputPart.inputContainerElement;
+		if (!inputContainer) {
+			return;
+		}
+		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) === true;
+		const inProgress = !!this.viewModel?.model.requestInProgress.get();
+		inputContainer.classList.toggle('working', enabled && inProgress);
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -876,7 +896,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previous = this.parsedChatRequest;
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this.attachmentCapabilities });
+		const context = {
+			selectedAgent: this._lastSelectedAgent,
+			mode: this.input.currentModeKind,
+			attachmentCapabilities: this.attachmentCapabilities,
+			sessionType: getChatSessionType(this.viewModel.model.sessionResource),
+			forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+		};
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, context);
 		if (!previous || !IParsedChatRequest.equals(previous, this.parsedChatRequest)) {
 			this._onDidChangeParsedInput.fire();
 		}
@@ -993,6 +1020,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private renderWelcomeViewContentIfNeeded() {
 		if (this._isRenderingWelcome) {
+			return;
+		}
+
+		// The input part may not be rendered yet (or may have been disposed) when this is
+		// called from async flows such as `lockToCodingAgent` / `unlockFromCodingAgent` that
+		// run after `showModel` resolves. Bail out to avoid dereferencing an undefined input.
+		if (!this.inputPartDisposable.value) {
 			return;
 		}
 
@@ -1867,7 +1901,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (e.followup.subCommand) {
 					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
 				}
-			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand)) {
+			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand, getChatSessionType(this.viewModel.model.sessionResource))) {
 				msg = `${chatSubcommandLeader}${e.followup.subCommand} `;
 			}
 
@@ -1967,10 +2001,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!model) {
+			// Flush any unsent draft to the outgoing input model before we drop our
+			// reference to it, so the host's `willDisposeModel` persistence sees it.
+			this.inputPart.flushInputStateToModel();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
 			this.viewModel = undefined;
+			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
 			return;
@@ -2026,6 +2064,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
+			this.updateWorkingProgressBorder();
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -2044,6 +2083,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// Disposes the viewmodel and listeners
 			this.viewModel = undefined;
+			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
@@ -2164,7 +2204,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
 		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
-		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: true, progressMessageAtBottomOfResponse: true });
+		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: false, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2186,7 +2226,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		this.inputEditor?.updateOptions({ placeholder: undefined });
-		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2253,7 +2293,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 	}
 
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI): Promise<void> {
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
@@ -2264,8 +2304,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
+		const sessionType = getChatSessionType(sessionResource);
+
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, CancellationToken.None);
+		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
 		if (!slashCommand) {
 			return;
 		}
@@ -2377,10 +2419,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// process the prompt command
-		await this._applyPromptFileIfSet(requestInputs);
-		markChat(this.viewModel.sessionResource, ChatPerfMark.WillCollectInstructions);
-		await this._autoAttachInstructions(requestInputs);
-		markChat(this.viewModel.sessionResource, ChatPerfMark.DidCollectInstructions);
+		await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
@@ -2426,9 +2465,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.viewModel.model.setCheckpoint(undefined);
 		}
+		// Capture instruction-collection parameters synchronously — the service
+		// will collect instructions asynchronously after showing the request in the UI.
+		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
+		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
+
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
 		const submittedSessionResource = this.viewModel.sessionResource;
+
+		// For contributed session types, only collect automatic instructions when
+		// the contribution explicitly opts in via autoAttachReferences.
+		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
@@ -2442,7 +2491,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
-
+			instructionContext: autoAttachEnabled ? {
+				modeKind: this.input.currentModeKind,
+				enabledTools,
+				enabledSubAgents,
+			} : undefined,
 		});
 
 		if (ChatSendResult.isRejected(result)) {
@@ -2561,6 +2614,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
 		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
+			if (this._store.isDisposed) {
+				return lastToolsSnapshot;
+			}
 			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
 			const currentModeId = this.input.currentModeObs.read(reader).id;
 			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {
@@ -2809,35 +2865,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (model !== undefined) {
 			this.input.switchModelByQualifiedName(model);
-		}
-	}
-
-	/**
-	 * Adds additional instructions to the context
-	 * - instructions that have a 'applyTo' pattern that matches the current input
-	 * - instructions referenced in the copilot settings 'copilot-instructions'
-	 * - instructions referenced in an already included instruction file
-	 */
-	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
-		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
-
-		// For contributed session types, default to false for autoAttachReferences.
-		const isContributedSession = !!contribution;
-		const autoAttachEnabled = isContributedSession ?
-			contribution.autoAttachReferences === true : true;
-
-		if (!autoAttachEnabled) {
-			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
-			return;
-		}
-		try {
-			this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
-			const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-			const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents);
-			await computer.collect(attachedContext, CancellationToken.None);
-		} catch (err) {
-			this.logService.error(`ChatWidget#_autoAttachInstructions: failed to compute automatic instructions`, err);
 		}
 	}
 

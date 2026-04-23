@@ -24,7 +24,7 @@ import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
@@ -132,6 +132,8 @@ export interface IChatContentReference {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
 		originalUri?: URI;
+		/** Overrides the reference URI when opening the modified side of a diff. */
+		modifiedUri?: URI;
 		isDeletion?: boolean;
 	};
 	kind: 'reference';
@@ -287,6 +289,11 @@ export interface IChatWarningMessage {
 	kind: 'warning';
 }
 
+export interface IChatInfoMessage {
+	content: IMarkdownString;
+	kind: 'info';
+}
+
 export interface IChatAgentVulnerabilityDetails {
 	title: string;
 	description: string;
@@ -385,6 +392,7 @@ export interface IChatQuestion {
 	allowFreeformInput?: boolean;
 	required?: boolean;
 	validation?: IChatQuestionValidation;
+	detailedMessage?: string | IMarkdownString;
 }
 
 /** Answer shape for a single-select question. */
@@ -422,6 +430,8 @@ export interface IChatQuestionCarousel {
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
+	/** Terminal ID when the carousel was triggered by a terminal needing input */
+	terminalId?: string;
 	kind: 'questionCarousel';
 }
 
@@ -613,6 +623,12 @@ export type ConfirmedReason =
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+	/**
+	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
+	 * tool invocation part to re-render when the kind changes (e.g. from
+	 * `'input'` to `'terminal'` when terminal content arrives).
+	 */
+	readonly toolSpecificDataKind: IObservable<string | undefined>;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
@@ -973,6 +989,16 @@ export interface IChatModifiedFilesConfirmationData {
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
 		readonly originalUri?: UriComponents;
+		/**
+		 * Optional URI to read the modified (after) content from for the diff
+		 * view. When absent, {@link uri} is used as the modified side.
+		 */
+		readonly modifiedContentUri?: UriComponents;
+		/**
+		 * Optional URI to read the original (before) content from for the diff
+		 * view. When absent, {@link originalUri} is used as the original side.
+		 */
+		readonly originalContentUri?: UriComponents;
 		readonly insertions?: number;
 		readonly deletions?: number;
 		readonly title?: string;
@@ -995,6 +1021,49 @@ export interface IChatMcpServersStartingSerialized {
 
 export interface IChatDisabledClaudeHooksPart {
 	readonly kind: 'disabledClaudeHooks';
+}
+
+/** A single approval option shown in the plan review dropdown button. */
+export interface IChatPlanApprovalAction {
+	label: string;
+	description?: string;
+	default?: boolean;
+	/** When set to 'autopilot', a confirmation dialog is shown before proceeding. */
+	permissionLevel?: 'autopilot';
+}
+
+/** The result of reviewing a plan. */
+export interface IChatPlanReviewResult {
+	action?: string;
+	rejected: boolean;
+	feedback?: string;
+}
+
+/**
+ * A plan review widget. Presents a title, markdown plan content, an optional
+ * link to edit the backing plan file, a dropdown of approval actions, a reject
+ * button and an optional feedback textarea.
+ */
+export interface IChatPlanReview {
+	kind: 'planReview';
+	/** Title to display in the widget header. */
+	title: string;
+	/** Markdown content rendered in the body (plan summary or contents). */
+	content: string;
+	/** Selectable approval actions. Displayed as a dropdown primary button. */
+	actions: IChatPlanApprovalAction[];
+	/** Whether to show the additional feedback textarea. */
+	canProvideFeedback: boolean;
+	/** Optional URI to the underlying plan file. An Edit button opens it. */
+	planUri?: UriComponents;
+	/** Unique identifier for resolving the review back to the extension. */
+	resolveId?: string;
+	/** Stored result once the user has responded. */
+	data?: IChatPlanReviewResult;
+	/** Whether the widget has been responded to. */
+	isUsed?: boolean;
+	/** Source attribution. */
+	source?: ToolDataSource;
 }
 
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
@@ -1041,6 +1110,7 @@ export type IChatProgress =
 	| IChatTaskResult
 	| IChatCommandButton
 	| IChatWarningMessage
+	| IChatInfoMessage
 	| IChatTextEdit
 	| IChatNotebookEdit
 	| IChatWorkspaceEdit
@@ -1048,6 +1118,7 @@ export type IChatProgress =
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatQuestionCarousel
+	| IChatPlanReview
 	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
@@ -1383,6 +1454,7 @@ export interface IChatSendRequestOptions {
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
+	agentHostSessionConfig?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -1420,7 +1492,23 @@ export interface IChatSendRequestOptions {
 	 */
 	systemInitiatedLabel?: string;
 
+	/**
+	 * Structured terminal execution ID for system-initiated terminal notifications.
+	 * This avoids parsing IDs from request text when tools need to correlate
+	 * terminal prompts with follow-up actions.
+	 */
+	terminalExecutionId?: string;
 
+	/**
+	 * When set, the chat service will collect automatic instructions
+	 * (for example `.instructions.md` files and skills) asynchronously after showing
+	 * the request in the UI, rather than blocking the UI on collection.
+	 */
+	instructionContext?: {
+		modeKind: ChatModeKind;
+		enabledTools?: UserSelectedTools;
+		enabledSubAgents?: readonly string[];
+	};
 }
 
 export type IChatModelReference = IReference<IChatModel>;

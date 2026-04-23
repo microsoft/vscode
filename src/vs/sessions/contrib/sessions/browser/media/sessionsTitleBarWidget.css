@@ -10,31 +10,18 @@
 }
 
 .agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
-	position: relative;
-	margin-left: 8px;
-	padding-left: 12px;
-}
-
-.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	top: 50%;
-	width: 1px;
-	height: 16px;
-	transform: translateY(-50%);
-	background-color: var(--vscode-commandCenter-border);
-	pointer-events: none;
+	margin-left: 0;
 }
 
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 100%;
+	flex: 1;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	min-width: 0;
+	margin-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -45,7 +32,7 @@
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
-	padding-left: 0;
+	margin-left: 0;
 }
 
 /* Session pill - clickable area for session picker */
@@ -56,6 +43,8 @@
 	border-radius: 4px;
 	min-width: 0;
 	max-width: 600px;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
@@ -72,9 +61,11 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 auto;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
+	overflow: hidden;
 }
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
@@ -89,24 +80,31 @@
 
 /* Label (title) */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	flex: 0 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-weight: 500;
 }
 
-/* Repository/folder label */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+/* Repository/worktree metadata shrinks before the primary title. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
 	display: flex;
 	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
+	flex: 0 999 auto;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
 }
 
-/* Dot separator */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	opacity: 0.5;
-	flex-shrink: 0;
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.7;
 }
 
 /* Provider label (shown for untitled sessions) */
@@ -136,7 +134,7 @@
 	font-variant-numeric: tabular-nums;
 	text-align: center;
 	border-radius: 4px;
-	background-color: var(--vscode-activityBarBadge-background);
-	color: var(--vscode-activityBarBadge-foreground);
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
 }

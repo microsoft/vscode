@@ -715,4 +715,105 @@ describe('ChatDebugFileLoggerService', () => {
 		expect(pathB).toBeDefined();
 		expect(pathA!.fsPath).not.toBe(pathB!.fsPath);
 	});
+
+	it('routes hook spans to child session when registerSpanSession maps parentSpanId', async () => {
+		// Set up parent session
+		await service.startSession('parent-hook');
+		otelService.fireSpan(makeToolCallSpan('parent-hook', 'read_file'));
+
+		// Register child session and its invoke_agent span ID
+		service.startChildSession('child-hook', 'parent-hook', 'runSubagent-default');
+		service.registerSpanSession('invoke-agent-span-123', 'child-hook');
+
+		// Fire a hook span with CHAT_SESSION_ID=parent but parentSpanId=child's invoke_agent
+		const hookSpan = makeSpan({
+			name: 'PreToolUse',
+			spanId: 'hook-span-1',
+			parentSpanId: 'invoke-agent-span-123',
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: 'execute_hook',
+				[CopilotChatAttr.CHAT_SESSION_ID]: 'parent-hook', // Parent's session ID
+			},
+		});
+		otelService.fireSpan(hookSpan);
+
+		await service.flush('parent-hook');
+		await service.flush('child-hook');
+
+		// Hook should be written to child session, not parent
+		const parentEntries = await readLogEntries('parent-hook');
+		const parentHooks = parentEntries.filter(e => e.type === 'hook');
+		expect(parentHooks).toHaveLength(0);
+
+		const childEntries = await service.readEntries('child-hook');
+		const childHooks = childEntries.filter(e => e.type === 'hook');
+		expect(childHooks).toHaveLength(1);
+		expect(childHooks[0].name).toBe('PreToolUse');
+	});
+
+	describe('listSessionIds', () => {
+		it('returns empty when no sessions exist', async () => {
+			const ids = await service.listSessionIds();
+			expect(ids).toHaveLength(0);
+		});
+
+		it('lists session directories on disk', async () => {
+			await service.startSession('session-a');
+			otelService.fireSpan(makeToolCallSpan('session-a', 'read_file'));
+			await service.flush('session-a');
+
+			await service.startSession('session-b');
+			otelService.fireSpan(makeToolCallSpan('session-b', 'edit_file'));
+			await service.flush('session-b');
+
+			const ids = await service.listSessionIds();
+			expect(ids).toContain('session-a');
+			expect(ids).toContain('session-b');
+		});
+
+		it('returns sessions sorted by most recently modified first', async () => {
+			await service.startSession('older-session');
+			otelService.fireSpan(makeToolCallSpan('older-session', 'read_file'));
+			await service.flush('older-session');
+
+			// Small delay so mtime differs
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			await service.startSession('newer-session');
+			otelService.fireSpan(makeToolCallSpan('newer-session', 'edit_file'));
+			await service.flush('newer-session');
+
+			const ids = await service.listSessionIds();
+			expect(ids.indexOf('newer-session')).toBeLessThan(ids.indexOf('older-session'));
+		});
+
+		it('does not include non-directory entries', async () => {
+			// Create a session directory
+			await service.startSession('real-session');
+			otelService.fireSpan(makeToolCallSpan('real-session', 'read_file'));
+			await service.flush('real-session');
+
+			// Create a stray file in the debug-logs directory
+			const debugLogsDir = service.debugLogsDir!;
+			await fs.promises.writeFile(path.join(debugLogsDir.fsPath, 'stray-file.jsonl'), '{}');
+
+			const ids = await service.listSessionIds();
+			expect(ids).toContain('real-session');
+			expect(ids).not.toContain('stray-file.jsonl');
+		});
+
+		it('handles stat failures gracefully', async () => {
+			await service.startSession('good-session');
+			otelService.fireSpan(makeToolCallSpan('good-session', 'read_file'));
+			await service.flush('good-session');
+
+			// Create an empty directory that can be listed but stat should still work
+			const debugLogsDir = service.debugLogsDir!;
+			await fs.promises.mkdir(path.join(debugLogsDir.fsPath, 'empty-dir'));
+
+			const ids = await service.listSessionIds();
+			expect(ids).toContain('good-session');
+			expect(ids).toContain('empty-dir');
+		});
+	});
 });

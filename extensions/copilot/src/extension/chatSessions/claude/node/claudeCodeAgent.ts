@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HookCallbackMatcher, HookEvent, HookInput, HookJSONOutput, McpServerConfig, Options, PermissionMode, PreToolUseHookInput, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
@@ -15,25 +15,24 @@ import { CopilotChatAttr, GenAiAttr, IOTelService, type ISpanHandle, SpanKind, S
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifecycle';
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
+import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
-import { buildHooksFromRegistry } from '../common/claudeHookRegistry';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
-import { claudeEditTools, getAffectedUrisForEditTool } from '../common/claudeTools';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
 import { ClaudeLanguageModelServer, IClaudeLanguageModelServerConfig } from './claudeLanguageModelServer';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
-import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
+import { ParsedClaudeModelId } from '../common/claudeModelId';
+import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 // Manages Claude Code agent interactions and language model server lifecycle
 export class ClaudeAgentManager extends Disposable {
@@ -80,7 +79,7 @@ export class ClaudeAgentManager extends Disposable {
 			const langModelServer = await this.getLangModelServer();
 			const serverConfig = langModelServer.getConfig();
 
-			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId}, permissionMode=${permissionMode}.`);
+			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId.toEndpointModelId()}, permissionMode=${permissionMode}.`);
 			let session: ClaudeCodeSession;
 			if (this._sessions.has(claudeSessionId)) {
 				this.logService.trace(`[ClaudeAgentManager] Reusing Claude session ${claudeSessionId}.`);
@@ -161,8 +160,9 @@ export class ClaudeCodeSession extends Disposable {
 	private _abortController = new AbortController();
 	private _editTracker: ExternalEditTracker;
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
-	private _currentModelId: string;
+	private _currentModelId: ParsedClaudeModelId;
 	private _currentPermissionMode: PermissionMode;
+	private _currentEffort: EffortLevel | undefined;
 	private _isResumed: boolean;
 	private _yieldInProgress = false;
 	private _sessionStarting: Promise<void> | undefined;
@@ -173,14 +173,15 @@ export class ClaudeCodeSession extends Disposable {
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
 	 */
-	private async _setModel(modelId: string): Promise<void> {
+	private async _setModel(modelId: ParsedClaudeModelId): Promise<void> {
 		if (modelId === this._currentModelId) {
 			return;
 		}
 		this._currentModelId = modelId;
 		if (this._queryGenerator) {
-			this.logService.trace(`[ClaudeCodeSession] Setting model to ${modelId} on active session`);
-			await this._queryGenerator.setModel(modelId);
+			const sdkId = modelId.toSdkModelId();
+			this.logService.trace(`[ClaudeCodeSession] Setting model to ${sdkId} on active session`);
+			await this._queryGenerator.setModel(sdkId);
 		}
 	}
 
@@ -202,7 +203,7 @@ export class ClaudeCodeSession extends Disposable {
 		private readonly serverConfig: IClaudeLanguageModelServerConfig,
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
-		initialModelId: string,
+		initialModelId: ParsedClaudeModelId,
 		initialPermissionMode: PermissionMode,
 		isNewSession: boolean,
 		@ILogService private readonly logService: ILogService,
@@ -214,6 +215,7 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 	) {
@@ -338,7 +340,15 @@ export class ClaudeCodeSession extends Disposable {
 		// Do this BEFORE starting a session so the Options are correct from the start
 		const modelId = this.sessionStateService.getModelIdForSession(this.sessionId);
 		const permissionMode = this.sessionStateService.getPermissionModeForSession(this.sessionId);
+		const effortLevel = this.sessionStateService.getReasoningEffortForSession(this.sessionId);
 
+		if (effortLevel !== this._currentEffort) {
+			this._currentEffort = effortLevel;
+			// Effort doesn't have a direct setter on the query generator, so we need to restart the session
+			if (this._queryGenerator) {
+				this._restartSession();
+			}
+		}
 		// Update model and permission mode on active session if they changed
 		if (modelId) {
 			await this._setModel(modelId);
@@ -421,6 +431,22 @@ export class ClaudeCodeSession extends Disposable {
 			const errorMessage = error instanceof Error ? (error.stack ?? error.message) : String(error);
 			this.logService.warn(`[ClaudeCodeSession] Failed to start MCP gateway: ${errorMessage}`);
 		}
+
+		// Build plugins from skill directories
+		const plugins: SdkPluginConfig[] = [];
+		try {
+			const pluginLocations = await this.claudePluginService.getPluginLocations(token);
+			for (const pluginLocation of pluginLocations) {
+				plugins.push({ type: 'local', path: pluginLocation.fsPath });
+			}
+			if (plugins.length > 0) {
+				this.logService.info(`[ClaudeCodeSession] Passing ${plugins.length} plugin(s) from skill locations`);
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? (error.stack ?? error.message) : String(error);
+			this.logService.warn(`[ClaudeCodeSession] Failed to resolve skill locations for plugins: ${errorMessage}`);
+		}
+
 		const options: Options = {
 			cwd,
 			additionalDirectories,
@@ -428,6 +454,7 @@ export class ClaudeCodeSession extends Disposable {
 			// the permission mode ourselves in the options
 			allowDangerouslySkipPermissions: true,
 			abortController: this._abortController,
+			effort: this._currentEffort,
 			executable: process.execPath as 'node', // get it to fork the EH node process
 			// TODO: CAPI does not yet support the WebSearch tool
 			// Once it does, we can re-enable it.
@@ -437,11 +464,12 @@ export class ClaudeCodeSession extends Disposable {
 				? { resume: this.sessionId }
 				: { sessionId: this.sessionId }),
 			// Pass the model selection to the SDK
-			model: this._currentModelId,
+			model: this._currentModelId.toSdkModelId(),
 			// Pass the permission mode to the SDK
 			permissionMode: this._currentPermissionMode,
-			hooks: this._buildHooks(token),
+			includeHookEvents: true,
 			mcpServers,
+			plugins,
 			settings: {
 				env: {
 					ANTHROPIC_BASE_URL: `http://localhost:${this.serverConfig.port}`,
@@ -494,57 +522,6 @@ export class ClaudeCodeSession extends Disposable {
 		});
 	}
 
-	/**
-	 * Builds the hooks configuration by combining registry-based hooks with edit tool hooks.
-	 */
-	private _buildHooks(token: CancellationToken): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-		const hooks = buildHooksFromRegistry(this.instantiationService);
-
-		// Add edit tool hooks to PreToolUse and PostToolUse
-		if (!hooks.PreToolUse) {
-			hooks.PreToolUse = [];
-		}
-		hooks.PreToolUse.push({
-			matcher: claudeEditTools.join('|'),
-			hooks: [(input, toolID) => this._onWillEditTool(input, toolID, token)]
-		});
-
-		if (!hooks.PostToolUse) {
-			hooks.PostToolUse = [];
-		}
-		hooks.PostToolUse.push({
-			matcher: claudeEditTools.join('|'),
-			hooks: [(input, toolID) => this._onDidEditTool(input, toolID)]
-		});
-
-		return hooks;
-	}
-
-	private async _onWillEditTool(input: HookInput, toolUseID: string | undefined, token: CancellationToken): Promise<HookJSONOutput> {
-		let uris: URI[] = [];
-		try {
-			uris = getAffectedUrisForEditTool(input as PreToolUseHookInput);
-		} catch (error) {
-			this.logService.error('Error getting affected URIs for edit tool', error);
-		}
-		if (!this._currentRequest) {
-			return {};
-		}
-
-		await this._editTracker.trackEdit(
-			toolUseID ?? '',
-			uris,
-			this._currentRequest.stream,
-			token
-		);
-		return {};
-	}
-
-	private async _onDidEditTool(_input: HookInput, toolUseID: string | undefined) {
-		await this._editTracker.completeEdit(toolUseID ?? '');
-		return {};
-	}
-
 	private async *_createPromptIterable(): AsyncIterable<SDKUserMessage> {
 		while (true) {
 			// Wait for a request to be available
@@ -559,7 +536,7 @@ export class ClaudeCodeSession extends Disposable {
 
 			// Increment user-initiated message count for this model
 			// This is used by the language model server to track which requests are user-initiated
-			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId);
+			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId.toEndpointModelId());
 
 			// Create a capturing token for this request to group tool calls under the request
 			// we use the last text block in the prompt as the label for the token, since that is most representative of the user's intent
@@ -622,6 +599,7 @@ export class ClaudeCodeSession extends Disposable {
 	 */
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
+		const otelHookSpans = new Map<string, ISpanHandle>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			for await (const message of this._queryGenerator!) {
@@ -651,10 +629,12 @@ export class ClaudeCodeSession extends Disposable {
 				const result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 					stream: this._currentRequest.stream,
 					toolInvocationToken: this._currentRequest.toolInvocationToken,
+					editTracker: this._editTracker,
 					token: this._currentRequest.token,
 				}, {
 					unprocessedToolCalls,
 					otelToolSpans,
+					otelHookSpans,
 				});
 
 				if (result?.requestComplete) {
@@ -680,6 +660,11 @@ export class ClaudeCodeSession extends Disposable {
 				span.end();
 			}
 			otelToolSpans.clear();
+			for (const [, span] of otelHookSpans) {
+				span.setStatus(SpanStatusCode.ERROR, 'session ended before hook completed');
+				span.end();
+			}
+			otelHookSpans.clear();
 		}
 	}
 
@@ -706,6 +691,7 @@ export class ClaudeCodeSession extends Disposable {
 		this._queryGenerator = undefined;
 		this._abortController = new AbortController();
 		this._currentRequest = undefined;
+		this._currentEffort = undefined;
 	}
 
 	/**

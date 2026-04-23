@@ -108,6 +108,15 @@ describe('Configurations', () => {
 		});
 	});
 
+	it('prompt override string setting uses camelCase', () => {
+		const advancedSection = packageJson.contributes.configuration.find(section => section.id === 'advanced')!;
+		const promptOverrideStringKey = ConfigKey.Advanced.DebugPromptOverrideString;
+
+		expect(promptOverrideStringKey.fullyQualifiedId).toBe('github.copilot.chat.debug.promptOverrideString');
+		expect(promptOverrideStringKey.fullyQualifiedOldId).toBeUndefined();
+		expect(Object.keys(advancedSection.properties)).toContain(promptOverrideStringKey.fullyQualifiedId);
+	});
+
 	it('all localization strings in package.json are present in package.nls.json', async () => {
 		// Get all keys from package.nls.json
 		const packageJsonPath = path.join(__dirname, '../../../../package.json');

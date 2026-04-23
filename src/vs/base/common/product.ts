@@ -75,6 +75,7 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32SetupMutexName?: string;
 	readonly win32RegValueName?: string;
 	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
@@ -85,6 +86,7 @@ export interface IProductConfiguration {
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -209,7 +211,7 @@ export interface IProductConfiguration {
 		readonly excludeVersionRange?: string;
 	}>;
 	readonly extensionsForceVersionByQuality?: readonly string[];
-	readonly builtInExtensionsEnabledWithAutoUpdates?: readonly string[];
+	readonly builtInExtensionsEnabledWithAutoUpdates: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -221,6 +223,7 @@ export interface IProductConfiguration {
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
 	readonly darwinBundleIdentifier?: string;
+	readonly darwinSiblingBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
@@ -235,7 +238,35 @@ export interface IProductConfiguration {
 
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 
+	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
+	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
+
 	readonly embedded?: IEmbeddedProductConfiguration;
+
+	/**
+	 * When running as an embedded app, the parent VS Code's policy
+	 * identity (win32RegValueName / darwinBundleIdentifier) so that
+	 * enterprise policies deployed to the parent also apply here.
+	 */
+	parentPolicyConfig?: {
+		win32RegValueName?: string;
+		darwinBundleIdentifier?: string;
+		urlProtocol?: string;
+	};
+}
+
+export interface IProductOnboardingKeymap {
+	readonly id: string;
+	readonly label: string;
+	readonly extensionId?: string;
+	readonly description: string;
+}
+
+export interface IProductOnboardingTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly themeId: string;
+	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
 }
 
 export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
@@ -244,6 +275,7 @@ export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
 	'applicationName' |
 	'dataFolderName' |
 	'darwinBundleIdentifier' |
+	'darwinSiblingBundleIdentifier' |
 	'urlProtocol' |
 	'win32AppUserModelId' |
 	'win32MutexName' |

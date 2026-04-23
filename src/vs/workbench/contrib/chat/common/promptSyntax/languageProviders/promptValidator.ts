@@ -7,10 +7,9 @@ import { isEmptyPattern, parse, splitGlobAware } from '../../../../../../base/co
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
-import { ChatConfiguration, ChatModeKind } from '../../constants.js';
+import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { PromptsType, Target } from '../promptTypes.js';
@@ -24,8 +23,8 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
-import { PromptsConfig } from '../config/config.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -37,7 +36,7 @@ export class PromptValidator {
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@ILogService private readonly logger: ILogService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -132,13 +131,13 @@ export class PromptValidator {
 				fileReferenceChecks.push((async () => {
 					try {
 						const exists = await this.fileService.exists(resolved);
-						if (exists) {
-							return;
+						if (!exists) {
+							const loc = this.labelService.getUriLabel(resolved);
+							report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 						}
 					} catch {
+						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}'`);
 					}
-					const loc = this.labelService.getUriLabel(resolved);
-					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 				})());
 			}
 		}
@@ -211,9 +210,7 @@ export class PromptValidator {
 				this.validateUserInvocable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
-				if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-					this.validateHooks(attributes, target, report);
-				}
+				this.validateHooks(attributes, target, report);
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -235,19 +232,12 @@ export class PromptValidator {
 	}
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
-		let validAttributeNames = getValidAttributeNames(promptType, true, target);
-		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-			validAttributeNames = validAttributeNames.filter(name => name !== PromptHeaderAttributes.hooks);
-		}
-		const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
+		const validAttributeNames = getValidAttributeNames(promptType, true, target);
 		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
 				const supportedNames = new Lazy(() => {
-					let names = getValidAttributeNames(promptType, false, target);
-					if (!useCustomAgentHooks) {
-						names = names.filter(name => name !== PromptHeaderAttributes.hooks);
-					}
+					const names = getValidAttributeNames(promptType, false, target);
 					return names.sort().join(', ');
 				});
 				switch (promptType) {
@@ -812,12 +802,6 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.disableModelInvocationMustBeBoolean', "The 'disable-model-invocation' attribute must be 'true' or 'false'."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
-
-		if (attribute.value.type === 'scalar' && attribute.value.value === 'false') {
-			if (!this.isCustomAgentInSubagentEnabled()) {
-				report(toMarker(localize('promptValidator.inferRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.value.range, MarkerSeverity.Warning));
-			}
-		}
 	}
 
 	private async validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): Promise<undefined> {
@@ -828,11 +812,6 @@ export class PromptValidator {
 		if (attribute.value.type !== 'sequence') {
 			report(toMarker(localize('promptValidator.agentsMustBeArray', "The 'agents' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-
-		// Check if the configuration setting is enabled
-		if (!this.isCustomAgentInSubagentEnabled()) {
-			report(toMarker(localize('promptValidator.agentsRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.range, MarkerSeverity.Warning));
 		}
 
 		// Collect available agent names
@@ -860,10 +839,6 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
 			}
 		}
-	}
-
-	private isCustomAgentInSubagentEnabled(): boolean {
-		return !!this.configurationService.getValue<boolean>(ChatConfiguration.SubagentToolCustomAgents);
 	}
 
 	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {

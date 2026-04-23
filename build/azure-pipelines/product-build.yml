@@ -2,12 +2,22 @@ pr: none
 
 schedules:
   - cron: "0 5 * * Mon-Fri"
-    displayName: Mon-Fri at 7:00
+    displayName: Mon-Fri at 5:00 UTC (build, publish and release)
+    branches:
+      include:
+        - main
+  - cron: "0 11 * * Mon-Fri"
+    displayName: Mon-Fri at 11:00 UTC (build, and publish)
     branches:
       include:
         - main
   - cron: "0 17 * * Mon-Fri"
-    displayName: Mon-Fri at 19:00
+    displayName: Mon-Fri at 17:00 UTC (build, publish, and release)
+    branches:
+      include:
+        - main
+  - cron: "0 23 * * Mon-Fri"
+    displayName: Mon-Fri at 23:00 UTC (build, and publish)
     branches:
       include:
         - main
@@ -127,6 +137,10 @@ variables:
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
@@ -172,7 +186,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: false
+        enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       binskim:
         analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
@@ -574,8 +588,7 @@ extends:
                   name: fedora_36_amd64
                   displayName: Fedora 36 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: fedora
-                  baseImage: fedora:36
+                  container: fedora-36
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
@@ -584,8 +597,7 @@ extends:
                   name: fedora_36_arm64
                   displayName: Fedora 36 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: fedora
-                  baseImage: fedora:36
+                  container: fedora-36
                   arch: arm64
 
             # Fedora 40
@@ -595,8 +607,7 @@ extends:
                   name: fedora_40_amd64
                   displayName: Fedora 40 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: fedora
-                  baseImage: fedora:40
+                  container: fedora-40
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
@@ -605,8 +616,7 @@ extends:
                   name: fedora_40_arm64
                   displayName: Fedora 40 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: fedora
-                  baseImage: fedora:40
+                  container: fedora-40
                   arch: arm64
 
             # openSUSE Leap 16.0
@@ -663,8 +673,7 @@ extends:
                   name: ubuntu_22_04_amd64
                   displayName: Ubuntu 22.04 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: ubuntu
-                  baseImage: ubuntu:22.04
+                  container: ubuntu-22
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
@@ -673,8 +682,7 @@ extends:
                   name: ubuntu_22_04_arm32
                   displayName: Ubuntu 22.04 arm32
                   poolName: 1es-azure-linux-3-arm64
-                  container: ubuntu
-                  baseImage: ubuntu:22.04
+                  container: ubuntu-22
                   arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
@@ -683,8 +691,7 @@ extends:
                   name: ubuntu_22_04_arm64
                   displayName: Ubuntu 22.04 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: ubuntu
-                  baseImage: ubuntu:22.04
+                  container: ubuntu-22
                   arch: arm64
 
             # Ubuntu 24.04
@@ -694,8 +701,7 @@ extends:
                   name: ubuntu_24_04_amd64
                   displayName: Ubuntu 24.04 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: ubuntu
-                  baseImage: ubuntu:24.04
+                  container: ubuntu-24
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
@@ -704,8 +710,7 @@ extends:
                   name: ubuntu_24_04_arm32
                   displayName: Ubuntu 24.04 arm32
                   poolName: 1es-azure-linux-3-arm64
-                  container: ubuntu
-                  baseImage: ubuntu:24.04
+                  container: ubuntu-24
                   arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
@@ -714,8 +719,7 @@ extends:
                   name: ubuntu_24_04_arm64
                   displayName: Ubuntu 24.04 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: ubuntu
-                  baseImage: ubuntu:24.04
+                  container: ubuntu-24
                   arch: arm64
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:

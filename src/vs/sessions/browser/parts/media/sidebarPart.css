@@ -45,24 +45,8 @@
 	align-items: stretch;
 	gap: 4px;
 	padding: 6px 0 0 0;
-	border-top: 1px solid var(--vscode-panel-border, transparent);
 	margin: 0 10px 2px 10px;
 	flex-shrink: 0;
-}
-
-/* Inset pane section header borders — hide inline border-top, replace with inset pseudo-element */
-.agent-sessions-workbench .part.sidebar .pane > .pane-header {
-	border-top-color: transparent !important;
-}
-
-.agent-sessions-workbench .part.sidebar .split-view-view:not(:first-of-type) > .pane > .pane-header::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 10px;
-	right: 0;
-	height: 1px;
-	background-color: var(--vscode-panel-border, transparent);
 }
 
 /* Make the toolbar fill the footer width and stack actions vertically */
@@ -82,4 +66,58 @@
 	width: 100%;
 	max-width: 100%;
 	cursor: default;
+}
+
+/* ---- Phone Layout: Sidebar Drawer Overlay ---- */
+
+/* On phone, the sidebar is a drawer that slides over the chat.
+	It takes 85% width (max 360px) and sits on top of everything. */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.sidebar) {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	bottom: 0 !important;
+	width: 85% !important;
+	max-width: 360px !important;
+	height: 100% !important;
+	z-index: 250;
+	animation: sidebar-slide-in 200ms ease-out;
+}
+
+/* The sidebar Part inside fills its container */
+.agent-sessions-workbench.phone-layout .part.sidebar {
+	width: 100%;
+	height: 100%;
+}
+
+@keyframes sidebar-slide-in {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+
+/* Sidebar backdrop — applied via JS when sidebar is open on phone */
+.mobile-sidebar-backdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 240;
+	animation: backdrop-fade-in 200ms ease-out;
+}
+
+@keyframes backdrop-fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+/* Increase sidebar footer action button height for touch */
+.agent-sessions-workbench.phone-layout .part.sidebar > .sidebar-footer .sidebar-action-button {
+	min-height: 44px;
+	padding: 8px 12px;
 }

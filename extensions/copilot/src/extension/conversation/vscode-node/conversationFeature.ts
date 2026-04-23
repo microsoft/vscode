@@ -49,9 +49,9 @@ import { generateTerminalFixes, setLastCommandMatchResult } from './terminalFixG
  */
 export class ConversationFeature implements IExtensionContribution {
 	/** Disposables that exist for the lifetime of this object */
-	private _disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	/** Disposables that are cleared whenever feature enablement is toggled */
-	private _activatedDisposables = new DisposableStore();
+	private readonly _activatedDisposables = new DisposableStore();
 	/** For the conversation features to be enabled, the proxy needs to return a token with k/v pair: chat=1 */
 	public _enabled;
 	/** The feature is marked as active the first time it is enabled. */
@@ -253,7 +253,7 @@ export class ConversationFeature implements IExtensionContribution {
 					vscode.window.activeTerminal?.sendText(message, false);
 				}
 			}),
-			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: vscode.SourceControlInputBoxValueProviderContext[], cancellationToken: vscode.CancellationToken | undefined) => {
+			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {
 				const repository = await this.gitCommitMessageService.getRepository(rootUri);
 				if (!repository) {
 					return;

@@ -42,6 +42,29 @@
 	color: inherit;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget-icon.hidden {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-avatar {
+	display: none;
+	flex: 0 0 auto;
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+	border-radius: 50%;
+	box-sizing: border-box;
+	object-fit: cover;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-avatar.visible {
+	display: block;
+}
+
+.monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
+	border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {
 	display: none;
 }

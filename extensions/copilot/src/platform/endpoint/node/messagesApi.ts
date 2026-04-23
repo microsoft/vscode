@@ -13,8 +13,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platfo
 import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicCustomToolSearchEnabled, isAnthropicToolSearchEnabled, ServerToolUse, TOOL_SEARCH_TOOL_NAME, TOOL_SEARCH_TOOL_TYPE, ToolSearchToolResult } from '../../networking/common/anthropic';
-import { FinishedCallback, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
+import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -66,13 +66,10 @@ interface AnthropicStreamEvent {
 			output_tokens: number;
 			cache_creation_input_tokens?: number;
 			cache_read_input_tokens?: number;
-			server_tool_use?: {
-				tool_search_requests?: number;
-			};
 		};
 	};
 	index?: number;
-	content_block?: ContentBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam | ServerToolUse | ToolSearchToolResult;
+	content_block?: ContentBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam;
 	delta?: {
 		type: string;
 		text?: string;
@@ -81,6 +78,11 @@ interface AnthropicStreamEvent {
 		signature?: string;
 		stop_reason?: string;
 		stop_sequence?: string;
+		stop_details?: {
+			category?: string;
+			explanation?: string;
+			type?: string;
+		};
 	};
 	copilot_annotations?: {
 		IPCodeCitations?: AnthropicIPCodeCitation[];
@@ -90,9 +92,6 @@ interface AnthropicStreamEvent {
 		input_tokens?: number;
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
-		server_tool_use?: {
-			tool_search_requests?: number;
-		};
 	};
 	context_management?: ContextManagementResponse;
 }
@@ -102,11 +101,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
 
-	const toolSearchEnabled = isAnthropicToolSearchEnabled(endpoint, configurationService);
-	const customToolSearchEnabled = isAnthropicCustomToolSearchEnabled(endpoint, configurationService, experimentationService);
-	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
-	// TODO: Use a dedicated flag on options instead of relying on telemetry subType
-	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
+	const toolSearchEnabled = !!endpoint.supportsToolSearch;
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last
@@ -118,7 +113,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 			if (!tool.function.name || tool.function.name.length === 0) {
 				continue;
 			}
-			const isDeferred = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && !toolDeferralService.isNonDeferredTool(tool.function.name);
+			const isDeferred = options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !toolDeferralService.isNonDeferredTool(tool.function.name);
 			const anthropicTool: AnthropicMessagesTool = {
 				name: tool.function.name,
 				description: tool.function.description || '',
@@ -129,28 +124,22 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		}
 	}
 
-	// Build final tools array, adding tool search tool if enabled
-	const finalTools: AnthropicMessagesTool[] = [];
-	if (isAllowedConversationAgent && !isSubagent && toolSearchEnabled && !customToolSearchEnabled) {
-		// Server-side tool search: use the built-in tool_search_tool_regex
-		finalTools.push({ name: TOOL_SEARCH_TOOL_NAME, type: TOOL_SEARCH_TOOL_TYPE, defer_loading: false });
-	}
-	// When customToolSearchEnabled, the search_tools tool is already in the
+	// Build final tools array. The client-side search_tools tool is already in the
 	// anthropicTools array (registered as a model-specific VS Code tool) and will handle
 	// tool search client-side. Deferred tools still have defer_loading: true so the model
 	// knows to use the search tool to discover them.
-	finalTools.push(...nonDeferredTools, ...deferredTools);
+	const finalTools: AnthropicMessagesTool[] = [...nonDeferredTools, ...deferredTools];
 
-	// Thinking is enabled only when options.enableThinking is true, a non-zero thinking budget
+	// Thinking is enabled only when options.modelCapabilities?.enableThinking is true, a non-zero thinking budget
 	// is configured for the model, and the model supports thinking. reasoningEffort (if present)
 	// is used only to configure the effort level when thinking is enabled, not to gate it.
-	const reasoningEffort = options.reasoningEffort;
-	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number } | undefined;
-	if (options.enableThinking) {
+	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
+	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
+	if (options.modelCapabilities?.enableThinking) {
 		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
 		const thinkingExplicitlyDisabled = configuredBudget === 0;
 		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
-			thinkingConfig = { type: 'adaptive' };
+			thinkingConfig = { type: 'adaptive', display: 'summarized' };
 		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
@@ -170,14 +159,16 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const thinkingEnabled = !!thinkingConfig;
 	let effort: 'low' | 'medium' | 'high' | undefined;
 	if (thinkingConfig && endpoint.supportsReasoningEffort?.length) {
-		const candidateEffort = configurationService.getConfig(ConfigKey.TeamInternal.AnthropicThinkingEffort) ?? reasoningEffort;
+		const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+			?? reasoningEffort
+			?? (endpoint.supportsReasoningEffort.length === 1 ? endpoint.supportsReasoningEffort[0] : 'medium');
 		if (candidateEffort === 'low' || candidateEffort === 'medium' || candidateEffort === 'high') {
 			effort = candidateEffort;
 		}
 	}
 
 	// Build context management configuration
-	const contextManagement = isAllowedConversationAgent && !isSubagent && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
+	const contextManagement = options.modelCapabilities?.enableContextEditing && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 
@@ -187,7 +178,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// have access to the enabled tools for the request. For now, filter tool_reference blocks
 	// here against the actual tools sent to Anthropic to avoid 400 errors from unknown tool names.
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
-	const messagesResult = rawMessagesToMessagesAPI(options.messages, customToolSearchEnabled ? validToolNames : undefined);
+	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
 	// Add cache_control to the last tool and last system block so the stable tools+system
 	// prefix is cached across turns. Per the Anthropic docs, cache prefixes are created in
@@ -228,7 +219,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		...messagesResult,
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
-		top_p: options.postOptions.top_p,
 		max_tokens: options.postOptions.max_tokens,
 		thinking: thinkingConfig,
 		...(effort ? { output_config: { effort } } : {}),
@@ -554,7 +544,8 @@ export async function processResponseFromMessagesEndpoint(
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId);
+		const { serverExperiments } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -607,8 +598,6 @@ export async function processResponseFromMessagesEndpoint(
 export class AnthropicMessagesProcessor {
 	private textAccumulator: string = '';
 	private toolCallAccumulator: Map<number, { id: string; name: string; arguments: string }> = new Map();
-	private serverToolCallAccumulator: Map<number, { id: string; name: string; arguments: string }> = new Map();
-	private completedServerToolCalls: Map<string, { id: string; name: string; arguments: string }> = new Map();
 	private thinkingAccumulator: Map<number, { thinking: string; signature: string }> = new Map();
 	private completedToolCalls: Array<{ id: string; name: string; arguments: string }> = [];
 	private messageId: string = '';
@@ -618,13 +607,14 @@ export class AnthropicMessagesProcessor {
 	private cacheCreationTokens: number = 0;
 	private cacheReadTokens: number = 0;
 	private contextManagementResponse?: ContextManagementResponse;
-	private toolSearchRequests: number = 0;
 	private stopReason: string | undefined;
+	private stopDetails?: { category?: string; explanation?: string; type?: string };
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly serverExperiments: string,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
@@ -695,9 +685,6 @@ export class AnthropicMessagesProcessor {
 					this.outputTokens = chunk.message.usage.output_tokens ?? 0;
 					this.cacheCreationTokens = chunk.message.usage.cache_creation_input_tokens ?? 0;
 					this.cacheReadTokens = chunk.message.usage.cache_read_input_tokens ?? 0;
-					if (chunk.message.usage.server_tool_use?.tool_search_requests) {
-						this.toolSearchRequests = chunk.message.usage.server_tool_use.tool_search_requests;
-					}
 				}
 				return;
 			case 'content_block_start':
@@ -715,125 +702,6 @@ export class AnthropicMessagesProcessor {
 						text: '',
 						beginToolCalls: [{ name: chunk.content_block.name || '', id: toolCallId }]
 					});
-				} else if (chunk.content_block?.type === 'server_tool_use' && chunk.index !== undefined) {
-					const serverToolUse = chunk.content_block as ServerToolUse;
-					const serverToolCallId = serverToolUse.id || generateUuid();
-					this.serverToolCallAccumulator.set(chunk.index, {
-						id: serverToolCallId,
-						name: serverToolUse.name || '',
-						arguments: '',
-					});
-				} else if (chunk.content_block?.type === 'tool_search_tool_result' && chunk.index !== undefined) {
-					const toolSearchResult = chunk.content_block as ToolSearchToolResult;
-					if (toolSearchResult.content.type === 'tool_search_tool_search_result') {
-						const toolReferences = toolSearchResult.content.tool_references;
-						const toolNames = toolReferences.map(ref => ref.tool_name);
-
-						this.logService.trace(`[messagesAPI] Tool search discovered ${toolNames.length} tools: ${toolNames.join(', ')}`);
-
-						/* __GDPR__
-							"toolSearchToolInvoked" : {
-								"owner": "bhavyaus",
-								"comment": "Details about invocation of tools",
-								"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
-								"interactionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The interaction ID for correlation" },
-								"validateOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool input validation. valid, invalid and unknown" },
-								"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool invocation. success, error" },
-								"toolName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the tool being invoked." },
-								"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool" },
-								"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Error code if failed" },
-								"discoveredToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools discovered", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.sendMSFTTelemetryEvent('toolSearchToolInvoked',
-							{ requestId: this.requestId, interactionId: this.requestId, validateOutcome: 'unknown', invokeOutcome: 'success', toolName: TOOL_SEARCH_TOOL_NAME, model: this.model },
-							{ discoveredToolCount: toolNames.length }
-						);
-
-						// Get the original server tool call to pair with this result
-						const serverToolCall = this.completedServerToolCalls.get(toolSearchResult.tool_use_id);
-						this.completedServerToolCalls.delete(toolSearchResult.tool_use_id);
-
-						// Parse the arguments from JSON string
-						let parsedArgs: unknown;
-						if (serverToolCall?.arguments) {
-							try {
-								parsedArgs = JSON.parse(serverToolCall.arguments);
-							} catch {
-								parsedArgs = serverToolCall.arguments;
-							}
-						}
-
-						// Report combined entry with both args and result (like regular tools)
-						return onProgress({
-							text: '',
-							serverToolCalls: [{
-								id: toolSearchResult.tool_use_id,
-								name: serverToolCall?.name ?? 'tool_search_tool_regex',
-								args: parsedArgs,
-								isServer: true,
-								result: { tool_references: toolReferences },
-							}],
-						});
-					} else if (toolSearchResult.content.type === 'tool_search_tool_result_error') {
-						this.logService.warn(`[messagesAPI] Tool search error: ${toolSearchResult.content.error_code}`);
-
-						/* __GDPR__
-							"toolSearchToolInvoked" : {
-								"owner": "bhavyaus",
-								"comment": "Details about invocation of tools",
-								"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
-								"interactionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The interaction ID for correlation" },
-								"validateOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool input validation. valid, invalid and unknown" },
-								"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool invocation. success, error" },
-								"toolName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the tool being invoked." },
-								"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool" },
-								"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Error code if failed" },
-								"discoveredToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools discovered", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.sendMSFTTelemetryEvent('toolSearchToolInvoked',
-							{ requestId: this.requestId, interactionId: this.requestId, validateOutcome: 'unknown', invokeOutcome: 'error', toolName: TOOL_SEARCH_TOOL_NAME, model: this.model, errorCode: toolSearchResult.content.error_code },
-							{ discoveredToolCount: 0 }
-						);
-
-						// Get the original server tool call to pair with this error result
-						const serverToolCall = this.completedServerToolCalls.get(toolSearchResult.tool_use_id);
-						this.completedServerToolCalls.delete(toolSearchResult.tool_use_id);
-
-						// Parse the arguments from JSON string
-						let parsedArgs: unknown;
-						if (serverToolCall?.arguments) {
-							try {
-								parsedArgs = JSON.parse(serverToolCall.arguments);
-							} catch {
-								parsedArgs = serverToolCall.arguments;
-							}
-						}
-
-						// Report server tool call with error result for logging
-						onProgress({
-							text: '',
-							serverToolCalls: [{
-								id: toolSearchResult.tool_use_id,
-								name: serverToolCall?.name ?? 'tool_search_tool_regex',
-								args: parsedArgs,
-								isServer: true,
-								result: { error: toolSearchResult.content.error_code },
-							}],
-						});
-
-						return onProgress({
-							text: '',
-							copilotErrors: [{
-								agent: 'anthropic',
-								code: toolSearchResult.content.error_code,
-								message: `Tool search error: ${toolSearchResult.content.error_code}`,
-								type: 'error',
-								identifier: undefined
-							}]
-						});
-					}
 				} else if (chunk.content_block?.type === 'thinking' && chunk.index !== undefined) {
 					this.thinkingAccumulator.set(chunk.index, {
 						thinking: '',
@@ -889,10 +757,6 @@ export class AnthropicMessagesProcessor {
 								}],
 							});
 						}
-						const serverToolCall = this.serverToolCallAccumulator.get(chunk.index);
-						if (serverToolCall) {
-							serverToolCall.arguments += chunk.delta.partial_json;
-						}
 					}
 				}
 				return;
@@ -910,13 +774,6 @@ export class AnthropicMessagesProcessor {
 							}],
 						});
 						this.toolCallAccumulator.delete(chunk.index);
-					}
-					// Handle server tool call completion (tool search) - store for result pairing
-					const serverToolCall = this.serverToolCallAccumulator.get(chunk.index);
-					if (serverToolCall) {
-						// Store completed server tool call by ID, waiting for tool_search_tool_result
-						this.completedServerToolCalls.set(serverToolCall.id, serverToolCall);
-						this.serverToolCallAccumulator.delete(chunk.index);
 					}
 					const thinking = this.thinkingAccumulator.get(chunk.index);
 					if (thinking && thinking.signature) {
@@ -938,9 +795,6 @@ export class AnthropicMessagesProcessor {
 					this.inputTokens = chunk.usage.input_tokens ?? this.inputTokens;
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
-					if (chunk.usage.server_tool_use?.tool_search_requests) {
-						this.toolSearchRequests = chunk.usage.server_tool_use.tool_search_requests;
-					}
 				}
 				if (chunk.context_management) {
 					this.contextManagementResponse = chunk.context_management;
@@ -950,9 +804,12 @@ export class AnthropicMessagesProcessor {
 						contextManagement: chunk.context_management
 					});
 				}
-				// Track stop_reason for determining finish reason in message_stop
+				// Track stop_reason and stop_details for determining finish reason in message_stop
 				if (chunk.delta?.stop_reason) {
 					this.stopReason = chunk.delta.stop_reason;
+				}
+				if (chunk.delta?.stop_details) {
+					this.stopDetails = chunk.delta.stop_details;
 				}
 				return;
 			case 'message_stop': {
@@ -996,13 +853,28 @@ export class AnthropicMessagesProcessor {
 						}
 					);
 				}
-				if (this.toolSearchRequests > 0) {
-					this.logService.trace(`[messagesAPI] Anthropic tool search requests: ${this.toolSearchRequests}.`);
-					this.telemetryData.extendedBy({
-						toolSearchUsed: 'true',
-						toolSearchRequests: this.toolSearchRequests.toString(),
-					});
+				if (this.stopReason === 'refusal') {
+					const category = this.stopDetails?.category ?? 'unknown';
+					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
+
+					/* __GDPR__
+						"messagesApi.refusal" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+							"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+						{
+							requestId: this.requestId,
+							model: this.model,
+							category,
+						}
+					);
 				}
+
 				let finishReason: FinishedCompletionReason;
 				switch (this.stopReason) {
 					case 'refusal':
@@ -1034,7 +906,7 @@ export class AnthropicMessagesProcessor {
 						completionId: this.messageId,
 						created: Date.now(),
 						deploymentId: '',
-						serverExperiments: ''
+						serverExperiments: this.serverExperiments,
 					},
 					usage: {
 						prompt_tokens: computedPromptTokens,

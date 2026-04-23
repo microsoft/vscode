@@ -103,7 +103,9 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(): Promise<void> { }
+	async openAgentsWindow(_options?: { readonly forceNewWindow?: boolean }): Promise<void> { }
+
+	async launchSiblingApp(_args?: string[]): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }

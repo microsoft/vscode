@@ -248,6 +248,18 @@
 	padding-left: 0 !important;
 }
 
+/* Modal sidebar "Changes" header */
+.changes-file-list .changes-sidebar-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 0;
+	min-height: 22px;
+	font-weight: 500;
+	font-size: 12px;
+}
+
 /* List rows */
 .changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
 	margin-left: 6px;

@@ -25,11 +25,13 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -278,6 +280,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
@@ -286,11 +289,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
-			const matchingEditor = editorService.editors.find((e): e is BrowserEditorInput => {
-				if (!(e instanceof BrowserEditorInput)) {
-					return false;
-				}
-
+			const matchingEditor = [...browserViewService.getKnownBrowserViews().values()].find((e) => {
 				const editorUri = URI.parse(e.url || '');
 				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
 				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
@@ -411,11 +410,52 @@ class CloseAllBrowserTabsInGroupAction extends Action2 {
 	}
 }
 
+class OpenBrowserFromViewMenuAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openFromViewMenu';
+
+	constructor() {
+		super({
+			id: OpenBrowserFromViewMenuAction.ID,
+			title: localize2('browser.openFromViewMenuAction', "Browser"),
+			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
+		const commandService = accessor.get(ICommandService);
+
+		const hasOpenBrowserEditor = browserViewService.getKnownBrowserViews().size > 0;
+
+		if (hasOpenBrowserEditor) {
+			await commandService.executeCommand(BrowserViewCommandId.QuickOpen);
+			return;
+		}
+
+		await commandService.executeCommand(BrowserViewCommandId.Open);
+	}
+}
+
+// Register in View menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_auxbar',
+	command: {
+		id: OpenBrowserFromViewMenuAction.ID,
+		title: localize({ key: 'miOpenBrowser', comment: ['&& denotes a mnemonic'] }, "&&Browser")
+	},
+	order: 2
+});
+
 // Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(OpenBrowserFromViewMenuAction);
 registerAction2(NewTabAction);
 registerAction2(CloseAllBrowserTabsAction);
 registerAction2(CloseAllBrowserTabsInGroupAction);
@@ -435,25 +475,15 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IBrowserViewWorkbenchService browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		const contextKey = CONTEXT_BROWSER_EDITOR_OPEN.bindTo(contextKeyService);
-		const update = () => contextKey.set(editorService.editors.some(e => e instanceof BrowserEditorInput));
+		const update = () => contextKey.set(browserViewService.getKnownBrowserViews().size > 0);
 
 		update();
-
-		this._register(editorService.onWillOpenEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				contextKey.set(true);
-			}
-		}));
-		this._register(editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				update();
-			}
-		}));
+		this._register(browserViewService.onDidChangeBrowserViews(() => update()));
 	}
 }
 

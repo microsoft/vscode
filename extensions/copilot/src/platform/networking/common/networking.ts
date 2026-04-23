@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { AnthropicMessagesTool, ContextManagement } from './anthropic';
-import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OptionalChatRequestParams, Prediction } from './fetch';
+import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
 
@@ -62,7 +62,7 @@ const requestTimeoutMs = 30 * 1000; // 30 seconds
  */
 export interface IEndpointBody {
 	/** General or completions: */
-	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool)[];
+	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool)[];
 	model?: string;
 	previous_response_id?: string;
 	max_tokens?: number;
@@ -152,6 +152,18 @@ export interface IEmbeddingsEndpoint extends IEndpoint {
 	readonly maxBatchSize: number;
 }
 
+/** Per-request model capability opt-ins. All off by default. */
+export interface IModelCapabilityOptions {
+	/** Explicitly enable thinking for this request. */
+	enableThinking?: boolean;
+	/** Reasoning effort level (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
+	reasoningEffort?: string;
+	/** Enable the tool search tool for this request. */
+	enableToolSearch?: boolean;
+	/** Enable context editing for this request. */
+	enableContextEditing?: boolean;
+}
+
 export interface IMakeChatRequestOptions {
 	/** The debug name for this request */
 	debugName: string;
@@ -184,10 +196,13 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
-	/** Explicitly enable thinking for this request. When not set, thinking is disabled. */
-	enableThinking?: boolean;
-	/** Reasoning effort level for this request (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
-	reasoningEffort?: string;
+	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
+	modelCapabilities?: IModelCapabilityOptions;
+	/**
+	 * The round ID at which the most recent client-side summarization occurred.
+	 * Used to detect when the WebSocket stateful marker predates a summary.
+	 */
+	summarizedAtRoundId?: string;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
@@ -216,7 +231,7 @@ export type IChatRequestTelemetryProperties = {
 	parentRequestId?: string;
 	/** For a subagent: The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
 	parentToolCallId?: string;
-}
+};
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	requestId: string;
@@ -234,6 +249,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly minThinkingBudget?: number;
 	readonly maxThinkingBudget?: number;
 	readonly supportsReasoningEffort?: string[];
+	readonly supportsToolSearch?: boolean;
+	readonly supportsContextEditing?: boolean;
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
 	readonly supportsPrediction: boolean;

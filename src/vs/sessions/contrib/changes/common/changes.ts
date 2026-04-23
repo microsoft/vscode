@@ -15,6 +15,7 @@ export const enum ChangesViewMode {
 
 export const enum ChangesVersionMode {
 	BranchChanges = 'branchChanges',
+	UncommittedChanges = 'uncommittedChanges',
 	OutgoingChanges = 'outgoingChanges',
 	AllChanges = 'allChanges',
 	LastTurn = 'lastTurn'
@@ -34,10 +35,12 @@ export const ActiveSessionContextKeys = {
 	IsolationMode: new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace),
 	HasChanges: new RawContextKey<boolean>('sessions.hasChanges', false),
 	HasGitRepository: new RawContextKey<boolean>('sessions.hasGitRepository', true),
+	HasUpstream: new RawContextKey<boolean>('sessions.hasUpstream', false),
 	HasIncomingChanges: new RawContextKey<boolean>('sessions.hasIncomingChanges', false),
 	HasOutgoingChanges: new RawContextKey<boolean>('sessions.hasOutgoingChanges', false),
 	HasUncommittedChanges: new RawContextKey<boolean>('sessions.hasUncommittedChanges', true),
 	IsMergeBaseBranchProtected: new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false),
+	HasGitHubRemote: new RawContextKey<boolean>('sessions.hasGitHubRemote', false),
 	HasPullRequest: new RawContextKey<boolean>('sessions.hasPullRequest', false),
 	HasOpenPullRequest: new RawContextKey<boolean>('sessions.hasOpenPullRequest', false),
 };

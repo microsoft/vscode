@@ -89,6 +89,23 @@ describe('TtlCache', () => {
 		vi.advanceTimersByTime(1000);
 		expect(cache.has('key')).toBe(false);
 	});
+
+	it('supports per-entry TTL override', () => {
+		const cache = new TtlCache<string>(5000);
+		cache.set('default', 'value1');
+		cache.set('short', 'value2', 1000);
+
+		vi.advanceTimersByTime(999);
+		expect(cache.get('default')).toBe('value1');
+		expect(cache.get('short')).toBe('value2');
+
+		vi.advanceTimersByTime(1);
+		expect(cache.get('default')).toBe('value1');
+		expect(cache.get('short')).toBeUndefined(); // expired at 1000ms
+
+		vi.advanceTimersByTime(4000);
+		expect(cache.get('default')).toBeUndefined(); // expired at 5000ms
+	});
 });
 
 describe('SingleSlotTtlCache', () => {
