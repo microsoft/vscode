@@ -91,10 +91,12 @@ export class GitHubPullRequestModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
+		this._pollScheduler.delay = intervalMs;
+
 		this._pollingClients++;
 		if (this._pollingClients === 1) {
 			this._pollScheduler.cancel();
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule();
 		}
 	}
 
@@ -117,7 +119,7 @@ export class GitHubPullRequestModel extends Disposable {
 
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
 		if (!this._disposed && this._pollingClients > 0) {
-			this._pollScheduler.schedule(DEFAULT_POLL_INTERVAL_MS);
+			this._pollScheduler.schedule();
 		}
 	}
 
