@@ -12,6 +12,7 @@ interface GitHubPullRequestPromptProps extends BasePromptElementProps {
 	patches: string[];
 	issues: { reference: string; content: string }[] | undefined;
 	template: string | undefined;
+	compareBranch: string | undefined;
 }
 
 interface GitHubPullRequestIdentityProps extends BasePromptElementProps {
@@ -89,6 +90,7 @@ interface GitHubPullRequestUserMessageProps extends BasePromptElementProps {
 	commitMessages: string[];
 	patches: string[];
 	template: string | undefined;
+	compareBranch: string | undefined;
 }
 
 class GitHubPullRequestUserMessage extends PromptElement<GitHubPullRequestUserMessageProps> {
@@ -97,6 +99,11 @@ class GitHubPullRequestUserMessage extends PromptElement<GitHubPullRequestUserMe
 		const formattedPatches = this.props.patches.map(patch => <>```diff<br />{patch}<br />```<br /></>);
 		return (
 			<>
+				{this.props.compareBranch && (
+					<>
+						The merged/compare/source branch is "{this.props.compareBranch}".<br />
+					</>
+				)}
 				These are the commits that will be included in the pull request you are about to make:<br />
 				{formattedCommitMessages}<br />
 				Below is a list of git patches that contain the file changes for all the files that will be included in the pull request:<br />
@@ -124,7 +131,7 @@ export class GitHubPullRequestPrompt extends PromptElement<GitHubPullRequestProm
 					<SafetyRules />
 				</SystemMessage>
 				<UserMessage>
-					<GitHubPullRequestUserMessage commitMessages={this.props.commitMessages} patches={this.props.patches} template={this.props.template} />
+					<GitHubPullRequestUserMessage commitMessages={this.props.commitMessages} patches={this.props.patches} template={this.props.template} compareBranch={this.props.compareBranch} />
 					<Tag priority={750} name='custom-instructions'>
 						<CustomInstructions
 							chatVariables={undefined}
