@@ -25,7 +25,9 @@ export class GitHubPullRequestCIModel extends Disposable {
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>(this, GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 
+	private _pollingClients = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
+
 	private _disposed = false;
 
 	constructor(
@@ -78,27 +80,39 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes CI check data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.cancel();
-		this._pollScheduler.schedule(intervalMs);
+		this._pollingClients++;
+		if (this._pollingClients === 1) {
+			this._pollScheduler.cancel();
+			this._pollScheduler.schedule(intervalMs);
+		}
 	}
 
 	/**
 	 * Stop periodic polling.
 	 */
 	stopPolling(): void {
-		this._pollScheduler.cancel();
+		if (this._pollingClients === 0) {
+			return;
+		}
+
+		this._pollingClients--;
+		if (this._pollingClients === 0) {
+			this._pollScheduler.cancel();
+		}
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
-		if (!this._disposed) {
-			this._pollScheduler.schedule();
+		if (!this._disposed && this._pollingClients > 0) {
+			this._pollScheduler.schedule(DEFAULT_POLL_INTERVAL_MS);
 		}
 	}
 
 	override dispose(): void {
 		this._disposed = true;
+		this._pollingClients = 0;
+
 		super.dispose();
 	}
 }
