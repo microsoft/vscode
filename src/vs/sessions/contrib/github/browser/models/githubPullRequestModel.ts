@@ -29,6 +29,7 @@ export class GitHubPullRequestModel extends Disposable {
 	readonly reviewThreads: IObservable<readonly IGitHubPRReviewThread[]> = this._reviewThreads;
 
 	private _pollingClients = 0;
+	private _refreshPromise: Promise<void> | undefined;
 	private readonly _pollScheduler: RunOnceScheduler;
 
 	private _disposed = false;
@@ -48,8 +49,16 @@ export class GitHubPullRequestModel extends Disposable {
 	/**
 	 * Refresh all PR data: pull request info, mergeability, and review threads.
 	 */
-	async refresh(): Promise<void> {
-		await this._refresh();
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh().finally(() => {
+				if (this._refreshPromise) {
+					this._refreshPromise = undefined;
+				}
+			});
+		}
+
+		return this._refreshPromise;
 	}
 
 	/**
@@ -129,6 +138,7 @@ export class GitHubPullRequestModel extends Disposable {
 	override dispose(): void {
 		this._disposed = true;
 		this._pollingClients = 0;
+		this._refreshPromise = undefined;
 
 		super.dispose();
 	}

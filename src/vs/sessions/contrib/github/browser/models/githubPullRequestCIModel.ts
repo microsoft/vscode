@@ -26,6 +26,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 
 	private _pollingClients = 0;
+	private _refreshPromise: Promise<void> | undefined;
 	private readonly _pollScheduler: RunOnceScheduler;
 
 	private _disposed = false;
@@ -45,7 +46,19 @@ export class GitHubPullRequestCIModel extends Disposable {
 	/**
 	 * Refresh all CI check data.
 	 */
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh().finally(() => {
+				if (this._refreshPromise) {
+					this._refreshPromise = undefined;
+				}
+			});
+		}
+
+		return this._refreshPromise;
+	}
+
+	private async _refresh(): Promise<void> {
 		try {
 			const checks = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef);
 			this._checks.set(checks, undefined);
@@ -112,6 +125,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	override dispose(): void {
 		this._disposed = true;
 		this._pollingClients = 0;
+		this._refreshPromise = undefined;
 
 		super.dispose();
 	}
