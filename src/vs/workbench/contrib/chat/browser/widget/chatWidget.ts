@@ -85,6 +85,7 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatBreadcrumbsWidget } from './chatBreadcrumbsWidget.js';
 
 const $ = dom.$;
 
@@ -259,6 +260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get domNode() { return this.container; }
 
 	private listWidget!: ChatListWidget;
+	private breadcrumbsWidget!: ChatBreadcrumbsWidget;
 	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -322,6 +324,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		this.breadcrumbsWidget?.setModel(viewModel?.model);
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
@@ -716,10 +719,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.handleNextPromptSelection(handoff, agentId, withAutopilot);
 		}));
 
+		this.breadcrumbsWidget = this._register(this.instantiationService.createInstance(ChatBreadcrumbsWidget));
+
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+			dom.append(this.container, this.breadcrumbsWidget.domNode);
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
+			dom.append(this.container, this.breadcrumbsWidget.domNode);
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
