@@ -6,16 +6,22 @@
 import { joinPath } from '../../base/common/resources.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { IFileService } from '../../platform/files/common/files.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { IRemoteAuthorityResolverService } from '../../platform/remote/common/remoteAuthorityResolver.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
-import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../workbench/services/environment/browser/environmentService.js';
 import { IWorkbenchConfigurationService } from '../../workbench/services/configuration/common/configuration.js';
 import { IUserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { BrowserUserDataProfilesService } from '../../platform/userDataProfile/browser/userDataProfile.js';
+import { FileService } from '../../platform/files/common/fileService.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { IRemoteAgentService } from '../../workbench/services/remote/common/remoteAgentService.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
+import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../../workbench/services/workspaces/common/workspaceTrust.js';
+import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
 import { getWorkspaceIdentifier } from '../../workbench/services/workspaces/browser/workspaces.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
@@ -27,24 +33,25 @@ export class SessionsBrowserMain extends BrowserMain {
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}
 
-	protected override async initServices(): Promise<{ serviceCollection: ServiceCollection; configurationService: IWorkbenchConfigurationService; logService: ILogService }> {
-		const result = await super.initServices();
-		const { serviceCollection } = result;
+	protected override async createWorkspaceConfigAndStorageServices(
+		serviceCollection: ServiceCollection,
+		_workspace: IAnyWorkspaceIdentifier,
+		environmentService: IBrowserWorkbenchEnvironmentService,
+		userDataProfileService: IUserDataProfileService,
+		_userDataProfilesService: BrowserUserDataProfilesService,
+		fileService: FileService,
+		_remoteAgentService: IRemoteAgentService,
+		uriIdentityService: IUriIdentityService,
+		policyService: IPolicyService,
+		logService: ILogService,
+		remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+	): Promise<{ configurationService: IWorkbenchConfigurationService; storageService: IStorageService }> {
+		// Use sessions workspace/configuration services instead of the standard
+		// WorkspaceService. This mirrors what SessionsMain does on desktop:
+		// the agents window manages workspace folders in-memory without creating
+		// workspace file watchers or other resources.
 
-		// Replace workspace and configuration services with the sessions
-		// implementations. This mirrors what the desktop sessions entry does
-		// in electron-browser/sessions.main.ts — the agents window manages
-		// workspace folders in-memory without creating untitled workspaces
-		// or opening new windows.
-
-		const environmentService = serviceCollection.get(IBrowserWorkbenchEnvironmentService) as IBrowserWorkbenchEnvironmentService;
-		const uriIdentityService = serviceCollection.get(IUriIdentityService) as IUriIdentityService;
-		const userDataProfileService = serviceCollection.get(IUserDataProfileService) as IUserDataProfileService;
-		const fileService = serviceCollection.get(IFileService) as IFileService;
-		const policyService = serviceCollection.get(IPolicyService) as IPolicyService;
-
-		// Workspace — use a stable synthetic workspace identifier, matching
-		// the desktop pattern (environmentService.agentSessionsWorkspace).
+		// Workspace — use a stable synthetic workspace identifier for agents
 		const sessionsWorkspaceUri = joinPath(environmentService.userRoamingDataHome, 'agent-sessions.code-workspace');
 		const workspaceIdentifier = getWorkspaceIdentifier(sessionsWorkspaceUri);
 		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
@@ -52,17 +59,17 @@ export class SessionsBrowserMain extends BrowserMain {
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
 		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 
-		// Configuration — the sessions ConfigurationService is a lighter
-		// implementation that works against the in-memory workspace model
-		// rather than a real .code-workspace file on disk.
+		// Configuration — the sessions ConfigurationService works against the
+		// in-memory workspace model rather than a real .code-workspace file on disk.
 		const configurationService = new ConfigurationService(
 			userDataProfileService,
 			workspaceContextService,
 			uriIdentityService,
 			fileService,
 			policyService,
-			result.logService,
+			logService
 		);
+
 		try {
 			await configurationService.initialize();
 		} catch (error) {
@@ -71,6 +78,17 @@ export class SessionsBrowserMain extends BrowserMain {
 
 		serviceCollection.set(IWorkbenchConfigurationService, configurationService);
 
-		return { serviceCollection, configurationService, logService: result.logService };
+		// Storage
+		const storageService = await this.createStorageService(workspaceIdentifier, logService, userDataProfileService);
+		serviceCollection.set(IStorageService, storageService);
+
+		// Workspace Trust Service
+		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
+		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
+
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+
+		return { configurationService, storageService };
 	}
 }
