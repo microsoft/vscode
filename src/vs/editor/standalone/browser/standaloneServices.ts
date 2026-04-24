@@ -226,7 +226,6 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly appSharedDataHome: URI = URI.from({ scheme: 'monaco', authority: 'appSharedDataHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
-	readonly agentPluginsHome: URI = URI.from({ scheme: 'monaco', authority: 'agentPluginsHome' });
 	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });
 	readonly sync: 'on' | 'off' | undefined = undefined;
 	readonly continueOn?: string | undefined = undefined;

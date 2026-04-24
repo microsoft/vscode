@@ -94,7 +94,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		stubConfiguration();
 
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
-		instantiationService.stub(IUserDataProfileService, disposableStore.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache'), URI.file('/test')))));
+		instantiationService.stub(IUserDataProfileService, disposableStore.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 
 		instantiationService.stub(IWorkbenchExtensionManagementService, {
 			onDidInstallExtensions: didInstallEvent.event,

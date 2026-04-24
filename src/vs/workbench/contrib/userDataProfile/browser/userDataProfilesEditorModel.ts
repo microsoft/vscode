@@ -816,8 +816,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IProfileResourceTypeChildElement[]> {
 		const location = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/profiles/${profileTemplate.name}` });
 		const cacheLocation = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/cache/${profileTemplate.name}` });
-		const agentPluginsHome = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/agentPlugins/${profileTemplate.name}` });
-		const profile = toUserDataProfile(generateUuid(), this.name, location, cacheLocation, agentPluginsHome);
+		const profile = toUserDataProfile(generateUuid(), this.name, location, cacheLocation);
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
 				if (profileTemplate.settings) {
@@ -1182,7 +1181,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement.name,
 			this.newProfileElement.copyFrom.location,
 			this.newProfileElement.copyFrom.cacheHome,
-			this.newProfileElement.copyFrom.agentPluginsHome,
 			{
 				icon: this.newProfileElement.icon,
 				useDefaultFlags: this.newProfileElement.flags,

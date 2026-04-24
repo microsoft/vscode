@@ -11,7 +11,7 @@ import { env } from '../../../base/common/process.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { NativeParsedArgs } from './argv.js';
-import { ExtensionKind, getAgentPluginsPath, IExtensionHostDebugParams, INativeEnvironmentService } from './environment.js';
+import { ExtensionKind, IExtensionHostDebugParams, INativeEnvironmentService } from './environment.js';
 import { IProductService } from '../../product/common/productService.js';
 
 export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+)[:=](.+)$/;
@@ -60,9 +60,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
-
-	@memoize
-	get agentPluginsHome(): URI { return URI.file(getAgentPluginsPath(this.args, this.userHome, this.productService.dataFolderName)); }
 
 	@memoize
 	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }

@@ -1471,7 +1471,7 @@ suite('PromptsService', () => {
 				_serviceBrand: undefined,
 				onDidChangeCurrentProfile: Event.None,
 				currentProfile: {
-					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache'), URI.file('/test')),
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
 					promptsHome: userPromptsFolderUri,
 				},
 				updateCurrentProfile: async () => { }
@@ -1554,7 +1554,7 @@ suite('PromptsService', () => {
 				_serviceBrand: undefined,
 				onDidChangeCurrentProfile: Event.None,
 				currentProfile: {
-					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache'), URI.file('/test')),
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
 					promptsHome: userPromptsFolderUri,
 				},
 				updateCurrentProfile: async () => { }
@@ -1620,7 +1620,7 @@ suite('PromptsService', () => {
 				_serviceBrand: undefined,
 				onDidChangeCurrentProfile: Event.None,
 				currentProfile: {
-					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache'), URI.file('/test')),
+					...toUserDataProfile('test', 'test', URI.file(userPromptsFolder).with({ path: '/user-data' }), URI.file('/cache')),
 					promptsHome: userPromptsFolderUri,
 				},
 				updateCurrentProfile: async () => { }

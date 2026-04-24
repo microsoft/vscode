@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { INodeProcess } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
-import { getAgentPluginsPath, INativeEnvironmentService } from '../../environment/common/environment.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -17,6 +17,9 @@ import { UserDataProfilesService } from '../node/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IStateService } from '../../state/node/state.js';
 import { URI } from '../../../base/common/uri.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { env } from '../../../base/common/process.js';
+import { join, resolve } from '../../../base/common/path.js';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
@@ -29,6 +32,8 @@ export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 
 export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesMainService {
 
+	private readonly agentsPluginsHome: URI;
+
 	constructor(
 		@IStateService stateService: IStateService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -38,6 +43,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@IProductService private readonly productService: IProductService,
 	) {
 		super(stateService, uriIdentityService, environmentService, fileService, logService);
+		this.agentsPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, environmentService.userHome, productService.dataFolderName));
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
@@ -55,7 +61,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
 			promptsHome: joinPath(hostUserRoamingDataHome, 'prompts'),
 			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
-			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : defaultProfile.agentPluginsHome
+			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentsPluginsHome
 		};
 	}
 
@@ -89,4 +95,23 @@ function getHostAgentPluginsPath(environmentService: INativeEnvironmentService, 
 	}
 
 	return getAgentPluginsPath(environmentService.args, environmentService.userHome, hostDataFolderName);
+}
+
+function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI, dataFolderName: string): string {
+	const cliAgentPluginsDir = args['agent-plugins-dir'];
+	if (cliAgentPluginsDir) {
+		return resolve(cliAgentPluginsDir);
+	}
+
+	const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
+	if (vscodeAgentPlugins) {
+		return vscodeAgentPlugins;
+	}
+
+	const vscodePortable = env['VSCODE_PORTABLE'];
+	if (vscodePortable) {
+		return join(vscodePortable, 'agent-plugins');
+	}
+
+	return joinPath(userHome, dataFolderName, 'agent-plugins').fsPath;
 }

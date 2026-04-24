@@ -32,7 +32,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 	override get cacheHome() { return this.userRoamingDataHome; }
-	override get agentPluginsHome() { return joinPath(this._appSettingsHome, 'agent-plugins'); }
 }
 
 suite('FileUserDataProvider', () => {

@@ -28,7 +28,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	override get extensionsPath() { return joinPath(this.userRoamingDataHome, 'extensions.json').path; }
 	override get stateResource() { return joinPath(this.userRoamingDataHome, 'state.json'); }
 	override get cacheHome() { return joinPath(this.userRoamingDataHome, 'cache'); }
-	override get agentPluginsHome() { return joinPath(this._appSettingsHome, 'agent-plugins'); }
 }
 
 suite('UserDataProfileMainService', () => {

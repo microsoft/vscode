@@ -134,7 +134,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		}
 	});
 
-	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache'), URI.file('/test')))));
+	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 	instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 	instantiationService.stub(ILabelService, { onDidChangeFormatters: disposables.add(new Emitter<IFormatterChangeEvent>()).event });
 

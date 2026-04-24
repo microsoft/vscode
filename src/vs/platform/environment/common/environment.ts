@@ -6,9 +6,6 @@
 import { URI } from '../../../base/common/uri.js';
 import { NativeParsedArgs } from './argv.js';
 import { createDecorator, refineServiceDecorator } from '../../instantiation/common/instantiation.js';
-import { join, resolve } from '../../../base/common/path.js';
-import { env } from '../../../base/common/process.js';
-import { joinPath } from '../../../base/common/resources.js';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
@@ -61,7 +58,6 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
-	agentPluginsHome: URI;
 	appSharedDataHome: URI;
 
 	// --- settings sync
@@ -174,24 +170,4 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
 	//
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-}
-
-
-export function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI, dataFolderName: string): string {
-	const cliAgentPluginsDir = args['agent-plugins-dir'];
-	if (cliAgentPluginsDir) {
-		return resolve(cliAgentPluginsDir);
-	}
-
-	const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
-	if (vscodeAgentPlugins) {
-		return vscodeAgentPlugins;
-	}
-
-	const vscodePortable = env['VSCODE_PORTABLE'];
-	if (vscodePortable) {
-		return join(vscodePortable, 'agent-plugins');
-	}
-
-	return joinPath(userHome, dataFolderName, 'agent-plugins').fsPath;
 }

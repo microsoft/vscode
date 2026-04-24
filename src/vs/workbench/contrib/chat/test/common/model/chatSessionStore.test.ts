@@ -79,7 +79,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IFileService, testDisposables.add(new InMemoryTestFileService()));
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
-		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache'), URI.file('/test')) });
+		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		mockWorkspaceEditingService = testDisposables.add(new MockWorkspaceEditingService());
 		instantiationService.stub(IWorkspaceEditingService, mockWorkspaceEditingService as unknown as IWorkspaceEditingService);

@@ -164,7 +164,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 	};
 }
 
-export function toUserDataProfile(id: string, name: string, location: URI, profilesCacheHome: URI, agentPluginsHome: URI, options?: IUserDataProfileOptions, defaultProfile?: IUserDataProfile): IUserDataProfile {
+export function toUserDataProfile(id: string, name: string, location: URI, profilesCacheHome: URI, options?: IUserDataProfileOptions, defaultProfile?: IUserDataProfile): IUserDataProfile {
 	return {
 		id,
 		name,
@@ -179,7 +179,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		promptsHome: defaultProfile && options?.useDefaultFlags?.prompts ? defaultProfile.promptsHome : joinPath(location, 'prompts'),
 		extensionsResource: defaultProfile && options?.useDefaultFlags?.extensions ? defaultProfile.extensionsResource : joinPath(location, 'extensions.json'),
 		mcpResource: defaultProfile && options?.useDefaultFlags?.mcp ? defaultProfile.mcpResource : joinPath(location, 'mcp.json'),
-		agentPluginsHome,
+		agentPluginsHome: defaultProfile ? defaultProfile.agentPluginsHome : joinPath(location, 'agent-plugins'),
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
@@ -214,7 +214,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly profilesHome: URI;
 	private readonly profilesCacheHome: URI;
-	private readonly agentPluginsHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
 	get profiles(): IUserDataProfile[] { return [...this.profilesObject.profiles, ...this.transientProfilesObject.profiles]; }
@@ -247,7 +246,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
 		this.profilesCacheHome = joinPath(this.environmentService.cacheHome, 'CachedProfilesData');
-		this.agentPluginsHome = this.environmentService.agentPluginsHome;
 	}
 
 	init(): void {
@@ -271,7 +269,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						storedProfile.name,
 						storedProfile.location,
 						this.profilesCacheHome,
-						this.agentPluginsHome,
 						{
 							icon: storedProfile.icon,
 							useDefaultFlags: storedProfile.useDefaultFlags,
@@ -333,7 +330,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	protected createDefaultProfile() {
-		const defaultProfile = toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome, this.agentPluginsHome);
+		const defaultProfile = toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome);
 		return { ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true };
 	}
 
@@ -384,7 +381,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						name,
 						this.uriIdentityService.extUri.joinPath(this.profilesHome, id),
 						this.profilesCacheHome,
-						this.agentPluginsHome,
 						options,
 						this.defaultProfile);
 					await this.fileService.createFolder(profile.location);
@@ -419,7 +415,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 			if (profile.id === existing.id) {
 				if (!existing.isDefault) {
-					profileToUpdate = toUserDataProfile(existing.id, options.name ?? existing.name, existing.location, this.profilesCacheHome, this.agentPluginsHome, {
+					profileToUpdate = toUserDataProfile(existing.id, options.name ?? existing.name, existing.location, this.profilesCacheHome, {
 						icon: options.icon === null ? undefined : options.icon ?? existing.icon,
 						transient: options.transient ?? existing.isTransient,
 						useDefaultFlags: options.useDefaultFlags ?? existing.useDefaultFlags,
