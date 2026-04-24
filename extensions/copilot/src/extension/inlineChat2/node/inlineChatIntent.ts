@@ -43,8 +43,8 @@ import { ICompletedToolCallRound, InlineChat2Prompt, LARGE_FILE_LINE_THRESHOLD }
 import { ToolName } from '../../tools/common/toolNames';
 import { CopilotToolMode } from '../../tools/common/toolsRegistry';
 import { isToolValidationError, isValidatedToolInput, IToolsService } from '../../tools/common/toolsService';
-import { InlineChatProgressMessages } from './progressMessages';
-import { CopilotInteractiveEditorResponse, InteractionOutcome } from './promptCraftingTypes';
+import { InlineChatProgressMessages } from '../../inlineChat/node/progressMessages';
+import { CopilotInteractiveEditorResponse, InteractionOutcome } from '../../inlineChat/node/promptCraftingTypes';
 
 
 const INLINE_CHAT_EXIT_TOOL_NAME = 'inline_chat_exit';
@@ -61,12 +61,7 @@ export class InlineChatIntent implements IIntent {
 
 	static readonly ID = Intent.InlineChat;
 
-	static readonly _EDIT_TOOLS = new Set<string>([
-		ToolName.ApplyPatch,
-		ToolName.EditFile,
-		ToolName.ReplaceString,
-		ToolName.MultiReplaceString,
-	]);
+
 
 	readonly id = InlineChatIntent.ID;
 
@@ -264,6 +259,13 @@ export class InlineChatIntent implements IIntent {
 }
 
 class InlineChatToolCalling {
+
+	private static readonly _EDIT_TOOLS = new Set<string>([
+		ToolName.ApplyPatch,
+		ToolName.EditFile,
+		ToolName.ReplaceString,
+		ToolName.MultiReplaceString,
+	]);
 
 	constructor(
 		private readonly _intent: InlineChatIntent,
@@ -515,7 +517,7 @@ class InlineChatToolCalling {
 		assertType(request.location2 instanceof ChatRequestEditorData);
 
 
-		const enabledTools = new Set(InlineChatIntent._EDIT_TOOLS);
+		const enabledTools = new Set(InlineChatToolCalling._EDIT_TOOLS);
 		if (!request.location2.selection.isEmpty) {
 			// only used the multi-replace when there is no selection
 			enabledTools.delete(ToolName.MultiReplaceString);
