@@ -149,10 +149,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public readonly onDidChangeStatus = this._statusChange.event;
 
-	private _permissionRequested?: PermissionRequest;
-	public get permissionRequested(): PermissionRequest | undefined {
-		return this._permissionRequested;
-	}
 	private _title?: string;
 	public get title(): string | undefined {
 		return this._title;

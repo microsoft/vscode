@@ -112,8 +112,6 @@ export interface ICopilotCLISessionService {
 
 export const ICopilotCLISessionService = createServiceIdentifier<ICopilotCLISessionService>('ICopilotCLISessionService');
 
-const SESSION_SHUTDOWN_TIMEOUT_MS = 300 * 1000;
-
 export class CopilotCLISessionService extends Disposable implements ICopilotCLISessionService {
 	declare _serviceBrand: undefined;
 
@@ -134,7 +132,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	public readonly onDidCreateSession = this._onDidCreateSession.event;
 
 	private readonly _onDidCloseSession = this._register(new Emitter<string>());
-	private readonly sessionTerminators = new DisposableMap<string, IDisposable>();
 
 	private sessionMutexForGetSession = new Map<string, Mutex>();
 
@@ -1067,27 +1064,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				});
 				this._onDidCloseSession.fire(sdkSession.sessionId);
 			})();
-		}));
-
-		// We have no way of tracking Chat Editor life cycle.
-		// Hence when we're done with a request, lets dispose the chat session (say 60s after).
-		// If in the mean time we get another request, we'll clear the timeout.
-		// When vscode shuts the sessions will be disposed anyway.
-		// This code is to avoid leaving these sessions alive forever in memory.
-		session.add(session.onDidChangeStatus(e => {
-			// If we're waiting for a permission, then do not start the timeout.
-			if (session.permissionRequested) {
-				this.sessionTerminators.deleteAndDispose(session.sessionId);
-			} else if (session.status === undefined || session.status === ChatSessionStatus.Completed || session.status === ChatSessionStatus.Failed) {
-				// We're done with this session, start timeout to dispose it
-				this.sessionTerminators.set(session.sessionId, disposableTimeout(() => {
-					session.dispose();
-					this.sessionTerminators.deleteAndDispose(session.sessionId);
-				}, SESSION_SHUTDOWN_TIMEOUT_MS));
-			} else {
-				// Session is busy.
-				this.sessionTerminators.deleteAndDispose(session.sessionId);
-			}
 		}));
 
 		const refCountedSession = new RefCountedSession(session);
