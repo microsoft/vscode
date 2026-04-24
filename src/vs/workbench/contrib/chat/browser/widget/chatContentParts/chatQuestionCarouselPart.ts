@@ -632,9 +632,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (verbose && this.carousel.terminalId) {
 			const kbLabel = this._keybindingService.lookupKeybinding('workbench.action.chat.focusQuestionCarouselTerminal')?.getLabel();
 			if (kbLabel) {
-				label += ' ' + localize('chat.questionCarousel.focusTerminalHint', "Use {0} to focus the terminal.", kbLabel);
+				label = localize('chat.questionCarousel.combinedFocusTerminalHint', "{0} Use {1} to focus the terminal.", label, kbLabel);
 			} else {
-				label += ' ' + localize('chat.questionCarousel.focusTerminalHintNoKb', "Use the Focus Terminal from Question Carousel command to focus the terminal.");
+				label = localize('chat.questionCarousel.combinedFocusTerminalHintNoKb', "{0} Use the Focus Terminal from Question Carousel command to focus the terminal.", label);
 			}
 		}
 
