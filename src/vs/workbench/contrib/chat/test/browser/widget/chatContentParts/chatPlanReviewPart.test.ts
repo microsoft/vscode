@@ -229,6 +229,40 @@ suite('ChatPlanReviewPart', () => {
 			assert.deepStrictEqual(lastSubmitResult, { rejected: false, feedback: 'Please also add tests' });
 		});
 
+		test('clicking feedback close button exits feedback mode, hides section, restores buttons, and clears draft', () => {
+			const data = new ChatPlanReviewData('Title', 'Content', [{ label: 'Autopilot', default: true }], true);
+			createWidget(data);
+
+			// Enter feedback mode
+			const feedbackButton = getFooterButtons(widget).find(b => b.textContent?.includes('Provide Feedback'));
+			feedbackButton!.click();
+
+			// Type some draft feedback
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'draft feedback';
+			textarea.dispatchEvent(new Event('input'));
+
+			// Click the close button inside the feedback header
+			const closeButton = widget.domNode.querySelector('.chat-plan-review-feedback-close') as HTMLElement;
+			assert.ok(closeButton, 'feedback close button should exist');
+			closeButton.click();
+
+			// Feedback section should be hidden
+			const feedbackSection = widget.domNode.querySelector('.chat-plan-review-feedback') as HTMLElement;
+			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden');
+
+			// Footer buttons should be back to the normal set
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
+			assert.ok(buttons.some(b => b.textContent?.includes('Provide Feedback')), 'provide feedback button should be back');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should be back');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Submit')), 'submit button should be gone');
+
+			// Draft feedback should be cleared
+			assert.strictEqual(textarea.value, '', 'textarea should be cleared');
+			assert.strictEqual(data.draftFeedback, '', 'draft feedback should be cleared');
+		});
+
 		test('submit does nothing when feedback textarea is empty', () => {
 			createWidget(createMockReview({ canProvideFeedback: true }));
 

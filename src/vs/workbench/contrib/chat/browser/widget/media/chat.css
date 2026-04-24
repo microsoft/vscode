@@ -862,6 +862,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 	transition: box-shadow 350ms ease;
+	/* Duration of the working/progress border comet animation. Set
+		dynamically by `ChatInputPart#layout` to keep the comet's linear
+		travel speed roughly constant regardless of input width — wider
+		inputs would otherwise feel sluggish at a fixed duration. */
+	--chat-input-anim-duration: 4s;
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -907,9 +912,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
 	position: absolute;
-	/* Sit fully inside the container so the parent's `overflow: hidden`
-		doesn't clip the beam. */
-	inset: 0;
+	inset: -1px;
 	/* Inherit so the ring matches whatever corner radius the container is
 		currently using (large by default, small in compact mode). */
 	border-radius: inherit;
@@ -919,12 +922,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		travels around the perimeter like a comet. Stops are mostly transparent
 		so the rest of the border stays invisible. */
 	background: conic-gradient(from var(--chat-input-anim-angle),
-		transparent 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
-		var(--vscode-chat-inputWorkingBorderColor1) 30deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
-		transparent 90deg,
-		transparent 360deg);
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
+			var(--vscode-chat-inputWorkingBorderColor1) 30deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -944,15 +947,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-container::after {
 	content: '';
 	position: absolute;
-	inset: 0;
+	inset: -1px;
 	border-radius: inherit;
 	padding: 2px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
-		transparent 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
-		transparent 90deg,
-		transparent 360deg);
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -969,17 +972,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
-	border-color: transparent;
+	/* Keep a faint, persistent ring around the input while the comet
+		animates around it. This preserves a visible boundary for the
+		input throughout the animation (including the dim portion of the
+		perimeter behind the comet) and improves contrast for users who
+		rely on a visible focus/container outline for accessibility. */
+	border-color: var(--vscode-input-border, transparent);
+	overflow: visible;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::before {
 	opacity: 1;
-	animation: chat-input-working-border-spin 4s linear infinite;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::after {
 	opacity: 1;
-	animation: chat-input-working-border-spin 4s linear infinite;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+}
+
+/* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`
+	to force a restart of the comet animations so a new
+	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
+	animation-duration at start time when sourced from a custom property). */
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::before,
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::after {
+	animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1474,6 +1492,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-editor-container {
 	padding: 0 0 0 4px;
+	/* enables 100cqi for placeholder truncation below */
+	container-type: inline-size;
 }
 
 .interactive-session .interactive-input-part.compact .chat-editor-container {
@@ -1483,6 +1503,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
+}
+
+/* Truncate the chat input placeholder with an ellipsis in narrow views
+	instead of letting it overflow off the right edge of the input.
+	The placeholder is rendered as a Monaco contentText decoration with
+	class prefix "ced-chat-session-detail" inside the view-line spans;
+	style the decoration element directly so we don't pay :has() cost
+	across every view-line on each typed character. */
+.chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+	display: inline-block;
+	max-width: 100%; /* fallback for environments without container query units */
+	max-width: 100cqi;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {

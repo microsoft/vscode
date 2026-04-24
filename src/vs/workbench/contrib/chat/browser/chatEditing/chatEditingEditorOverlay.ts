@@ -29,6 +29,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -319,6 +320,11 @@ class ChatEditingOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
+
+			if (!getCodeEditor(editor?.getControl())) {
+				return undefined;
+			}
+
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			return uri;

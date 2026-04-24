@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -504,6 +504,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri?.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
 			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
+			assert.strictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
+		});
+
+		test('does not hide presentation when tool with file edits fails', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: false,
+				pastTenseMessage: 'Failed to edit',
+				error: { message: 'write error' },
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					after: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///snap/after' },
+					},
+				}],
+			});
+
+			assert.notStrictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
 		});
 
 		test('returns empty file edits for cancelled tool call', () => {

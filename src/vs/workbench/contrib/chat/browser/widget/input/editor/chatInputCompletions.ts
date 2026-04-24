@@ -54,8 +54,8 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { ICustomizationHarnessService, getActiveHarnessSlashCommands } from '../../../../common/customizationHarnessService.js';
-import { IPromptsService, matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -81,7 +81,6 @@ class SlashCommandCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
@@ -236,7 +235,8 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await getActiveHarnessSlashCommands(this.harnessService, this.promptsService, token);
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+				const promptCommands = await this.harnessService.getSlashCommands(currentSessionType, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -245,7 +245,6 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
 				const userInvocableCommands = promptCommands
 					.filter(c => c.userInvocable)
 					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));

@@ -50,37 +50,6 @@ import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 
-/**
- * Error thrown when a skill file is missing the required name attribute.
- */
-export class SkillMissingNameError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a name attribute');
-	}
-}
-
-/**
- * Error thrown when a skill file is missing the required description attribute.
- */
-export class SkillMissingDescriptionError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a description attribute');
-	}
-}
-
-/**
- * Error thrown when a skill's name does not match its parent folder name.
- */
-export class SkillNameMismatchError extends Error {
-	constructor(
-		public readonly uri: URI,
-		public readonly skillName: string,
-		public readonly folderName: string
-	) {
-		super(`Skill name must match folder name: expected "${folderName}" but got "${skillName}"`);
-	}
-}
-
 type PromptFileProviderEntry = {
 	extension: IExtensionDescription;
 	type: PromptsType;
@@ -635,7 +604,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
-				const rawName = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				let rawName: string;
+				if (promptPath.type === PromptsType.skill) {
+					// For skills, always use the folder name as the canonical name
+					// (consistent with computeSkillDiscoveryInfo)
+					rawName = getSkillFolderName(promptPath.uri);
+				} else {
+					rawName = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				}
 				// For plugin resources, ensure the canonical plugin prefix is always preserved even when the
 				// file's frontmatter overrides the name.
 				const name = promptPath.source === PromptFileSource.Plugin && promptPath.pluginUri
@@ -791,73 +767,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 			try {
 				const ast = await this.parseNew(uri, token);
 
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				let metadata: any | undefined;
-				if (ast.header) {
-					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
-					if (advanced && advanced.value.type === 'map') {
-						metadata = {};
-						for (const [key, value] of Object.entries(advanced.value)) {
-							if (value.type === 'scalar') {
-								metadata[key] = value;
-							}
-						}
-					}
-				}
-				const toolReferences: IVariableReference[] = [];
-				if (ast.body) {
-					const bodyOffset = ast.body.offset;
-					const bodyVarRefs = ast.body.variableReferences;
-					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
-						const { name, offset, fullLength } = bodyVarRefs[i];
-						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + fullLength);
-						toolReferences.push({ name, range });
-					}
-				}
-
-				const agentInstructions = {
-					content: ast.body?.getContent() ?? '',
-					toolReferences,
-					metadata,
-				} satisfies IAgentInstructions;
-
-				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-				const description = ast.header?.description ?? promptPath.description;
-				const target = getTarget(PromptsType.agent, ast.header ?? uri);
-
-				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
-				const when = isExtensionPromptPath(promptPath) && promptPath.when
-					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
-					: undefined;
-				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes: promptPath.sessionTypes, ...(when !== undefined ? { when } : undefined) };
-					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
-				}
-				const visibility = {
-					userInvocable: ast.header.userInvocable !== false,
-					agentInvocable: ast.header.infer !== undefined ? ast.header.infer === true : ast.header.disableModelInvocation !== true,
-				} satisfies ICustomAgentVisibility;
-
-				let model = ast.header.model;
-				if (target === Target.Claude && model) {
-					model = mapClaudeModels(model);
-				}
-				let { tools, handOffs, argumentHint, agents } = ast.header;
-				if (target === Target.Claude && tools) {
-					tools = mapClaudeTools(tools);
-				}
-
 				// Parse hooks from the frontmatter if present
 				let hooks: ChatRequestHooks | undefined;
-				const hooksRaw = ast.header.hooksRaw;
+				const hooksRaw = ast.header?.hooksRaw;
 				if (useChatHooks && isWorkspaceTrusted && hooksRaw) {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
+					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri);
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
-
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, sessionTypes: promptPath.sessionTypes, ...(when !== undefined ? { when } : undefined) };
-				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
+				const extra = {
+					sessionTypes: promptPath.sessionTypes,
+					hooks,
+					name: promptPath.name,
+					description: promptPath.description,
+					source: IAgentSource.fromPromptPath(promptPath)
+				};
+				const agent = CustomAgent.fromParsedPromptFile(ast, extra);
+				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, agent.name, agent.description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
@@ -1123,30 +1050,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
 		const parsedFile = await this.parseNew(uri, token);
-		const name = parsedFile.header?.name;
+		const folderName = getSkillFolderName(uri);
 
+		let name = parsedFile.header?.name;
 		if (!name) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
-			throw new SkillMissingNameError(uri);
+			this.logger.debug(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+			name = folderName;
 		}
 
 		const description = parsedFile.header?.description;
-		if (!description) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing description attribute: ${uri}`);
-			throw new SkillMissingDescriptionError(uri);
-		}
 
 		// Sanitize the name first (remove XML tags and truncate)
-		const sanitizedName = this.truncateAgentSkillName(name, uri);
+		let sanitizedName = this.truncateAgentSkillName(name, uri);
 
-		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const folderName = getSkillFolderName(uri);
+		// If sanitized name doesn't match folder name, use folder name (consistent with computeSkillDiscoveryInfo)
 		if (sanitizedName !== folderName) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
+			this.logger.debug(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+			sanitizedName = folderName;
 		}
 
-		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		const sanitizedDescription = description ? this.truncateAgentSkillDescription(description, uri) : undefined;
 		return { name: sanitizedName, description: sanitizedDescription };
 	}
 
@@ -1788,13 +1711,70 @@ class ModelChangeTracker extends Disposable {
 	}
 }
 
+export namespace CustomAgent {
+	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; when?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined }): ICustomAgent {
+		const uri = ast.uri;
+		const { hooks, sessionTypes } = extra;
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		let metadata: any | undefined;
+		if (ast.header) {
+			const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
+			if (advanced && advanced.value.type === 'map') {
+				metadata = {};
+				for (const [key, value] of Object.entries(advanced.value)) {
+					if (value.type === 'scalar') {
+						metadata[key] = value;
+					}
+				}
+			}
+		}
+		const toolReferences: IVariableReference[] = [];
+		if (ast.body) {
+			const bodyOffset = ast.body.offset;
+			const bodyVarRefs = ast.body.variableReferences;
+			for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
+				const { name, offset, fullLength } = bodyVarRefs[i];
+				const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + fullLength);
+				toolReferences.push({ name, range });
+			}
+		}
+
+		const agentInstructions = { content: ast.body?.getContent() ?? '', toolReferences, metadata } satisfies IAgentInstructions;
+
+		const name = ast.header?.name ?? extra.name ?? getCleanPromptName(uri);
+		const description = ast.header?.description ?? extra.description;
+		const target = getTarget(PromptsType.agent, ast.header ?? uri);
+
+		const when = extra.when ? ContextKeyExpr.deserialize(extra.when) ?? undefined : undefined;
+		const source = extra.source;
+		if (!ast.header) {
+			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks, when };
+		}
+		const visibility = {
+			userInvocable: ast.header.userInvocable !== false,
+			agentInvocable: ast.header.infer !== undefined ? ast.header.infer === true : ast.header.disableModelInvocation !== true,
+		} satisfies ICustomAgentVisibility;
+
+		let model = ast.header.model;
+		if (target === Target.Claude && model) {
+			model = mapClaudeModels(model);
+		}
+		let { tools, handOffs, argumentHint, agents } = ast.header;
+		if (target === Target.Claude && tools) {
+			tools = mapClaudeTools(tools);
+		}
+		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, when };
+
+	}
+}
+
 namespace IAgentSource {
 	export function fromPromptPath(promptPath: IPromptPath): IAgentSource {
 		if (promptPath.storage === PromptsStorage.extension) {
 			return {
 				storage: PromptsStorage.extension,
-				extensionId: promptPath.extension.identifier,
-				type: promptPath.source
+				extensionId: promptPath.extension.identifier
 			};
 		} else if (promptPath.storage === PromptsStorage.plugin) {
 			return {

@@ -161,7 +161,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,
-					status: s.status,
+					status,
 					workingDirectory: s.workingDirectory,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
@@ -201,6 +201,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			description: this._description,
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),
+			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),
 			timing: {
 				created: opts.createdAt,

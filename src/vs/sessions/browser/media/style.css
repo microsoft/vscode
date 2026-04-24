@@ -429,11 +429,19 @@
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
-/* While the developer-joy animated border is active, suppress the static
-	border so it doesn't visually conflict with the spinning gradient ring. */
-.agent-sessions-workbench .interactive-session .chat-input-container.working,
+/* While the developer-joy animated border is active, keep a faint
+	persistent ring so the input still has a visible boundary throughout
+	the comet animation (improves visuals + accessibility). The spinning
+	gradient ring overlays this. When focused, the regular focus border
+	is blended/dimmed during the animation to avoid competing visually. */
+.agent-sessions-workbench .interactive-session .chat-input-container.working:not(.focused) {
+	border-color: var(--vscode-agentsChatInput-border) !important;
+}
+
+/* Dim the focus border while the comet is animating so the bright focus
+	ring doesn't visually fight with the spinning gradient. */
 .agent-sessions-workbench .interactive-session .chat-input-container.working.focused {
-	border-color: transparent !important;
+	border-color: color-mix(in srgb, var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) 40%, transparent) !important;
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */

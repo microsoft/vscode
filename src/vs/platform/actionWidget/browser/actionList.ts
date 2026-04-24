@@ -454,14 +454,6 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
-	 * Fixed width for the action list. When set, DOM-based width measurement is
-	 * skipped and this value is used directly, preventing width fluctuations caused
-	 * by scrollbar presence (which changes with window height). Use this for pickers
-	 * that should have a stable, fixed width (e.g. the workspace picker at 600px).
-	 */
-	readonly fixedWidth?: number;
-
-	/**
 	 * Optional handler for markdown links activated in item descriptions or hovers.
 	 * When unset, links open via the opener service with command links allowed.
 	 */
@@ -1374,14 +1366,17 @@ export class ActionListWidget<T> extends Disposable {
 				}
 				for (let ci = 0; ci < group.actions.length; ci++) {
 					const child = group.actions[ci];
+					const icon = (child as IAction & { icon?: ThemeIcon }).icon
+						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+					const hoverContent = (child as IAction & { hoverContent?: string }).hoverContent;
 					submenuItems.push({
 						item: child,
 						kind: ActionListItemKind.Action,
 						label: child.label,
 						description: child.tooltip || undefined,
-						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
+						group: { title: '', icon },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: hoverContent } : {},
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {
@@ -1478,10 +1473,14 @@ export class ActionListWidget<T> extends Disposable {
 		const hoverHeaderHeight = hoverHeader ? hoverHeader.offsetHeight : 0;
 		const totalPanelHeight = totalHeight + hoverHeaderHeight;
 		const viewportHeight = targetWindow.innerHeight;
-		let top = anchorRect.top - parentRect.top - 4;
+		const anchorHeight = anchorRect.height;
+		let top = anchorRect.top - parentRect.top + (anchorHeight - totalPanelHeight) / 2;
 		const panelBottom = parentRect.top + top + totalPanelHeight;
 		if (panelBottom > viewportHeight) {
 			top -= (panelBottom - viewportHeight + 8);
+		}
+		if (parentRect.top + top < 0) {
+			top = -parentRect.top;
 		}
 		this._submenuContainer.style.top = `${top}px`;
 	}
@@ -1616,7 +1615,6 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
-	private readonly _options: IActionListOptions | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -1655,7 +1653,6 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
-		this._options = options;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,
@@ -1760,15 +1757,7 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this.computeHeight();
 		this._widget.layout(listHeight);
 
-		// When a fixedWidth is provided, skip DOM measurement entirely.
-		// DOM-based measurement varies with scrollbar presence (which depends on
-		// the list height), causing the width to fluctuate as the window is resized.
-		let computedWidth: number;
-		if (this._options?.fixedWidth !== undefined) {
-			computedWidth = this._options.fixedWidth;
-		} else {
-			computedWidth = this._widget.computeMaxWidth(minWidth);
-		}
+		const computedWidth = this._widget.computeMaxWidth(minWidth);
 		this._cachedMaxWidth = computedWidth;
 		this._widget.layout(listHeight, this._cachedMaxWidth);
 

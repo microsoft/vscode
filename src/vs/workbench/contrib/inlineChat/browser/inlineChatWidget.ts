@@ -14,10 +14,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { Selection } from '../../../../editor/common/core/selection.js';
 import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -44,7 +41,6 @@ import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/widget/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService/chatService.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
@@ -74,7 +70,7 @@ export interface IInlineChatWidgetConstructionOptions {
 	inZoneWidget?: boolean;
 }
 
-export class InlineChatWidget {
+export abstract class InlineChatWidget {
 
 	protected readonly _elements = h(
 		'div.inline-chat@root',
@@ -96,7 +92,7 @@ export class InlineChatWidget {
 	readonly #ctxInputEditorFocused: IContextKey<boolean>;
 	readonly #ctxResponseFocused: IContextKey<boolean>;
 
-	readonly #chatWidget: ChatWidget;
+	readonly chatWidget: ChatWidget;
 
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this.#isLayouting);
@@ -113,7 +109,6 @@ export class InlineChatWidget {
 	readonly #accessibilityService: IAccessibilityService;
 	readonly #configurationService: IConfigurationService;
 	readonly #accessibleViewService: IAccessibleViewService;
-	readonly #modelService: IModelService;
 	readonly #chatService: IChatService;
 	readonly #chatEntitlementService: IChatEntitlementService;
 	readonly #markdownRendererService: IMarkdownRendererService;
@@ -128,7 +123,6 @@ export class InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
-		@IModelService modelService: IModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
@@ -139,7 +133,6 @@ export class InlineChatWidget {
 		this.#accessibilityService = accessibilityService;
 		this.#configurationService = configurationService;
 		this.#accessibleViewService = accessibleViewService;
-		this.#modelService = modelService;
 		this.#chatService = chatService;
 		this.#chatEntitlementService = chatEntitlementService;
 		this.#markdownRendererService = markdownRendererService;
@@ -153,7 +146,7 @@ export class InlineChatWidget {
 			this._store
 		);
 
-		this.#chatWidget = scopedInstaService.createInstance(
+		this.chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
 			{ isInlineChat: true },
@@ -191,10 +184,10 @@ export class InlineChatWidget {
 			}
 		);
 		this._elements.root.classList.toggle('in-zone-widget', !!options.inZoneWidget);
-		this.#chatWidget.render(this._elements.chatWidget);
+		this.chatWidget.render(this._elements.chatWidget);
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
-		this.#chatWidget.setVisible(true);
-		this._store.add(this.#chatWidget);
+		this.chatWidget.setVisible(true);
+		this._store.add(this.chatWidget);
 
 		const ctxResponse = ChatContextKeys.isResponse.bindTo(this.scopedContextKeyService);
 		const ctxResponseVote = ChatContextKeys.responseVote.bindTo(this.scopedContextKeyService);
@@ -203,10 +196,10 @@ export class InlineChatWidget {
 		const ctxResponseErrorFiltered = ChatContextKeys.responseIsFiltered.bindTo(this.scopedContextKeyService);
 
 		const viewModelStore = this._store.add(new DisposableStore());
-		this._store.add(this.#chatWidget.onDidChangeViewModel(() => {
+		this._store.add(this.chatWidget.onDidChangeViewModel(() => {
 			viewModelStore.clear();
 
-			const viewModel = this.#chatWidget.viewModel;
+			const viewModel = this.chatWidget.viewModel;
 			if (!viewModel) {
 				return;
 			}
@@ -249,8 +242,8 @@ export class InlineChatWidget {
 		this._store.add(tracker.onDidFocus(() => this.#ctxResponseFocused.set(true)));
 
 		this.#ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(contextKeyService);
-		this._store.add(this.#chatWidget.inputEditor.onDidFocusEditorWidget(() => this.#ctxInputEditorFocused.set(true)));
-		this._store.add(this.#chatWidget.inputEditor.onDidBlurEditorWidget(() => this.#ctxInputEditorFocused.set(false)));
+		this._store.add(this.chatWidget.inputEditor.onDidFocusEditorWidget(() => this.#ctxInputEditorFocused.set(true)));
+		this._store.add(this.chatWidget.inputEditor.onDidBlurEditorWidget(() => this.#ctxInputEditorFocused.set(false)));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
@@ -293,7 +286,7 @@ export class InlineChatWidget {
 		}));
 
 		this._store.add(this.#chatService.onDidPerformUserAction(e => {
-			if (isEqual(e.sessionResource, this.#chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
+			if (isEqual(e.sessionResource, this.chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
 				this.updateStatus(localize('feedbackThanks', "Thank you for your feedback!"), { resetAfter: 1250 });
 			}
 		}));
@@ -311,7 +304,7 @@ export class InlineChatWidget {
 					? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel)
 					: localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 			}
-			this.#chatWidget.inputEditor.updateOptions({ ariaLabel: label });
+			this.chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 		}
 	}
 
@@ -346,14 +339,6 @@ export class InlineChatWidget {
 		return this._elements.root;
 	}
 
-	get chatWidget(): ChatWidget {
-		return this.#chatWidget;
-	}
-
-	saveState() {
-		this.#chatWidget.saveState();
-	}
-
 	layout(widgetDim: Dimension) {
 		const contentHeight = this.contentHeight;
 		this.#isLayouting = true;
@@ -377,7 +362,7 @@ export class InlineChatWidget {
 		this._elements.root.style.height = `${dimension.height - extraHeight}px`;
 		this._elements.root.style.width = `${dimension.width}px`;
 
-		this.#chatWidget.layout(
+		this.chatWidget.layout(
 			dimension.height - statusHeight - extraHeight,
 			dimension.width
 		);
@@ -388,7 +373,7 @@ export class InlineChatWidget {
 	 */
 	get contentHeight(): number {
 		const data = {
-			chatWidgetContentHeight: this.#chatWidget.contentHeight,
+			chatWidgetContentHeight: this.chatWidget.contentHeight,
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
@@ -401,7 +386,7 @@ export class InlineChatWidget {
 		// at least "maxWidgetHeight" high and at most the content height.
 
 		let maxWidgetOutputHeight = 100;
-		for (const item of this.#chatWidget.viewModel?.getItems() ?? []) {
+		for (const item of this.chatWidget.viewModel?.getItems() ?? []) {
 			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
 				maxWidgetOutputHeight = 270;
 				break;
@@ -409,107 +394,13 @@ export class InlineChatWidget {
 		}
 
 		let value = this.contentHeight;
-		value -= this.#chatWidget.contentHeight;
-		value += Math.min(this.#chatWidget.input.height.get() + maxWidgetOutputHeight, this.#chatWidget.contentHeight);
+		value -= this.chatWidget.contentHeight;
+		value += Math.min(this.chatWidget.input.height.get() + maxWidgetOutputHeight, this.chatWidget.contentHeight);
 		return value;
 	}
 
 	protected _getExtraHeight(): number {
 		return this.#options.inZoneWidget ? 1 : (2 /*border*/ + 4 /*shadow*/);
-	}
-
-	get value(): string {
-		return this.#chatWidget.getInput();
-	}
-
-	set value(value: string) {
-		this.#chatWidget.setInput(value);
-	}
-
-	selectAll() {
-		this.#chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
-	}
-
-	set placeholder(value: string) {
-		this.#chatWidget.setInputPlaceholder(value);
-	}
-
-	toggleStatus(show: boolean) {
-		this._elements.toolbar1.classList.toggle('hidden', !show);
-		this._elements.toolbar2.classList.toggle('hidden', !show);
-		this._elements.status.classList.toggle('hidden', !show);
-		this._elements.infoLabel.classList.toggle('hidden', !show);
-		this._onDidChangeHeight.fire();
-	}
-
-	updateToolbar(show: boolean) {
-		this._elements.root.classList.toggle('toolbar', show);
-		this._elements.toolbar1.classList.toggle('hidden', !show);
-		this._elements.toolbar2.classList.toggle('hidden', !show);
-		this._elements.status.classList.toggle('actions', show);
-		this._elements.infoLabel.classList.toggle('hidden', show);
-		this._onDidChangeHeight.fire();
-	}
-
-	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
-		const { viewModel } = this.#chatWidget;
-		if (!viewModel) {
-			return undefined;
-		}
-		const items = viewModel.getItems().filter(i => isResponseVM(i));
-		const item = items.at(-1);
-		if (!item) {
-			return;
-		}
-
-		// Look for the code block in the rendered response
-		const codeBlocks = this.#chatWidget.getCodeBlockInfosForResponse(item);
-		const info = codeBlocks[codeBlockIndex];
-		if (info?.uri) {
-			return this.#modelService.getModel(info.uri) ?? undefined;
-		}
-
-		// Fallback: if the code block hasn't been rendered yet (e.g. due to
-		// timing between response completion and list rendering), parse the
-		// markdown directly and create a transient model.
-		const markdown = item.response.getMarkdown();
-		let currentCodeBlockIndex = 0;
-		let foundText: string | undefined;
-
-		for (const line of markdown.split('\n')) {
-			if (line.startsWith('```') && foundText === undefined) {
-				foundText = '';
-			} else if (line.startsWith('```') && foundText !== undefined) {
-				if (currentCodeBlockIndex === codeBlockIndex) {
-					break;
-				}
-				currentCodeBlockIndex++;
-				foundText = undefined;
-			} else if (foundText !== undefined) {
-				foundText += (foundText ? '\n' : '') + line;
-			}
-		}
-
-		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
-			return this.#modelService.createModel(foundText, null, undefined, true);
-		}
-
-		return undefined;
-	}
-
-	get responseContent(): string | undefined {
-		const requests = this.#chatWidget.viewModel?.model.getRequests();
-		return requests?.at(-1)?.response?.response.toString();
-	}
-
-
-	getChatModel(): IChatModel | undefined {
-		return this.#chatWidget.viewModel?.model;
-	}
-
-	setChatModel(chatModel: IChatModel) {
-		chatModel.inputModel.setState({ inputText: '', selections: [] });
-		this.#chatWidget.setModel(chatModel);
 	}
 
 	updateInfo(message: string): void {
@@ -548,8 +439,8 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this.#chatWidget.attachmentModel.clear(true);
-		this.#chatWidget.saveState();
+		this.chatWidget.attachmentModel.clear(true);
+		this.chatWidget.saveState();
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
@@ -562,7 +453,7 @@ export class InlineChatWidget {
 	}
 
 	focus() {
-		this.#chatWidget.focusInput();
+		this.chatWidget.focusInput();
 	}
 
 	hasFocus() {
@@ -586,7 +477,6 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IModelService modelService: IModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService,
@@ -600,7 +490,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, modelService, chatService, hoverService, chatEntitlementService, markdownRendererService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();

@@ -13,7 +13,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys } from '../common/changes.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -150,12 +150,14 @@ class OpenFileAction extends Action2 {
 				id: MenuId.ChatEditingSessionChangeToolbar,
 				group: 'navigation',
 				order: 1,
-				when: IsSessionsWindowContext,
 				alt: {
 					id: 'workbench.action.agentSessions.openChanges',
 					title: localize2('openChanges', "Open Changes"),
 					icon: Codicon.gitCompare,
-				}
+				},
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChangesContextKeys.ChangeKind.isEqualTo('file'))
 			}
 		});
 	}

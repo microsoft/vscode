@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { InlineDocIntent } from '../../src/extension/intents/node/docIntent';
 import { EditCodeIntent } from '../../src/extension/intents/node/editCodeIntent';
 import { GenerateCodeIntent } from '../../src/extension/intents/node/generateCodeIntent';
 import { TestingServiceCollection } from '../../src/platform/test/node/services';
@@ -13,7 +12,7 @@ import { Uri } from '../../src/vscodeTypes';
 import { NonExtensionConfiguration, ssuite, stest } from '../base/stest';
 import { KnownDiagnosticProviders } from '../simulation/diagnosticProviders';
 import { simulateInlineChat, simulateInlineChatIntent } from '../simulation/inlineChatSimulator';
-import { assertContainsAllSnippets, assertNoDiagnosticsAsync, assertNoSyntacticDiagnosticsAsync, findTextBetweenMarkersFromBottom } from '../simulation/outcomeValidators';
+import { assertContainsAllSnippets, assertNoDiagnosticsAsync, assertNoSyntacticDiagnosticsAsync } from '../simulation/outcomeValidators';
 import { assertConversationalOutcome, assertInlineEdit, assertInlineEditShape, assertOccursOnce, assertOneOf, assertSomeStrings, fromFixture, toFile } from '../simulation/stestUtil';
 import { EditTestStrategy, IScenario } from '../simulation/types';
 
@@ -67,19 +66,6 @@ forInlineAndInlineChatIntent((strategy, variant, nonExtensionConfigurations) => 
 							const f2 = text.indexOf('function ', f1 + 1);
 							assert(f2 === -1);
 							assertContainsAllSnippets(text, ['function', ': string'], 'gen-ts-ltrim-02');
-						},
-					},
-					{
-						query: 'add doc',
-						expectedIntent: InlineDocIntent.ID,
-						validate: async (outcome, workspace, accessor) => {
-							assertInlineEdit(outcome);
-							await assertNoSyntacticDiagnosticsAsync(accessor, outcome, workspace, 'tsc');
-							const text = outcome.fileContents;
-							const f1 = text.indexOf('\nfunction ');
-							const f2 = text.indexOf('\nfunction ', f1 + 1);
-							assert(f2 === -1);
-							return assertContainsAllSnippets(text, ['function', ': string', '/**'], 'gen-ts-ltrim-03');
 						},
 					}
 				],
@@ -361,30 +347,6 @@ forInlineAndInlineChatIntent((strategy, variant, nonExtensionConfigurations) => 
 								modifiedLength: undefined,
 							}]);
 							assertContainsAllSnippets(edit.changedModifiedLines.join('\n'), ['function getPrimes']);
-						}
-					},
-					{
-						query: 'document the functions with jsdoc',
-						expectedIntent: InlineDocIntent.ID,
-						validate: async (outcome, workspace, accessor) => {
-							assertInlineEdit(outcome);
-							await assertNoSyntacticDiagnosticsAsync(accessor, outcome, workspace, 'tsc');
-							const text = outcome.fileContents;
-
-							// we need to have 2 functions
-							const f1 = text.indexOf('function fibonacci');
-							const f2 = text.indexOf('\nfunction getPrimes', f1 + 1);
-							const f3 = text.indexOf('function', f2 + 1);
-							assert(!(f1 === -1 || f2 === -1));
-							assert(f3 === -1);
-
-							const textAboveFibonacci = text.substring(0, f1);
-							const fibonacciDoc = findTextBetweenMarkersFromBottom(textAboveFibonacci, '/**', '*/');
-							assert(fibonacciDoc);
-
-							const textAboveGetPrimes = text.substring(f1, f2);
-							const getPrimesDoc = findTextBetweenMarkersFromBottom(textAboveGetPrimes, '/**', '*/');
-							assert(getPrimesDoc);
 						}
 					},
 					{

@@ -453,7 +453,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
 	 */
-	dispatchOptimistic(action: SessionAction | TerminalAction): number {
+	dispatchOptimistic(action: RootAction | SessionAction | TerminalAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(action.session));
 			if (entry && entry.sub instanceof SessionStateSubscription) {

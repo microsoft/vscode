@@ -18,11 +18,10 @@ import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessi
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
-const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
 
 /**
  * Persisted state for a session.
@@ -52,16 +51,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
-	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
-
 	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
 	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isNewChatInSessionContext: IContextKey<boolean>;
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _isWorkspaceAgent: IContextKey<boolean>;
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
@@ -86,7 +82,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext = IsNewChatInSessionContext.bindTo(contextKeyService);
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
-		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._isWorkspaceAgent = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
 		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
 		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
@@ -96,11 +92,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
 
-		// Restore or auto-select active provider
-		this._initActiveProvider();
+		// Subscribe to provider changes for session type updates
 		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
 			this._onProvidersChanged(e);
-			this._initActiveProvider();
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
@@ -127,34 +121,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			}
 			this._providerListeners.set(provider.id, disposables);
 		}
-	}
-
-	private _initActiveProvider(): void {
-		const providers = this.sessionsProvidersService.getProviders();
-		if (providers.length === 0) {
-			return;
-		}
-
-		// If already set and still valid, keep it
-		const current = this._activeProviderId.get();
-		if (current && providers.some(p => p.id === current)) {
-			return;
-		}
-
-		// Try to restore from storage
-		const stored = this.storageService.get(ACTIVE_PROVIDER_KEY, StorageScope.PROFILE);
-		if (stored && providers.some(p => p.id === stored)) {
-			this._activeProviderId.set(stored, undefined);
-			return;
-		}
-
-		// Auto-select the first (or only) provider
-		this._activeProviderId.set(providers[0].id, undefined);
-	}
-
-	setActiveProvider(providerId: string): void {
-		this._activeProviderId.set(providerId, undefined);
-		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private onDidReplaceSession(from: ISession, to: ISession): void {
@@ -407,7 +373,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
+		this._isWorkspaceAgent.set(isWorkspaceAgentSessionType(session?.sessionType));
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 
