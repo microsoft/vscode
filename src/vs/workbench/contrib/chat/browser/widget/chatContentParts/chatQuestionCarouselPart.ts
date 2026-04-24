@@ -32,8 +32,10 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { RunInTerminalTool } from '../../../../terminal/terminalContribChatExports.js';
 import './media/chatQuestionCarousel.css';
 
@@ -87,6 +89,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
+	private readonly _chatQuestionCarouselHasTerminalContextKey: IContextKey<boolean>;
 	private _validationMessageElement: HTMLElement | undefined;
 	private _currentValidationError: string | undefined;
 	private _focusTerminalButtonContainer: HTMLElement | undefined;
@@ -101,16 +104,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
+		this._chatQuestionCarouselHasTerminalContextKey = ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(this._contextKeyService);
+		this._chatQuestionCarouselHasTerminalContextKey.set(!!carousel.terminalId);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this._inChatQuestionCarouselContextKey.set(false)));
-		this._register({ dispose: () => this._inChatQuestionCarouselContextKey.reset() });
+		this._register({ dispose: () => { this._inChatQuestionCarouselContextKey.reset(); this._chatQuestionCarouselHasTerminalContextKey.reset(); } });
 
 		// Set up accessibility attributes for the carousel container
 		this.domNode.tabIndex = 0;
@@ -183,10 +189,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (carousel.terminalId) {
 			this._focusTerminalButtonContainer = dom.$('.chat-question-focus-terminal-container');
 			const focusTerminalTitle = localize('chat.questionCarousel.focusTerminalTitle', 'Focus Terminal');
+			const kbLabel = this._keybindingService.lookupKeybinding('workbench.action.chat.focusQuestionCarouselTerminal')?.getLabel();
+			const focusTerminalAriaLabel = kbLabel
+				? localize('chat.questionCarousel.focusTerminalAriaLabel', 'Focus Terminal ({0})', kbLabel)
+				: focusTerminalTitle;
 			const focusTerminalButton = interactiveStore.add(new Button(this._focusTerminalButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			focusTerminalButton.label = `$(${Codicon.terminal.id})`;
 			focusTerminalButton.element.classList.add('chat-question-focus-terminal');
-			focusTerminalButton.element.setAttribute('aria-label', focusTerminalTitle);
+			focusTerminalButton.element.setAttribute('aria-label', focusTerminalAriaLabel);
 			interactiveStore.add(this._hoverService.setupDelayedHover(focusTerminalButton.element, { content: focusTerminalTitle }));
 			interactiveStore.add(focusTerminalButton.onDidClick(() => this._focusTerminal()));
 
@@ -606,11 +616,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const messageContent = this.getQuestionText(questionText);
 		const questionCount = this.carousel.questions.length;
 
+		let label: string;
 		if (questionCount === 1) {
-			this.domNode.setAttribute('aria-label', localize('chat.questionCarousel.singleQuestionLabel', 'Chat question: {0}', messageContent));
+			label = localize('chat.questionCarousel.singleQuestionLabel', 'Chat question: {0}', messageContent);
 		} else {
-			this.domNode.setAttribute('aria-label', localize('chat.questionCarousel.multiQuestionLabel', 'Chat question {0} of {1}: {2}', this._currentIndex + 1, questionCount, messageContent));
+			label = localize('chat.questionCarousel.multiQuestionLabel', 'Chat question {0} of {1}: {2}', this._currentIndex + 1, questionCount, messageContent);
 		}
+
+		const verbose = this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.ChatQuestionCarousel);
+		if (verbose && this.carousel.terminalId) {
+			const kbLabel = this._keybindingService.lookupKeybinding('workbench.action.chat.focusQuestionCarouselTerminal')?.getLabel();
+			if (kbLabel) {
+				label += ' ' + localize('chat.questionCarousel.focusTerminalHint', "Use {0} to focus the terminal.", kbLabel);
+			} else {
+				label += ' ' + localize('chat.questionCarousel.focusTerminalHintNoKb', "Use the Focus Terminal from Question Carousel command to focus the terminal.");
+			}
+		}
+
+		this.domNode.setAttribute('aria-label', label);
 	}
 
 	/**
@@ -642,6 +665,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this.navigate(1);
+		return true;
+	}
+
+	public focusTerminal(): boolean {
+		if (!this.carousel.terminalId) {
+			return false;
+		}
+		this._focusTerminal();
 		return true;
 	}
 

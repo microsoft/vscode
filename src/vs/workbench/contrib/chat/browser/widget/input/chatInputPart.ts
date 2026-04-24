@@ -2993,6 +2993,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return carousel?.navigateToNextQuestion() ?? false;
 	}
 
+	focusQuestionCarouselTerminal(): boolean {
+		const carousel = this.questionCarousel;
+		return carousel?.focusTerminal() ?? false;
+	}
+
 	// --- Plan Review ---
 
 	renderPlanReview(review: IChatPlanReview, context: IChatContentPartRenderContext, options: IChatPlanReviewPartOptions): ChatPlanReviewPart {

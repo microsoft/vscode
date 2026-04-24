@@ -873,6 +873,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.navigateToNextQuestion();
 	}
 
+	focusQuestionCarouselTerminal(): boolean {
+		return this.input.focusQuestionCarouselTerminal();
+	}
+
 	toggleTipFocus(): boolean {
 		if (this._gettingStartedTipPartRef?.hasFocus()) {
 			this.focusInput();
