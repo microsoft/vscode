@@ -1020,7 +1020,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						const autopilotContinue = this.shouldAutopilotContinue(result);
 						if (autopilotContinue) {
 							this._logService.info(`[ToolCallingLoop] Autopilot internal stop hook: continuing because task may not be complete`);
-							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: Verifying task is done\u2026'), l10n.t('Autopilot continued working'));
+							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: verifying task is done\u2026'), l10n.t('Autopilot continued working'));
 							this.stopHookReason = autopilotContinue;
 							result.round.hookContext = formatHookContext([autopilotContinue]);
 							this.autopilotStopHookActive = true;
