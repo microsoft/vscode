@@ -112,10 +112,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		this._chatQuestionCarouselHasTerminalContextKey = ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(this._contextKeyService);
-		this._chatQuestionCarouselHasTerminalContextKey.set(!!carousel.terminalId);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
-		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this._inChatQuestionCarouselContextKey.set(false)));
+		this._register(focusTracker.onDidFocus(() => {
+			this._inChatQuestionCarouselContextKey.set(true);
+			this._chatQuestionCarouselHasTerminalContextKey.set(!!this.carousel.terminalId);
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			this._inChatQuestionCarouselContextKey.set(false);
+			this._chatQuestionCarouselHasTerminalContextKey.reset();
+		}));
 		this._register({ dispose: () => { this._inChatQuestionCarouselContextKey.reset(); this._chatQuestionCarouselHasTerminalContextKey.reset(); } });
 
 		// Set up accessibility attributes for the carousel container
