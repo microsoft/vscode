@@ -32,7 +32,7 @@ export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 
 export class UserDataProfilesMainService extends UserDataProfilesService implements IUserDataProfilesMainService {
 
-	private readonly agentsPluginsHome: URI;
+	private readonly agentPluginsHome: URI;
 
 	constructor(
 		@IStateService stateService: IStateService,
@@ -43,13 +43,13 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@IProductService private readonly productService: IProductService,
 	) {
 		super(stateService, uriIdentityService, environmentService, fileService, logService);
-		this.agentsPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, environmentService.userHome, productService.dataFolderName));
+		this.agentPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, environmentService.userHome, productService.dataFolderName));
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
 		const defaultProfile = {
 			...super.createDefaultProfile(),
-			agentsPluginsHome: this.agentsPluginsHome
+			agentPluginsHome: this.agentPluginsHome
 		};
 		if (!(process as INodeProcess).isEmbeddedApp) {
 			return defaultProfile;
@@ -64,7 +64,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
 			promptsHome: joinPath(hostUserRoamingDataHome, 'prompts'),
 			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
-			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentsPluginsHome
+			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentPluginsHome
 		};
 	}
 
