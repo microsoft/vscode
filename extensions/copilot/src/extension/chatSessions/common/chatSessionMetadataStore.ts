@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import type { Uri } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ChatSessionWorktreeProperties } from './chatSessionWorktreeService';
 import type { IWorkspaceInfo } from './workspaceInfo';
@@ -91,6 +90,21 @@ export interface ChatSessionMetadataFile {
 	 * session or if the session is a child session created from the Agents app.
 	 */
 	parentSessionId?: string;
+	/** Milliseconds since epoch when this metadata was first written. */
+	created?: number;
+	/** Milliseconds since epoch of the last write. Used for top-N trim sort and cross-process merge. */
+	modified?: number;
+}
+
+/**
+ * One line in `~/.copilot/vscode.session.worktree.jsonl`. Maps a session id
+ * to the path of its worktree so folder → session lookups work even when the
+ * session has been evicted from the bulk metadata cache.
+ */
+export interface WorktreeSessionEntry {
+	readonly id: string;
+	readonly path: string;
+	readonly created: number;
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
@@ -103,9 +117,7 @@ export interface IChatSessionMetadataStore {
 	storeWorkspaceFolderInfo(sessionId: string, entry: WorkspaceFolderEntry): Promise<void>;
 	storeRepositoryProperties(sessionId: string, properties: RepositoryProperties): Promise<void>;
 	getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined>;
-	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
 	getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined>;
 	getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]>;
@@ -126,4 +138,19 @@ export interface IChatSessionMetadataStore {
 	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
 	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
 	getSessionParentId(sessionId: string): Promise<string | undefined>;
+	/**
+	 * Re-read the shared bulk metadata file from disk and merge into the in-memory cache.
+	 * Wired to the chat-sessions UI refresh action so cross-process writes become visible
+	 * on demand. Concurrent calls collapse: at most one in-flight + one pending.
+	 */
+	refresh(): Promise<void>;
+	/**
+	 * Returns session IDs whose working directory (worktree path or workspace folder)
+	 * matches the given folder URI.
+	 */
+	getSessionIdsForFolder(folder: vscode.Uri): string[];
+	/**
+	 * Returns session IDs that have a worktree whose path matches the given folder URI.
+	 */
+	getWorktreeSessions(folder: vscode.Uri): string[];
 }

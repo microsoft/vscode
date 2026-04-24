@@ -644,4 +644,25 @@ const fieldLabels: Record<keyof FormData, string> = {
 			assert.strictEqual(result!.newText, '\r\n');
 		});
 	});
+
+	suite('multi-line range, no common prefix', () => {
+
+		// Regression: when commonLen === 0 and the replaced text starts with '\n',
+		// `lastIndexOf('\n', -1)` would (incorrectly) clamp to 0 and report a
+		// match, causing the leading newline to be stripped — which can collapse
+		// the multi-line range into a same-line "suggestion" that the function
+		// then accepts. With the original substring-based check, no strip occurs
+		// and the result is `undefined`.
+		test('does not strip leading newline when nothing is in common', () => {
+			const document = createMockDocument(['abc', 'x', 'rest']);
+			// replacedText = '\nx', newText[0]='Y' differs from '\n', commonLen=0.
+			const replaceRange = new Range(0, 3, 1, 1);
+			const cursorPosition = new Position(1, 1);
+			const replaceText = 'Yx';
+
+			// The range cannot legitimately be collapsed to a single line, so
+			// the function must not synthesize a ghost-text suggestion.
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
+		});
+	});
 });

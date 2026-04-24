@@ -12,7 +12,6 @@ import { EnablementState } from '../../../../services/extensionManagement/common
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	providerExtensionId: product.defaultChatAgent?.providerExtensionId ?? '',
 };
@@ -62,7 +61,6 @@ export interface IChatSetupResult {
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }
 

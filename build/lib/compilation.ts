@@ -23,6 +23,7 @@ import watch from './watch/index.ts';
 import bom from 'gulp-bom';
 import * as tsb from './tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
+import { createTsgoStream } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -170,24 +171,27 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean, srcPath: string = 'src', options?: { noEmit?: boolean }): task.StreamTask {
-
-	const task = () => {
-		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false, noEmit: options?.noEmit });
-
-		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
-		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
-
+export function watchTypeCheckTask(src: string): task.Task {
+	return task.define(`watch-typecheck-${path.basename(src)}`, () => {
+		const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 		const generator = new MonacoGenerator(true);
 		generator.execute();
-
-		return watchSrc
-			.pipe(generator.stream)
-			.pipe(util.incremental(compile, src, true))
-			.pipe(gulp.dest(out));
-	};
-	task.taskName = `watch-${path.basename(out)}`;
-	return task;
+		const watchInput = watch(`${src}/**`, { base: src, readDelay: 200 });
+		const tsgoStream = watchInput.pipe(generator.stream).pipe(util.debounce(() => {
+			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
+			const result = es.through();
+			stream.on('end', () => {
+				result.emit('end');
+			});
+			stream.on('error', err => {
+				reporter(err);
+				fancyLog.error(ansiColors.red('[tsgo] watch-client-noEmit failed'));
+				result.emit('end');
+			});
+			return result.pipe(reporter.end(false));
+		}));
+		return tsgoStream;
+	});
 }
 
 const REPO_SRC_FOLDER = path.join(import.meta.dirname, '../../src');
@@ -335,8 +339,18 @@ function generateApiProposalNames() {
 				'',
 			].join(eol);
 
+			const filePath = 'vs/platform/extensions/common/extensionsApiProposals.ts';
+			try {
+				const existing = fs.readFileSync(path.join('src', filePath), 'utf-8');
+				if (existing === contents) {
+					this.emit('end');
+					return;
+				}
+			} catch {
+				// File doesn't exist yet, emit it
+			}
 			this.emit('data', new File({
-				path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
+				path: filePath,
 				contents: Buffer.from(contents)
 			}));
 			this.emit('end');

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
+import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -53,13 +54,70 @@ interface SSHClient {
 	on(event: 'close', listener: () => void): SSHClient;
 	removeListener(event: 'close', listener: () => void): SSHClient;
 	removeListener(event: 'error', listener: (err: Error) => void): SSHClient;
-	connect(config: Record<string, unknown>): void;
+	connect(config: ConnectConfig): void;
 	exec(command: string, callback: (err: Error | undefined, stream: SSHChannel) => void): SSHClient;
 	forwardOut(srcIP: string, srcPort: number, dstIP: string, dstPort: number, callback: (err: Error | undefined, channel: SSHChannel) => void): SSHClient;
 	end(): void;
 }
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
+
+/**
+ * One entry in the queue of authentication attempts handed to ssh2's
+ * `authHandler`. Each attempt corresponds to one of the auth method shapes
+ * documented at https://www.npmjs.com/package/ssh2#client-methods.
+ *
+ * `keyPath` is internal-only metadata for logging — it is stripped before the
+ * attempt is returned to ssh2.
+ */
+export type SSHAuthAttempt =
+	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string }
+	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
+	| { readonly type: 'password'; readonly username: string; readonly password: string };
+
+function describeAuthAttempt(attempt: SSHAuthAttempt): string {
+	switch (attempt.type) {
+		case 'publickey': return `publickey ${attempt.keyPath}`;
+		case 'agent': return 'agent';
+		case 'password': return 'password';
+	}
+}
+
+/**
+ * Build an ssh2 `authHandler` callback that walks the given attempts in order,
+ * filtering by the server-advertised `methodsLeft` when ssh2 provides one.
+ * Returns `false` when the queue is exhausted, which causes ssh2 to surface
+ * an authentication failure to the caller.
+ */
+export function makeAuthHandler(
+	attempts: readonly SSHAuthAttempt[],
+	logService: ILogService,
+): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
+	let index = 0;
+	return (methodsLeft, _partialSuccess, callback) => {
+		while (index < attempts.length) {
+			const attempt = attempts[index++];
+			// `agent` is a publickey-flavored method at the SSH protocol level —
+			// servers advertise `publickey`, not `agent`, in `methodsLeft`.
+			const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
+			if (methodsLeft && !methodsLeft.includes(protocolMethod)) {
+				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft.join(', ')}`);
+				continue;
+			}
+			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
+			// Strip our internal `keyPath` metadata before handing to ssh2.
+			if (attempt.type === 'publickey') {
+				const { keyPath: _kp, ...payload } = attempt;
+				callback(payload);
+			} else {
+				callback(attempt);
+			}
+			return;
+		}
+		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
+		callback(false);
+	};
+}
 
 function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }> {
 	return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
@@ -445,7 +503,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			};
 		}
 
-		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}...`);
+		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
 		let sshClient: SSHClient | undefined;
 
 		try {
@@ -599,26 +657,30 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost}`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
-		let authMethod: SSHAuthMethod = SSHAuthMethod.Agent;
+		// Always use Agent auth — the auth handler will walk through the SSH
+		// agent and any default identities. If the user pinned a non-default
+		// `IdentityFile` in their ssh config, surface it as the explicit key
+		// so it gets tried first.
 		let privateKeyPath: string | undefined;
-		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._defaultKeyPaths.includes(resolved.identityFile[0])) {
-			authMethod = SSHAuthMethod.KeyFile;
+		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._isDefaultKeyPath(resolved.identityFile[0])) {
 			privateKeyPath = resolved.identityFile[0];
 		}
+		this._logService.info(`${LOG_PREFIX} reconnect: identityFiles=${JSON.stringify(resolved.identityFile)}, explicit key=${privateKeyPath ?? '(none)'}`);
 
 		return this.connect({
 			host: resolved.hostname,
 			port: resolved.port !== 22 ? resolved.port : undefined,
 			username: resolved.user ?? sshConfigHost,
-			authMethod,
+			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
+			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 		}, /* replaceRelay */ true);
 	}
 
@@ -724,7 +786,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
 		const SSHClientCtor = ssh2Module.Client;
 
-		const connectConfig: Record<string, unknown> = {
+		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port: config.port ?? 22,
 			username: config.username,
@@ -732,29 +794,25 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		switch (config.authMethod) {
-			case SSHAuthMethod.Agent: {
-				const agentSock = process.env['SSH_AUTH_SOCK'];
-				this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
+		const attempts = await this._buildAuthAttempts(config);
+		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
+		// Cast: the ssh2 @types don't model `false` (give-up) for the
+		// callback nor `null` for the first invocation's `methodsLeft`,
+		// even though the runtime supports both per the ssh2 docs.
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService) as unknown as ConnectConfig['authHandler'];
+
+		if (config.agentForward) {
+			const agentSock = this._isAgentAvailable();
+			if (agentSock) {
+				// ssh2 needs `connectConfig.agent` set so it knows which local
+				// agent socket to forward to. Without it, agent forwarding is a
+				// no-op even if `agentForward: true` is set.
 				connectConfig.agent = agentSock;
-				// Also provide a default key file as fallback so ssh2 can try
-				// publickey auth if the agent doesn't have the key loaded.
-				const fallbackKey = await this._findDefaultKeyFile();
-				if (fallbackKey) {
-					this._logService.info(`${LOG_PREFIX} Also using fallback key: ${fallbackKey.path}`);
-					connectConfig.privateKey = fallbackKey.contents;
-				}
-				break;
+				connectConfig.agentForward = true;
+				this._logService.info(`${LOG_PREFIX} SSH agent forwarding enabled`);
+			} else {
+				this._logService.warn(`${LOG_PREFIX} SSH agent forwarding requested, but SSH_AUTH_SOCK is not set; agent forwarding disabled`);
 			}
-			case SSHAuthMethod.KeyFile:
-				if (config.privateKeyPath) {
-					const keyPath = config.privateKeyPath.replace(/^~/, os.homedir());
-					connectConfig.privateKey = await fsp.readFile(keyPath);
-				}
-				break;
-			case SSHAuthMethod.Password:
-				connectConfig.password = config.password;
-				break;
 		}
 
 		return new Promise<SSHClient>((resolve, reject) => {
@@ -774,6 +832,66 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		});
 	}
 
+	/**
+	 * Build the ordered list of authentication attempts to feed to ssh2's
+	 * `authHandler`. Mirrors OpenSSH's behavior: try the explicitly configured
+	 * key first (if any), then the SSH agent (if `SSH_AUTH_SOCK` is set), then
+	 * each readable default identity file in turn. This means a host that
+	 * accepts `~/.ssh/id_rsa` still works even if the agent doesn't have it
+	 * loaded — without needing an explicit `IdentityFile` entry in `~/.ssh/config`.
+	 */
+	protected async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		const attempts: SSHAuthAttempt[] = [];
+		const username = config.username;
+
+		switch (config.authMethod) {
+			case SSHAuthMethod.Agent: {
+				if (config.privateKeyPath) {
+					const explicit = await this._readKeyFileIfExists(config.privateKeyPath);
+					if (explicit) {
+						attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
+					}
+				}
+				const agentSock = this._isAgentAvailable();
+				if (agentSock) {
+					attempts.push({ type: 'agent', username, agent: agentSock });
+				}
+				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+					if (config.privateKeyPath === keyPath) {
+						continue; // Already added as the explicit attempt above
+					}
+					const contents = await this._readKeyFileIfExists(keyPath);
+					if (contents) {
+						attempts.push({ type: 'publickey', username, key: contents, keyPath });
+					}
+				}
+				break;
+			}
+			case SSHAuthMethod.KeyFile: {
+				// KeyFile mode has no fallbacks — fail fast with a clear error if
+				// the key is missing or unreadable, rather than letting it surface
+				// downstream as a generic auth failure.
+				if (!config.privateKeyPath) {
+					throw new Error(localize('ssh.keyFileAuthRequiresPath', "Key file authentication requires a private key path."));
+				}
+				const explicit = await this._readKeyFileIfExists(config.privateKeyPath);
+				if (!explicit) {
+					throw new Error(localize('ssh.failedToReadPrivateKey', "Failed to read private key file: {0}", config.privateKeyPath));
+				}
+				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
+				break;
+			}
+			case SSHAuthMethod.Password: {
+				if (config.password !== undefined) {
+					attempts.push({ type: 'password', username, password: config.password });
+				}
+				break;
+			}
+		}
+
+		return attempts;
+	}
+
 	private static readonly _defaultKeyPaths = [
 		'~/.ssh/id_ed25519',
 		'~/.ssh/id_rsa',
@@ -782,21 +900,32 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		'~/.ssh/id_xmss',
 	];
 
-	protected async _findDefaultKeyFile(): Promise<{ path: string; contents: Buffer } | undefined> {
-		for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
-			const resolved = keyPath.replace(/^~/, os.homedir());
-			try {
-				const contents = await fsp.readFile(resolved);
-				return { path: keyPath, contents };
-			} catch (error) {
-				const errorCode = (error as NodeJS.ErrnoException).code;
-				if (errorCode === 'ENOENT' || errorCode === 'ENOTDIR') {
-					continue;
-				}
-				this._logService.warn(`${LOG_PREFIX} Failed to read default SSH key file ${resolved}`, error);
+	private static _isDefaultKeyPath(keyPath: string): boolean {
+		return SSHRemoteAgentHostMainService._defaultKeyPaths.includes(keyPath);
+	}
+
+	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
+	protected _isAgentAvailable(): string | undefined {
+		return process.env['SSH_AUTH_SOCK'];
+	}
+
+	/**
+	 * Test seam: read a private key file from disk. Returns `undefined` if the
+	 * file doesn't exist; logs and returns `undefined` for any other read error
+	 * so a single broken key doesn't abort the whole auth flow.
+	 */
+	protected async _readKeyFileIfExists(keyPath: string): Promise<Buffer | undefined> {
+		const resolved = keyPath.replace(/^~/, os.homedir());
+		try {
+			return await fsp.readFile(resolved);
+		} catch (error) {
+			const errorCode = (error as NodeJS.ErrnoException).code;
+			if (errorCode === 'ENOENT' || errorCode === 'ENOTDIR') {
+				return undefined;
 			}
+			this._logService.warn(`${LOG_PREFIX} Failed to read SSH key file ${resolved}`, error);
+			return undefined;
 		}
-		return undefined;
 	}
 
 	private get _quality(): string {

@@ -186,6 +186,13 @@ export interface IChatEntitlementService {
 
 	markAnonymousRateLimited(): void;
 
+	/**
+	 * Force the hidden state on or off, overriding the normal entitlement logic.
+	 * Used by the account policy gate to hide all AI features when the gate is
+	 * active and unsatisfied.
+	 */
+	setForceHidden(hidden: boolean): void;
+
 	update(token: CancellationToken): Promise<void>;
 }
 
@@ -343,7 +350,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 		this.sentimentObs = observableFromEvent(this.onDidChangeSentiment, () => this.sentiment);
 
-		if ((isWeb && !environmentService.remoteAuthority)) {
+		if ((isWeb && !environmentService.remoteAuthority && !environmentService.isSessionsWindow)) {
 			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI on web if unsupported
 			return;
 		}
@@ -553,6 +560,16 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this.chatQuotaExceededContextKey.set(true);
 		this._onDidChangeQuotaExceeded.fire();
+	}
+
+	setForceHidden(hidden: boolean): void {
+		if (this.context) {
+			this.context.value.setForceHidden(hidden);
+		} else {
+			// No ChatEntitlementContext (e.g. no defaultChatAgent in product.json).
+			// Set the context key directly as a fallback.
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(hidden);
+		}
 	}
 
 	async update(token: CancellationToken): Promise<void> {
@@ -1131,15 +1148,24 @@ export class ChatEntitlementContext extends Disposable {
 		}));
 	}
 
+	private _forceHidden = false;
+
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
-		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
+		if (this._forceHidden || this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
 			return {
 				...state,
-				hidden: true // Setting always wins: if AI is disabled, set `hidden: true`
+				hidden: true
 			};
 		}
 
 		return state;
+	}
+
+	setForceHidden(hidden: boolean): void {
+		if (this._forceHidden !== hidden) {
+			this._forceHidden = hidden;
+			this.updateContext();
+		}
 	}
 
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean; disabledInWorkspace: boolean }): Promise<void>;

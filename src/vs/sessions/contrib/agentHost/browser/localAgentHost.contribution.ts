@@ -8,7 +8,9 @@ import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { AgentHostContribution } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { AgentHostTerminalContribution } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
@@ -16,11 +18,11 @@ import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider
  * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider
  * when `chat.agentHost.enabled` is true.
  *
- * The existing {@link AgentHostContribution} (from `chat/electron-browser/chat.contribution.js`)
- * handles all the heavy lifting — agent discovery, session handler registration,
- * language model providers, customization harness — via {@link IChatSessionsService}.
- * This contribution only bridges the session listing and lifecycle to the
- * {@link ISessionsProvidersService} layer used by the Sessions app's UI.
+ * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
+ * session handler registration, language model providers, customization harness —
+ * via {@link IChatSessionsService}. This contribution only bridges the session
+ * listing and lifecycle to the {@link ISessionsProvidersService} layer used by
+ * the Sessions app's UI.
  */
 class LocalAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -65,4 +67,6 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 	}
 }
 
+registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(LocalAgentHostContribution.ID, LocalAgentHostContribution, WorkbenchPhase.AfterRestored);

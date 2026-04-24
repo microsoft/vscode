@@ -16,18 +16,44 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
-import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
-import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
-import { ISessionSummary, ROOT_STATE_URI, StateComponents, type IRootState } from '../common/state/sessionState.js';
+import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
+import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, type ICreateTerminalParams, type IResolveSessionConfigResult, type ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { ContentEncoding, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+
+const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+export class RemoteAgentHostProtocolError extends Error {
+
+	readonly code: number;
+	readonly data: unknown | undefined;
+
+	constructor(error: JsonRpcErrorResponse['error']) {
+		super(error.message);
+		this.code = error.code;
+		this.data = error.data;
+	}
+
+	static connectionClosed(address: string): RemoteAgentHostProtocolError {
+		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection closed: ${address}` });
+	}
+
+	static disposed(address: string): RemoteAgentHostProtocolError {
+		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection disposed: ${address}` });
+	}
+}
+
+interface IRemoteAgentHostExtensionCommandMap {
+	'shutdown': { params: undefined; result: void };
+}
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -50,7 +76,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _defaultDirectory: string | undefined;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
-	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
+	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
@@ -62,6 +88,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, DeferredPromise<unknown>>();
 	private _nextRequestId = 1;
+	private _isClosed = false;
+	private _closeError: RemoteAgentHostProtocolError | undefined;
 
 	get clientId(): string {
 		return this._clientId;
@@ -87,7 +115,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._transport = transport;
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
-		this._register(this._transport.onClose(() => this._onDidClose.fire()));
+		this._register(this._transport.onClose(() => this._handleClose(RemoteAgentHostProtocolError.connectionClosed(this._address))));
 
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
 			this._clientId,
@@ -103,12 +131,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}));
 	}
 
+	override dispose(): void {
+		this._handleClose(RemoteAgentHostProtocolError.disposed(this._address));
+		super.dispose();
+	}
+
 	/**
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
 		if (isClientTransport(this._transport)) {
-			await this._transport.connect();
+			await this._raceClose(this._transport.connect());
 		}
 
 		const result = await this._sendRequest('initialize', {
@@ -121,7 +154,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		// Hydrate root state from the initial snapshot
 		for (const snapshot of result.snapshots ?? []) {
 			if (snapshot.resource === ROOT_STATE_URI) {
-				this._subscriptionManager.handleRootSnapshot(snapshot.state as IRootState, snapshot.fromSeq);
+				this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
 			}
 		}
 
@@ -137,7 +170,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	// ---- IAgentConnection subscription API ----------------------------------
 
-	get rootState(): IAgentSubscription<IRootState> {
+	get rootState(): IAgentSubscription<RootState> {
 		return this._subscriptionManager.rootState;
 	}
 
@@ -149,7 +182,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: ISessionAction | ITerminalAction): void {
+	dispatch(action: SessionAction | TerminalAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this._clientId, seq);
 	}
@@ -172,7 +205,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	dispatchAction(action: ISessionAction | ITerminalAction, _clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction, _clientId: string, clientSeq: number): void {
 		this._sendNotification('dispatchAction', { clientSeq, action });
 	}
 
@@ -180,7 +213,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Create a new session on the remote agent host.
 	 */
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		const provider = config?.provider ?? 'copilot';
+		const provider = config?.provider;
+		if (!provider) {
+			throw new Error('Cannot create remote agent host session without a provider.');
+		}
 		const session = AgentSession.uri(provider, generateUuid());
 		await this._sendRequest('createSession', {
 			session: session.toString(),
@@ -193,7 +229,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return session;
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._sendRequest('resolveSessionConfig', {
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
@@ -201,7 +237,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		});
 	}
 
-	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return this._sendRequest('sessionConfigCompletions', {
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
@@ -214,7 +250,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
-	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		await this._sendRequest('authenticate', params);
 		return { authenticated: true };
 	}
@@ -236,7 +272,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Create a new terminal on the remote agent host.
 	 */
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: CreateTerminalParams): Promise<void> {
 		await this._sendRequest('createTerminal', params);
 	}
 
@@ -252,7 +288,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = await this._sendRequest('listSessions', {});
-		return result.items.map((s: ISessionSummary) => ({
+		return result.items.map((s: SessionSummary) => ({
 			session: URI.parse(s.resource),
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
@@ -265,8 +301,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			summary: s.title,
 			status: s.status,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
-			isRead: s.isRead,
-			isDone: s.isDone,
+			isRead: !!(s.status & SessionStatus.IsRead),
+			isArchived: !!(s.status & SessionStatus.IsArchived),
+			diffs: s.diffs,
 		}));
 	}
 
@@ -277,34 +314,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
-	async resourceList(uri: URI): Promise<ICommandMap['resourceList']['result']> {
+	async resourceList(uri: URI): Promise<CommandMap['resourceList']['result']> {
 		return await this._sendRequest('resourceList', { uri: uri.toString() });
 	}
 
 	/**
 	 * Read the content of a resource on the remote host.
 	 */
-	async resourceRead(uri: URI): Promise<ICommandMap['resourceRead']['result']> {
+	async resourceRead(uri: URI): Promise<CommandMap['resourceRead']['result']> {
 		return this._sendRequest('resourceRead', { uri: uri.toString() });
 	}
 
-	async resourceWrite(params: ICommandMap['resourceWrite']['params']): Promise<ICommandMap['resourceWrite']['result']> {
+	async resourceWrite(params: CommandMap['resourceWrite']['params']): Promise<CommandMap['resourceWrite']['result']> {
 		return this._sendRequest('resourceWrite', params);
 	}
 
-	async resourceCopy(params: ICommandMap['resourceCopy']['params']): Promise<ICommandMap['resourceCopy']['result']> {
+	async resourceCopy(params: CommandMap['resourceCopy']['params']): Promise<CommandMap['resourceCopy']['result']> {
 		return this._sendRequest('resourceCopy', params);
 	}
 
-	async resourceDelete(params: ICommandMap['resourceDelete']['params']): Promise<ICommandMap['resourceDelete']['result']> {
+	async resourceDelete(params: CommandMap['resourceDelete']['params']): Promise<CommandMap['resourceDelete']['result']> {
 		return this._sendRequest('resourceDelete', params);
 	}
 
-	async resourceMove(params: ICommandMap['resourceMove']['params']): Promise<ICommandMap['resourceMove']['result']> {
+	async resourceMove(params: CommandMap['resourceMove']['params']): Promise<CommandMap['resourceMove']['result']> {
 		return this._sendRequest('resourceMove', params);
 	}
 
-	private _handleMessage(msg: IProtocolMessage): void {
+	private _handleMessage(msg: ProtocolMessage): void {
 		if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
 		} else if (isJsonRpcResponse(msg)) {
@@ -313,7 +350,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
 					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
-					pending.error(new Error(msg.error.message));
+					pending.error(this._toProtocolError(msg.error));
 				} else {
 					pending.complete(msg.result);
 				}
@@ -341,6 +378,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));
+		}
+	}
+
+	private _handleClose(error: RemoteAgentHostProtocolError): void {
+		if (this._isClosed) {
+			return;
+		}
+
+		this._isClosed = true;
+		this._closeError = error;
+		this._rejectPendingRequests(error);
+		this._onDidClose.fire();
+	}
+
+	private async _raceClose<T>(promise: Promise<T>): Promise<T> {
+		if (this._closeError) {
+			return Promise.reject(this._closeError);
+		}
+
+		let closeListener = Disposable.None;
+		const closePromise = new Promise<never>((_resolve, reject) => {
+			closeListener = this.onDidClose(() => reject(this._closeError));
+		});
+
+		try {
+			return await Promise.race([promise, closePromise]);
+		} finally {
+			closeListener.dispose();
 		}
 	}
 
@@ -407,32 +472,50 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/** Send a typed JSON-RPC notification for a protocol-defined method. */
-	private _sendNotification<M extends keyof IClientNotificationMap>(method: M, params: IClientNotificationMap[M]['params']): void {
-		// Generic M can't satisfy the distributive IAhpNotification union directly
+	private _sendNotification<M extends keyof ClientNotificationMap>(method: M, params: ClientNotificationMap[M]['params']): void {
+		// Generic M can't satisfy the distributive AhpNotification union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._transport.send({ jsonrpc: '2.0' as const, method, params } as IProtocolMessage);
+		this._transport.send({ jsonrpc: '2.0' as const, method, params } as ProtocolMessage);
 	}
 
 	/** Send a typed JSON-RPC request for a protocol-defined method. */
-	private _sendRequest<M extends keyof ICommandMap>(method: M, params: ICommandMap[M]['params']): Promise<ICommandMap[M]['result']> {
+	private _sendRequest<M extends keyof CommandMap>(method: M, params: CommandMap[M]['params']): Promise<CommandMap[M]['result']> {
+		if (this._closeError) {
+			return Promise.reject(this._closeError);
+		}
+
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingRequests.set(id, deferred);
-		// Generic M can't satisfy the distributive IAhpRequest union directly
+		// Generic M can't satisfy the distributive AhpRequest union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._transport.send({ jsonrpc: '2.0' as const, id, method, params } as IProtocolMessage);
-		return deferred.p as Promise<ICommandMap[M]['result']>;
+		this._transport.send({ jsonrpc: '2.0' as const, id, method, params } as ProtocolMessage);
+		return deferred.p as Promise<CommandMap[M]['result']>;
 	}
 
 	/** Send a JSON-RPC request for a VS Code extension method (not in the protocol spec). */
-	private _sendExtensionRequest(method: string, params?: unknown): Promise<unknown> {
+	private _sendExtensionRequest<M extends keyof IRemoteAgentHostExtensionCommandMap>(method: M, params?: IRemoteAgentHostExtensionCommandMap[M]['params']): Promise<IRemoteAgentHostExtensionCommandMap[M]['result']> {
+		if (this._closeError) {
+			return Promise.reject(this._closeError);
+		}
+
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingRequests.set(id, deferred);
-		// Cast: extension methods aren't in the typed protocol maps yet
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this._transport.send({ jsonrpc: '2.0', id, method, params } as unknown as IJsonRpcResponse);
-		return deferred.p;
+		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+		this._transport.send(request);
+		return deferred.p as Promise<IRemoteAgentHostExtensionCommandMap[M]['result']>;
+	}
+
+	private _toProtocolError(error: JsonRpcErrorResponse['error']): RemoteAgentHostProtocolError {
+		return new RemoteAgentHostProtocolError(error);
+	}
+
+	private _rejectPendingRequests(error: RemoteAgentHostProtocolError): void {
+		for (const pending of this._pendingRequests.values()) {
+			pending.error(error);
+		}
+		this._pendingRequests.clear();
 	}
 
 	/**

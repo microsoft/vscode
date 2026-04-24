@@ -72,6 +72,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async close(): Promise<void> { }
 
+	async vacuumInto(_targetPath: string): Promise<void> { }
+
 	dispose(): void { }
 
 	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }

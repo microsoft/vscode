@@ -174,6 +174,12 @@ export interface ISessionDatabase extends IDisposable {
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
 
 	/**
+	 * Creates a safe, consistent copy of the database at the given path
+	 * using SQLite's `VACUUM INTO` command.
+	 */
+	vacuumInto(targetPath: string): Promise<void>;
+
+	/**
 	 * Resolves once all in-flight write operations on this database have
 	 * settled. Used by graceful shutdown to flush fire-and-forget writes
 	 * before the process exits.

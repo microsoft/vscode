@@ -18,7 +18,7 @@ import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../../util/vs/base/common/path';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatSessionStatus, ChatToolInvocationPart, Uri } from '../../../../../vscodeTypes';
+import { ChatSessionStatus, ChatToolInvocationPart, LanguageModelTextPart, Uri } from '../../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { MockChatResponseStream } from '../../../../test/node/testHelpers';
 import { ExternalEditTracker } from '../../../common/externalEditTracker';
@@ -247,7 +247,8 @@ describe('CopilotCLISession', () => {
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-			new MockGitService()
+			new MockGitService(),
+			{ _serviceBrand: undefined } as any
 		));
 	}
 
@@ -659,6 +660,185 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('uses remote permission responses when Mission Control is active', async () => {
+		let permissionResult: unknown;
+		sdkSession.send = async () => {
+			permissionResult = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'remote-permission-tool',
+				commands: [{ identifier: 'echo "Hello world"', readOnly: false }],
+				intention: 'Run command',
+				fullCommandText: 'echo "Hello world"',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false
+			});
+		};
+		const session = await createSession();
+		let localPromptToken: CancellationToken | undefined;
+		const invokeToolSpy = vi.spyOn(toolsService, 'invokeTool').mockImplementation((async (name: string, options: unknown, token?: CancellationToken) => {
+			if (name === 'vscode_get_confirmation' || name === 'vscode_get_terminal_confirmation') {
+				localPromptToken = token;
+				return await new Promise(resolve => {
+					token?.onCancellationRequested(() => resolve({ content: [new LanguageModelTextPart('no')] }));
+				});
+			}
+			return { content: [] };
+		}) as typeof toolsService.invokeTool);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		const requestPromise = session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'Run bash' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+		await new Promise(r => setTimeout(r, 0));
+
+		await (CopilotCLISession as any)._pollMcCommandsStatic(
+			remoteState,
+			{
+				getPendingCommands: async () => [{
+					id: 'mc-command-1',
+					content: JSON.stringify({ promptId: 'remote-permission-tool', approved: true, scope: 'once' }),
+					state: 'in_progress',
+					type: 'permission_response',
+				}],
+			},
+			logger,
+		);
+
+		await requestPromise;
+
+		expect(permissionResult).toEqual({ kind: 'approved' });
+		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
+			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
+		);
+		expect(confirmationToolCalls).toHaveLength(1);
+		expect(localPromptToken?.isCancellationRequested).toBe(true);
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-1']);
+	});
+
+	it('uses local permission responses when Mission Control is active', async () => {
+		let permissionResult: unknown;
+		sdkSession.send = async () => {
+			permissionResult = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'local-permission-tool',
+				commands: [{ identifier: 'echo "Hello world"', readOnly: false }],
+				intention: 'Run command',
+				fullCommandText: 'echo "Hello world"',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false
+			});
+		};
+		toolsService.setConfirmationResult('yes');
+		const session = await createSession();
+		const invokeToolSpy = vi.spyOn(toolsService, 'invokeTool');
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'Run bash' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(permissionResult).toEqual({ kind: 'approved' });
+		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
+			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
+		);
+		expect(confirmationToolCalls).toHaveLength(1);
+		expect(remoteState.mcPendingPermissionRequests.size).toBe(0);
+	});
+
+	it('forwards session.idle to Mission Control so remote running state clears', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({ type: 'session.idle', data: {} });
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { type: string }).type).toBe('session.idle');
+	});
+
+	it('does not forward report_intent tool events to Mission Control', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: { toolCallId: 'ri-1', toolName: 'report_intent', arguments: { intent: 'Running echo command' } },
+		});
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_complete',
+			data: { toolCallId: 'ri-1', toolName: 'report_intent', success: true },
+		});
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: { toolCallId: 'bash-1', toolName: 'bash', arguments: { command: 'echo hello' } },
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { type: string }).type).toBe('tool.execution_start');
+		expect((remoteState.mcEventBuffer[0] as { data: { toolName: string } }).data.toolName).toBe('bash');
 	});
 
 	it('immediately pushes invocation messages for non-permission-requiring tools like MCP', async () => {

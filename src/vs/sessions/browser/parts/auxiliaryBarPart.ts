@@ -35,6 +35,7 @@ import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/a
 import { getFlatContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -55,6 +56,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 	private static readonly RUN_SCRIPT_DROPDOWN_MENU_ID = MenuId.for('AgentSessionsRunScriptDropdown');
+	private static readonly DEFAULT_MINIMUM_WIDTH = 270;
 
 	// Run script dropdown management
 	private readonly _runScriptDropdown = this._register(new MutableDisposable<DropdownWithPrimaryActionViewItem>());
@@ -62,10 +64,15 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private readonly _runScriptMenuListener = this._register(new MutableDisposable<IDisposable>());
 
 	// Sessions-specific auxiliary bar dimensions (intentionally not tied to the sessions SidebarPart values)
-	override readonly minimumWidth: number = 270;
+	override get minimumWidth(): number {
+		return AuxiliaryBarPart.DEFAULT_MINIMUM_WIDTH;
+	}
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean {
+		return this.hasAttachedEditorRequiringSidebarSpace() ? false : super.snap;
+	}
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -83,7 +90,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 380);
+		return Math.max(width, 340);
 	}
 
 	readonly priority = LayoutPriority.Low;
@@ -133,6 +140,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.EDITOR_PART) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	override create(parent: HTMLElement): void {
@@ -250,6 +262,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			};
 			this._runScriptDropdown.value.update(dropdownAction, dropdownActions);
 		}
+	}
+
+	private hasAttachedEditorRequiringSidebarSpace(): boolean {
+		return this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+			&& this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }

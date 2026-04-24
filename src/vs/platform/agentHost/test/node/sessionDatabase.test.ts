@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
+import * as fs from 'fs/promises';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { FileEditKind } from '../../common/state/sessionState.js';
 import type { Database } from '@vscode/sqlite3';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { join } from '../../../../base/common/path.js';
 
 suite('SessionDatabase', () => {
 
@@ -487,6 +491,37 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	// ---- vacuumInto -----------------------------------------------------
+
+	suite('vacuumInto', () => {
+
+		let tmpDir: string;
+
+		setup(async () => {
+			tmpDir = await fs.mkdtemp(join(tmpdir(), 'session-db-test-' + generateUuid()));
+		});
+
+		teardown(async () => {
+			await Promise.all([db?.close(), db2?.close()]);
+			db = db2 = undefined;
+			await fs.rm(tmpDir, { recursive: true, force: true });
+		});
+
+		test('produces a copy with the same data', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setMetadata('key', 'value');
+
+			const targetPath = join(tmpDir, 'copy.db');
+			await db.vacuumInto(targetPath);
+
+			db2 = disposables.add(await SessionDatabase.open(targetPath));
+			assert.strictEqual(await db2.getTurnEventId('turn-1'), 'evt-1');
+			assert.strictEqual(await db2.getMetadata('key'), 'value');
 		});
 	});
 });

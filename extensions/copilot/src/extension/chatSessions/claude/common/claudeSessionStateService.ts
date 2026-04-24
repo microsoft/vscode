@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { createServiceIdentifier } from '../../../../util/common/services';
@@ -22,6 +22,7 @@ export interface SessionState {
 	capturingToken: CapturingToken | undefined;
 	folderInfo: ClaudeFolderInfo | undefined;
 	usageHandler: UsageHandler | undefined;
+	reasoningEffort: EffortLevel | undefined;
 }
 
 /**
@@ -91,6 +92,16 @@ export interface IClaudeSessionStateService {
 	 * Sets the usage handler for a session.
 	 */
 	setUsageHandlerForSession(sessionId: string, handler: UsageHandler | undefined): void;
+
+	/**
+	 * Gets the reasoning effort for a session (user's per-request selection from the model picker).
+	 */
+	getReasoningEffortForSession(sessionId: string): EffortLevel | undefined;
+
+	/**
+	 * Sets the reasoning effort for a session.
+	 */
+	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void;
 }
 
 export const IClaudeSessionStateService = createServiceIdentifier<IClaudeSessionStateService>('IClaudeSessionStateService');

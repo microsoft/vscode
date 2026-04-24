@@ -610,17 +610,20 @@ export namespace ConfigKey {
 		export const AgentHistorySummarizationMode = defineAndMigrateSetting<string | undefined>('chat.advanced.agentHistorySummarizationMode', 'chat.agentHistorySummarizationMode', undefined);
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
-		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, false);
+		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
+		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
+		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
 		export const CLIAIGenerateBranchNames = defineSetting<boolean>('chat.cli.aiGenerateBranchNames.enabled', ConfigType.Simple, true);
 		export const CLIForkSessionsEnabled = defineSetting<boolean>('chat.cli.forkSessions.enabled', ConfigType.Simple, true);
 		export const CLIMCPServerEnabled = defineAndMigrateSetting<boolean | undefined>('chat.advanced.cli.mcp.enabled', 'chat.cli.mcp.enabled', true);
 		export const CLIBranchSupport = defineSetting<boolean>('chat.cli.branchSupport.enabled', ConfigType.Simple, false);
 		export const CLIIsolationOption = defineSetting<boolean>('chat.cli.isolationOption.enabled', ConfigType.Simple, true);
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
-		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, false);
+		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, true);
 		export const CLIThinkingEffortEnabled = defineSetting<boolean>('chat.cli.thinkingEffort.enabled', ConfigType.Simple, true);
+		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, false);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
@@ -639,7 +642,8 @@ export namespace ConfigKey {
 		export const NotebookAlternativeDocumentFormat = defineAndMigrateExpSetting<AlternativeNotebookFormat>('chat.advanced.notebook.alternativeFormat', 'chat.notebook.alternativeFormat', AlternativeNotebookFormat.xml);
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
 
-		export const InlineChatSelectionRatioThreshold = defineSetting<number>('chat.inlineChat.selectionRatioThreshold', ConfigType.ExperimentBased, 0);
+		export const InlineChatReasoningEffort = defineSetting<string>('chat.inlineChat.reasoningEffort', ConfigType.ExperimentBased, 'low');
+		export const InlineChatEnableThinking = defineSetting<boolean>('chat.inlineChat.enableThinking', ConfigType.ExperimentBased, false);
 
 		export const InstantApplyShortModelName = defineAndMigrateExpSetting<string>('chat.advanced.instantApply.shortContextModelName', 'chat.instantApply.shortContextModelName', CHAT_MODEL.SHORT_INSTANT_APPLY);
 		export const InstantApplyShortContextLimit = defineAndMigrateExpSetting<number>('chat.advanced.instantApply.shortContextLimit', 'chat.instantApply.shortContextLimit', 8000);
@@ -658,7 +662,9 @@ export namespace ConfigKey {
 		export const SearchSubagentThoroughnessEnabled = defineSetting<boolean>('chat.searchSubagent.thoroughnessEnabled', ConfigType.ExperimentBased, false);
 
 		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
-		/** Model to use for the execution subagent */
+		/** Use the agentic proxy for the execution subagent */
+		export const ExecutionSubagentUseAgenticProxy = defineSetting<boolean>('chat.executionSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
+		/** Model to use for the execution subagent. When useAgenticProxy is true, defaults to 'exec-subagent-router-a'. When false, defaults to the main agent model. */
 		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, '');
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
@@ -909,6 +915,8 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
+	/** Enable tool search for Responses API (client-side deferred tool loading). */
+	export const ResponsesApiToolSearchEnabled = defineSetting<boolean>('chat.responsesApi.toolSearchTool.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable concise prompt experiment for GPT-5.4 model */

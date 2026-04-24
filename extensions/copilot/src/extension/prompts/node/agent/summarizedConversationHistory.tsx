@@ -10,6 +10,7 @@ import { ChatMessage } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
 import type { ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
 import { IChatHookService, PreCompactHookInput } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse, FetchSuccess } from '../../../../platform/chat/common/commonTypes';
+import { getTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { IHistoricalTurn, ISessionTranscriptService } from '../../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
@@ -675,6 +676,7 @@ class ConversationHistorySummarizer {
 		}
 
 		let summaryResponse: ChatResponse;
+		let promptTypes: string | undefined;
 		try {
 			const normalizedTools = mode === SummaryMode.Full ? normalizeToolSchema(
 				endpoint.family,
@@ -735,6 +737,7 @@ class ConversationHistorySummarizer {
 				}
 			}
 
+			promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
@@ -764,7 +767,7 @@ class ConversationHistorySummarizer {
 
 		const durationMs = stopwatch.elapsed();
 		return {
-			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs),
+			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs, promptTypes),
 			promptTokenDetails,
 			model: endpoint.model,
 			summarizationMode: mode,
@@ -772,7 +775,7 @@ class ConversationHistorySummarizer {
 		};
 	}
 
-	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number): Promise<FetchSuccess<string>> {
+	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, promptTypes?: string): Promise<FetchSuccess<string>> {
 		if (response.type !== ChatFetchResponseType.Success) {
 			const outcome = response.type;
 			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason);
@@ -795,7 +798,7 @@ class ConversationHistorySummarizer {
 			throw new Error('Summary too large');
 		}
 
-		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage);
+		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, undefined, promptTypes);
 		this.logInfo(`Summarization usage: prompt=${response.usage?.prompt_tokens ?? '?'}, cached=${response.usage?.prompt_tokens_details?.cached_tokens ?? '?'}, completion=${response.usage?.completion_tokens ?? '?'}`, mode);
 		return response;
 	}
@@ -809,8 +812,9 @@ class ConversationHistorySummarizer {
 	 * @param elapsedTime Total time in milliseconds taken for the summarization request
 	 * @param usage Token usage information for the summarization request, if available
 	 * @param detailedOutcome Optional detailed reason for non-success outcomes (for example, error or cancellation reason)
+	 * @param promptTypes Optional pre-computed promptTypes string for the summarization request
 	 */
-	private sendSummarizationTelemetry(outcome: string, requestId: string, model: string, mode: SummaryMode, elapsedTime: number, usage: APIUsage | undefined, detailedOutcome?: string): void {
+	private sendSummarizationTelemetry(outcome: string, requestId: string, model: string, mode: SummaryMode, elapsedTime: number, usage: APIUsage | undefined, detailedOutcome?: string, promptTypes?: string): void {
 		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 
 		const turnIndex = this.props.promptContext.history.length;
@@ -833,6 +837,7 @@ class ConversationHistorySummarizer {
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used for the summarization." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this summarization ran during." },
+				"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
 				"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds before this summarization was triggered." },
 				"numRoundsSinceLastSummarization": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds since the last summarization." },
 				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
@@ -860,6 +865,7 @@ class ConversationHistorySummarizer {
 			conversationId,
 			mode,
 			summarizationMode: mode, // Try to unstick GDPR
+			promptTypes,
 		}, {
 			numRounds,
 			numRoundsSinceLastSummarization,

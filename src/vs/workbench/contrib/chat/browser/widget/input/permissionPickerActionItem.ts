@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -16,6 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -52,12 +54,35 @@ function hasShownElevatedWarning(level: ChatPermissionLevel, storageService: ISt
 	return false;
 }
 
+export interface IExtensionPermissionState {
+	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
+	readonly sessionType: string;
+	readonly groupId: string;
+	readonly items: readonly IChatSessionProviderOptionItem[];
+	readonly selectedId: string | undefined;
+}
+
 export interface IPermissionPickerDelegate {
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
+	/**
+	 * When defined and returns a non-empty state, the picker shows the extension-contributed
+	 * items in place of the built-in {@link ChatPermissionLevel} items.
+	 */
+	readonly getExtensionPermissions?: () => IExtensionPermissionState | undefined;
+	readonly setExtensionPermission?: (groupId: string, item: IChatSessionProviderOptionItem) => void;
+}
+
+/** Sanitize a free-form id segment so it is safe to embed in a stable action identifier. */
+function sanitizeIdSegment(value: string): string {
+	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
+
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
+
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IPermissionPickerDelegate,
@@ -75,6 +100,30 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
+				// If the active session contributes its own permission items, surface those instead
+				// of the built-in Default/AutoApprove/Autopilot levels.
+				const ext = delegate.getExtensionPermissions?.();
+				if (ext && ext.items.length > 0) {
+					const sessionTypeSeg = sanitizeIdSegment(ext.sessionType);
+					const groupSeg = sanitizeIdSegment(ext.groupId);
+					return ext.items.map(item => ({
+						...action,
+						id: `chat.permissions.ext.${sessionTypeSeg}.${groupSeg}.${sanitizeIdSegment(item.id)}`,
+						label: item.name,
+						detail: item.description,
+						icon: item.icon,
+						checked: ext.selectedId === item.id,
+						enabled: !item.locked,
+						tooltip: item.locked ? localize('permissions.ext.locked', "This option is locked") : '',
+						hover: item.description ? { content: item.description } : undefined,
+						run: async () => {
+							delegate.setExtensionPermission?.(ext.groupId, item);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					} satisfies IActionWidgetDropdownAction));
+				}
 				const currentLevel = delegate.currentPermissionLevel.get();
 				const policyRestricted = isAutoApprovePolicyRestricted();
 				const actions: IActionWidgetDropdownAction[] = [
@@ -82,7 +131,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.default',
 						label: localize('permissions.default', "Default Approvals"),
-						description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+						detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default,
 						tooltip: '',
@@ -100,7 +149,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
-						description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+						detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
@@ -159,7 +208,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+						detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -230,29 +279,38 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { descriptionBelow: true, minWidth: 255 },
+			listOptions: { minWidth: 255 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 
-		const level = this.delegate.currentPermissionLevel.get();
+		const ext = this.delegate.getExtensionPermissions?.();
 		let icon: ThemeIcon;
 		let label: string;
-		switch (level) {
-			case ChatPermissionLevel.Autopilot:
-				icon = Codicon.rocket;
-				label = localize('permissions.autopilot.label', "Autopilot (Preview)");
-				break;
-			case ChatPermissionLevel.AutoApprove:
-				icon = Codicon.warning;
-				label = localize('permissions.autoApprove.label', "Bypass Approvals");
-				break;
-			default:
-				icon = Codicon.shield;
-				label = localize('permissions.default.label', "Default Approvals");
-				break;
+		const level = this.delegate.currentPermissionLevel.get();
+		if (ext && ext.items.length > 0) {
+			const selected = ext.items.find(i => i.id === ext.selectedId)
+				?? ext.items.find(i => i.default)
+				?? ext.items[0];
+			icon = selected.icon ?? Codicon.lock;
+			label = selected.name;
+		} else {
+			switch (level) {
+				case ChatPermissionLevel.Autopilot:
+					icon = Codicon.rocket;
+					label = localize('permissions.autopilot.label', "Autopilot (Preview)");
+					break;
+				case ChatPermissionLevel.AutoApprove:
+					icon = Codicon.warning;
+					label = localize('permissions.autoApprove.label', "Bypass Approvals");
+					break;
+				default:
+					icon = Codicon.shield;
+					label = localize('permissions.default.label', "Default Approvals");
+					break;
+			}
 		}
 
 		const labelElements = [];
@@ -261,8 +319,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
-		element.classList.toggle('warning', level === ChatPermissionLevel.Autopilot);
-		element.classList.toggle('info', level === ChatPermissionLevel.AutoApprove);
+		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);
+		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
+
+		element.setAttribute('aria-label', localize('permissions.ariaLabel', "Permission picker, {0}", label));
 		return null;
 	}
 
@@ -270,5 +330,13 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		if (this.element) {
 			this.renderLabel(this.element);
 		}
+	}
+
+	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._onDidDispose.fire();
+		super.dispose();
 	}
 }

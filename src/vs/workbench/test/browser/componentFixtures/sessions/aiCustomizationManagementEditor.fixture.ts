@@ -31,8 +31,8 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
-import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
@@ -183,8 +183,8 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 	}();
 }
 
-function createMockHarnessService(activeHarness: CustomizationHarness, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue<string>('activeHarness', activeHarness);
+function createMockHarnessService(activeHarnessId: string, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
+	const active = observableValue<string>('activeHarness', activeHarnessId);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -346,7 +346,7 @@ const mcpRuntimeServers = [
 ];
 
 interface IRenderEditorOptions {
-	readonly harness: CustomizationHarness;
+	readonly harnessId: string;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -447,7 +447,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			const harnessService = createMockHarnessService(options.harness, availableHarnesses);
+			const harnessService = createMockHarnessService(options.harnessId, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
@@ -675,7 +675,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -783,7 +783,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -891,7 +891,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -916,7 +916,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -947,21 +947,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode }),
+		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
 	// root files and instruction filtering under .github/.copilot paths.
 	CliHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.CLI, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { harnessId: SessionType.CopilotCLI, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Sessions-window variant of the full editor with workspace override UX
@@ -969,7 +969,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	Sessions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.CLI,
+			harnessId: SessionType.CopilotCLI,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
@@ -991,7 +991,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.CLI,
+			harnessId: SessionType.CopilotCLI,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
@@ -1017,7 +1017,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.McpServers,
 		}),
 	}),
@@ -1026,7 +1026,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Agents,
 		}),
 	}),
@@ -1035,7 +1035,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
 	}),
@@ -1044,7 +1044,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	InstructionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Instructions,
 		}),
 	}),
@@ -1053,7 +1053,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	HooksTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Hooks,
 		}),
 	}),
@@ -1062,7 +1062,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Prompts,
 		}),
 	}),
@@ -1071,7 +1071,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Plugins,
 		}),
 	}),
@@ -1117,7 +1117,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Prompts,
 			scrollToBottom: true,
 		}),
@@ -1126,7 +1126,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			scrollToBottom: true,
 		}),
@@ -1135,7 +1135,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			scrollToBottom: true,
 		}),
@@ -1145,7 +1145,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			width: 550,
 			height: 400,
@@ -1155,7 +1155,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Agents,
 			width: 550,
 			height: 400,
@@ -1167,7 +1167,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsItemEditor: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
 		}),
@@ -1177,7 +1177,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 		}),
@@ -1187,7 +1187,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harness: CustomizationHarness.VSCode,
+			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),

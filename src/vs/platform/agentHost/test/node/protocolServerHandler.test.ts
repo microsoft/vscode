@@ -9,12 +9,12 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAuthenticateParams, type IAuthenticateResult } from '../../common/agentService.js';
-import { IListSessionsResult, IResourceReadResult, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
+import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -23,21 +23,21 @@ import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemPro
 // ---- Mock helpers -----------------------------------------------------------
 
 class MockProtocolTransport implements IProtocolTransport {
-	private readonly _onMessage = new Emitter<IProtocolMessage>();
+	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
-	private readonly _onDidSend = new Emitter<IProtocolMessage>();
+	private readonly _onDidSend = new Emitter<ProtocolMessage>();
 	readonly onDidSend = this._onDidSend.event;
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose = this._onClose.event;
 
-	readonly sent: IProtocolMessage[] = [];
+	readonly sent: ProtocolMessage[] = [];
 
-	send(message: IProtocolMessage): void {
+	send(message: ProtocolMessage): void {
 		this.sent.push(message);
 		this._onDidSend.fire(message);
 	}
 
-	simulateMessage(msg: IProtocolMessage): void {
+	simulateMessage(msg: ProtocolMessage): void {
 		this._onMessage.fire(msg);
 	}
 
@@ -68,13 +68,13 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	readonly handledActions: ISessionAction[] = [];
+	readonly handledActions: SessionAction[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 
-	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
+	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
@@ -86,7 +86,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction, clientId: string, clientSeq: number): void {
 		this.handledActions.push(action);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
@@ -107,8 +107,8 @@ class MockAgentService implements IAgentService {
 		return session;
 	}
 
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
@@ -120,9 +120,9 @@ class MockAgentService implements IAgentService {
 	}
 	unsubscribe(_resource: URI): void { }
 	async shutdown(): Promise<void> { }
-	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
-	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
-	async resourceList(uri: URI): Promise<IResourceListResult> {
+	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
+	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
 		const error = this.browseErrors.get(uri.toString());
 		if (error) {
@@ -135,7 +135,7 @@ class MockAgentService implements IAgentService {
 			],
 		};
 	}
-	async resourceRead(_uri: URI): Promise<IResourceReadResult> {
+	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
 		throw new Error('Not implemented');
 	}
 	async resourceCopy(): Promise<{}> { return {}; }
@@ -152,23 +152,23 @@ class MockAgentService implements IAgentService {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function notification(method: string, params?: unknown): IProtocolMessage {
-	return { jsonrpc: '2.0', method, params } as IProtocolMessage;
+function notification(method: string, params?: unknown): ProtocolMessage {
+	return { jsonrpc: '2.0', method, params } as ProtocolMessage;
 }
 
-function request(id: number, method: string, params?: unknown): IProtocolMessage {
-	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
+function request(id: number, method: string, params?: unknown): ProtocolMessage {
+	return { jsonrpc: '2.0', id, method, params } as ProtocolMessage;
 }
 
-function findNotifications(sent: IProtocolMessage[], method: string): IAhpNotification[] {
-	return sent.filter(isJsonRpcNotification) as IAhpNotification[];
+function findNotifications(sent: ProtocolMessage[], method: string): AhpNotification[] {
+	return sent.filter(isJsonRpcNotification) as AhpNotification[];
 }
 
-function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
-	return sent.find(isJsonRpcResponse) as IProtocolMessage | undefined;
+function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | undefined {
+	return sent.find(isJsonRpcResponse) as ProtocolMessage | undefined;
 }
 
-function waitForResponse(transport: MockProtocolTransport, id: number): Promise<IProtocolMessage> {
+function waitForResponse(transport: MockProtocolTransport, id: number): Promise<ProtocolMessage> {
 	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
 
@@ -184,7 +184,7 @@ suite('ProtocolServerHandler', () => {
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
-	function makeSessionSummary(resource?: string): ISessionSummary {
+	function makeSessionSummary(resource?: string): SessionSummary {
 		return {
 			resource: resource ?? sessionUri,
 			provider: 'copilot',
@@ -235,7 +235,7 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent initialize response');
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
 	});
@@ -247,7 +247,7 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
@@ -344,7 +344,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(request(2, 'listSessions'));
 		const resp = await responsePromise;
 
-		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
 	});
 
@@ -363,8 +363,52 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(request(2, 'listSessions'));
 		const resp = await responsePromise;
 
-		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
+	});
+
+	test('listSessions includes diffs with before/after URIs and content refs', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session With Diffs',
+			diffs: [
+				{
+					before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+					after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+					diff: { added: 5, removed: 2 },
+				},
+				{
+					after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+				},
+				{
+					before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+				},
+			],
+		});
+
+		const transport = connectClient('client-list-diffs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items[0].diffs, [
+			{
+				before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+				after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+				diff: { added: 5, removed: 2 },
+			},
+			{
+				after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+			},
+			{
+				before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+			},
+		]);
 	});
 
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
@@ -382,7 +426,7 @@ suite('ProtocolServerHandler', () => {
 		});
 		assert.deepStrictEqual({
 			result: (resp as { result: null }).result,
-			project: (added!.params as { notification: { summary: ISessionSummary } }).notification.summary.project,
+			project: (added!.params as { notification: { summary: SessionSummary } }).notification.summary.project,
 		}, {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
@@ -395,7 +439,7 @@ suite('ProtocolServerHandler', () => {
 
 		const transport1 = connectClient('client-r', [sessionUri]);
 		const resp = findResponse(transport1.sent, 1);
-		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
+		const initSeq = (resp as { result: InitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
 		stateManager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Title A' });
@@ -411,7 +455,7 @@ suite('ProtocolServerHandler', () => {
 
 		const reconnectResp = findResponse(transport2.sent, 1);
 		assert.ok(reconnectResp, 'should have sent reconnect response');
-		const result = (reconnectResp as { result: IReconnectResult }).result;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'replay');
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
@@ -439,7 +483,7 @@ suite('ProtocolServerHandler', () => {
 
 		const reconnectResp = findResponse(transport2.sent, 1);
 		assert.ok(reconnectResp, 'should have sent reconnect response');
-		const result = (reconnectResp as { result: IReconnectResult }).result;
+		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'snapshot');
 		if (result.type === 'snapshot') {
 			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
@@ -465,7 +509,7 @@ suite('ProtocolServerHandler', () => {
 
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp);
-		const result = (resp as { result: IInitializeResult }).result;
+		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
 	});
 

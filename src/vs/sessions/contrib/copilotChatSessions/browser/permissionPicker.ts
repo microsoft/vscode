@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -23,8 +24,35 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
-// Track whether warnings have been shown this VS Code session
-const shownWarnings = new Set<ChatPermissionLevel>();
+/**
+ * Strategy for the per-provider parts of {@link PermissionPicker}: how to read
+ * back the current level (if at all), whether the picker should be visible
+ * given the active session, and where to write the user's selection.
+ *
+ * Implementations live with the provider they back (e.g.
+ * {@link CopilotPermissionPickerDelegate} below for the default Copilot
+ * provider, or `AgentHostPermissionPickerDelegate` in the agent-host folder).
+ */
+export interface IPermissionPickerDelegate {
+	/**
+	 * If provided, the picker's trigger label reactively tracks this. If
+	 * omitted, the picker manages its own internal state and starts at
+	 * {@link ChatPermissionLevel.Default}.
+	 */
+	readonly currentPermissionLevel?: IObservable<ChatPermissionLevel>;
+
+	/**
+	 * If provided, the picker hides itself when this is `false`. Used by
+	 * delegates whose applicability depends on the active session.
+	 */
+	readonly isApplicable?: IObservable<boolean>;
+
+	/**
+	 * Called after the user selects a level (and any required confirmation
+	 * dialog has been accepted).
+	 */
+	setPermissionLevel(level: ChatPermissionLevel): void;
+}
 
 interface IPermissionItem {
 	readonly level?: ChatPermissionLevel;
@@ -33,45 +61,23 @@ interface IPermissionItem {
 	readonly checked: boolean;
 }
 
-export class PermissionPicker extends Disposable {
+// Track whether warnings have been shown this VS Code session
+const shownWarnings = new Set<ChatPermissionLevel>();
 
-	private readonly _onDidChangeLevel = this._register(new Emitter<ChatPermissionLevel>());
-	readonly onDidChangeLevel: Event<ChatPermissionLevel> = this._onDidChangeLevel.event;
+export class PermissionPicker extends Disposable {
 
 	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
-	get permissionLevel(): ChatPermissionLevel {
-		return this._currentLevel;
-	}
-
-	set permissionLevel(level: ChatPermissionLevel) {
-		this._currentLevel = level;
-		this._updateTriggerLabel(this._triggerElement);
-	}
-
 	constructor(
+		private readonly _delegate: IPermissionPickerDelegate,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
-
-		// Write permission level to the active session data when it changes
-		this._register(this.onDidChangeLevel(level => {
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!session) {
-				return;
-			}
-			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			if (provider instanceof CopilotChatSessionsProvider) {
-				provider.getSession(session.sessionId)?.setPermissionLevel(level);
-			}
-		}));
 	}
 
 	render(container: HTMLElement): HTMLElement {
@@ -96,10 +102,13 @@ export class PermissionPicker extends Disposable {
 
 		this._updateTriggerLabel(trigger);
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this.showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this.showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -107,6 +116,21 @@ export class PermissionPicker extends Disposable {
 				this.showPicker();
 			}
 		}));
+
+		const currentPermissionLevel = this._delegate.currentPermissionLevel;
+		if (currentPermissionLevel) {
+			this._renderDisposables.add(autorun(reader => {
+				this._currentLevel = currentPermissionLevel.read(reader);
+				this._updateTriggerLabel(trigger);
+			}));
+		}
+
+		const isApplicable = this._delegate.isApplicable;
+		if (isApplicable) {
+			this._renderDisposables.add(autorun(reader => {
+				slot.style.display = isApplicable.read(reader) ? '' : 'none';
+			}));
+		}
 
 		return slot;
 	}
@@ -130,7 +154,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Default,
 				},
 				label: localize('permissions.default', "Default Approvals"),
-				description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 				disabled: false,
 			},
 			{
@@ -143,7 +167,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
 				},
 				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
 		];
@@ -159,7 +183,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				disabled: policyRestricted,
 			});
 		}
@@ -195,7 +219,7 @@ export class PermissionPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -274,7 +298,7 @@ export class PermissionPicker extends Disposable {
 
 		this._currentLevel = level;
 		this._updateTriggerLabel(this._triggerElement);
-		this._onDidChangeLevel.fire(level);
+		this._delegate.setPermissionLevel(level);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {
@@ -309,5 +333,33 @@ export class PermissionPicker extends Disposable {
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+}
+
+/**
+ * Default-Copilot {@link IPermissionPickerDelegate}: writes the user's chosen
+ * level back to the active {@link CopilotChatSessionsProvider} session.
+ *
+ * Does not provide `currentPermissionLevel` or `isApplicable`, so the picker
+ * manages its own state and is always visible (visibility is gated at the menu
+ * contribution level via `when` clauses).
+ */
+export class CopilotPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
+	constructor(
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+	) {
+		super();
+	}
+
+	setPermissionLevel(level: ChatPermissionLevel): void {
+		const session = this._sessionsManagementService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (provider instanceof CopilotChatSessionsProvider) {
+			provider.getSession(session.sessionId)?.setPermissionLevel(level);
+		}
 	}
 }

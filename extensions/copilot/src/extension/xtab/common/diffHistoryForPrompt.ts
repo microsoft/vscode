@@ -108,6 +108,11 @@ function generateDocDiff(entry: IXtabHistoryEditEntry, workspacePath: string | u
 			continue;
 		}
 
+		// skip no-op diffs where the old and new lines are identical
+		if (oldLines.length === newLines.length && oldLines.every((line, i) => line === newLines[i])) {
+			continue;
+		}
+
 		const startLineNumber = lineEditGroup[0].lineRange.startLineNumber - 1;
 
 		docDiffLines.push(`@@ -${startLineNumber},${oldLines.length} +${startLineNumber},${newLines.length} @@`);

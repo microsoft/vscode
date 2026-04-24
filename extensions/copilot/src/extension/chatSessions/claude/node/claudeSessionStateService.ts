@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { arrayEquals } from '../../../../util/vs/base/common/equals';
 import { Emitter } from '../../../../util/vs/base/common/event';
@@ -20,6 +20,9 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 
 	// State for sessions (model and permission mode selections)
 	// TODO: What about expiration of state for old sessions?
+	// TODO: Refactor setters to use a single `updateSession(id, patch)` method or spread
+	// pattern (`{ ...existing, field: value }`) so that adding a new field to SessionState
+	// doesn't require touching every existing setter.
 	private readonly _sessionState = new Map<string, SessionState>();
 
 	constructor() {
@@ -42,6 +45,7 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, modelId });
 	}
@@ -61,6 +65,7 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, permissionMode: mode });
 	}
@@ -77,6 +82,7 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: token,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
 		});
 	}
 
@@ -95,6 +101,7 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, folderInfo });
 	}
@@ -111,6 +118,26 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: handler,
+			reasoningEffort: existing?.reasoningEffort,
+		});
+	}
+
+	getReasoningEffortForSession(sessionId: string): EffortLevel | undefined {
+		return this._sessionState.get(sessionId)?.reasoningEffort;
+	}
+
+	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void {
+		const existing = this._sessionState.get(sessionId);
+		if (existing?.reasoningEffort === effort) {
+			return;
+		}
+		this._sessionState.set(sessionId, {
+			modelId: existing?.modelId,
+			permissionMode: existing?.permissionMode ?? 'acceptEdits',
+			capturingToken: existing?.capturingToken,
+			folderInfo: existing?.folderInfo,
+			usageHandler: existing?.usageHandler,
+			reasoningEffort: effort,
 		});
 	}
 

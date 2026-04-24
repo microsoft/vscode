@@ -5,7 +5,6 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -79,6 +78,51 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	quality?: number;
 	screenRect?: { x: number; y: number; width: number; height: number };
 	pageRect?: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * Identifies who owns a browser view's lifecycle.
+ * The owner is set at creation time and never changes.
+ */
+export interface IBrowserViewOwner {
+	/** The main code window ID that owns this view's lifecycle. */
+	readonly mainWindowId: number;
+}
+
+/**
+ * Summary information about a browser view, including its current state and
+ * ownership. Returned by the main service when listing or creating views.
+ */
+export interface IBrowserViewInfo {
+	readonly id: string;
+	readonly owner: IBrowserViewOwner;
+	readonly state: IBrowserViewState;
+}
+
+/**
+ * Editor opening hints passed from the main process to the workbench.
+ */
+export interface IBrowserViewOpenOptions {
+	readonly preserveFocus?: boolean;
+	readonly background?: boolean;
+	readonly pinned?: boolean;
+	/** The parent view ID. Used by the workbench to place the new tab in the same editor group. */
+	readonly parentViewId?: string;
+	/** When set, open in an auxiliary (new) window with these bounds. */
+	readonly auxiliaryWindow?: { x?: number; y?: number; width?: number; height?: number };
+}
+
+export interface IBrowserViewCreatedEvent {
+	readonly info: IBrowserViewInfo;
+
+	// May be omitted to create the view without opening an editor.
+	readonly openOptions?: IBrowserViewOpenOptions;
+}
+
+export interface IBrowserViewCreateOptions {
+	readonly owner: IBrowserViewOwner;
+	readonly scope: BrowserViewStorageScope;
+	readonly initialState?: Partial<IBrowserViewState>;
 }
 
 export interface IBrowserViewState {
@@ -161,19 +205,6 @@ export interface IBrowserViewFaviconChangeEvent {
 	favicon: string | undefined;
 }
 
-export enum BrowserNewPageLocation {
-	Foreground = 'foreground',
-	Background = 'background',
-	NewWindow = 'newWindow'
-}
-export interface IBrowserViewNewPageRequest {
-	resource: UriComponents;
-	url: string;
-	location: BrowserNewPageLocation;
-	// Only applicable if location is NewWindow
-	position?: { x?: number; y?: number; width?: number; height?: number };
-}
-
 export interface IBrowserViewFindInPageOptions {
 	recompute?: boolean;
 	forward?: boolean;
@@ -215,6 +246,11 @@ export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
 	/**
+	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 */
+	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
+
+	/**
 	 * Dynamic events that return an Event for a specific browser view ID.
 	 */
 	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
@@ -225,17 +261,21 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
-	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 
 	/**
-	 * Get or create a browser view instance
-	 * @param id The browser view identifier
-	 * @param scope The storage scope for the browser view. Ignored if the view already exists.
-	 * @param workspaceId Workspace identifier for session isolation. Only used if scope is 'workspace'.
+	 * Get all known browser views with their ownership and state information.
 	 */
-	getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState>;
+	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
+
+	/**
+	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 *
+	 * @param id The browser view identifier
+	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
+	 */
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance

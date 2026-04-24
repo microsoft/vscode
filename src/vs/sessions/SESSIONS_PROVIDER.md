@@ -79,6 +79,8 @@ The common session interface exposed by all providers. It is a self-contained fa
 - `repositories: ISessionRepository[]` — One or more repositories
 - `requiresWorkspaceTrust: boolean` — Whether workspace trust is required to operate
 
+**Workspace label and session grouping:** The sessions list groups sessions by `workspace.label`. Sessions whose workspace is `undefined` or whose label is empty appear under "Unknown". For the `CopilotChatSessionsProvider`, the workspace label is derived from session metadata via `getRepositoryName()` (in `agentSessionsViewer.ts`), which checks these metadata keys in priority order: `remoteAgentHost`, `owner`+`name`, `repositoryNwo`, `repository`, `repositoryUrl`, `repositoryPath`, `worktreePath`, `workingDirectoryPath`, then `badge`. See the [ChatSessionItem Metadata Contract](#chatsessionitem-metadata-contract) section below for full details.
+
 **`ISessionRepository`** — A repository within a workspace:
 - `uri: URI` — Source repository URI (`file://` or `github-remote-file://`)
 - `workingDirectory: URI | undefined` — Worktree or checkout path
@@ -348,6 +350,78 @@ Agent session state changes (turn complete, status update, etc.)
   → SessionsManagementService forwards and updates active session
   → UI re-renders via observable subscriptions
 ```
+
+---
+
+## ChatSessionItem Metadata Contract
+
+**File (type definition):** `src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts`
+**File (metadata consumer):** `src/vs/workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.ts` (`getRepositoryName()`)
+**File (adapter consumer):** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts` (`AgentSessionAdapter._buildWorkspace()`)
+
+Extensions that implement a `ChatSessionItemController` or `ChatSessionContentProvider` create `ChatSessionItem` objects. These items have a `metadata` property (a `Record<string, unknown>`) that the sessions list uses to determine workspace grouping, repository information, and display labels.
+
+### Why This Matters
+
+The sessions list groups sessions by workspace folder. `AgentSessionAdapter._buildWorkspace()` reads `item.metadata` to construct an `ISessionWorkspace` — specifically its `label`, which determines which section the session appears under. **If `metadata` is missing or lacks a recognizable key, the session appears under "Unknown".**
+
+### Required Metadata
+
+Every `ChatSessionItem` created by a controller — whether from `newChatSessionItemHandler`, `forkHandler`, or `_createChatSessionItem` during refresh — **must** set `item.metadata` with at least one of the keys listed below so the session groups correctly.
+
+For local sessions, the minimum is:
+
+```typescript
+item.metadata = { workingDirectoryPath: '/absolute/path/to/workspace' };
+```
+
+### Metadata Key Priority
+
+`getRepositoryName()` checks metadata keys in this priority order to derive the workspace label. The first match wins:
+
+| Priority | Key(s) | Used By | Example |
+|----------|--------|---------|---------|
+| 1 | `remoteAgentHost` + `workingDirectoryPath` | Remote agent host sessions | `"myproject [dev-box]"` |
+| 2 | `owner` + `name` | Cloud sessions | `"my-repo"` |
+| 3 | `repositoryNwo` | Sessions with `owner/repo` format | `"repo"` from `"owner/repo"` |
+| 4 | `repository` | Git remote URL or `owner/repo` string | Parsed repo name |
+| 5 | `repositoryUrl` | Full GitHub URL | Parsed repo name |
+| 6 | `repositoryPath` | Repository directory path | Basename of path |
+| 7 | `worktreePath` | Git worktree path | Basename of path |
+| 8 | `workingDirectoryPath` | Working directory (fallback) | Basename of path |
+| 9 | _(badge fallback)_ | `session.badge` value | Parsed from badge string |
+
+### Common Patterns
+
+**Local sessions (Copilot CLI, Claude):** Set `workingDirectoryPath` to the workspace folder's absolute path. This is the most common case and the minimum required for correct grouping.
+
+```typescript
+// In newChatSessionItemHandler or forkHandler:
+const item = controller.createChatSessionItem(uri, prompt);
+item.metadata = { workingDirectoryPath: '/Users/me/my-project' };
+```
+
+**Cloud sessions:** Set `owner` and `name` for GitHub repository identification.
+
+```typescript
+item.metadata = { owner: 'microsoft', name: 'vscode' };
+```
+
+**Remote agent host sessions:** Set `remoteAgentHost` and `workingDirectoryPath` for composite labels.
+
+```typescript
+item.metadata = { remoteAgentHost: 'dev-box', workingDirectoryPath: '/home/user/project' };
+```
+
+### Checklist for New Controller Implementations
+
+When implementing a `ChatSessionItemController`, ensure metadata is set in **all** code paths that create `ChatSessionItem` objects:
+
+1. **`newChatSessionItemHandler`** — Called when the user sends the first message from the welcome chat. Resolve the workspace folder from `context.inputState` (look for the folder option group) and set `item.metadata`.
+2. **`forkHandler`** — Called when forking an existing session. Copy or resolve metadata from the parent session.
+3. **Refresh/sync handlers** — When rebuilding items from persisted sessions (e.g., `_refreshItems`), set metadata from the session's stored state.
+
+Missing metadata in **any** of these paths causes the session to appear under "Unknown" in the sessions list.
 
 ---
 
