@@ -150,6 +150,18 @@ const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.PowerShell,
 ]);
 
+/** Set of tool names that write input to an interactive shell session. */
+const WRITE_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.WriteBash,
+	CopilotToolName.WritePowerShell,
+]);
+
+/** Set of tool names that read output from an interactive shell session. */
+const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.ReadBash,
+	CopilotToolName.ReadPowerShell,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
@@ -242,6 +254,19 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
 	}
 
+	if (WRITE_SHELL_TOOL_NAMES.has(toolName)) {
+		const args = parameters as ICopilotShellToolArgs | undefined;
+		if (args?.command) {
+			const firstLine = args.command.split('\n')[0];
+			return md(localize('toolInvoke.writeShellCmd', "Sending {0} to shell", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+		}
+		return localize('toolInvoke.writeShell', "Sending input to shell");
+	}
+
+	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
+		return localize('toolInvoke.readShell', "Reading shell output");
+	}
+
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
@@ -308,6 +333,19 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		return localize('toolComplete.shell', "Ran {0} command", displayName);
 	}
 
+	if (WRITE_SHELL_TOOL_NAMES.has(toolName)) {
+		const args = parameters as ICopilotShellToolArgs | undefined;
+		if (args?.command) {
+			const firstLine = args.command.split('\n')[0];
+			return md(localize('toolComplete.writeShellCmd', "Sent {0} to shell", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+		}
+		return localize('toolComplete.writeShell', "Sent input to shell");
+	}
+
+	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
+		return localize('toolComplete.readShell', "Read shell output");
+	}
+
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
@@ -365,7 +403,7 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 		return undefined;
 	}
 
-	if (SHELL_TOOL_NAMES.has(toolName)) {
+	if (SHELL_TOOL_NAMES.has(toolName) || WRITE_SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
 		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
@@ -439,7 +477,9 @@ export function getSubagentMetadata(parameters: Record<string, unknown> | undefi
  */
 export function getShellLanguage(toolName: string): string {
 	switch (toolName) {
-		case CopilotToolName.PowerShell: return 'powershell';
+		case CopilotToolName.PowerShell:
+		case CopilotToolName.WritePowerShell:
+		case CopilotToolName.ReadPowerShell: return 'powershell';
 		default: return 'shellscript';
 	}
 }

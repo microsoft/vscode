@@ -16,13 +16,14 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { resolveRemoteAuthority } from '../browser/openInVSCodeUtils.js';
+import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
 
 /**
  * Desktop version of the "Open in VS Code" action.
@@ -44,7 +45,7 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -89,3 +90,5 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		await nativeHostService.launchSiblingApp(args);
 	}
 });
+
+registerAction2(DebugAgentHostInDevToolsAction);

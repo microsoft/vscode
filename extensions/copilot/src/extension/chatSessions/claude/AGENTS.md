@@ -240,7 +240,9 @@ In multi-root and empty workspaces, a folder picker option appears in the chat s
 
 ### Session Metadata Enrichment
 
-Each Claude session item carries metadata that drives the Sessions view UI (button visibility, status indicators). The `ClaudeChatSessionItemController._buildSessionMetadata()` method enriches session items with git repository state:
+Each Claude session item carries metadata that drives the Sessions view UI (button visibility, status indicators). The `ClaudeChatSessionItemController._buildSessionMetadata()` method enriches session items with git repository state.
+
+**Workspace Trust:** Session metadata and git change detection are gated on workspace trust via `IWorkspaceService.isResourceTrusted()`. For untrusted working directories, `_buildSessionMetadata()` returns only the `workingDirectoryPath` (no git data), and `getWorkspaceChanges()` is skipped entirely. The trust check is resolved once in `_createClaudeChatSessionItem` and passed into `_buildSessionMetadata` to avoid redundant calls. When trusted, the metadata fetch and workspace changes fetch run concurrently via `Promise.all`.
 
 | Field | Type | Description |
 |-------|------|-------------|

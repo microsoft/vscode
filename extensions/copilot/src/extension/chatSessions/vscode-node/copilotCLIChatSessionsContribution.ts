@@ -52,9 +52,10 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
-import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
+import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
+import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
 
 const REPOSITORY_OPTION_ID = 'repository';
 
@@ -170,6 +171,14 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	private readonly _onDidCommitChatSessionItem = this._register(new Emitter<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }>());
 	public readonly onDidCommitChatSessionItem: Event<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }> = this._onDidCommitChatSessionItem.event;
+	/**
+	 * Session ids that were targeted by an explicit `refreshSession(...)` call and have not yet been
+	 * re-provided. The next `provideChatSessionItems` pass eagerly includes `changes` for these
+	 * sessions so the visible row reflects the latest diff info — VS Code uses the items returned
+	 * from `provideChatSessionItems` as source of truth and does not re-invoke `resolveChatSessionItem`
+	 * for already-visible rows. The set is cleared after each `provideChatSessionItems` call.
+	 */
+	private readonly pendingChangeIncludeIds = new Set<string>();
 
 	public resolveChatSessionItem?: (item: vscode.ChatSessionItem, token: vscode.CancellationToken) => Promise<vscode.ChatSessionItem | undefined>;
 
@@ -199,7 +208,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			this.resolveChatSessionItem = async (item: vscode.ChatSessionItem, token: vscode.CancellationToken): Promise<vscode.ChatSessionItem | undefined> => {
 				const sessionId = SessionIdForCLI.parse(item.resource);
 				const session = await this.copilotcliSessionService.getSessionItem(sessionId, token);
-				if (!session || token.isCancellationRequested || Array.isArray(item.changes)) {
+				if (!session || token.isCancellationRequested) {
 					return undefined;
 				}
 				return this.toChatSessionItem(session, { includeChanges: true }, token);
@@ -237,6 +246,17 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		await this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
+		if (refreshOptions.reason === 'update') {
+			// Mark the targeted sessions so the next `provideChatSessionItems` pass includes
+			// fresh `changes` for them (push path equivalent — see `pendingChangeIncludeIds`).
+			if ('sessionIds' in refreshOptions) {
+				for (const id of refreshOptions.sessionIds) {
+					this.pendingChangeIncludeIds.add(id);
+				}
+			} else {
+				this.pendingChangeIncludeIds.add(refreshOptions.sessionId);
+			}
+		}
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -247,7 +267,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	public async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
 		const stopwatch = new StopWatch();
 		const sessions = await this.copilotcliSessionService.getAllSessions(token);
-		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
+		// Drain the pending set: sessions that were explicitly refreshed get `changes` populated
+		// eagerly so the visible row reflects the latest diff info on this re-provide pass.
+		const pendingIds = new Set(this.pendingChangeIncludeIds);
+		this.pendingChangeIncludeIds.clear();
+		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(
+			session,
+			pendingIds.has(session.id) ? { includeChanges: true } : undefined,
+			token,
+		)));
 
 		const count = diskSessions.length;
 		void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
@@ -302,7 +330,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		let changes: vscode.ChatSessionChangedFile[] | undefined;
 		if (!token.isCancellationRequested && (options?.includeChanges || (await this.hasCachedChanges(session.id, worktreeProperties)))) {
 			changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
-
 			// We need to get an updated version of worktree properties here because when the
 			// changes are being computed, the worktree properties are also updated with the
 			// repository state which we are passing along through the metadata
@@ -1656,6 +1683,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				// is used if worktree isolation is enabled, and auto-commit is disabled or workspace
 				// isolation is enabled.
 				await this.copilotCLIWorktreeCheckpointService.handleRequestCompleted(session.sessionId, request.id);
+				if (workingDirectory) {
+					void clearChangesCacheForAffectedSessions(workingDirectory, [session.sessionId], this.logService, this.chatSessionMetadataStore, this.workspaceFolderService, this.copilotCLIWorktreeManagerService, this.sessionItemProvider).catch(ex => this.logService.error(ex, 'Failed to clear changes cache after request completion'));
+				}
 			}
 
 			void this.handlePullRequestCreated(session).catch(ex => this.logService.error(ex, 'Failed to handle pull request creation'));

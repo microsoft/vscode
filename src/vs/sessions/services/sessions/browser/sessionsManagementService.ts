@@ -18,7 +18,7 @@ import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessi
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -54,11 +54,14 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
 	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
+
+	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
+	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isNewChatInSessionContext: IContextKey<boolean>;
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _isWorkspaceAgent: IContextKey<boolean>;
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
@@ -83,7 +86,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext = IsNewChatInSessionContext.bindTo(contextKeyService);
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
-		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._isWorkspaceAgent = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
 		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
 		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
@@ -168,6 +171,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private onDidChangeSessionsFromSessionsProviders(e: ISessionChangeEvent): void {
 		this._onDidChangeSessions.fire(e);
 		const currentActive = this._activeSession.get();
+
+		// Clear stale pending session if the provider removed it
+		if (e.removed.length && this._pendingNewSession) {
+			if (e.removed.some(r => r.sessionId === this._pendingNewSession!.sessionId)) {
+				this._pendingNewSession = undefined;
+			}
+		}
 
 		if (!currentActive) {
 			return;
@@ -268,6 +278,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	unsetNewSession(): void {
+		this._pendingNewSession = undefined;
 		this.setActiveSession(undefined);
 	}
 
@@ -288,11 +299,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			}
 		}
 		const session = provider.createNewSession(repositoryUri, sessionTypeId);
+		this._pendingNewSession = session;
 		this.setActiveSession(session);
 		return session;
 	}
 
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
+		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 
@@ -330,6 +343,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 
@@ -355,7 +369,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		if (this.isNewChatSessionContext.get()) {
 			return;
 		}
-		this.setActiveSession(undefined);
+		// Restore the pending new session if one exists, so pickers
+		// re-derive their state from the still-alive session object.
+		// Otherwise clear active session (first time / after send).
+		this.setActiveSession(this._pendingNewSession ?? undefined);
 		this.isNewChatSessionContext.set(true);
 		this._isNewChatInSessionContext.set(false);
 	}
@@ -390,7 +407,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
+		this._isWorkspaceAgent.set(isWorkspaceAgentSessionType(session?.sessionType));
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 

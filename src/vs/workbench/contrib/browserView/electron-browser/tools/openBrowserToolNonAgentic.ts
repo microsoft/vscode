@@ -14,6 +14,7 @@ import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData,
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
@@ -24,6 +25,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -52,7 +54,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existingResult = await getExistingPagesResult(this.editorService, undefined, params.url, { excludeIds: true });
+			const existingResult = await getExistingPagesResult(this.editorService, this.browserViewService, undefined, params.url, { excludeIds: true });
 			if (existingResult) {
 				return existingResult;
 			}

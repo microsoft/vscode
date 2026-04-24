@@ -15,7 +15,8 @@ import { autorun, derived, IObservable, observableValue, transaction } from '../
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostSessionConfigBranchNameHintKey, AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -2259,7 +2260,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
-		const config = branchNameHint ? { ...sessionConfig, [AgentHostSessionConfigBranchNameHintKey]: branchNameHint } : sessionConfig;
+		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
 		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;

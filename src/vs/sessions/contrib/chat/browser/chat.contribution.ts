@@ -37,6 +37,7 @@ import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetH
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -147,6 +148,7 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 registerWorkbenchContribution2(RegisterChatViewContainerContribution.ID, RegisterChatViewContainerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);

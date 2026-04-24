@@ -16,6 +16,7 @@ import { ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from './agentSessionSettingsFileSystemProvider.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Registers the {@link AgentSessionSettingsFileSystemProvider} with the
@@ -57,7 +58,7 @@ registerAction2(class OpenSessionSettingsAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '2_settings',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^(local-agent-host|agenthost-)/),
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}
