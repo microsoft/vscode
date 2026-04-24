@@ -133,6 +133,8 @@ export interface GitHubAPIRequestOptions {
 	version?: string;
 	type?: 'json' | 'text';
 	userAgent?: string;
+	accept?: string;
+	additionalHeaders?: { [key: string]: string };
 	returnStatusCodeOnError?: boolean;
 	silent404?: boolean;
 	callSite?: string;
@@ -147,9 +149,10 @@ export async function makeGitHubAPIRequest(
 	method: 'GET' | 'POST',
 	token: string | undefined,
 	options?: GitHubAPIRequestOptions) {
-	const { body, version, type = 'json', userAgent, returnStatusCodeOnError = false, silent404 = false, callSite = 'github-api-rest' } = options ?? {};
+	const { body, version, type = 'json', userAgent, accept, additionalHeaders, returnStatusCodeOnError = false, silent404 = false, callSite = 'github-api-rest' } = options ?? {};
 	const headers: { [key: string]: string } = {
-		'Accept': 'application/vnd.github+json',
+		'Accept': accept ?? 'application/vnd.github+json',
+		...additionalHeaders,
 	};
 	if (token) {
 		headers['Authorization'] = `Bearer ${token}`;

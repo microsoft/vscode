@@ -22,7 +22,7 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
@@ -114,8 +114,7 @@ export const COPILOT_PROVIDER_ID = 'default-copilot';
 export const COPILOT_MULTI_CHAT_SETTING = 'sessions.github.copilot.multiChatSessions';
 
 /** Setting key controlling whether Claude agent sessions are available. */
-export const CLAUDE_CODE_ENABLED_SETTING = 'sessions.chatSessions.claude.enabled';
-
+export const CLAUDE_CODE_ENABLED_SETTING = 'sessions.chat.claudeAgent.enabled';
 
 const REPOSITORY_OPTION_ID = 'repository';
 const PARENT_SESSION_OPTION_ID = 'parentSessionId';
@@ -1249,11 +1248,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		super();
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
-		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
+		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)) {
-				const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
+				const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 				if (this._claudeEnabled !== claudeEnabled) {
 					this._claudeEnabled = claudeEnabled;
 					this._onDidChangeSessionTypes.fire();
@@ -1265,12 +1264,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this.browseActions = [
 			{
 				label: localize('folders', "Folders"),
+				description: localize('local', "Local"),
+				group: 'folders',
 				icon: Codicon.folderOpened,
 				providerId: this.id,
 				run: () => this._browseForFolder(),
 			},
 			{
 				label: localize('repositories', "Repositories"),
+				description: localize('github', "GitHub"),
 				icon: Codicon.repo,
 				providerId: this.id,
 				run: () => this._browseForRepo(),
@@ -1286,7 +1288,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	// -- Sessions --
 
 	getSessionTypes(workspaceUri: URI): ISessionType[] {
-		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME || workspaceUri.scheme === SessionType.CopilotCloud) {
 			return [CopilotCloudSessionType];
 		}
 		const types: ISessionType[] = [CopilotCLISessionType];

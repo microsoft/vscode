@@ -14,7 +14,7 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
@@ -209,6 +209,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 		return this._connectionTracker.startWebSocketServer();
+	}
+
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> {
+		return this._connectionTracker.getInspectInfo(tryEnable);
 	}
 }
 

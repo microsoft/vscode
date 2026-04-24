@@ -59,6 +59,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
+			description: this.label,
+			group: 'folders',
 			icon: Codicon.folderOpened,
 			providerId: this.id,
 			run: () => this._browseForFolder(),

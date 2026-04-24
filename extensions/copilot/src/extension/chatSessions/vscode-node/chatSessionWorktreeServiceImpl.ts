@@ -29,7 +29,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	declare _serviceBrand: undefined;
 
 	private _sessionWorktrees: Map<string, string | ChatSessionWorktreeProperties> = new Map();
-
+	private readonly _onDidChangeWorktreeChanges = this._register(new vscode.EventEmitter<{ sessionId: string }>());
+	readonly onDidChangeWorktreeChanges = this._onDidChangeWorktreeChanges.event;
 	constructor(
 		@IAgentSessionsWorkspace private readonly agentSessionsWorkspace: IAgentSessionsWorkspace,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -189,6 +190,10 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	async setWorktreeProperties(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
 		this._sessionWorktrees.set(sessionId, properties);
 		await this.metadataStore.storeWorktreeInfo(sessionId, properties);
+		// If we're explicitly clearing the changes.
+		if ('changes' in properties && !properties.changes) {
+			this._onDidChangeWorktreeChanges.fire({ sessionId });
+		}
 	}
 
 	async getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {

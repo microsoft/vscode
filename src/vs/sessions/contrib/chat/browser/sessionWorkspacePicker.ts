@@ -229,8 +229,8 @@ export class WorkspacePicker extends Disposable {
 		};
 
 		const listOptions = showFilter
-			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, fixedWidth: 600 }
-			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, fixedWidth: 600 };
+			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true }
+			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true };
 		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IWorkspacePickerItem>(
@@ -332,12 +332,9 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Builds the picker items list from recent workspaces.
 	 *
-	 * Ordering:
-	 * 1. Own recents (from sessions picker storage) come first, followed by
-	 *    VS Code recent folders — both retain their original storage order.
-	 * 2. Items are grouped by provider/group title. Groups are sorted by
-	 *    first-appearance index so the first group encountered stays on top.
-	 * 3. Within each group the original insertion order is preserved (stable sort).
+	 * Items are shown in a flat recency-sorted list (most recently used first)
+	 * without source grouping. Own recents come first, followed by VS Code
+	 * recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
@@ -352,52 +349,20 @@ export class WorkspacePicker extends Disposable {
 		const ownRecentCount = ownRecentWorkspaces.length;
 		const recentWorkspaces = [...ownRecentWorkspaces, ...vsCodeRecents];
 
-		// Build flat list of workspace entries with their group info
-		const workspaceEntries: { workspace: ISessionWorkspace; providerId: string; isOwnRecent: boolean; groupTitle: string; isDisconnected: boolean }[] = [];
-		const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
-		for (const provider of providersWithWorkspaces) {
-			const connectionStatus = isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+		// Build flat list in recency order (no source grouping)
+		for (let i = 0; i < recentWorkspaces.length; i++) {
+			const { workspace, providerId } = recentWorkspaces[i];
+			const isOwnRecent = i < ownRecentCount;
+			const provider = allProviders.find(p => p.id === providerId);
+			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
 			const isDisconnected = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected;
-			const isConnecting = connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
-			const providerWorkspaces = recentWorkspaces
-				.map((w, idx) => ({ ...w, isOwnRecent: idx < ownRecentCount }))
-				.filter(w => w.providerId === provider.id);
-			for (const { workspace, providerId, isOwnRecent } of providerWorkspaces) {
-				const groupName = workspace.group ?? provider.label;
-				const groupTitle = isDisconnected
-					? localize('workspacePicker.groupOffline', "{0} (Offline)", groupName)
-					: isConnecting
-						? localize('workspacePicker.groupConnecting', "{0} (Connecting)", groupName)
-						: groupName;
-				workspaceEntries.push({ workspace, providerId, isOwnRecent, groupTitle, isDisconnected });
-			}
-		}
-
-		// Group entries by groupTitle, preserving the original order within each group
-		const groupOrder = new Map<string, number>();
-		workspaceEntries.forEach((entry, index) => {
-			if (!groupOrder.has(entry.groupTitle)) {
-				groupOrder.set(entry.groupTitle, index);
-			}
-		});
-		workspaceEntries.sort((a, b) => {
-			return (groupOrder.get(a.groupTitle) ?? 0) - (groupOrder.get(b.groupTitle) ?? 0);
-		});
-
-		// Add items with separators between groups
-		let lastGroupTitle: string | undefined;
-		for (const { workspace, providerId, isOwnRecent, groupTitle, isDisconnected } of workspaceEntries) {
-			if (lastGroupTitle !== undefined && lastGroupTitle !== groupTitle) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
-			lastGroupTitle = groupTitle;
 			const selection: IWorkspaceSelection = { providerId, workspace };
 			const selected = this._isSelectedWorkspace(selection);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
-				group: { title: groupTitle, icon: workspace.icon },
+				group: { title: '', icon: workspace.icon },
 				disabled: isDisconnected,
 				item: { selection, checked: selected || undefined },
 				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(selection) : () => this._removeVSCodeRecentWorkspace(selection),
@@ -412,56 +377,80 @@ export class WorkspacePicker extends Disposable {
 		if (items.length > 0 && (allBrowseActions.length > 0 || remoteProviders.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
-		if (allProviders.length > 1 && (allBrowseActions.length + remoteProviders.length) > 1) {
-			// Show a single "Select..." entry with provider-grouped submenu actions
-			// that also includes remote host entries
-			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionWorkspaceBrowseAction; index: number }[] }>();
-			allBrowseActions.forEach((action, i) => {
-				let entry = providerMap.get(action.providerId);
-				if (!entry) {
-					const provider = allProviders.find(p => p.id === action.providerId);
-					if (!provider) { return; }
-					entry = { provider, actions: [] };
-					providerMap.set(action.providerId, entry);
-				}
-				entry.actions.push({ action, index: i });
-			});
-			const remoteProviderIds = new Map(remoteProviders.map(p => [p.id, p]));
-			const submenuActions = [...providerMap.values()].map(({ provider, actions }) => {
-				const remoteProvider = remoteProviderIds.get(provider.id);
-				const remoteStatus = remoteProvider?.connectionStatus?.get();
-				const actionItems = actions.map(({ action, index }, ci) => toAction({
-					id: `workspacePicker.browse.${index}`,
-					label: localize(`workspacePicker.browseAction`, "{0}...", action.label),
-					tooltip: ci === 0 ? provider.label : '',
-					enabled: remoteStatus !== RemoteAgentHostConnectionStatus.Disconnected && remoteStatus !== RemoteAgentHostConnectionStatus.Connecting,
-					run: () => this._executeBrowseAction(index),
-				}));
 
-				return new SubmenuAction(
-					`workspacePicker.browse.${provider.id}`,
-					'',
-					actionItems,
-				);
-			});
+		// Group browse actions by their `group` property so that actions
+		// sharing the same group appear as a single entry with a submenu.
+		// Actions without a group are shown individually.
+		const browseByGroup = new Map<string, { label: string; icon: ThemeIcon; actions: { action: ISessionWorkspaceBrowseAction; index: number }[] }>();
+		const ungrouped: { action: ISessionWorkspaceBrowseAction; index: number }[] = [];
+		allBrowseActions.forEach((action, i) => {
+			if (!action.group) {
+				ungrouped.push({ action, index: i });
+				return;
+			}
+			let entry = browseByGroup.get(action.group);
+			if (!entry) {
+				entry = { label: action.label, icon: action.icon, actions: [] };
+				browseByGroup.set(action.group, entry);
+			}
+			entry.actions.push({ action, index: i });
+		});
 
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.browseSelect', "Select..."),
-				group: { title: '', icon: Codicon.folderOpened },
-				item: {},
-				submenuActions,
-			});
-		} else {
-			for (let i = 0; i < allBrowseActions.length; i++) {
-				const action = allBrowseActions[i];
+		for (const [groupKey, { label, icon, actions }] of browseByGroup) {
+			if (actions.length === 1) {
+				// Single provider for this group — show directly
+				const { action, index } = actions[0];
+				const provider = allProviders.find(p => p.id === action.providerId);
+				const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+				const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
 				items.push({
 					kind: ActionListItemKind.Action,
-					label: localize(`workspacePicker.browseSelectAction`, "Select {0}...", action.label),
-					group: { title: '', icon: action.icon },
-					item: { browseActionIndex: i },
+					label: localize(`workspacePicker.browseSelectAction`, "Select {0}...", label),
+					description: action.description,
+					group: { title: '', icon },
+					disabled: isUnavailable,
+					item: { browseActionIndex: index },
+				});
+			} else {
+				// Multiple providers for this group — show submenu
+				const submenuActions = actions.map(({ action, index }) => {
+					const provider = allProviders.find(p => p.id === action.providerId);
+					const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+					const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
+					return {
+						...toAction({
+							id: `workspacePicker.browse.${index}`,
+							label: action.description ?? provider?.label ?? label,
+							tooltip: '',
+							enabled: !isUnavailable,
+							run: () => this._executeBrowseAction(index),
+						}),
+						icon: action.icon,
+					};
+				});
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: localize('workspacePicker.browseSelectAction', "Select {0}...", label),
+					group: { title: '', icon },
+					item: {},
+					submenuActions: [new SubmenuAction(`workspacePicker.browse.group.${groupKey}`, '', submenuActions)],
 				});
 			}
+		}
+
+		// Ungrouped actions shown individually
+		for (const { action, index } of ungrouped) {
+			const provider = allProviders.find(p => p.id === action.providerId);
+			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+			const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('workspacePicker.browseSelectAction', "Select {0}...", action.label),
+				description: action.description,
+				group: { title: '', icon: action.icon },
+				disabled: isUnavailable,
+				item: { browseActionIndex: index },
+			});
 		}
 
 		if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator && remoteProviders.length) {

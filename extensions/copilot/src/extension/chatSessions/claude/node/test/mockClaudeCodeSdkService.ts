@@ -33,7 +33,7 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 		return this.createMockQuery(options.prompt);
 	}
 
-	public async listSessions(dir: string): Promise<SDKSessionInfo[]> {
+	public async listSessions(dir?: string): Promise<SDKSessionInfo[]> {
 		return this.mockSessions;
 	}
 

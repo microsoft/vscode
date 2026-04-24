@@ -41,6 +41,14 @@ export interface IAgentHostSocketInfo {
 	readonly socketPath: string;
 }
 
+/** Inspector listener information for the agent host process. */
+export interface IAgentHostInspectInfo {
+	readonly host: string;
+	readonly port: number;
+	/** A `devtools://` URL that can be opened with `INativeHostService.openDevToolsWindow`. */
+	readonly devtoolsUrl: string;
+}
+
 /**
  * IPC service exposed on the {@link AgentHostIpcChannels.ConnectionTracker}
  * channel. Used by the server process for lifetime management and by the
@@ -55,6 +63,14 @@ export interface IConnectionTrackerService {
 	 * If a server is already running, returns the existing info.
 	 */
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
+
+	/**
+	 * Get inspector listener info for the agent host process. If the inspector
+	 * is not currently active and `tryEnable` is true, opens the inspector on
+	 * a random local port. Returns `undefined` if the inspector cannot be
+	 * enabled (e.g. running in an environment without `node:inspector`).
+	 */
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -708,4 +724,12 @@ export interface IAgentHostService extends IAgentConnection {
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
+
+	/**
+	 * Get inspector listener info for the agent host process. If the inspector
+	 * is not currently active and `tryEnable` is true, opens the inspector on
+	 * a random local port. Returns `undefined` if the inspector cannot be
+	 * enabled.
+	 */
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }

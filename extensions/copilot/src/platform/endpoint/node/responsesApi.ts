@@ -841,6 +841,8 @@ export class OpenAIResponsesProcessor {
 	private sawCompactionMessage = false;
 	private latestCompactionOutputIndex: number | undefined;
 	private latestCompactionItem: OpenAIContextManagementResponse | undefined;
+	/** Tracks the output_index of the last text delta to detect output item boundaries */
+	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
 
@@ -915,6 +917,12 @@ export class OpenAIResponsesProcessor {
 				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
+				// When text arrives from a new output item, emit a paragraph
+				// separator so that e.g. commentary and final text don't fuse.
+				if (this.lastTextDeltaOutputIndex !== undefined && capiChunk.output_index !== this.lastTextDeltaOutputIndex) {
+					onProgress({ text: '\n\n' });
+				}
+				this.lastTextDeltaOutputIndex = capiChunk.output_index;
 				const haystack = new Lazy(() => new TextEncoder().encode(capiChunk.delta));
 				return onProgress({
 					text: capiChunk.delta,

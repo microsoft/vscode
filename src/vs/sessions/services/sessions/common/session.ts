@@ -50,6 +50,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/**
+ * Returns whether the given session type represents a workspace-backed
+ * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
+ * repository — regardless of whether the agent runs locally or remotely.
+ * TODO: Somehow make this contributable so we don't have to hardcode session types here.
+ */
+export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
+	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
+}
+
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
@@ -237,6 +247,15 @@ export interface ISessionCapabilities {
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
+	/** Optional description shown alongside the label in the workspace picker. */
+	readonly description?: string;
+	/**
+	 * Optional non-localized group key used to merge actions in the workspace picker.
+	 * Actions sharing the same group key are combined into a single picker entry
+	 * with a submenu. The first action's label is used as the display text for
+	 * the merged entry (e.g. "Folders").
+	 */
+	readonly group?: string;
 	/** Icon for the browse action. */
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */

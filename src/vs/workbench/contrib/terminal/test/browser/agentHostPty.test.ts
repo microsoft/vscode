@@ -341,4 +341,123 @@ suite('AgentHostPty', () => {
 		const cwd = await pty.getInitialCwd();
 		assert.strictEqual(cwd, '/home/user');
 	});
+
+	test('reconnect() re-subscribes with new connection and replays content', async () => {
+		const conn1 = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'old output\n' }] });
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+
+		await pty.start();
+
+		// Create a new connection with different content (simulating server-side changes during disconnect)
+		const conn2 = new MockAgentConnection({
+			content: [{ type: 'unclassified', value: 'old output\nnew output after reconnect\n' }],
+			cwd: '/home/reconnected',
+			title: 'Reconnected Terminal',
+		});
+		disposables.add(conn2);
+
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => {
+			dataReceived.push(typeof e === 'string' ? e : e.data);
+		}));
+
+		const result = await pty.reconnect(conn2);
+
+		assert.strictEqual(result, true, 'reconnect() should succeed');
+		// Should have clear sequence + replayed content
+		assert.ok(dataReceived.some(d => d.includes('\x1b[2J')), 'should clear buffer before replay');
+		assert.ok(dataReceived.some(d => d.includes('new output after reconnect')), 'should replay new content');
+
+		const cwd = await pty.getCwd();
+		assert.strictEqual(cwd, '/home/reconnected');
+	});
+
+	test('reconnect() streams new actions from new connection', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => {
+			dataReceived.push(typeof e === 'string' ? e : e.data);
+		}));
+
+		await pty.reconnect(conn2);
+		dataReceived.length = 0; // clear replay data
+
+		// New actions from conn2 should be received
+		conn2.fireAction({ type: ActionType.TerminalData, terminal: terminalUri.toString(), data: 'post-reconnect data' });
+
+		assert.deepStrictEqual(dataReceived, ['post-reconnect data']);
+
+		// Old connection actions should NOT be received
+		conn1.fireAction({ type: ActionType.TerminalData, terminal: terminalUri.toString(), data: 'stale data' });
+		assert.deepStrictEqual(dataReceived, ['post-reconnect data']);
+	});
+
+	test('reconnect() times out when subscription never hydrates', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		// Create a connection whose subscription never fires onDidChange
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		// Override getSubscription to return a subscription that never hydrates
+		conn2.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => {
+			const onDidChange = new Emitter<TerminalState>();
+			const onDidApplyAction = new Emitter<ActionEnvelope>();
+			disposables.add(onDidChange);
+			disposables.add(onDidApplyAction);
+			const sub: IAgentSubscription<TerminalState> = {
+				value: undefined, // never hydrated
+				verifiedValue: undefined,
+				onDidChange: onDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: onDidApplyAction.event,
+			};
+			return {
+				object: sub as IAgentSubscription<T>,
+				dispose: () => { onDidChange.dispose(); onDidApplyAction.dispose(); },
+			};
+		};
+
+		// Suppress the expected console.warn from reconnect failure
+		const origWarn = console.warn;
+		console.warn = () => { };
+		try {
+			const result = await pty.reconnect(conn2);
+			assert.strictEqual(result, false, 'reconnect() should fail on timeout');
+		} finally {
+			console.warn = origWarn;
+		}
+	}).timeout(15000); // Allow for the 10s hydration timeout
+
+	test('reconnect() dispatches input to new connection', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		await pty.reconnect(conn2);
+
+		pty.input('after reconnect');
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		const inputActions = conn2.dispatchedActions.filter(a => a.type === ActionType.TerminalInput);
+		assert.strictEqual(inputActions.length, 1);
+		assert.strictEqual((inputActions[0] as { data: string }).data, 'after reconnect');
+
+		// conn1 should not have received the input
+		const oldInputActions = conn1.dispatchedActions.filter(a => a.type === ActionType.TerminalInput);
+		assert.strictEqual(oldInputActions.length, 0);
+	});
 });

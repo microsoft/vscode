@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,8 +15,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
-import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { SessionType } from './chatSessionsService.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -55,19 +56,12 @@ export interface ISectionOverride {
 }
 
 /**
- * Identifies the AI harness (execution environment) that customizations
- * are filtered for. Storage answers "where did this come from?"; harness
- * answers "who consumes it?".
- */
-export enum CustomizationHarness {
-	VSCode = 'vscode',
-	CLI = 'cli',
-}
-
-/**
  * Describes a single harness option for the UI toggle.
  */
 export interface IHarnessDescriptor {
+	/**
+	 * The harness/session-type identifier.
+	 */
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
@@ -236,10 +230,16 @@ export interface ICustomizationHarnessService {
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
 	/**
+	 * Finds the descriptor of the harness with the given id, or `undefined` if no such harness exists.
+	 * @param sessionType The harness id (sessionType)
+	 */
+	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
+
+	/**
 	 * Changes the active harness. The new id must be present in
 	 * `availableHarnesses`.
 	 */
-	setActiveHarness(id: string): void;
+	setActiveHarness(sessionType: string): void;
 
 	/**
 	 * Convenience: returns the storage source filter for the active harness
@@ -258,6 +258,25 @@ export interface ICustomizationHarnessService {
 	 * Returns a disposable that removes the harness when disposed.
 	 */
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
+
+
+	/**
+	 * Fires when one of the provided slash commands changes.
+	 */
+	readonly onDidChangeSlashCommands: Event<{ readonly sessionType: string }>;
+
+	/**
+	 * Returns the prompt and skill slash commands for the given session type.
+	 * Provider-backed harnesses contribute their own items directly; the default
+	 * VS Code harness falls back to the core prompts service.
+	 */
+	getSlashCommands(sessionType: string, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+
+	/**
+	 * Resolves a slash command to its full metadata, including the parsed prompt file for prompt commands.
+	 * Provider-backed harnesses resolve their own items directly; the default VS Code harness falls back to the core prompts service.
+	 */
+	resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
 }
 
 /**
@@ -270,42 +289,6 @@ export interface ICustomizationSlashCommand {
 	readonly description?: string;
 	readonly userInvocable: boolean;
 	readonly sessionTypes?: readonly string[];
-}
-
-/**
- * Returns the prompt and skill slash commands for the currently active harness.
- * Provider-backed harnesses contribute their own items directly; the default
- * VS Code harness falls back to the core prompts service.
- */
-export async function getActiveHarnessSlashCommands(
-	harnessService: ICustomizationHarnessService,
-	promptsService: Pick<IPromptsService, 'getPromptSlashCommands' | 'isValidSlashCommandName'>,
-	token: CancellationToken,
-): Promise<readonly IChatPromptSlashCommand[]> {
-	const itemProvider = harnessService.getActiveDescriptor().itemProvider;
-	if (!itemProvider) {
-		return await promptsService.getPromptSlashCommands(token);
-	}
-
-	const items = await itemProvider.provideChatSessionCustomizations(token);
-	if (!items) {
-		return [];
-	}
-	const result = [];
-	for (const item of items) {
-		if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
-			result.push({
-				uri: item.uri,
-				type: item.type as PromptsType.prompt | PromptsType.skill,
-				name: item.name,
-				description: item.description,
-				userInvocable: true,
-				storage: item.storage ?? PromptsStorage.local,
-				when: undefined
-			});
-		}
-	}
-	return result;
 }
 
 // #region Shared filter constants
@@ -372,7 +355,7 @@ function buildAllSources(extras: readonly string[]): readonly string[] {
 export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarnessDescriptor {
 	const filter: IStorageSourceFilter = { sources: buildAllSources(extras) };
 	return {
-		id: CustomizationHarness.VSCode,
+		id: SessionType.Local,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
@@ -437,7 +420,7 @@ function createRestrictedHarnessDescriptor(
  */
 export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
-		CustomizationHarness.CLI,
+		SessionType.CopilotCLI,
 		localize('harness.cli', "Copilot CLI"),
 		ThemeIcon.fromId(Codicon.copilot.id),
 		cliUserRoots,
@@ -496,6 +479,9 @@ export function matchesInstructionFileFilter(filePath: string, filters: readonly
  */
 export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeSlashCommands = new Emitter<{ readonly sessionType: string }>();
+	readonly onDidChangeSlashCommands = this._onDidChangeSlashCommands.event;
+	private readonly _providerListeners: IDisposable[] = [];
 
 	private readonly _activeHarness: ISettableObservable<string>;
 	readonly activeHarness: IObservable<string>;
@@ -508,12 +494,15 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	constructor(
 		staticHarnesses: readonly IHarnessDescriptor[],
 		defaultHarness: string,
+		private readonly promptsService: IPromptsService,
 	) {
 		this._staticHarnesses = staticHarnesses;
+		this.promptsService = promptsService;
 		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
 		this._availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [...this._staticHarnesses]);
 		this.availableHarnesses = this._availableHarnesses;
+		this._rebindProviderListeners();
 	}
 
 	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
@@ -528,6 +517,30 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 	private _refreshAvailableHarnesses(): void {
 		this._availableHarnesses.set(this._getAllHarnesses(), undefined);
+		this._rebindProviderListeners();
+	}
+
+	private _rebindProviderListeners(): void {
+		for (const listener of this._providerListeners) {
+			listener.dispose();
+		}
+		this._providerListeners.length = 0;
+		for (const harness of this._getAllHarnesses()) {
+			const provider = harness.itemProvider;
+			if (!provider) {
+				this._providerListeners.push(this.promptsService.onDidChangeSlashCommands(() => this._onDidChangeSlashCommands.fire({ sessionType: harness.id })));
+			} else {
+				this._providerListeners.push(provider.onDidChange(() => this._onDidChangeSlashCommands.fire({ sessionType: harness.id })));
+			}
+		}
+	}
+
+	dispose(): void {
+		for (const listener of this._providerListeners) {
+			listener.dispose();
+		}
+		this._providerListeners.length = 0;
+		this._onDidChangeSlashCommands.dispose();
 	}
 
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable {
@@ -552,8 +565,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		};
 	}
 
+	findHarnessById(id: string): IHarnessDescriptor | undefined {
+		return this._getAllHarnesses().find(h => h.id === id);
+	}
+
 	setActiveHarness(id: string): void {
-		if (this._getAllHarnesses().some(h => h.id === id)) {
+		const harness = this.findHarnessById(id);
+		if (harness) {
 			this._activeHarness.set(id, undefined);
 		}
 	}
@@ -575,6 +593,60 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return EMPTY_DESCRIPTOR;
 		}
 		return all.find(h => h.id === activeId) ?? all[0];
+	}
+
+	async getSlashCommands(sessionType: string, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		const harness = this.findHarnessById(sessionType);
+		if (!harness || !harness.itemProvider) {
+			const commands = await this.promptsService.getPromptSlashCommands(token);
+			return commands.filter(command => matchesSessionType(command.sessionTypes, sessionType));
+		}
+
+		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
+		if (!items) {
+			return [];
+		}
+		const result = [];
+		for (const item of items) {
+			if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
+				result.push({
+					uri: item.uri,
+					type: item.type as PromptsType.prompt | PromptsType.skill,
+					name: item.name,
+					description: item.description,
+					userInvocable: true, // todo we need a way for providers to specify this if some items aren't user-invocable`
+					storage: item.storage ?? PromptsStorage.local,
+					when: undefined,
+					sessionTypes: [sessionType],
+				});
+			}
+		}
+		return result;
+	}
+
+	public async resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
+		const harness = this.findHarnessById(sessionType);
+		if (!harness || !harness.itemProvider) {
+			return this.promptsService.resolvePromptSlashCommand(name, sessionType, token);
+		}
+
+		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
+		const item = items?.find(cmd => cmd.name === name);
+		if (item) {
+			const parsedPromptFile = await this.promptsService.parseNew(item.uri, token);
+			return {
+				uri: item.uri,
+				type: item.type as PromptsType.prompt | PromptsType.skill,
+				name: item.name,
+				description: item.description,
+				userInvocable: parsedPromptFile.header?.userInvocable ?? true,
+				storage: item.storage ?? PromptsStorage.local,
+				when: undefined,
+				sessionTypes: [sessionType],
+				parsedPromptFile,
+			};
+		}
+		return undefined;
 	}
 }
 

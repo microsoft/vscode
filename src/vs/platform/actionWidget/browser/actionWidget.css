@@ -269,6 +269,10 @@
 		text-overflow: ellipsis;
 	}
 
+	.group-title {
+		margin-left: auto;
+	}
+
 	.action-list-item-toolbar {
 		margin-left: 4px;
 		margin-right: 10px;
@@ -390,8 +394,8 @@
 
 .action-list-submenu-hover-header {
 	padding: 4px 8px;
-	line-height: 1.5em;
-	min-width: 200px;
+	line-height: 1.4em;
+	font-size: 12px;
 	max-width: var(--vscode-hover-maxWidth, 500px);
 	word-wrap: break-word;
 }

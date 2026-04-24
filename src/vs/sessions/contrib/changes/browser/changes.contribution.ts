@@ -27,7 +27,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	title: localize2('changes', 'Changes'),
 	icon: changesViewIcon,
 	order: 10,
-	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer, [CHANGES_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	storageId: CHANGES_VIEW_CONTAINER_ID,
 	hideIfEmpty: false,
 	openCommandActionDescriptor: {

@@ -67,7 +67,14 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
-			await this._onWorkspaceSelected(workspace, this._newChatInput.sessionTypePicker.selectedType);
+			if (workspace) {
+				const selectedSessionType = this._newChatInput.sessionTypePicker.selectedType;
+				const validSessionTypes = this.sessionsProvidersService.getProvider(workspace.providerId)?.getSessionTypes(workspace.workspace.repositories[0].uri);
+				const validSessionType = selectedSessionType ? validSessionTypes?.find(type => type.id === selectedSessionType) : validSessionTypes?.[0];
+				await this._onWorkspaceSelected(workspace, validSessionType?.id);
+			} else {
+				await this._onWorkspaceSelected(undefined, undefined);
+			}
 			this._newChatInput.focus();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async sessionType => {

@@ -457,7 +457,11 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedCodingAgentId.notEqualsTo(AgentSessionProviders.Cloud),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
+						),
 					)
 			}
 		});
