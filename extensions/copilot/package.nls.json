@@ -224,7 +224,7 @@
 	"github.copilot.walkthrough.title": "GitHub Copilot",
 	"github.copilot.walkthrough.description": "Your AI pair programmer to write code faster and smarter",
 	"github.copilot.walkthrough.signIn.title": "Sign in with GitHub",
-	"github.copilot.walkthrough.signIn.description": "To get started with Copilot, sign in with your GitHub account.\nMake sure you're using the correct GitHub account. You can also sign in later using the account menu.\n\n[Sign In](command:github.copilot.signIn)",
+	"github.copilot.walkthrough.signIn.description": "To get started with Copilot, sign in with your GitHub account.\nMake sure you're using the correct GitHub account. You can also sign in later using the account menu.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)",
 	"github.copilot.walkthrough.signIn.media.altText": "Sign in to GitHub via this walkthrough or VS Code's account menu",
 	"github.copilot.walkthrough.setup.signIn.title": "Sign in to use Copilot for free",
 	"github.copilot.walkthrough.setup.signIn.description": "You can use Copilot to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.\n We now offer [Copilot for free](https://github.com/features/copilot/plans) with your GitHub account.\n\n[Use Copilot for Free](command:workbench.action.chat.triggerSetupForceSignIn)",
