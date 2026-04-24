@@ -1535,9 +1535,16 @@ export interface IChatRequestNeedsInputInfo {
 	readonly detail?: string;
 }
 
+export interface IPinnedContextItem {
+	readonly id: string;
+	readonly requestId: string;
+	readonly codeBlockIndex?: number;
+}
+
 export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
+	readonly pinnedSegments: IPinnedContextItem[];
 
 	readonly sessionResource: URI;
 	/** @deprecated Use {@link sessionResource} instead */
@@ -1761,6 +1768,8 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	repoData?: IExportableRepoData;
 	/** Pending requests that were queued but not yet processed */
 	pendingRequests?: ISerializablePendingRequestData[];
+	/** Pinned context segments */
+	pinnedSegments?: IPinnedContextItem[];
 }
 
 /**
@@ -1935,7 +1944,14 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCustomTitleEvent
+	| IChatPinnedContextEvent
 	;
+
+export interface IChatPinnedContextEvent {
+	kind: 'pinnedContext';
+	item: IPinnedContextItem;
+	isPinned: boolean;
+}
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -2090,6 +2106,27 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly onDidChangePendingRequests = this._onDidChangePendingRequests.event;
 
 	private _requests: ChatRequestModel[];
+	private _pinnedSegments: IPinnedContextItem[] = [];
+
+	public get pinnedSegments(): IPinnedContextItem[] {
+		return this._pinnedSegments;
+	}
+
+	public pinSegment(item: IPinnedContextItem): void {
+		if (!this._pinnedSegments.find(p => p.id === item.id)) {
+			this._pinnedSegments.push(item);
+			this._onDidChange.fire({ kind: 'pinnedContext', item, isPinned: true });
+		}
+	}
+
+	public unpinSegment(id: string): void {
+		const index = this._pinnedSegments.findIndex(p => p.id === id);
+		if (index !== -1) {
+			const item = this._pinnedSegments[index];
+			this._pinnedSegments.splice(index, 1);
+			this._onDidChange.fire({ kind: 'pinnedContext', item, isPinned: false });
+		}
+	}
 
 	private _repoData: IExportableRepoData | undefined;
 	public get repoData(): IExportableRepoData | undefined {
@@ -2358,6 +2395,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialResponderUsername = initialData?.responderUsername;
 
 		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
+		this._pinnedSegments = isValidFullData && initialData.pinnedSegments ? [...initialData.pinnedSegments] : [];
 
 		// Hydrate pending requests from serialized data
 		if (isValidFullData && initialData.pendingRequests) {
@@ -2883,6 +2921,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
+			pinnedSegments: this._pinnedSegments.length > 0 ? [...this._pinnedSegments] : undefined,
 		};
 	}
 

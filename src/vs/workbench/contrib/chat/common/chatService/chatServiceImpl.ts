@@ -1220,6 +1220,28 @@ export class ChatService extends Disposable implements IChatService {
 						allContext.push(...instructionEntries);
 					}
 
+					// Resolve pinned segments into a context variable
+					if (model.pinnedSegments.length > 0) {
+						let pinnedText = '';
+						for (const pin of model.pinnedSegments) {
+							const req = model.getRequests().find(r => r.id === pin.requestId);
+							if (req && req.response) {
+								pinnedText += `\n\n${req.response.response.toString()}`;
+							}
+						}
+						
+						if (pinnedText) {
+							allContext.push({
+								kind: 'promptText',
+								id: 'pinnedContext',
+								name: 'pinnedContext',
+								value: 'The following is pinned context from earlier in the conversation that you must remember and prioritize:\n' + pinnedText,
+								modelDescription: 'Pinned Context',
+								automaticallyAdded: true,
+							} as any); // cast to any to avoid importing IPromptTextVariableEntry specifically
+						}
+					}
+
 					// Store only non-instruction variables on the model.
 					// Automatically-added promptText entries (~33 KB each) are
 					// ephemeral — re-collected every turn, never rendered in
