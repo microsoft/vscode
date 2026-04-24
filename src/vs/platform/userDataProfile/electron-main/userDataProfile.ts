@@ -47,7 +47,10 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
-		const defaultProfile = super.createDefaultProfile();
+		const defaultProfile = {
+			...super.createDefaultProfile(),
+			agentsPluginsHome: this.agentsPluginsHome
+		};
 		if (!(process as INodeProcess).isEmbeddedApp) {
 			return defaultProfile;
 		}
