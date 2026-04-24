@@ -87,6 +87,10 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		await this._mainService.disconnect(host);
 	}
 
+	async killRemoteAgentHost(host: string): Promise<void> {
+		await this._mainService.killRemoteAgentHost(host);
+	}
+
 	async listSSHConfigHosts(): Promise<string[]> {
 		return this._mainService.listSSHConfigHosts();
 	}

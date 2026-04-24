@@ -104,6 +104,13 @@ export interface ISSHRemoteAgentHostService {
 	 */
 	disconnect(host: string): Promise<void>;
 
+	/**
+	 * Forcefully kill the remote agent host process tracked by our state file
+	 * for an active SSH connection, then tear down the SSH tunnel. Useful as
+	 * a developer escape hatch when the remote process is wedged.
+	 */
+	killRemoteAgentHost(host: string): Promise<void>;
+
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
@@ -198,6 +205,12 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Disconnect an SSH-bootstrapped connection by host address.
 	 */
 	disconnect(host: string): Promise<void>;
+
+	/**
+	 * Kill the remote agent host process tracked by our state file for the
+	 * SSH connection identified by {@link host}, then tear down the tunnel.
+	 */
+	killRemoteAgentHost(host: string): Promise<void>;
 
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;

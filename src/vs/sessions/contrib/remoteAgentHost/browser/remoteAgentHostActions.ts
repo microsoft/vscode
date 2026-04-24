@@ -5,6 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -476,6 +477,55 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await promptToConnectViaSSH(accessor);
+	}
+});
+
+interface ISSHConnectionPickItem extends IQuickPickItem {
+	readonly localAddress: string;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.killRemoteAgentHostSSH',
+			title: localize2('killRemoteAgentHostSSH', "Kill Remote Agent Host (SSH)..."),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sshService = accessor.get(ISSHRemoteAgentHostService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+
+		const connections = sshService.connections;
+		if (connections.length === 0) {
+			notificationService.info(localize('killSSHNoConnections', "No active SSH remote agent host connections."));
+			return;
+		}
+
+		const picks: ISSHConnectionPickItem[] = connections.map(conn => ({
+			label: conn.name,
+			description: conn.localAddress,
+			localAddress: conn.localAddress,
+		}));
+
+		const picked = await quickInputService.pick(picks, {
+			title: localize('killSSHTitle', "Kill Remote Agent Host (SSH)"),
+			placeHolder: localize('killSSHPlaceholder', "Select an SSH connection to kill"),
+		});
+		if (!picked) {
+			return;
+		}
+
+		try {
+			await sshService.killRemoteAgentHost(picked.localAddress);
+			notificationService.info(localize('killSSHDone', "Killed remote agent host for {0}.", picked.label));
+		} catch (err) {
+			notificationService.error(localize('killSSHFailed', "Failed to kill remote agent host for {0}: {1}", picked.label, String(err)));
+		}
 	}
 });
 

@@ -648,6 +648,22 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 	}
 
+	async killRemoteAgentHost(host: string): Promise<void> {
+		for (const [key, conn] of this._connections) {
+			if (key === host || conn.connectionId === host) {
+				const exec = bindSshExec(conn.sshClient);
+				try {
+					await cleanupRemoteAgentHost(exec, this._logService, this._quality);
+				} catch (err) {
+					this._logService.warn(`${LOG_PREFIX} Error killing remote agent host for ${key}: ${err}`);
+				}
+				conn.dispose();
+				return;
+			}
+		}
+		this._logService.warn(`${LOG_PREFIX} killRemoteAgentHost: no active SSH connection found for ${host}`);
+	}
+
 	async relaySend(connectionId: string, message: string): Promise<void> {
 		for (const conn of this._connections.values()) {
 			if (conn.connectionId === connectionId) {
