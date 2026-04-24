@@ -77,7 +77,11 @@ function createMockProvider(id: string, opts?: {
 			getSessionConfigCompletions: async () => [],
 			getCreateSessionConfig: () => undefined,
 			clearSessionConfig: () => { },
-		} as IAgentHostSessionsProvider;
+			onDidChangeRootConfig: Event.None,
+			getRootConfig: () => undefined,
+			setRootConfigValue: async () => { },
+			replaceRootConfig: async () => { },
+		} as unknown as IAgentHostSessionsProvider;
 	}
 	return base;
 }

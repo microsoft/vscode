@@ -239,8 +239,8 @@
 	justify-content: center;
 	flex-shrink: 0;
 	position: relative;
-	width: 22px;
-	height: 22px;
+	width: 23px;
+	height: 23px;
 	border-radius: 4px;
 }
 
@@ -248,9 +248,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
-	min-width: 22px;
+	width: 23px;
+	height: 23px;
+	min-width: 23px;
 	padding: 0;
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
@@ -282,8 +282,11 @@
 	box-shadow: none !important;
 }
 
-.monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-'] {
-	font-size: 14px;
+.monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
+.monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
+	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+	display: inline-block;
+	transform: translateX(-0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph
@@ -352,7 +355,15 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
+	box-sizing: border-box;
+	width: 23px;
+	height: 23px;
 	transition: background-color 250ms ease, color 250ms ease;
+}
+
+/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+.agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+	display: inline-block;
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
