@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
-
-/** Integration id for requests originating from the Copilot CLI /remote feature. */
-const INTEGRATION_ID = 'copilot-developer-cli';
 
 /** Base path for Mission Control (agent session) endpoints. */
 const SESSIONS_PATH = '/agents/sessions';
@@ -72,9 +70,9 @@ export interface McAuthOptions {
 export class MissionControlApiClient {
 
 	constructor(
-		private readonly _authService: IAuthenticationService,
-		private readonly _fetcherService: IFetcherService,
-		private readonly _logService: ILogService,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@IFetcherService private readonly _fetcherService: IFetcherService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	/**

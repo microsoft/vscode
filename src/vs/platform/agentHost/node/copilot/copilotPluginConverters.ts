@@ -172,6 +172,37 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 }
 
 /**
+ * Runs a list of hook commands sequentially, passing `input` as JSON stdin.
+ * Returns the parsed output of the first command that emits a valid JSON object,
+ * or `undefined` if no command produces parseable JSON output.
+ * Command failures are swallowed — hooks are non-fatal.
+ */
+async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object | undefined> {
+	if (!commands) {
+		return undefined;
+	}
+	const stdin = JSON.stringify(input);
+	for (const cmd of commands) {
+		try {
+			const output = await executeHookCommand(cmd, stdin);
+			if (output.trim()) {
+				try {
+					const parsed = JSON.parse(output);
+					if (parsed && typeof parsed === 'object') {
+						return parsed;
+					}
+				} catch {
+					// Non-JSON output is fine — no modification
+				}
+			}
+		} catch {
+			// Hook failures are non-fatal
+		}
+	}
+	return undefined;
+}
+
+/**
  * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
  */
 const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
@@ -218,26 +249,7 @@ export function toSdkHooks(
 	if (preToolCommands?.length || editTrackingHooks) {
 		hooks.onPreToolUse = async (input: { toolName: string; toolArgs: unknown }) => {
 			await editTrackingHooks?.onPreToolUse(input);
-			if (preToolCommands) {
-				const stdin = JSON.stringify(input);
-				for (const cmd of preToolCommands) {
-					try {
-						const output = await executeHookCommand(cmd, stdin);
-						if (output.trim()) {
-							try {
-								const parsed = JSON.parse(output);
-								if (parsed && typeof parsed === 'object') {
-									return parsed;
-								}
-							} catch {
-								// Non-JSON output is fine — no modification
-							}
-						}
-					} catch {
-						// Hook failures are non-fatal
-					}
-				}
-			}
+			return runHookCommands(preToolCommands, input);
 		};
 	}
 
@@ -246,16 +258,7 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: { toolName: string; toolArgs: unknown }) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			if (postToolCommands) {
-				const stdin = JSON.stringify(input);
-				for (const cmd of postToolCommands) {
-					try {
-						await executeHookCommand(cmd, stdin);
-					} catch {
-						// Hook failures are non-fatal
-					}
-				}
-			}
+			return runHookCommands(postToolCommands, input);
 		};
 	}
 
