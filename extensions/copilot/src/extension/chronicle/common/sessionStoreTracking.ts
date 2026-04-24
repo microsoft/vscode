@@ -141,3 +141,63 @@ export function extractRepoFromMcpTool(toolArgs: unknown): string | undefined {
 export function isGitHubMcpTool(toolName: string): boolean {
 	return toolName.startsWith(GH_MCP_PREFIX);
 }
+
+/** Truncation suffix appended by truncateForOTel. */
+const OTEL_TRUNCATION_MARKER = '...[truncated';
+
+/**
+ * Extract assistant response text from the gen_ai.output.messages span attribute.
+ * Handles both valid JSON and truncated JSON (where truncateForOTel cut the
+ * JSON structure mid-string and appended a suffix).
+ *
+ * Expected format: [{"role":"assistant","parts":[{"type":"text","content":"..."}]}]
+ *
+ * @internal Exported for testing.
+ */
+export function extractAssistantResponse(outputMessagesRaw: string | undefined): string | undefined {
+	if (!outputMessagesRaw) {
+		return undefined;
+	}
+
+	// Fast path: try full JSON parse for non-truncated input
+	try {
+		const messages = JSON.parse(outputMessagesRaw) as { role: string; parts: { type: string; content: string }[] }[];
+		const parts = messages
+			.filter(m => m.role === 'assistant')
+			.flatMap(m => m.parts)
+			.filter(p => p.type === 'text')
+			.map(p => p.content);
+		return parts.length > 0 ? parts.join('\n') : undefined;
+	} catch {
+		// JSON parse failed — likely truncated by truncateForOTel
+	}
+
+	// Fallback: extract text from truncated JSON via substring.
+	// The JSON prefix is fixed: [{"role":"assistant","parts":[{"type":"text","content":"
+	// which is 63 chars. The content value follows, terminated by the truncation marker.
+	if (!outputMessagesRaw.includes(OTEL_TRUNCATION_MARKER)) {
+		return undefined;
+	}
+	const contentPrefix = '"content":"';
+	const contentStart = outputMessagesRaw.indexOf(contentPrefix);
+	if (contentStart === -1) {
+		return undefined;
+	}
+	const textStart = contentStart + contentPrefix.length;
+	const truncationIdx = outputMessagesRaw.indexOf(OTEL_TRUNCATION_MARKER, textStart);
+	if (truncationIdx === -1) {
+		return undefined;
+	}
+	const extracted = outputMessagesRaw.slice(textStart, truncationIdx);
+	if (extracted.length === 0) {
+		return undefined;
+	}
+	// The extracted text is JSON-escaped (e.g. \" \n \\). Unescape by wrapping
+	// in quotes and parsing as a JSON string value.
+	try {
+		return JSON.parse(`"${extracted}"`) as string;
+	} catch {
+		// If unescape fails (e.g. truncation mid-escape), return the raw text
+		return extracted;
+	}
+}
