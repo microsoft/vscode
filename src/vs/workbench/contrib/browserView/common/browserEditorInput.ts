@@ -100,7 +100,7 @@ export class BrowserEditorInput extends EditorInput {
 
 		// Auto-close editor when webcontents closes
 		this._modelStore.add(this._model.onDidClose(() => {
-			this.dispose();
+			this.dispose(true);
 		}));
 
 		// Listen for label-relevant changes to fire onDidChangeLabel
