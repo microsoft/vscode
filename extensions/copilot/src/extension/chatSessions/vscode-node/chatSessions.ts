@@ -59,8 +59,8 @@ import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLIS
 import { CustomSessionTitleService } from '../copilotcli/vscode-node/customSessionTitleServiceImpl';
 import { GHPR_EXTENSION_ID } from '../vscode/chatSessionsUriHandler';
 import { AgentSessionsWorkspace } from './agentSessionsWorkspace';
-import { UserQuestionHandler } from './askUserQuestionHandler';
-import { ChatSessionMetadataStore } from './chatSessionMetadataStoreImpl';
+import { UserQuestionHandler } from '../copilotcli/vscode-node/askUserQuestionHandler';
+import { ChatSessionMetadataStore } from '../copilotcli/vscode-node/chatSessionMetadataStoreImpl';
 import { ChatSessionRepositoryTracker } from './chatSessionRepositoryTracker';
 import { ChatSessionWorkspaceFolderService } from './chatSessionWorkspaceFolderServiceImpl';
 import { ClaudeWorkspaceFolderService } from './claudeWorkspaceFolderServiceImpl';
@@ -68,10 +68,10 @@ import { ChatSessionWorktreeCheckpointService } from './chatSessionWorktreeCheck
 import { ChatSessionWorktreeService } from './chatSessionWorktreeServiceImpl';
 import { ClaudeChatSessionContentProvider } from './claudeChatSessionContentProvider';
 import { ClaudeCustomizationProvider } from './claudeCustomizationProvider';
-import { CopilotCLIChatSessionInitializer, ICopilotCLIChatSessionInitializer } from './copilotCLIChatSessionInitializer';
+import { CopilotCLIChatSessionInitializer, ICopilotCLIChatSessionInitializer } from '../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, registerCLIChatCommands } from './copilotCLIChatSessions';
 import { CopilotCLIChatSessionContentProvider as CopilotCLIChatSessionContentProviderV1, CopilotCLIChatSessionItemProvider as CopilotCLIChatSessionItemProviderV1, CopilotCLIChatSessionParticipant as CopilotCLIChatSessionParticipantV1, registerCLIChatCommands as registerCLIChatCommandsV1 } from './copilotCLIChatSessionsContribution';
-import { CopilotCLICustomizationProvider } from './copilotCLICustomizationProvider';
+import { CopilotCLICustomizationProvider } from '../copilotcli/vscode-node/copilotCLICustomizationProvider';
 import { CopilotCLITerminalIntegration, ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { ClaudeFolderRepositoryManager, CopilotCLIFolderRepositoryManager } from './folderRepositoryManagerImpl';
