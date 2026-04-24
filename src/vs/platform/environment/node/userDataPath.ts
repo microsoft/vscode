@@ -49,7 +49,7 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 		if ((process as INodeProcess).isEmbeddedApp) {
 			productName = 'agents-oss-dev';
 		} else {
-			productName = 'code-oss-dev';
+			productName = 'fncode-dev';
 		}
 	}
 
