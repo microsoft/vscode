@@ -751,7 +751,7 @@ suite('customizationCounts', () => {
 		}
 
 		function makeItem(type: string, name: string): ICustomizationItem {
-			return { uri: URI.file(`/mock/${name}`), type, name };
+			return { uri: URI.file(`/mock/${name}`), type, name, extensionId: undefined, pluginUri: undefined };
 		}
 
 		test('uses itemProvider counts when provided', async () => {
