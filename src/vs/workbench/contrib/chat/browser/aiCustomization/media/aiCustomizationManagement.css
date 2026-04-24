@@ -219,7 +219,6 @@
 
 .ai-customization-management-editor .harness-dropdown-button:hover {
 	background: var(--vscode-dropdown-background);
-	/* border-color: var(--vscode-focusBorder); */
 }
 
 .ai-customization-management-editor .harness-dropdown-button:focus-visible {
