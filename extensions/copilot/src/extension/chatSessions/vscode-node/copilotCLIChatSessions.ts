@@ -43,14 +43,14 @@ import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotC
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
-import { ICopilotCLIChatSessionInitializer, SessionInitOptions } from './copilotCLIChatSessionInitializer';
-import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
+import { ICopilotCLIChatSessionInitializer, SessionInitOptions } from '../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
+import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 
 
 export interface ICopilotCLIChatSessionItemProvider extends IDisposable {

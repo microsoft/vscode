@@ -52,9 +52,9 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
-import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
+import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 
 const REPOSITORY_OPTION_ID = 'repository';
 
