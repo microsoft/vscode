@@ -66,15 +66,17 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 	alternativeDefinition(tool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
 		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
+
 		if (!thoroughnessEnabled) {
 			return tool;
 		}
 
-		return {
-			...tool,
-			description: tool.description
-				+ '\n- thoroughness (optional): Search thoroughness — \'normal\' (balanced and quick, sufficient for most cases) or \'deep\' (more turns, broader exploration; only use when normal is clearly not enough).',
-			inputSchema: {
+		const updatedTool = { ...tool };
+
+		if (thoroughnessEnabled) {
+			updatedTool.description = tool.description
+				+ '\n- thoroughness (optional): Search thoroughness — \'normal\' (balanced and quick, sufficient for most cases) or \'deep\' (more turns, broader exploration; only use when normal is clearly not enough).';
+			updatedTool.inputSchema = {
 				...tool.inputSchema as Record<string, unknown>,
 				properties: {
 					...(tool.inputSchema as { properties: Record<string, unknown> }).properties,
@@ -84,8 +86,10 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 						description: 'Controls the search thoroughness and turn limit. \'normal\' is balanced and quick, sufficient for most searches. Only use \'deep\' when the task clearly requires broader exploration across many files.',
 					},
 				},
-			},
-		};
+			};
+		}
+
+		return updatedTool;
 	}
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISearchSubagentParams>, token: vscode.CancellationToken) {
 		// Get the current working directory from workspace folders

@@ -9,6 +9,7 @@ import { AGENT_FILE_EXTENSION } from '../../../platform/customInstructions/commo
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { AgentConfig, AgentHandoff, buildAgentMarkdown, DEFAULT_READ_TOOLS } from './agentTypes';
 
@@ -52,6 +53,7 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@ILogService private readonly logService: ILogService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super();
 
@@ -63,7 +65,8 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 			if (e.affectsConfiguration(ConfigKey.PlanAgentAdditionalTools.fullyQualifiedId) ||
 				e.affectsConfiguration(ConfigKey.Deprecated.PlanAgentModel.fullyQualifiedId) ||
 				e.affectsConfiguration('chat.planAgent.defaultModel') ||
-				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId)) {
+				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId)) {
 				this._onDidChangeCustomAgents.fire();
 			}
 		}));
@@ -103,12 +106,27 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		return fileUri;
 	}
 
-	static buildAgentBody(): string {
-		const discoverySection = `## 1. Discovery
+	static buildAgentBody(exploreAgentEnabled: boolean, searchSubagentEnabled: boolean): string {
+		let discoverySection: string;
+		if (exploreAgentEnabled) {
+			discoverySection = `## 1. Discovery
 
 Run the *Explore* subagent to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 *Explore* subagents in parallel** — one per area — to speed up discovery.
 
 Update the plan with your findings.`;
+		} else if (searchSubagentEnabled) {
+			discoverySection = `## 1. Discovery
+
+Use the *search_subagent* tool to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 *explore_subagent* tools in parallel** — one per area — to speed up discovery.
+
+Update the plan with your findings.`;
+		} else {
+			discoverySection = `## 1. Discovery
+
+Search the codebase to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities.
+
+Update the plan with your findings.`;
+		}
 
 		return `You are a PLANNING AGENT, pairing with the user to create a detailed, actionable plan.
 
@@ -230,12 +248,15 @@ Rules:
 			? [...new Set([...BASE_PLAN_AGENT_CONFIG.tools, ...toolsToAdd])]
 			: [...BASE_PLAN_AGENT_CONFIG.tools];
 
+		const exploreAgentEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, this.experimentationService);
+		const searchSubagentEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, this.experimentationService);
+
 		// Start with base config
 		return {
 			...BASE_PLAN_AGENT_CONFIG,
 			tools,
 			handoffs: [startImplementationHandoff, openInEditorHandoff, ...(BASE_PLAN_AGENT_CONFIG.handoffs ?? [])],
-			body: PlanAgentProvider.buildAgentBody(),
+			body: PlanAgentProvider.buildAgentBody(exploreAgentEnabled, searchSubagentEnabled),
 			...(modelOverride ? { model: modelOverride } : {}),
 		};
 	}
