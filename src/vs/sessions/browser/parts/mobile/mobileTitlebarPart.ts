@@ -24,7 +24,7 @@ import { Menus } from '../../menus.js';
  *
  * Layout:
  *
- *   `[☰]  [session title | host widget]  [+]`
+ *   `[menu]  [session title | host widget]  [+]`
  *
  * The center slot switches content based on whether the sessions welcome
  * (home/empty) screen is visible:
