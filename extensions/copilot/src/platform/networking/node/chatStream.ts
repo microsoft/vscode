@@ -458,6 +458,16 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 	// TO DO remove this line completely if the new way allows for complete reconstruction of entire message arrays with much lower drop rate
 	//telemetryService.sendInternalMSFTTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
 
+	// >>> DEBUG engine.messages — REMOVE THIS BLOCK <<<
+	{
+		const _dir = isOutput ? 'output' : 'input';
+		const _props = multiplexProperties(telemetryDataWithPrompt.properties);
+		const _meas = telemetryDataWithPrompt.measurements;
+		console.log(`[DEBUG] engine.messages (${_dir}) properties:`, JSON.stringify(_props, null, 2));
+		console.log(`[DEBUG] engine.messages (${_dir}) measurements:`, JSON.stringify(_meas, null, 2));
+	}
+	// >>> END DEBUG engine.messages <<<
+
 	// Send all model telemetry events (model.request.added, model.message.added, model.modelCall.input/output, model.request.options.added)
 	// Comment out the line below to disable the new deduplicated model telemetry events
 	sendModelTelemetryEvents(telemetryService, messages, telemetryData, isOutput, logService);
