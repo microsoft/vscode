@@ -59,7 +59,6 @@
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
-	width: 100%;
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
@@ -233,6 +232,7 @@
 .action-widget .monaco-list-row.action .group-title {
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
+	margin-right: 6px;
 	font-size: 12px;
 	flex-shrink: 0;
 }
@@ -253,19 +253,38 @@
 
 /* Inline description mode — description rendered right after the label */
 .action-widget .inline-description .monaco-list-row.action {
+	/* Override the row gap so group-title and toolbar sit flush */
+	gap: 0;
+
 	.title {
-		flex: initial;
-		flex-shrink: 1;
+		flex: 0 1 auto;
 		min-width: 0;
+		margin-left: 6px;
 	}
 
 	.description {
 		flex: 1;
 		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.group-title {
+		margin-left: auto;
 	}
 
 	.action-list-item-toolbar {
+		margin-left: 4px;
+		margin-right: 10px;
+	}
+
+	/* When description is hidden (e.g. items with only a submenu), push the
+	 * submenu chevron to the far right using an auto left margin. When
+	 * description is visible it already consumes all available space via
+	 * flex:1, so the auto margin has no additional effect. */
+	.action-list-submenu-indicator {
 		margin-left: auto;
+		margin-right: 10px;
 	}
 }
 
@@ -375,8 +394,8 @@
 
 .action-list-submenu-hover-header {
 	padding: 4px 8px;
-	line-height: 1.5em;
-	min-width: 200px;
+	line-height: 1.4em;
+	font-size: 12px;
 	max-width: var(--vscode-hover-maxWidth, 500px);
 	word-wrap: break-word;
 }

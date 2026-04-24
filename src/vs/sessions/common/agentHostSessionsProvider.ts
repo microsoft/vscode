@@ -68,8 +68,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	clearSessionConfig(sessionId: string): void;
 }
 
-const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
+export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
+export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
+export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
 
 /**
  * Checks whether a provider is an agent host provider based on its

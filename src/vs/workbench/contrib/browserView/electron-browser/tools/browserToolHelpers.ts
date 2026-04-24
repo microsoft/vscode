@@ -12,6 +12,7 @@ import { IAgentNetworkFilterService } from '../../../../../platform/networkFilte
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
@@ -145,10 +146,10 @@ export function errorResult(message: string): IToolResult {
  * exists. When {@link playwrightService} is provided, only pages tracked by Playwright
  * (i.e. shared with the agent) are considered.
  *
- * @returns The first matching {@link BrowserEditorInput}, or `undefined` if none was found.
+ * @returns All matching {@link BrowserEditorInput}s.
  */
 async function findExistingPagesByHost(
-	editorService: IEditorService,
+	browserViewService: IBrowserViewWorkbenchService,
 	playwrightService: IPlaywrightService | undefined,
 	url: string,
 ): Promise<BrowserEditorInput[]> {
@@ -162,7 +163,7 @@ async function findExistingPagesByHost(
 		: undefined;
 
 	const results: BrowserEditorInput[] = [];
-	for (const editor of editorService.editors) {
+	for (const editor of browserViewService.getKnownBrowserViews().values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}
@@ -197,11 +198,12 @@ async function findExistingPagesByHost(
  */
 export async function getExistingPagesResult(
 	editorService: IEditorService,
+	browserViewService: IBrowserViewWorkbenchService,
 	playwrightService: IPlaywrightService | undefined,
 	url: string,
 	formatOptions?: FormatBrowserEditorLinesOptions
 ): Promise<IToolResult | undefined> {
-	const existing = await findExistingPagesByHost(editorService, playwrightService, url);
+	const existing = await findExistingPagesByHost(browserViewService, playwrightService, url);
 	if (existing.length === 0) {
 		return undefined;
 	}

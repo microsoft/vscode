@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type ActionEnvelope, type INotification, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -50,6 +50,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -1839,7 +1840,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [AgentHostSessionConfigBranchNameHintKey]: 'add-agent-host-session-configuration-flow' });
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [SessionConfigKey.BranchNameHint]: 'add-agent-host-session-configuration-flow' });
 		}));
 
 		test('handler derives deterministic branch name hints from first request text', () => {

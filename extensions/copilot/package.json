@@ -1052,6 +1052,38 @@
 				}
 			},
 			{
+				"name": "copilot_githubTextSearch",
+				"legacyToolReferenceFullNames": [
+					"githubTextSearch"
+				],
+				"toolReferenceName": "githubTextSearch",
+				"displayName": "%github.copilot.tools.githubTextSearch.name%",
+				"modelDescription": "Lexically searches a GitHub repository or organization for files containing specific keywords or code patterns. Use this when looking for exact strings, function names, or identifiers in a GitHub repo or org. Unlike the semantic search tool, this uses keyword matching rather than meaning-based search.",
+				"userDescription": "%github.copilot.tools.githubTextSearch.userDescription%",
+				"icon": "$(search)",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"scope": {
+							"type": "string",
+							"description": "The GitHub scope to search. Use 'owner/repo' to search a single repository, or an org name (no slash) to search across an entire organization."
+						},
+						"query": {
+							"type": "string",
+							"description": "The keyword search query. Supports GitHub code search syntax such as 'language:typescript', 'extension:ts', 'path:src/', etc."
+						},
+						"maxResults": {
+							"type": "number",
+							"description": "Optional. The maximum number of search results to return. Defaults to 100."
+						}
+					},
+					"required": [
+						"scope",
+						"query"
+					]
+				}
+			},
+			{
 				"name": "copilot_switchAgent",
 				"toolReferenceName": "switchAgent",
 				"displayName": "%copilot.tools.switchAgent.name%",
@@ -1271,7 +1303,8 @@
 				"icon": "$(globe)",
 				"tools": [
 					"fetch",
-					"githubRepo"
+					"githubRepo",
+					"githubTextSearch"
 				]
 			}
 		],
@@ -1440,20 +1473,6 @@
 								"description": "Make changes to existing code",
 								"examples": [
 									"Change this method to use async/await"
-								]
-							}
-						]
-					},
-					{
-						"name": "doc",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.doc.description%",
-						"disambiguation": [
-							{
-								"category": "doc",
-								"description": "Add documentation comment for this symbol",
-								"examples": [
-									"Add jsdoc to this method"
 								]
 							}
 						]
@@ -4249,16 +4268,6 @@
 							"experimental"
 						]
 					},
-					"github.copilot.chat.inlineChat.selectionRatioThreshold": {
-						"type": "number",
-						"default": 0,
-						"markdownDescription": "%github.copilot.config.inlineChat.selectionRatioThreshold%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.inlineChat.reasoningEffort": {
 						"type": "string",
 						"default": "low",
@@ -4644,7 +4653,7 @@
 					},
 					"github.copilot.chat.cli.lazyLoadSessionItem.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
 						"tags": [
 							"advanced"
@@ -4685,7 +4694,7 @@
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"

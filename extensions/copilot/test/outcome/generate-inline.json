@@ -3,13 +3,13 @@
 		"name": "generate [inline] [cpp] - cpp code generation",
 		"requests": [
 			"df43156c972778b2fe89eaa715af8fb8b390a19b8e4ee3157485deca11628150",
-			"e5e24d224975d143307484f1125936a5adf524b1664b96462be1e327eed4b3a2"
+			"f7e8c0e6d25c97eb19c495da65bd0e4b97e7840144a2d2f0377995d2dff6e048"
 		]
 	},
 	{
 		"name": "generate [inline] [cpp] - templated code generation",
 		"requests": [
-			"4e2a3d846eccda4a54a015b9500f12523e6e4047b27df0cdb11e92a2103c8253",
+			"8a2123be2ed408c7bedb65c8c01d1de309aab15fedb017c9e54044b92ce8a65b",
 			"e99d50fdcb49b2820ae2766b392642267fb937ccfb323270cac048ea09256419"
 		]
 	},
@@ -17,34 +17,34 @@
 		"name": "generate [inline] [html] - code below cursor is not duplicated",
 		"requests": [
 			"3132b5d72fe72fe4524d792f102f68d8ef7ef0b08a2d14d46e9f9234478c81c4",
-			"dfa9b9c079be5155237e7cf8a3c73c58091fe21b27bdfb5e144c58ad3ae729fa"
+			"f4ddfbe72645d8066694a1431aef5b6af78b73eee6abf9f67beda5561270e6ef"
 		]
 	},
 	{
 		"name": "generate [inline] [javascript] - Generate a nodejs server",
 		"requests": [
+			"1f0953bde8b5134bd674f82e190c8f1de5ec6e16621dcb94f80fcf4e616ada09",
 			"2e5d90bdfbb5fed189849df294beb4df8d2c8638721463621ca0ff23d46fd851",
+			"4fb60546a2351d830d3e6fbde18e65fd243baea42e242bbbe1e57f799585d62c",
 			"58bff8a0f0d63ac0f76e693ff54d21fb1fc8621859a96d6e057df07a59f35b7e",
 			"59bb4bfa626ae63e6963d34ea67acc00a42339e88a6ad2c889da3c82f3d5e3aa",
 			"6ae88693379d1a03e8b6f500bb209248cf51ac5f18126437d447fc827280d514",
-			"7af3970b832a8afd834cef4620311f5c521429ece3efb6a7065c35b6daf62374",
-			"bd4c92feeee2c340bd49b73dcac6279656d891013583c4424602f8fcaef3c06e",
-			"d78289839a9be2d65292380b95cd6d3d2064bd067f769a887338f0f7d4bd3fc6",
-			"f84dfa1f209f766310d860c0caae2afb397e468ffe99f6ddca00482ddcc1d7b6"
+			"8b6b52e0f0aafead7b1f9a1c0ad1b98904c2c60f6a701abe7844da9ca03dbd7f",
+			"b580025b61f5532c9236a34178d547b02971a4c1b044da37dedac50d03c225f6"
 		]
 	},
 	{
 		"name": "generate [inline] [javascript] - issue #3597: gen twice",
 		"requests": [
 			"0030637766951a8fa5aa86d13d33f22353319be75b0fd8a2d8c9de8626432108",
-			"40c2f490cef642f66c6686a7406b5ad5170197d4ee60e350376bd8cda446a3fb",
+			"031dfe021d29658c41c8770fdd504eee6a5ba0f79836b0c26d0525ef0e78e6fc",
 			"4f8af40b9666053ec4483507fba44240769968a0da1546e0ebd8b9777170c9dc",
+			"60957f9a514dbe2e76f8a2601a4288238b4213ffb1415f362cd28903883803f5",
+			"6288a19839824e3338d705623637bd56f3bfb2504b65ecafa768aeaf0d9af1cd",
 			"723fdb84ecde6d2f4ea3369bc82863ad80b0af27b6928ce244627a91293562a6",
-			"8cdaee5dac5e2e61874c0933095b2447471d6409d46ec820654a0cacbc7ddd5f",
-			"a8dd35a51c6a96222906e0b45e5d27a6d338f0812335ba2aed348ff7c11b58ba",
-			"b8575e7d0b327e8ac5292a3988d4e6bc299297546172fbf7ad5c325038a42c14",
 			"b8d94268acb1fafff69b78852e441915a1ac6c7dfbbe7ea5621e38a4775421e0",
-			"c4376f64c7f5efb14cea459ca9e2b0ff432e3f46d2485c111e420d0be5b2bd84"
+			"c4376f64c7f5efb14cea459ca9e2b0ff432e3f46d2485c111e420d0be5b2bd84",
+			"edd242b6abe40230dd82287573380ad0ff49ec7e619256a23020625399d0f559"
 		]
 	},
 	{
@@ -52,9 +52,9 @@
 		"requests": [
 			"4b107426885ada3cd3d60acaf591527133b75cd0aa8c40c1568c1a8ab4915499",
 			"7359740118751064d72bbde50308406bfe0561aba85ad99de405aa20f6354a82",
+			"7561350be7ceaecf1168b8f063387a277db778ff2b877e1cb9d9021000a690ac",
 			"9bf90d3f01ab27236416022d4508b7e3f3d60081466ba3a53d1a723cb83b6365",
-			"c6f7fca17276b101b3b872b946f327b2404e5478fb332419a230fd2f65110993",
-			"fa0ebe4a8b30fb32416c7ef72b5d57a3d95ab1ed94ce6d36f05be6635fca04a6"
+			"cb31e1ef9d324c24c2556f3b050e2c7cb3313050a017069098f16ad81242d8cd"
 		]
 	},
 	{
@@ -63,25 +63,26 @@
 			"0229bc7e0f2981672e2e205b7c0f4034fa4d41f1f3ed4eb398937f56caecbeb9",
 			"0e11691fba4eb2f36739e057afe81ad4ac37a9e91aa2d6f870ae8a63e6e7e7f1",
 			"5b82f2056018cc7165ef4eac5568ffb6d5d9ad02551cc6cd9ac96ae0e4e4ea6f",
-			"76468e54d68001320ac7576c771dc439d5ff20f7c0cbb243cb7b5c8e5d785ab2",
-			"808215d6d3189197ac06bf1ca6fce4a5d26f83cb12cabf06c59bf469c6140870",
+			"7405f41ac62b7d429e1d79196a4320432437395c055f8361ee719f9dfff4fecf",
+			"7424886c8a38dcfdb0095e03b14fc7b65304f4b31d2d60861171cb7dd3c0565f",
 			"a0490ae1f297b318026a48586563cbd65e4deecb79d5bd8251423c08d04e3b84",
-			"dc0d3baebead99fc28a855028f49399b0740c2f29bc69599d3cf347de5407a10",
-			"dc853f6c7e40bb0d9d1101d8c9178c6b719601f49edf67f440d3238f2757d24f"
+			"be6c62463c33d3b33daec301bbb6d9fb36f70cb432e043581276f7bd58aef2e0",
+			"d58a431e9bada0ac259d1b067629251a6cd0f18c3d0f594b779a82a00e416b5a"
 		]
 	},
 	{
 		"name": "generate [inline] [json] - issue #2589: IllegalArgument: line must be non-negative",
 		"requests": [
-			"c3dd5515a451db8c098080a57e8f266dc4b1f878f2a98f1424c033d768b41162",
-			"e6d0b6d67442e15fed6ea7a555fab78b31ec07c169a35f7016ec2a75a053bb3e"
+			"19d016974e088ba1d158891ac44425119adc12713a4b593be31eac302b2544b2",
+			"c3dd5515a451db8c098080a57e8f266dc4b1f878f2a98f1424c033d768b41162"
 		]
 	},
 	{
 		"name": "generate [inline] [json] - issue #6163",
 		"requests": [
+			"328165c344c5743fa842a9210e0d4bbe2460cf12183c61e6cfa8df990ada1a9a",
 			"587fd96d5271fad07d73e0ac7cdc272f5cd34fc7a7f832001642c5a19fc1283b",
-			"cca7cb535497c5a9c76ea78fc249d8643e0a374e184b4a97f1f7101665c7cc94"
+			"e3aa90ad95a359846f67e7dd014ce8e2bfeadc57506e0ca9cbe4aa1921f67c55"
 		]
 	},
 	{
@@ -91,7 +92,7 @@
 	{
 		"name": "generate [inline] [markdown] - doesn't handle markdown code response",
 		"requests": [
-			"05c1f38f0e25242e8a78be1a3dc0b6009098400a42a6d4249d331accdaf8bd8f",
+			"b15a023f9dd6ea6952d0bdb1a55b505a154ba3e541b071b948bd5eb5cdd4b7d8",
 			"c930e3e23187bd4dfabec3278f497de5ea5c363578aadc40c28d8891be77a3e1"
 		]
 	},
@@ -102,15 +103,14 @@
 	{
 		"name": "generate [inline] [powershell] - Inline chat response did not use code block #6554",
 		"requests": [
-			"03364a95d28c4f6355a4874b35934c2d0b5578197da2a454f39dc88aa3bc77d0",
-			"71d1142de96f0bf33b2f295551d18f6954c219bcbef84e1a50f84f712214d203",
+			"4b4771c7233964ed95ead50bd8ea9bf630043233840b161310672198c43e699b",
 			"86cd789d3605009a34ca923cee21575d1d5640adfde4ad602a6d1d2ded556eb5"
 		]
 	},
 	{
 		"name": "generate [inline] [powershell] - Issue #7088",
 		"requests": [
-			"0bfa16dd004994d0bee92e5cac14ac20448514e5dca2bdb500a2b4ebf9d54683",
+			"4a3d64f17b11da9fbf3226b6855ed390b9ee58f4607be116677a30d258bc8931",
 			"4f7d481337d5b85e563f43045b97111b24bff22f50e2a6c6b241c803311d273b"
 		]
 	},
@@ -118,17 +118,17 @@
 		"name": "generate [inline] [python] - gen a palindrom fn",
 		"requests": [
 			"5c55370b2dda45e3075fe6abcffd6117de76798f84087ef471db632f433bf578",
-			"90e8e1b042a6f0c73ccf702b636116afc3df6b1c219370f8b4aa7a364b018a44"
+			"7ff7cc70c51be116d8adca5c3f7b238c8613526d6ecc9d11ef85bd448bc0260e"
 		]
 	},
 	{
 		"name": "generate [inline] [python] - issue #2269: BEGIN and END were included in diff",
 		"requests": [
-			"5acbb7fa914ca124701826b1573735f20e9fbcb41100c57cef164e94c26e0fb1",
 			"674b6a7e51d43550f1693e56edab42cf4ea3acb5efe0012d304e268119dc0c44",
-			"6c656923e806c399ad2808673abb74dca686f945761f0ca13c6bdf6c6b8d603c",
+			"6987fee8fef0a425a08fde7298da6b58bbee4198cfebf3fc59989810c49423a5",
 			"768b683ba67646988ffe9299dcd719a7606916f23a538335d46ef4bb61cdc62a",
-			"853c700c05677d441df3c142ecfdd4fb224b776d0c13f4e788b58b7121345129",
+			"87ebc0aee1421c7f7b0abf94427e60d4abfa69ba1e64ffc303d6a6712db19633",
+			"9e4de30186f7f15c33f3b9d63336cba9397d53d01958f2342a925068e98b911b",
 			"cb793fa323c0d77208d6fbee4e3479c42756289a82e3a8c166ee691a88785641"
 		]
 	},
@@ -136,27 +136,23 @@
 		"name": "generate [inline] [python] - issue #2303: FILEPATH not removed from generated code in empty file",
 		"requests": [
 			"173b29a71ec7bd0b3c254f13b35ce670d3cd76b2ac6f11841d4cd2634c5082eb",
-			"4699acaaff07864522bfa1f8431c620f07d81dc1ebcf17d37315bf0b6b4f966a"
+			"58621fcdcb78470bb3d0eeebd8eb7da5e9089371e9d7c9aa67744c21317cdc2d"
 		]
 	},
 	{
 		"name": "generate [inline] [python] - issue #5439: import List in python",
 		"requests": [
-			"a29c705f6d2d501fa57a87cb27412c0f74eca9fab2bb3596e00eb51978eaa146",
+			"601d84aa686037b0f952944facba979335dd82d1729b9bcec20edc56fed70e47",
 			"fca165398ef61839227547717006f5f2e31797d3a7d8e136173d340e169041b1"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - gen-ts-ltrim",
 		"requests": [
-			"09f2f1049dc559b4c8c4912908556b39d3bc0789a927e6149a90bd326e09e120",
-			"494230db860c062ab560f74eb277efb97dd8bda34744e4c9bd6e296b191117e4",
-			"6c93f1caefce188acf7bb8d65e12d2510925753d4808d485ea488ac2cd94633f",
+			"3cd6c5d7230a1431f11fa668e0d6c3f7eebd6910114b7516dc2ea37a5b536a36",
 			"906b04a2d1691815952baee77feb73f5f3ef89ec2027d20629cf266d259917de",
-			"9dd0b6f5b19ae173da68d5ecef50028ca421e09c1f1df2ec5d6308e49612f22c",
-			"b862ef616e46be69eaa0b3d52015f2c75f566a4e58c174123e9701e9b98b59ec",
-			"dfa0da8cbec750b6f0cc9d7bc3d7241122a5a00d1224c3b35de4e40b602445ff",
-			"f995bc86dc27ef6a0380a2dde0d23e2478f9203da82c7a087da115b3902936c9"
+			"da085c64585fcc0ee1f0fa04843f98f86075d9edf9fd9569f63e03aaad287577",
+			"dfa0da8cbec750b6f0cc9d7bc3d7241122a5a00d1224c3b35de4e40b602445ff"
 		]
 	},
 	{
@@ -167,7 +163,7 @@
 		"name": "generate [inline] [typescript] - issue #2342: Use inline chat to generate a new function/property replaces other code",
 		"requests": [
 			"5fbf0b64f5b6d3983bc54598ba81889247f6623332aa4c59a178a6ea3dbcb5b7",
-			"81a3bddf836591e621404553a00fe8194e327e187cb16d0da228c04f1641ce98"
+			"bf83e178cc5929d695e0fdb5b73051728cefc0d973f10a5cabee6375826c5e40"
 		]
 	},
 	{
@@ -177,84 +173,85 @@
 	{
 		"name": "generate [inline] [typescript] - issue #3370: generate code duplicates too much",
 		"requests": [
-			"2124593911b1ea3b892fffdad63ca32af1da15cfe8c23bbe0e39da06ae3fbeb8",
+			"0b332b8b1a37da32d83ba326c1e801244b4bea9c348d346724ed7150297c20cb",
 			"eaffa2bcc355f47812448ad6e62dc3d09364097aa5e61514e99ec91dc276d785"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #3439: Bad edits in this case",
 		"requests": [
-			"78d22c4318e0edab23e9141f0300fb708167767e823dbe003e4834fa00eb7cfe",
-			"86e27f882741bb0ebded47162176d3df25cb9cab2311d1b88bf018b3871b3fd6"
+			"86e27f882741bb0ebded47162176d3df25cb9cab2311d1b88bf018b3871b3fd6",
+			"e7c640a175837bdd235eb80b3c4bb53954629edd3e6807b10606a76f944866d8"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #3602: gen method",
 		"requests": [
-			"05d160d9f5514e93103be923f70f5fe030a5b8101fc7d0ff93bc6e63d74dcffa",
-			"889fd76153f809ae45d35ec82548b6e61603dfcca210a3ae5e275ee336faaf55"
+			"5e5439604e6df9f1df508048c70eea175592dcd6ae5a4738f4c82bd1fd97145c",
+			"889fd76153f809ae45d35ec82548b6e61603dfcca210a3ae5e275ee336faaf55",
+			"e6b913e8f4976d63ed71173f88ed0e181dddd7755dd02d2a0b2c37beaf50c4f0"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #3604: gen nestjs route",
 		"requests": [
-			"2fb69617deeede5bbfb0bf49e76b608c05a4e41d0ffeeb97e29f0103c0764f0e",
-			"53718cd7d0c6eae80f60c07532817d4742c22bf10373eed03fe503885f93f903"
+			"2450e2f381c0cf104db7e467ee87e4bf215bd9c8f46d6651e2034b5cba29f633",
+			"2fb69617deeede5bbfb0bf49e76b608c05a4e41d0ffeeb97e29f0103c0764f0e"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #3778: Incorrect streaming edits",
 		"requests": [
-			"7e1a29fee95d901e3637273ed5b4ec18270d2a6e3aeaaca31db9e952bf516714",
-			"e22599bec903e35efd965e6000a5382967fb9ac70ee5c2638a409cbcabeadb60"
+			"146f29af4347827fb33cc4acbd15973f915d8667045866b7e988df23f9627db0",
+			"7e1a29fee95d901e3637273ed5b4ec18270d2a6e3aeaaca31db9e952bf516714"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #4080: Implementing a getter/method duplicates the signature",
 		"requests": [
 			"85f00bdc53fa4b5aac4d5e726945436deaf140b9a31ae6fe94a515ae359db150",
-			"c9a04ca74474b05bdee60d1236dcdfebe03f966573e6619cb8ef8911d3fa153d"
+			"c8b1a898b337e93c78034efb61f85787ac05163a1458f5820041fef2a33e0a23"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #4179: Imports aren't inserted to the top of the file anymore",
 		"requests": [
-			"3ff5864d0990b0bb5bb0c494994c199ac20aa747c6ae237c2fa9adaa317737a5",
-			"ccc31d57bb02e9b009381681d86bac1349a931a3a1d0108e9fb3bf7240125961"
+			"002cd0f99f472ed5191261022fcbee0ca22fe54eac9bfce2e66f4ed7def3e127",
+			"3ff5864d0990b0bb5bb0c494994c199ac20aa747c6ae237c2fa9adaa317737a5"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #6234: generate a TS interface for some JSON",
 		"requests": [
-			"2563ce4703381c68227f012cbc6b65851746e2e0747950661c56f60e9b7d5cc5",
-			"64f1fc48b5d95167571cb45d3be699a5b7d86bfcfb2a870274591685674d203b"
+			"64f1fc48b5d95167571cb45d3be699a5b7d86bfcfb2a870274591685674d203b",
+			"718253002655f40b8da4c0666c2c89dda3133094dfaeec2b7dd80fc355fa9085"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #6505",
 		"requests": [
-			"17dd9baf8c9bf47c67a7e62588a5647629b29d80f6b97d344d9c1ace0c7b55e1",
-			"8b64d52264f2e24949b261db0339bae693d36130649e97f427b8be0da8ef9659"
+			"79adebb894e5a1c8ab9c0605c72e33f3045af5177db18ea03f95fd2090de8fdf",
+			"c75027219ce2cf84b8d7414cdfc62cd1d91c0c654366756bdf0f2af917ced15e"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #6788",
 		"requests": [
-			"66ec483f37a422d876280cc8a6da1c0f94fd211094e9a84c710d5571f3ae4894",
-			"cd220ef2de511d21d2cf9d81746a8ee5ab8c5645cac9580186df4730c08c1cb7"
+			"cd220ef2de511d21d2cf9d81746a8ee5ab8c5645cac9580186df4730c08c1cb7",
+			"e76b7c98e0dcb187c66be01cd710e04fe6f68072073dd0030eb0dfa0ebb76b76"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue #7772",
 		"requests": [
-			"804693112d276b54a49cc53ec76e6d0c5e8fb32c52a077c804591859246edf8f",
-			"b748a891e0f3f5f930539126f82339fa3400d7c565d2e4656a10f2bac4c69df9"
+			"6e56c4eabbcd61bcc008c3c7abdc66803984bd9a93149ae1b32c6ae61d57bdd6",
+			"b0ea010497addcb679568213efae7d8a20adb0ba499c40ec56de6ce10d09dc15"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - issue release#142: Inline chat updates code outside of area I expect",
 		"requests": [
-			"5a20267b69ea4f13818895667640b451bce3b3e1594c9c84bff2858037cea906",
+			"1a1417d3450eea07cd99bec6082f76f78a313ac0210119e8139c7a5711b69daa",
 			"f79502e4acdb93604cdfbcf38e106f07f31c6f12405dc52b0bb4fc3a35f99233"
 		]
 	},
@@ -262,13 +259,13 @@
 		"name": "generate [inline] [typescript] - parse keybindings",
 		"requests": [
 			"4be15b4e9f264beaa21fc5eed8f8742a0e4f4e8371fbd3cc3a697fdcafe8b0dd",
-			"b8510b32df191dca2d73b0d8a9bdd6f08559d6901879f85447225dced9833454"
+			"f8d3453c35384cd8eeeb404312f59fdbd46b8bc334c2d378b915130789e2573a"
 		]
 	},
 	{
 		"name": "generate [inline] [typescript] - too much code generated #6696",
 		"requests": [
-			"8fa8a97a84828c5e8fe2365b450d8cdedf1f7c6eebb3fd5b936074935af560d5",
+			"46bf6b09aa25fd8cbb27091209de517523135c93722f4baa0be723dc47fdf283",
 			"b7a7300313875c1f1b18669dba78a64814a88ec4dc73cac19ed3975063857d6b"
 		]
 	},
@@ -276,7 +273,7 @@
 		"name": "generate [inline] [typescript] - variables are used when generating",
 		"requests": [
 			"0635aeb6549a2683e16010697dd6fbf2ceb60ac2e3ddc29c2681b7aecf552dc4",
-			"ca426543596db8c23948cf1f0b8ed828367da9555feda8fec9acfdd31cf16463"
+			"a961f93fc945c28631c051ea487ae755a4926996afc3e24c890e5bc80e19dab4"
 		]
 	}
 ]

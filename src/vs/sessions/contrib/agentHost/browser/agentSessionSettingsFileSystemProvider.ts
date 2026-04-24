@@ -350,7 +350,7 @@ export function buildSessionSettingsJsonSchema(config: ResolveSessionConfigResul
 	const result: IJSONSchema = {
 		type: 'object',
 		properties,
-		additionalProperties: false,
+		additionalProperties: true,
 	};
 	if (required.length > 0) {
 		result.required = required;
@@ -493,7 +493,7 @@ export class AgentSessionSettingsSchemaRegistrar extends Disposable {
 		// client only knows how to fetch schema content for that scheme.
 		// The settings-file URI is used as the fileMatch glob so the schema
 		// is applied to the actual editor document.
-		const schemaId = `vscode://schemas/agent-session-settings/${session.providerId}${session.resource.scheme}${session.resource.path}.jsonc`;
+		const schemaId = `vscode://schemas/agent-session-settings/${session.providerId}/${session.resource.scheme}/${session.resource.path}.jsonc`;
 		const identity = config.schema;
 		if (this._lastSchemaIdentity.get(settingsUri) === identity) {
 			return;
@@ -520,3 +520,4 @@ export class AgentSessionSettingsSchemaRegistrar extends Disposable {
 		this._sessionSchemas.deleteAndDispose(schemaUri);
 	}
 }
+

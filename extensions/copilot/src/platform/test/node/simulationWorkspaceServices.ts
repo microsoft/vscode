@@ -124,6 +124,10 @@ export class SimulationWorkspaceService extends AbstractWorkspaceService {
 		return Promise.resolve(true);
 	}
 
+	override isResourceTrusted(_resource: vscode.Uri): Thenable<boolean> {
+		return Promise.resolve(true);
+	}
+
 	override requestResourceTrust(options: vscode.ResourceTrustRequestOptions): Thenable<boolean | undefined> {
 		return Promise.resolve(true);
 	}

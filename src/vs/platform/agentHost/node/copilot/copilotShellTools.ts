@@ -476,6 +476,7 @@ export function createShellTools(
 			},
 		},
 		overridesBuiltInTool: true,
+		skipPermission: true,
 		handler: (args) => {
 			const shells = shellManager.listShells();
 			const shell = args.shell_id
@@ -503,6 +504,7 @@ export function createShellTools(
 			required: ['command'],
 		},
 		overridesBuiltInTool: true,
+		skipPermission: true,
 		handler: (args) => {
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
@@ -524,6 +526,7 @@ export function createShellTools(
 			},
 		},
 		overridesBuiltInTool: true,
+		skipPermission: true,
 		handler: (args) => {
 			if (args.shell_id) {
 				const success = shellManager.shutdownShell(args.shell_id);
@@ -546,6 +549,7 @@ export function createShellTools(
 		description: `List active ${shellType} shell instances.`,
 		parameters: { type: 'object', properties: {} },
 		overridesBuiltInTool: true,
+		skipPermission: true,
 		handler: () => {
 			const shells = shellManager.listShells();
 			if (shells.length === 0) {

@@ -202,6 +202,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
+			description: displayName,
+			group: 'folders',
 			icon: Codicon.remote,
 			providerId: this.id,
 			run: () => this._browseForFolder(),

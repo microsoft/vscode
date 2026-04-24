@@ -40,9 +40,10 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -164,7 +165,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		// Show/hide the "Bridged" badge based on active harness
 		templateData.disposables.add(autorun(reader => {
 			const activeId = this.harnessService.activeHarness.read(reader);
-			templateData.bridgedBadge.style.display = activeId !== CustomizationHarness.VSCode ? '' : 'none';
+			templateData.bridgedBadge.style.display = activeId !== SessionType.Local ? '' : 'none';
 		}));
 		templateData.disposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
@@ -388,6 +389,7 @@ export class McpListWidget extends Disposable {
 	private browseMode: boolean = false;
 	private lastHeight: number = 0;
 	private lastWidth: number = 0;
+	private _layoutDeferred = false;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -953,14 +955,20 @@ export class McpListWidget extends Disposable {
 		this.element.style.height = `${height}px`;
 
 		// Measure sibling elements to calculate the list height.
-		// When offsetHeight returns 0 the container just became visible
-		// after display:none and the browser hasn't reflowed yet — defer
-		// layout to the next frame so measurements are accurate.
-		// Skip the retry when the element is hidden (display:none parent)
-		// since rAF will never produce a non-zero measurement.
+		// When offsetHeight returns 0 the container may have just become visible
+		// after display:none and the browser hasn't reflowed yet — defer layout
+		// once so measurements are accurate. Only retry once to avoid an endless
+		// loop when the widget is created while permanently hidden.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
-		if (searchBarHeight === 0 && this.element.offsetParent !== null) {
-			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+		if (searchBarHeight === 0 && !this._layoutDeferred) {
+			this._layoutDeferred = true;
+			DOM.getWindow(this.element).requestAnimationFrame(() => {
+				try {
+					this.layout(this.lastHeight, this.lastWidth);
+				} finally {
+					this._layoutDeferred = false;
+				}
+			});
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;

@@ -18,16 +18,29 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
-import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
 import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
+import { IInlineChatWidgetConstructionOptions, InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { isResponseVM } from '../../../chat/common/model/chatViewModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatWidgetLocationOptions } from '../../../chat/browser/widget/chatWidget.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -58,8 +71,8 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
-	private readonly _inlineChatWidget: InlineChatWidget;
-	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
+	private readonly _inlineChatWidget: TerminalInlineChatWidget;
+	public get inlineChatWidget(): TerminalInlineChatWidget { return this._inlineChatWidget; }
 
 	private readonly _focusTracker: IFocusTracker;
 
@@ -116,7 +129,7 @@ export class TerminalChatWidget extends Disposable {
 		this._terminalElement.appendChild(this._container);
 
 		this._inlineChatWidget = instantiationService.createInstance(
-			InlineChatWidget,
+			TerminalInlineChatWidget,
 			{
 				location: ChatAgentLocation.Terminal,
 				resolveData: () => {
@@ -464,5 +477,122 @@ export class TerminalChatWidget extends Disposable {
 			});
 		widget.focusResponseItem();
 		this.hide();
+	}
+}
+
+
+class TerminalInlineChatWidget extends InlineChatWidget {
+
+
+	constructor(
+		location: IChatWidgetLocationOptions,
+		options: IInlineChatWidgetConstructionOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IChatService chatService: IChatService,
+		@IHoverService hoverService: IHoverService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IModelService private _modelService: IModelService,
+	) {
+		super(location, options, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
+	}
+
+	get value(): string {
+		return this.chatWidget.getInput();
+	}
+
+	set value(value: string) {
+		this.chatWidget.setInput(value);
+	}
+
+	selectAll() {
+		this.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+	}
+
+	set placeholder(value: string) {
+		this.chatWidget.setInputPlaceholder(value);
+	}
+
+	toggleStatus(show: boolean) {
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('hidden', !show);
+		this._elements.infoLabel.classList.toggle('hidden', !show);
+		this._onDidChangeHeight.fire();
+	}
+
+	updateToolbar(show: boolean) {
+		this._elements.root.classList.toggle('toolbar', show);
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('actions', show);
+		this._elements.infoLabel.classList.toggle('hidden', show);
+		this._onDidChangeHeight.fire();
+	}
+
+	get responseContent(): string | undefined {
+		const requests = this.chatWidget.viewModel?.model.getRequests();
+		return requests?.at(-1)?.response?.response.toString();
+	}
+
+	getChatModel(): IChatModel | undefined {
+		return this.chatWidget.viewModel?.model;
+	}
+
+	setChatModel(chatModel: IChatModel) {
+		chatModel.inputModel.setState({ inputText: '', selections: [] });
+		this.chatWidget.setModel(chatModel);
+	}
+
+	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
+		const { viewModel } = this.chatWidget;
+		if (!viewModel) {
+			return undefined;
+		}
+		const items = viewModel.getItems().filter(i => isResponseVM(i));
+		const item = items.at(-1);
+		if (!item) {
+			return;
+		}
+
+		// Look for the code block in the rendered response
+		const codeBlocks = this.chatWidget.getCodeBlockInfosForResponse(item);
+		const info = codeBlocks[codeBlockIndex];
+		if (info?.uri) {
+			return this._modelService.getModel(info.uri) ?? undefined;
+		}
+
+		// Fallback: if the code block hasn't been rendered yet (e.g. due to
+		// timing between response completion and list rendering), parse the
+		// markdown directly and create a transient model.
+		const markdown = item.response.getMarkdown();
+		let currentCodeBlockIndex = 0;
+		let foundText: string | undefined;
+
+		for (const line of markdown.split('\n')) {
+			if (line.startsWith('```') && foundText === undefined) {
+				foundText = '';
+			} else if (line.startsWith('```') && foundText !== undefined) {
+				if (currentCodeBlockIndex === codeBlockIndex) {
+					break;
+				}
+				currentCodeBlockIndex++;
+				foundText = undefined;
+			} else if (foundText !== undefined) {
+				foundText += (foundText ? '\n' : '') + line;
+			}
+		}
+
+		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
+			return this._modelService.createModel(foundText, null, undefined, true);
+		}
+
+		return undefined;
 	}
 }

@@ -18,7 +18,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITerminalChatService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../outputHelpers.js';
-import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, isMultilineCommand, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { isSessionAutoApproveLevel } from './terminalToolAutoApprove.js';
 import { TerminalToolId } from './toolIds.js';
@@ -342,7 +342,16 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		if (isMultilineCommand(args.command)) {
+			// Multiline commands (e.g. heredocs) must preserve newlines and use
+			// bracketed paste mode so the shell treats the input as a single paste
+			// rather than executing each line independently. Intentionally skip
+			// normalizeCommandForExecution here so neither newlines nor the
+			// trailing/leading whitespace `.trim()` it performs are stripped.
+			await execution.instance.sendText(args.command, true, true);
+		} else {
+			await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		}
 
 		await timeout(100);
 		const recentOutput = getOutput(execution.instance, undefined, { lastNLines: 5 });

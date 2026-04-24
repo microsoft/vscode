@@ -230,6 +230,8 @@ Each session in the list displays:
 
 Sessions are sorted by recency — the most recent session appears at the top. In the dedicated sidebar, they're also grouped by time period.
 
+> **Note:** Git metadata (branch name, change stats, action buttons) and workspace change detection require the session's working directory to be in a **trusted workspace**. If the folder is untrusted, sessions still appear in the list but without git-related information or actions.
+
 #### Git Action Buttons
 
 When a session has a git repository, action buttons appear in the Changes view based on the repository state:

@@ -1403,7 +1403,9 @@ export class ChatService extends Disposable implements IChatService {
 						this.chatEntitlementService.markAnonymousRateLimited();
 					}
 
-					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
+					shouldProcessPending = !rawResult.errorDetails
+						&& !token.isCancellationRequested
+						&& !request.response?.response.value.some(v => v.kind === 'confirmation' && !v.isUsed);
 					request.response?.complete();
 
 					if (agentOrCommandFollowups) {

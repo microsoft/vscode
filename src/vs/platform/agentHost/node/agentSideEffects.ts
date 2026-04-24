@@ -11,6 +11,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -104,11 +105,12 @@ export class AgentSideEffects extends Disposable {
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
-		private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
-		this._permissionManager = this._register(new SessionPermissionManager(this._stateManager, this._logService));
+		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {

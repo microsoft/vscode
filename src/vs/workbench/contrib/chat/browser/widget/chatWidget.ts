@@ -85,6 +85,7 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 
 const $ = dom.$;
 
@@ -404,6 +405,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
@@ -2291,7 +2293,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 	}
 
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions, sessionResource: URI): Promise<void> {
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (!agentSlashPromptPart) {
@@ -2302,10 +2304,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
-		const sessionType = this.viewModel ? getChatSessionType(this.viewModel.model.sessionResource) : undefined;
+		const sessionType = getChatSessionType(sessionResource);
 
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
+		const slashCommand = await this.customizationHarnessService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
 		if (!slashCommand) {
 			return;
 		}
@@ -2417,7 +2419,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// process the prompt command
-		await this._applyPromptFileIfSet(requestInputs);
+		await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
