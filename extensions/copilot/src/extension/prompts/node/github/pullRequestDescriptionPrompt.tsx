@@ -97,11 +97,16 @@ class GitHubPullRequestUserMessage extends PromptElement<GitHubPullRequestUserMe
 	render() {
 		const formattedCommitMessages = this.props.commitMessages.map(commit => `"${commit.replace(/\n/g, '. ')}"`).join(', ');
 		const formattedPatches = this.props.patches.map(patch => <>```diff<br />{patch}<br />```<br /></>);
+		const normalizedCompareBranch = this.props.compareBranch
+			?.replace(/[\u0000-\u001F\u007F]+/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+		const escapedCompareBranch = normalizedCompareBranch ? JSON.stringify(normalizedCompareBranch) : undefined;
 		return (
 			<>
-				{this.props.compareBranch && (
+				{escapedCompareBranch && (
 					<>
-						The merged/compare/source branch is "{this.props.compareBranch}".<br />
+						The merged/compare/source branch name is the following literal string: {escapedCompareBranch}.<br />
 					</>
 				)}
 				These are the commits that will be included in the pull request you are about to make:<br />
