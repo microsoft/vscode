@@ -190,6 +190,63 @@ export class ChatMLFetcherTelemetrySender {
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
 		});
+
+		// >>> DEBUG: log response.success telemetry payload — REMOVE THIS BLOCK <<<
+		{
+			const _props = {
+				reason: chatCompletion.finishReason,
+				filterReason: chatCompletion.filterReason,
+				source: baseTelemetry?.properties.messageSource ?? 'unknown',
+				subType: baseTelemetry?.properties.subType,
+				initiatorType: userInitiatedRequest ? 'user' : 'agent',
+				conversationId: baseTelemetry?.properties.conversationId,
+				model: chatEndpointInfo?.model,
+				modelInvoked: chatCompletion.model,
+				apiType: chatEndpointInfo?.apiType,
+				requestId: chatCompletion.requestId.headerRequestId,
+				gitHubRequestId: chatCompletion.requestId.gitHubRequestId,
+				associatedRequestId: baseTelemetry?.properties.associatedRequestId,
+				reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
+				reasoningSummary: requestBody.reasoning?.summary,
+				modelCallId: baseTelemetry?.properties.modelCallId,
+				parentRequestId: baseTelemetry?.properties.parentRequestId,
+				parentToolCallId: baseTelemetry?.properties.parentToolCallId,
+				parentHeaderRequestId: baseTelemetry?.properties.parentHeaderRequestId,
+				parentModelCallId: baseTelemetry?.properties.parentModelCallId,
+				...(fetcher ? { fetcher } : {}),
+				transport,
+				...(baseTelemetry?.properties.retryAfterError ? { retryAfterError: baseTelemetry.properties.retryAfterError } : {}),
+				...(baseTelemetry?.properties.retryAfterErrorGitHubRequestId ? { retryAfterErrorGitHubRequestId: baseTelemetry.properties.retryAfterErrorGitHubRequestId } : {}),
+				...(baseTelemetry?.properties.connectivityTestError ? { connectivityTestError: baseTelemetry.properties.connectivityTestError } : {}),
+				...(baseTelemetry?.properties.connectivityTestErrorGitHubRequestId ? { connectivityTestErrorGitHubRequestId: baseTelemetry.properties.connectivityTestErrorGitHubRequestId } : {}),
+				...(baseTelemetry?.properties.retryAfterFilterCategory ? { retryAfterFilterCategory: baseTelemetry.properties.retryAfterFilterCategory } : {}),
+			};
+			const _meas = {
+				totalTokenMax: chatEndpointInfo?.modelMaxPromptTokens ?? -1,
+				tokenCountMax: maxResponseTokens,
+				promptTokenCount: chatCompletion.usage?.prompt_tokens,
+				promptCacheTokenCount: chatCompletion.usage?.prompt_tokens_details?.cached_tokens,
+				clientPromptTokenCount: promptTokenCount,
+				tokenCount: chatCompletion.usage?.total_tokens,
+				reasoningTokens: chatCompletion.usage?.completion_tokens_details?.reasoning_tokens,
+				acceptedPredictionTokens: chatCompletion.usage?.completion_tokens_details?.accepted_prediction_tokens,
+				rejectedPredictionTokens: chatCompletion.usage?.completion_tokens_details?.rejected_prediction_tokens,
+				completionTokens: chatCompletion.usage?.completion_tokens,
+				timeToFirstToken,
+				timeToFirstTokenEmitted,
+				timeToComplete: Date.now() - baseTelemetry.issuedTime,
+				issuedTime: baseTelemetry.issuedTime,
+				isVisionRequest: hasImageMessages ? 1 : -1,
+				isBYOK: isBYOKModel(chatEndpointInfo),
+				isAuto: isAutoModel(chatEndpointInfo),
+				bytesReceived,
+				suspendEventSeen: suspendEventSeen ? 1 : 0,
+				resumeEventSeen: resumeEventSeen ? 1 : 0,
+			};
+			console.log(`[response.success][DEBUG] event sent to GH+MSFT telemetry, properties: ${JSON.stringify(_props)}, measurements: ${JSON.stringify(_meas)}`);
+			console.log(`[response.success][DEBUG] requestId sources: chatCompletion.requestId.headerRequestId=${chatCompletion.requestId.headerRequestId}, baseTelemetry.properties.headerRequestId=${baseTelemetry?.properties.headerRequestId}, baseTelemetry.properties.messageId=${baseTelemetry?.properties.messageId}, baseTelemetry.properties.modelCallId=${baseTelemetry?.properties.modelCallId}`);
+		}
+		// >>> END DEBUG BLOCK <<<
 	}
 
 	public static sendCancellationTelemetry(

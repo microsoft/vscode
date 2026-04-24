@@ -201,6 +201,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		let actualStatusCode: number | undefined;
 		let suspendEventSeen: boolean | undefined;
 		let resumeEventSeen: boolean | undefined;
+		let actualModelCallId: string | undefined;
 		let otelInferenceSpan: ISpanHandle | undefined;
 		try {
 			let response: ChatResults | ChatRequestFailed | ChatRequestCanceled;
@@ -247,6 +248,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				actualStatusCode = fetchResult.statusCode;
 				suspendEventSeen = fetchResult.suspendEventSeen;
 				resumeEventSeen = fetchResult.resumeEventSeen;
+				actualModelCallId = fetchResult.modelCallId;
 				otelInferenceSpan = fetchResult.otelSpan;
 				// Tag span with debug name so orphaned spans (title, progressMessages, etc.) are identifiable
 				otelInferenceSpan?.setAttribute(GenAiAttr.AGENT_NAME, debugName);
@@ -318,7 +320,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			switch (response.type) {
 				case FetchResponseKind.Success: {
-					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen);
+					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
 
 					// Handle FilteredRetry case with augmented messages
 					if (result.type === ChatFetchResponseType.FilteredRetry) {
@@ -863,7 +865,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
 		modeChanged?: boolean,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle; modelCallId?: string }> {
 		const isPowerSaveBlockerEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, this._experimentationService);
 		const blockerHandle = isPowerSaveBlockerEnabled && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
 
@@ -942,7 +944,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
 		modeChanged?: boolean,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle; modelCallId?: string }> {
 
 		if (cancellationToken.isCancellationRequested) {
 			return { result: { type: FetchResponseKind.Canceled, reason: 'before fetch request' } };
@@ -1075,7 +1077,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
 		summarizedAtRoundId: string | undefined,
 		modeChanged: boolean | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; modelCallId?: string }> {
 		const intent = locationToIntent(location);
 		const agentInteractionType = requestKindOptions?.kind === 'subagent' ?
 			'conversation-subagent' :
@@ -1237,7 +1239,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			result: {
 				type: FetchResponseKind.Success,
 				chatCompletions,
-			}
+			},
+			modelCallId,
 		};
 	}
 
@@ -1256,7 +1259,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useFetcher: FetcherId | undefined,
 		canRetryOnce: boolean | undefined,
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; modelCallId?: string }> {
 		// Generate unique ID to link input and output messages
 		const modelCallId = generateUuid();
 
@@ -1354,7 +1357,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				chatCompletions,
 			},
 			fetcher: response.fetcher,
-			bytesReceived: response.bytesReceived
+			bytesReceived: response.bytesReceived,
+			modelCallId,
 		};
 	}
 
@@ -1745,6 +1749,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		bytesReceived: number | undefined,
 		suspendEventSeen: boolean | undefined,
 		resumeEventSeen: boolean | undefined,
+		modelCallId: string | undefined,
 	): Promise<ChatResponses | ChatFetchRetriableError<string[]>> {
 
 		const completions: ChatCompletion[] = [];
@@ -1785,6 +1790,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				value: successfulCompletions.map(c => getTextPart(c.message.content)),
 				requestId,
 				serverRequestId: successfulCompletions[0].requestId.headerRequestId,
+				modelCallId,
 			};
 		}
 

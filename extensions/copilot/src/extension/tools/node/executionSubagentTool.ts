@@ -69,6 +69,7 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
 			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(

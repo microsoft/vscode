@@ -177,6 +177,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private chatSessionIdForTools: string | undefined;
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
+	private lastModelCallId: string | undefined;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -275,6 +276,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			modeInstructions: this.options.request.modeInstructions2,
 			additionalHookContext: this.additionalHookContext,
 			parentHeaderRequestId: this.lastHeaderRequestId,
+			parentModelCallId: this.lastModelCallId,
 		};
 	}
 
@@ -1407,6 +1409,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// across all telemetry events.
 		if (fetchResult.type === ChatFetchResponseType.Success) {
 			this.lastHeaderRequestId = fetchResult.requestId;
+			this.lastModelCallId = fetchResult.modelCallId;
 		}
 
 		const promptTokenDetails = await computePromptTokenDetails({

@@ -236,6 +236,8 @@ export type IChatRequestTelemetryProperties = {
 	parentToolCallId?: string;
 	/** For a subagent: The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
 	parentHeaderRequestId?: string;
+	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
 };
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {

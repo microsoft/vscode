@@ -39,6 +39,8 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 	parentToolCallId?: string;
 	/** The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
 	parentHeaderRequestId?: string;
+	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
 }
 
 export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecutionSubagentToolCallingLoopOptions> {
@@ -164,6 +166,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
+				parentModelCallId: this.options.parentModelCallId,
 			},
 		}, token);
 	}

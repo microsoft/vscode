@@ -125,6 +125,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
 			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
 			thoroughness: thoroughnessEnabled ? options.input.thoroughness : undefined,
 		});
 
