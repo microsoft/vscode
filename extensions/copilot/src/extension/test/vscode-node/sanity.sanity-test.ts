@@ -31,16 +31,11 @@ suite('Copilot Chat Sanity Test', function () {
 	let realContext: vscode.ExtensionContext;
 	let sandbox: sinon.SinonSandbox;
 	const fakeToken = CancellationToken.None;
-	const sessionItemProviders = new Map<string, vscode.ChatSessionItemProvider>();
 	// Before everything, activate the extension
 	suiteSetup(async function () {
 		sandbox = sinon.createSandbox();
 		sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => { } });
 		sandbox.stub(vscode.workspace, 'registerFileSystemProvider').returns({ dispose: () => { } });
-		sandbox.stub(vscode.chat, 'registerChatSessionItemProvider').callsFake((scheme, sessionItemProvider) => {
-			sessionItemProviders.set(scheme, sessionItemProvider);
-			return { dispose: () => { } };
-		});
 		const extension = vscode.extensions.getExtension('Github.copilot-chat');
 		assert.ok(extension, 'Extension is not available');
 		realContext = await extension.activate();
@@ -157,24 +152,6 @@ suite('Copilot Chat Sanity Test', function () {
 				// Ask a `/explain` question
 				await interactiveSession.getResult();
 				assert.ok(progressReport.currentProgress);
-			} finally {
-				conversationFeature.activated = false;
-			}
-		});
-	});
-
-	test('Copilot CLI lists sessions', async function () {
-		assert.ok(realInstaAccessor);
-
-		await realInstaAccessor.invokeFunction(async (accessor) => {
-
-			const instaService = accessor.get(IInstantiationService);
-			const conversationFeature = instaService.createInstance(ConversationFeature);
-			try {
-				conversationFeature.activated = true;
-				const provider = sessionItemProviders.get('copilotcli');
-				assert.ok(provider);
-				await provider.provideChatSessionItems(CancellationToken.None);
 			} finally {
 				conversationFeature.activated = false;
 			}

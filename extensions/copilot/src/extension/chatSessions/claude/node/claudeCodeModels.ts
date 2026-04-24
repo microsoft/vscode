@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -12,6 +13,9 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
+import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
+
+export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
 export interface IClaudeCodeModels {
 	readonly _serviceBrand: undefined;
@@ -21,7 +25,13 @@ export interface IClaudeCodeModels {
 	 * then to the newest Sonnet, newest Haiku, or any Claude endpoint.
 	 * Returns `undefined` if no Claude endpoint can be found.
 	 */
-	resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined>;
+	resolveEndpoint(requestedModel: ParsedClaudeModelId | string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined>;
+
+	/**
+	 * Resolves the reasoning effort level for the given requested model ID and requested reasoning effort.
+	 */
+	resolveReasoningEffort(requestedModel: ParsedClaudeModelId | string | undefined, requestedReasoningEffort: string | undefined): Promise<EffortLevel | undefined>;
+
 	/**
 	 * Registers a LanguageModelChatProvider so that Claude models appear in
 	 * VS Code's built-in model picker for the claude-code session type.
@@ -87,6 +97,7 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				multiplier,
 				multiplierNumeric: endpoint.multiplier,
 				isUserSelectable: true,
+				configurationSchema: buildConfigurationSchema(endpoint),
 				capabilities: {
 					imageInput: endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
@@ -97,12 +108,32 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 		});
 	}
 
-	public async resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined> {
+	public async resolveReasoningEffort(requestedModel: ParsedClaudeModelId | string | undefined, requestedReasoningEffort: string | undefined): Promise<EffortLevel | undefined> {
+		const endpoint = await this.resolveEndpoint(requestedModel, undefined);
+		if (!endpoint || !endpoint.supportsReasoningEffort || endpoint.supportsReasoningEffort.length === 0) {
+			return undefined;
+		}
+		if (requestedReasoningEffort && isEffortLevel(requestedReasoningEffort) && endpoint.supportsReasoningEffort.includes(requestedReasoningEffort)) {
+			return requestedReasoningEffort;
+		}
+		if (endpoint.supportsReasoningEffort.length === 1 && isEffortLevel(endpoint.supportsReasoningEffort[0])) {
+			return endpoint.supportsReasoningEffort[0];
+		}
+		return undefined;
+	}
+
+	public async resolveEndpoint(requestedModel: ParsedClaudeModelId | string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined> {
 		const endpoints = await this._getEndpoints();
 
 		// 1. Exact match for the requested model
 		if (requestedModel) {
-			const mappedModel = tryParseClaudeModelId(requestedModel)?.toEndpointModelId() ?? requestedModel;
+			let parsedModel: ParsedClaudeModelId | undefined;
+			if (typeof requestedModel === 'string') {
+				parsedModel = tryParseClaudeModelId(requestedModel);
+			} else {
+				parsedModel = requestedModel;
+			}
+			const mappedModel = parsedModel?.toEndpointModelId() ?? requestedModel;
 			const exact = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
 			if (exact) {
 				return exact;
@@ -157,4 +188,42 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 			return [];
 		}
 	}
+}
+
+const SUPPORTED_EFFORT_LEVELS: EffortLevel[] = ['low', 'medium', 'high'];
+
+export function isEffortLevel(value: string): value is EffortLevel {
+	return SUPPORTED_EFFORT_LEVELS.includes(value as EffortLevel);
+}
+
+function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModelConfigurationSchema | undefined {
+	const effortLevels = endpoint.supportsReasoningEffort?.filter(
+		(level): level is typeof SUPPORTED_EFFORT_LEVELS[number] =>
+			(SUPPORTED_EFFORT_LEVELS as readonly string[]).includes(level)
+	);
+	if (!effortLevels) {
+		return;
+	}
+
+	const defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+
+	return {
+		properties: {
+			[CLAUDE_REASONING_EFFORT_PROPERTY]: {
+				type: 'string',
+				title: l10n.t('Thinking Effort'),
+				enum: effortLevels,
+				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+				enumDescriptions: effortLevels.map(level => {
+					switch (level) {
+						case 'low': return l10n.t('Faster responses with less reasoning');
+						case 'medium': return l10n.t('Balanced reasoning and speed');
+						case 'high': return l10n.t('Greater reasoning depth but slower');
+					}
+				}),
+				default: defaultEffort,
+				group: 'navigation',
+			}
+		}
+	};
 }

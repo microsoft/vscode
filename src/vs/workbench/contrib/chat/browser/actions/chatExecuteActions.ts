@@ -39,7 +39,6 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
-import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -450,7 +449,7 @@ export class OpenPermissionPickerAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: {
 				id: MenuId.ChatInputSecondary,
-				order: 10,
+				order: 1,
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
@@ -461,6 +460,7 @@ export class OpenPermissionPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
 						),
 					)
 			}
@@ -622,22 +622,11 @@ export class OpenWorkspacePickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
 			menu: [
 				{
-					id: MenuId.ChatInput,
-					order: 0.6,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext
-					),
-					group: 'navigation',
-				},
-				{
 					id: MenuId.ChatInputSecondary,
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext.negate()
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType)
 					),
 					group: 'navigation',
 				},
@@ -659,22 +648,51 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatInput,
-				order: 4,
-				group: 'navigation',
-				when:
-					ContextKeyExpr.and(
-						ChatContextKeys.chatSessionHasModels,
-						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent,
-							ContextKeyExpr.and(
-								ChatContextKeys.inAgentSessionsWelcome,
-								ChatContextKeys.chatSessionType.notEqualsTo('local')
+			menu: [
+				{
+					// Cloud sessions: keep on the primary chat input toolbar
+					id: MenuId.ChatInput,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.isEqualTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
 							)
 						)
-					)
-			}
+				},
+				{
+					// All other coding agents (Claude, etc.): show in the secondary toolbar.
+					// In the Agents window only, hide the worktree/branch pickers for Copilot
+					// CLI sessions because their option groups are surfaced through the CLI
+					// session UI there. They remain visible in the regular VS Code workbench.
+					id: MenuId.ChatInputSecondary,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								IsSessionsWindowContext.negate(),
+								ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Background)
+							),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
+							)
+						)
+				},
+			]
 		});
 	}
 
@@ -912,7 +930,6 @@ export class CancelAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
 					ctxHasRequestInProgress,
-					CTX_HOVER_MODE.negate(),
 				),
 				order: 4,
 				group: 'navigation',

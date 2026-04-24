@@ -196,6 +196,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		return this.options.conversation.getLatestTurn();
 	}
 
+	protected get agentName(): string | undefined {
+		return (this.options.request as { subAgentName?: string }).subAgentName
+			?? (this.options.request as { participant?: string }).participant;
+	}
+
 	constructor(
 		protected readonly options: TOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -685,6 +690,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			if (isFirstTurn) {
 				const startHookResult = await this.executeSessionStartHook({
 					source: 'new',
+					model: this.options.request.model?.id ?? 'unknown',
+					agent_type: this.agentName,
 				}, sessionId, outputStream, token);
 				if (startHookResult.additionalContext) {
 					this.additionalHookContext = startHookResult.additionalContext;
@@ -701,9 +708,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	public async run(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<IToolCallLoopResult> {
-		const agentName = (this.options.request as { subAgentName?: string }).subAgentName
-			?? (this.options.request as { participant?: string }).participant
-			?? 'GitHub Copilot Chat';
+		const agentName = this.agentName ?? 'GitHub Copilot Chat';
 
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;

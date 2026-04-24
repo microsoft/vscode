@@ -524,7 +524,7 @@ export interface RequestIdDetails {
  * Build chat history from SDK events for VS Code chat session
  * Converts SDKEvents into ChatRequestTurn2 and ChatResponseTurn2 objects
  */
-export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions): (ChatRequestTurn2 | ChatResponseTurn2)[] {
+export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, lastResponseDetails?: string): (ChatRequestTurn2 | ChatResponseTurn2)[] {
 	const turns: (ChatRequestTurn2 | ChatResponseTurn2)[] = [];
 	let currentResponseParts: ExtendedChatResponsePart[] = [];
 	const pendingToolInvocations = new Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>();
@@ -555,7 +555,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 			processAssistantMessage(content);
 		}
 	}
-	const lastUserMessageId = findLast(events, event => event.type === 'user.message')?.id;
+	const lastUserMessageId = findLast(events, event => event.type === 'user.message' && !isSyntheticUserMessage(event))?.id;
 	for (const event of events) {
 		if (event.type !== 'assistant.message') {
 			flushPendingAssistantMessage();
@@ -563,6 +563,9 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 
 		switch (event.type) {
 			case 'user.message': {
+				if (isSyntheticUserMessage(event)) {
+					continue;
+				}
 				details = getVSCodeRequestId(event.id);
 				// Flush any pending response parts before adding user message
 				if (currentResponseParts.length > 0) {
@@ -744,7 +747,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	flushPendingAssistantMessage();
 
 	if (currentResponseParts.length > 0) {
-		turns.push(new ChatResponseTurn2(currentResponseParts, {}, ''));
+		turns.push(new ChatResponseTurn2(currentResponseParts, lastResponseDetails ? { details: lastResponseDetails } : {}, ''));
 	}
 
 	return turns;
@@ -1730,4 +1733,13 @@ export class FakeToolsService implements IToolsService {
 	getEnabledTools(): LanguageModelToolInformation[] {
 		return [];
 	}
+}
+
+
+/**
+ * CLI sends 'synthetic' user messages for cases such as Skill invocations.
+ * We need to ensure these user.messages are not treated as regular user messages in the UI, which could cause confusion as they may not be directly from the user.
+ */
+export function isSyntheticUserMessage(event: Extract<SessionEvent, { type: 'user.message' }>): boolean {
+	return event.type === 'user.message' && !!event.data.source && (event.data.source ?? '').toLowerCase() !== 'user';
 }

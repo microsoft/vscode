@@ -22,7 +22,6 @@ import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
 import { dynamicVariableDecorationType } from '../../../attachments/chatDynamicVariables.js';
@@ -31,6 +30,8 @@ import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ThrottledDelayer } from '../../../../../../../base/common/async.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -86,7 +87,7 @@ class InputEditorDecorations extends Disposable {
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
@@ -136,7 +137,12 @@ class InputEditorDecorations extends Disposable {
 			void this.editorService.openEditor({ resource: mouseDownPromptSlashCommand.uri });
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
-		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.customizationHarnessService.onDidChangeSlashCommands((e) => {
+			const sessionResource = this.widget.viewModel?.sessionResource;
+			if (sessionResource && e.sessionType === getChatSessionType(sessionResource)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -301,6 +307,10 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
 
 		const parsedRequest = this.widget.parsedInput.parts;
+		const viewModel = this.widget.viewModel;
+		if (!viewModel) {
+			return;
+		}
 
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
@@ -308,7 +318,7 @@ class InputEditorDecorations extends Disposable {
 		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
 
 		// first, fetch all async context
-		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
+		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, getChatSessionType(viewModel.sessionResource), token) : undefined;
 		if (token.isCancellationRequested) {
 			// a new update came in while we were waiting
 			return;
@@ -341,7 +351,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashCommandPart) {
-			textDecorations.push({ range: slashCommandPart.editorRange });
+			textDecorations.push({ range: slashCommandPart.editorRange, hoverMessage: new MarkdownString(slashCommandPart.slashCommand.detail) });
 		}
 
 		if (slashPromptPart && promptSlashCommand) {
@@ -350,6 +360,10 @@ class InputEditorDecorations extends Disposable {
 				uri: promptSlashCommand.uri,
 			};
 			const promptHoverMessage = new MarkdownString();
+			if (promptSlashCommand.description) {
+				promptHoverMessage.appendText(promptSlashCommand.description);
+				promptHoverMessage.appendText('\n');
+			}
 			promptHoverMessage.appendText(localize(
 				'chatInput.promptSlashCommand.open',
 				"Click to open {0}",
@@ -372,7 +386,7 @@ class InputEditorDecorations extends Disposable {
 
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
 
-		const isEditingPreviousRequest = !!this.widget.viewModel?.editing;
+		const isEditingPreviousRequest = !!viewModel.editing;
 		if (isEditingPreviousRequest) {
 			for (const variable of dynamicVariableParts) {
 				varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });

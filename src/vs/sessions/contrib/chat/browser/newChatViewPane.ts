@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -24,6 +25,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
+import { ScopedWorkspacePicker } from './scopedWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -42,7 +44,7 @@ class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
-		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
+		this._workspacePicker = this._register(this.instantiationService.createInstance(isWeb ? ScopedWorkspacePicker : WorkspacePicker));
 
 		const canSendRequest = derived(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
@@ -65,7 +67,14 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
-			await this._onWorkspaceSelected(workspace, this._newChatInput.sessionTypePicker.selectedType);
+			if (workspace) {
+				const selectedSessionType = this._newChatInput.sessionTypePicker.selectedType;
+				const validSessionTypes = this.sessionsProvidersService.getProvider(workspace.providerId)?.getSessionTypes(workspace.workspace.repositories[0].uri);
+				const validSessionType = selectedSessionType ? validSessionTypes?.find(type => type.id === selectedSessionType) : validSessionTypes?.[0];
+				await this._onWorkspaceSelected(workspace, validSessionType?.id);
+			} else {
+				await this._onWorkspaceSelected(undefined, undefined);
+			}
 			this._newChatInput.focus();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async sessionType => {
@@ -86,9 +95,11 @@ class NewChatWidget extends Disposable {
 
 		this._newChatInput.render(chatWidgetContent, parent);
 
-		// Create initial session — wait for providers if none registered yet
+		// Create initial session — wait for providers if none registered yet.
+		// Skip if an active session already exists (restored by openNewSessionView
+		// from a pending new session when navigating back from another session).
 		const restoredProject = this._workspacePicker.selectedProject;
-		if (restoredProject) {
+		if (!this._syncWorkspacePickerFromActiveSession() && restoredProject) {
 			if (this.sessionsProvidersService.getProviders().length > 0) {
 				this._createNewSession(restoredProject, this._newChatInput.sessionTypePicker.selectedType);
 			} else {
@@ -102,6 +113,33 @@ class NewChatWidget extends Disposable {
 		}
 
 		chatWidgetContainer.classList.add('revealed');
+	}
+
+	/**
+	 * If a pending session was restored by {@link openNewSessionView}, sync
+	 * the workspace picker to match the session's workspace. The picker may
+	 * have restored a workspace from a different provider (e.g. remote vs
+	 * local), so overwrite it with the session's actual workspace without
+	 * firing the event (which would trigger {@link _onWorkspaceSelected} and
+	 * create a new session).
+	 *
+	 * @returns `true` if an active session was found and the picker was synced.
+	 */
+	private _syncWorkspacePickerFromActiveSession(): boolean {
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (!activeSession) {
+			return false;
+		}
+
+		const sessionWorkspace = activeSession.workspace.get();
+		if (sessionWorkspace) {
+			this._workspacePicker.setSelectedWorkspace(
+				{ providerId: activeSession.providerId, workspace: sessionWorkspace },
+				/* fireEvent */ false,
+			);
+		}
+
+		return true;
 	}
 
 	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {

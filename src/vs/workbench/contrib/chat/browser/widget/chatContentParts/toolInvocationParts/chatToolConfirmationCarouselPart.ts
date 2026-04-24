@@ -58,11 +58,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private readonly nextButton: Button;
 	private readonly allowAllButton: Button;
 	private readonly expandContentButton: Button;
-	private readonly collapseButton: Button;
+	private readonly dismissButton: Button;
 	private readonly activeContentDisposables: DisposableStore;
 	private readonly contentResizeObserver: dom.DisposableResizeObserver;
 	private readonly updateContentExpansionStateScheduler: dom.AnimationFrameScheduler;
-	private _isCollapsed = false;
 	private _isContentExpanded = false;
 	private canExpandContent = false;
 	private maxHeight: number | undefined;
@@ -116,13 +115,15 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.hide(this.expandContentButton.element);
 		this._register(this.expandContentButton.onDidClick(() => this.toggleContentExpanded()));
 
-		this.collapseButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.collapseButton.element.classList.add('chat-tool-carousel-header-button');
-		this.collapseButton.label = `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label', localize('collapse', "Collapse"));
-		this.collapseButton.element.setAttribute('aria-controls', this.contentContainer.id);
-		this.collapseButton.element.setAttribute('aria-expanded', 'true');
-		this._register(this.collapseButton.onDidClick(() => this.toggleCollapse()));
+		this.dismissButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.dismissButton.element.classList.add('chat-tool-carousel-dismiss-button');
+		this.dismissButton.label = `$(${Codicon.close.id})`;
+		const dismissButtonLabel = this.items.length === 1
+			? localize('skip', "Skip")
+			: localize('skipAll', "Skip All");
+		this.dismissButton.element.setAttribute('aria-label', dismissButtonLabel);
+		this.dismissButton.element.title = dismissButtonLabel;
+		this._register(this.dismissButton.onDidClick(() => this.skipAll()));
 
 		this.prevButton = this._register(new Button(elements.navArrows, {
 			...defaultButtonStyles,
@@ -357,43 +358,11 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.domNode.focus();
 	}
 
-	private toggleCollapse(): void {
-		this._isCollapsed = !this._isCollapsed;
-		this.domNode.classList.toggle('chat-tool-carousel-collapsed', this._isCollapsed);
-		this.collapseButton.label = this._isCollapsed
-			? `$(${Codicon.chevronUp.id})`
-			: `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label',
-			this._isCollapsed ? localize('expand', "Expand") : localize('collapse', "Collapse")
-		);
-		this.collapseButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
-		if (this._isCollapsed) {
-			this._isContentExpanded = false;
-		}
-		this.updateUI();
-		this.updateContentExpansionState();
-	}
-
-	private toggleContentExpanded(): void {
-		if (!this.canExpandContent) {
-			return;
-		}
-
-		this._isContentExpanded = !this._isContentExpanded;
-		this.updateContentExpansionState();
-	}
-
 	private updateUI(): void {
 		const item = this.items[this.activeIndex];
 
-		if (this._isCollapsed) {
-			this.collapsedTitle.textContent = this.items.length === 1
-				? localize('confirmTool', "Confirm tool?")
-				: localize('confirmTools', "Confirm {0} tools?", this.items.length);
-		} else {
-			this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
-		}
-		dom.setVisibility(this._isCollapsed || !!this.collapsedTitle.textContent, this.collapsedTitle);
+		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
+		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
 		if (item?.agentName) {
 			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
@@ -416,8 +385,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.setVisibility(multi, this.stepIndicator);
 		dom.setVisibility(multi, this.prevButton.element);
 		dom.setVisibility(multi, this.nextButton.element);
-		dom.setVisibility(this._isCollapsed || multi, this.allowAllButton.element);
-		dom.setVisibility(!this._isCollapsed && this.canExpandContent, this.expandContentButton.element);
+		dom.setVisibility(multi, this.allowAllButton.element);
+		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 
 		this.allowAllButton.label = multi
 			? localize('allowAll', "Allow All")
@@ -450,15 +419,24 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.updateContentExpansionStateScheduler.schedule();
 	}
 
+	private toggleContentExpanded(): void {
+		if (!this.canExpandContent) {
+			return;
+		}
+
+		this._isContentExpanded = !this._isContentExpanded;
+		this.updateContentExpansionState();
+	}
+
 	private updateContentExpansionState(): void {
-		this.canExpandContent = !this._isCollapsed && this.items.length > 0 && this.isActiveContentLargerThanCollapsedLimit();
+		this.canExpandContent = this.items.length > 0 && this.isActiveContentLargerThanCollapsedLimit();
 		if (!this.canExpandContent) {
 			this._isContentExpanded = false;
 		}
 
 		this.domNode.classList.toggle('chat-tool-carousel-content-expanded', this.canExpandContent && this._isContentExpanded);
 		this.updateMaxHeightStyle();
-		dom.setVisibility(!this._isCollapsed && this.canExpandContent, this.expandContentButton.element);
+		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 		this.updateExpandContentButton();
 	}
 
@@ -550,6 +528,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	allowAll(): void {
 		for (const item of [...this.items]) {
 			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.UserAction });
+		}
+	}
+
+	private skipAll(): void {
+		for (const item of [...this.items]) {
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
 		}
 	}
 

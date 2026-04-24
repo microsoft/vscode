@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import * as l10n from '@vscode/l10n';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -56,10 +57,13 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 ToolRegistry.registerModelSpecificTool(
 	{
 		name: CUSTOM_TOOL_SEARCH_NAME,
-		displayName: 'Search Tools',
+		displayName: l10n.t('Search Tools'),
+		toolReferenceName: 'toolSearch',
+		userDescription: l10n.t('Search for relevant tools by describing what you need'),
 		description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the availableDeferredTools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
 		tags: [],
 		source: undefined,
+		toolSet: 'vscode',
 		inputSchema: {
 			type: 'object',
 			properties: {

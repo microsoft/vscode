@@ -9,7 +9,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -39,6 +39,26 @@ export const CopilotCloudSessionType: ISessionType = {
 	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
 };
+
+/** Session type ID for Claude Code sessions. */
+export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
+
+/** Claude Code session type — local agent powered by Claude. */
+export const ClaudeCodeSessionType: ISessionType = {
+	id: CLAUDE_CODE_SESSION_TYPE,
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
+
+/**
+ * Returns whether the given session type represents a workspace-backed
+ * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
+ * repository — regardless of whether the agent runs locally or remotely.
+ * TODO: Somehow make this contributable so we don't have to hardcode session types here.
+ */
+export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
+	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
+}
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
@@ -80,6 +100,10 @@ export interface ISessionRepository {
 export interface ISessionWorkspace {
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
+	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
+	readonly description?: string;
+	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
@@ -107,6 +131,8 @@ export interface IGitHubInfo {
 	};
 }
 
+export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -125,7 +151,7 @@ export interface IChat {
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -169,7 +195,7 @@ export interface ISession {
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -195,6 +221,21 @@ export interface ISession {
 }
 
 /**
+ * Build the canonical {@link ISession.sessionId} from a provider id and
+ * session resource URI.
+ *
+ * This is the single source of truth for the `providerId:resourceUri`
+ * string format used by every sessions provider (agent-host and
+ * Copilot chat sessions). Consumers that only have a provider id and a
+ * resource URI (e.g. a filesystem provider reconstructing a sessionId
+ * from a synthetic URI) should call this rather than rebuilding the
+ * string inline.
+ */
+export function toSessionId(providerId: string, resource: URI): string {
+	return `${providerId}:${resource.toString()}`;
+}
+
+/**
  * Capabilities declared per session.
  * Consumers check these before surfacing session-specific features in the UI.
  */
@@ -206,6 +247,15 @@ export interface ISessionCapabilities {
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
+	/** Optional description shown alongside the label in the workspace picker. */
+	readonly description?: string;
+	/**
+	 * Optional non-localized group key used to merge actions in the workspace picker.
+	 * Actions sharing the same group key are combined into a single picker entry
+	 * with a submenu. The first action's label is used as the display text for
+	 * the merged entry (e.g. "Folders").
+	 */
+	readonly group?: string;
 	/** Icon for the browse action. */
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */

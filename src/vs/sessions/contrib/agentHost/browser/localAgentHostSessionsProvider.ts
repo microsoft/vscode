@@ -5,57 +5,44 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
-import { ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
-const LOCAL_PROVIDER_ID = 'local-agent-host';
-
-/**
- * Derives the session type / URI scheme from an agent provider name.
- * Must match the type string registered by AgentHostContribution
- * (`agent-host-${agent.provider}`).
- */
-function sessionTypeForProvider(provider: string): string {
-	return `agent-host-${provider}`;
-}
+const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
 /**
  * Local-window sessions provider backed by the in-process
  * {@link IAgentHostService}. A thin subclass of
  * {@link BaseAgentHostSessionsProvider} that supplies the local-only
  * variation: a built-in connection that is always present, session-type
- * synchronization from the local agent host's `rootState`, a
- * contributions-based session-type fallback for the pre-hydration window,
- * and a local file-picker browse action.
+ * synchronization from the local agent host's `rootState`, and a local
+ * file-picker browse action.
  */
 export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 
-	readonly id = LOCAL_PROVIDER_ID;
+	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	private readonly _localLabel = localize('localAgentHostSessionTypeLocation', "Local");
 	private readonly _localDescription = new MarkdownString(this._localLabel);
-	private _hasRootStateSnapshot = false;
-
-	override get sessionTypes(): readonly ISessionType[] {
-		const rootStateValue = this._agentHostService.rootState.value;
-		return this._hasRootStateSnapshot || rootStateValue !== undefined ? this._sessionTypes : this._getSessionTypesFromContributions();
-	}
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -64,6 +51,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -71,6 +59,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
+			description: this.label,
+			group: 'folders',
 			icon: Codicon.folderOpened,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -79,16 +69,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
 		const rootStateValue = this._agentHostService.rootState.value;
-		if (rootStateValue !== undefined) {
-			this._hasRootStateSnapshot = true;
-		}
 		if (rootStateValue && !(rootStateValue instanceof Error)) {
 			this._syncSessionTypesFromRootState(rootStateValue);
 		}
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
-			const didHydrate = !this._hasRootStateSnapshot;
-			this._hasRootStateSnapshot = true;
-			this._syncSessionTypesFromRootState(rootState, didHydrate);
+			this._syncSessionTypesFromRootState(rootState);
 		}));
 
 		// Eagerly populate the session cache once authentication has settled.
@@ -115,67 +100,52 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 
-	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
-		const agentProvider = AgentSession.provider(meta.session) ?? 'copilot';
-		const sessionType = sessionTypeForProvider(agentProvider);
-		return new AgentHostSessionAdapter(meta, this.id, sessionType, sessionType, {
-			icon: this.icon,
+	/**
+	 * Local resource scheme: `agent-host-${provider}`. Must match the type
+	 * string registered by AgentHostContribution. Distinct from the logical
+	 * {@link ISession.sessionType}, which is the agent provider name itself
+	 * (e.g. `copilotcli`) so the same agent shares one session type across
+	 * local and remote hosts.
+	 */
+	protected resourceSchemeForProvider(provider: string): string {
+		return `${LOCAL_RESOURCE_SCHEME_PREFIX}${provider}`;
+	}
+
+	protected _adapterOptions() {
+		return {
 			description: this._localDescription,
-			loading: this._agentHostService.authenticationPending,
-			buildWorkspace: (project, workingDirectory) => LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory),
-		});
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+				const uriForDescription = project?.uri ?? workingDirectory;
+				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
+				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this._localLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description });
+			},
+		};
 	}
 
-	protected resourceSchemeForSessionType(sessionTypeId: string): string {
-		return sessionTypeId;
+	protected _formatSessionTypeLabel(agentLabel: string): string {
+		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it
+		// with `[Local]`. The session type id is shared with the extension-host
+		// Copilot CLI provider, so the filter menu / new-session picker entry
+		// covers both sets of sessions; the `[Local]` tag belongs on the
+		// per-session workspace label, not the type label.
+		return agentLabel;
 	}
 
-	protected agentProviderFromSessionType(sessionType: string): string {
-		const prefix = 'agent-host-';
-		return sessionType.startsWith(prefix) ? sessionType.substring(prefix.length) : sessionType;
-	}
-
-	// -- Session type sync from root state -----------------------------------
-
-	private _syncSessionTypesFromRootState(rootState: IRootState, forceFire = false): void {
-		const next = rootState.agents.map((agent): ISessionType => ({
-			id: sessionTypeForProvider(agent.provider),
-			label: this._formatSessionTypeLabel(agent.displayName || agent.provider),
-			icon: Codicon.vm,
-		}));
-
-		const prev = this._sessionTypes;
-		if (!forceFire && prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label)) {
-			return;
-		}
-		this._sessionTypes = next;
-		this._onDidChangeSessionTypes.fire();
-	}
-
-	private _formatSessionTypeLabel(agentLabel: string): string {
-		return localize('localAgentHostSessionType', "{0} [{1}]", agentLabel, this._localLabel);
-	}
-
-	private _getSessionTypesFromContributions(): ISessionType[] {
-		return this._chatSessionsService.getAllChatSessionContributions()
-			.filter(contribution => contribution.type.startsWith('agent-host-'))
-			.map((contribution): ISessionType => ({
-				id: contribution.type,
-				label: this._formatSessionTypeLabel(contribution.displayName),
-				icon: Codicon.vm,
-			}));
+	protected override _diffUriMapper(): (uri: URI) => URI {
+		return uri => toAgentHostUri(uri, 'local');
 	}
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true });
-	}
-
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== Schemas.file) {
+			return undefined;
+		}
 		const folderName = basename(repositoryUri) || repositoryUri.path;
 		return {
-			label: folderName,
+			label: `${folderName} [${this._localLabel}]`,
+			description: this._labelService.getUriLabel(dirname(repositoryUri), { relative: false }),
+			group: this.label,
 			icon: Codicon.folder,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,
