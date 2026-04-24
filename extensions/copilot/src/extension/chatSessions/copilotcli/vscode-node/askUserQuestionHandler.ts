@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatParticipantToolToken, LanguageModelTextPart } from 'vscode';
-import { ILogService } from '../../../platform/log/common/logService';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { ToolName } from '../../tools/common/toolNames';
-import { IToolsService } from '../../tools/common/toolsService';
-import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../copilotcli/node/userInputHelpers';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotcli/node/userInputHelpers';
 
 
 export interface IAskQuestionsParams {

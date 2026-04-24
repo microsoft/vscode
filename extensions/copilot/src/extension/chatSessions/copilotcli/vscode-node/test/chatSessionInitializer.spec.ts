@@ -6,22 +6,22 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
-import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { ILogService } from '../../../../platform/log/common/logService';
-import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
-import { IWorkspaceService, NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
-import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { DisposableStore, IReference } from '../../../../util/vs/base/common/lifecycle';
-import { URI } from '../../../../util/vs/base/common/uri';
-import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
-import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
-import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
-import { FolderRepositoryInfo, IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
-import { IWorkspaceInfo } from '../../common/workspaceInfo';
-import { ICopilotCLIAgents, ICopilotCLIModels } from '../../copilotcli/node/copilotCli';
-import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
-import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { ILogService } from '../../../../../platform/log/common/logService';
+import { IPromptsService } from '../../../../../platform/promptFiles/common/promptsService';
+import { IWorkspaceService, NullWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
+import { mock } from '../../../../../util/common/test/simpleMock';
+import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { DisposableStore, IReference } from '../../../../../util/vs/base/common/lifecycle';
+import { URI } from '../../../../../util/vs/base/common/uri';
+import { IChatSessionMetadataStore } from '../../../common/chatSessionMetadataStore';
+import { IChatSessionWorkspaceFolderService } from '../../../common/chatSessionWorkspaceFolderService';
+import { IChatSessionWorktreeService } from '../../../common/chatSessionWorktreeService';
+import { FolderRepositoryInfo, IFolderRepositoryManager, IsolationMode } from '../../../common/folderRepositoryManager';
+import { IWorkspaceInfo } from '../../../common/workspaceInfo';
+import { ICopilotCLIAgents, ICopilotCLIModels } from '../../../copilotcli/node/copilotCli';
+import { ICopilotCLISession } from '../../../copilotcli/node/copilotcliSession';
+import { ICopilotCLISessionService } from '../../../copilotcli/node/copilotcliSessionService';
 import { CopilotCLIChatSessionInitializer } from '../copilotCLIChatSessionInitializer';
 
 // ─── Test Helpers ────────────────────────────────────────────────

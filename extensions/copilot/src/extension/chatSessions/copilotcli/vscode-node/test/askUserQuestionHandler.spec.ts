@@ -5,12 +5,12 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { LanguageModelToolInvocationOptions } from 'vscode';
-import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { LanguageModelTextPart, LanguageModelToolResult, LanguageModelToolResult2 } from '../../../../vscodeTypes';
-import { ICopilotTool } from '../../../tools/common/toolsRegistry';
-import { IToolsService } from '../../../tools/common/toolsService';
-import { IQuestion } from '../../copilotcli/node/userInputHelpers';
+import { mock } from '../../../../../util/common/test/simpleMock';
+import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { LanguageModelTextPart, LanguageModelToolResult, LanguageModelToolResult2 } from '../../../../../vscodeTypes';
+import { ICopilotTool } from '../../../../tools/common/toolsRegistry';
+import { IToolsService } from '../../../../tools/common/toolsService';
+import { IQuestion } from '../../../copilotcli/node/userInputHelpers';
 import { IAnswerResult, UserQuestionHandler } from '../askUserQuestionHandler';
 
 function makeAskQuestionsTool(invokeResult: LanguageModelToolResult | undefined, resolveInput?: unknown): ICopilotTool<unknown> {
@@ -28,7 +28,7 @@ function makeToolsService(tool: ICopilotTool<unknown> | undefined): IToolsServic
 	}();
 }
 
-const logService = new class extends mock<import('../../../../platform/log/common/logService').ILogService>() {
+const logService = new class extends mock<import('../../../../../platform/log/common/logService').ILogService>() {
 	override trace = vi.fn();
 	override warn = vi.fn();
 }();
