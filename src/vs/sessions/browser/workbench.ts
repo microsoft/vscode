@@ -71,7 +71,7 @@ import {
 } from '../../workbench/common/notifications.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
-import { MobileTopBar } from './parts/mobile/mobileTopBar.js';
+import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
 
@@ -240,7 +240,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
 			quickPickTop = top;
 		} else if (this.mobileTopBarElement) {
-			// On phone layout the MobileTopBar replaces the titlebar
+			// On phone layout the MobileTitlebarPart replaces the titlebar
 			top = this.mobileTopBarElement.offsetHeight;
 			quickPickTop = top;
 		}
@@ -296,6 +296,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
+	private instantiationService!: IInstantiationService;
 
 	//#endregion
 
@@ -472,7 +473,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 				// Create mobile navigation after grid exists (so DOM order is correct)
 				if (this.layoutPolicy.viewportClass.get() === 'phone') {
-					this.createMobileTopBar();
+					this.createMobileTitlebar();
 				}
 
 				// Workbench Management
@@ -680,18 +681,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.parent.appendChild(this.mainContainer);
 	}
 
-	private createMobileTopBar(): void {
+	private createMobileTitlebar(): void {
 		this.mobileTopBarDisposables.clear();
-		const mobileTopBar = this.mobileTopBarDisposables.add(new MobileTopBar(this.mainContainer));
-		this.mobileTopBarElement = mobileTopBar.element;
+		const mobileTitlebar = this.mobileTopBarDisposables.add(this.instantiationService.createInstance(MobileTitlebarPart, this.mainContainer));
+		this.mobileTopBarElement = mobileTitlebar.element;
 
 		// Hamburger: toggle sidebar drawer overlay
-		this.mobileTopBarDisposables.add(mobileTopBar.onDidClickHamburger(() => {
+		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickHamburger(() => {
 			this.toggleMobileSidebarDrawer();
 		}));
 
 		// New session: open new chat view
-		this.mobileTopBarDisposables.add(mobileTopBar.onDidClickNewSession(() => {
+		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsManagementService.openNewSessionView();
 		}));
 	}
@@ -900,6 +901,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
+		this.instantiationService = accessor.get(IInstantiationService);
 		accessor.get(ITitleService);
 
 		// Register layout listeners
@@ -1074,7 +1076,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	/**
 	 * Standard multi-part layout for all viewport classes.
-	 * On phone, the titlebar is hidden via CSS and a MobileTopBar
+	 * On phone, the titlebar is hidden via CSS and a MobileTitlebarPart
 	 * is prepended before the grid. Sidebar/panel/auxbar are hidden
 	 * in the grid via partVisibility defaults.
 	 */
@@ -1202,8 +1204,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// update part visibility and create/destroy mobile components
 		if (previousClass !== undefined && previousClass !== currentClass) {
 			if (currentClass === 'phone' && !this.mobileTopBarElement) {
-				this.createMobileTopBar();
-				// Hide titlebar in grid on phone (replaced by MobileTopBar)
+				this.createMobileTitlebar();
+				// Hide titlebar in grid on phone (replaced by MobileTitlebarPart)
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, false);
 				// On phone, only chat is visible — hide everything else first
 				const defaults = this.layoutPolicy.getPartVisibilityDefaults();
@@ -1428,7 +1430,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	isVisible(part: Parts, targetWindow?: Window): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				// On phone layout the grid titlebar is hidden (replaced by MobileTopBar)
+				// On phone layout the grid titlebar is hidden (replaced by MobileTitlebarPart)
 				return this.layoutPolicy.viewportClass.get() !== 'phone';
 			case Parts.SIDEBAR_PART:
 				return this.partVisibility.sidebar;

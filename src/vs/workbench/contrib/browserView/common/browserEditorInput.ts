@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -44,6 +45,14 @@ export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 }
 
+/**
+ * Fired before a {@link BrowserEditorInput} is disposed. Listeners may call
+ * {@link veto} to prevent disposal and keep the input and its model alive.
+ */
+export interface IBeforeDisposeBrowserEditorEvent {
+	veto(): void;
+}
+
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
 	static readonly EDITOR_ID = 'workbench.editor.browser';
@@ -55,6 +64,9 @@ export class BrowserEditorInput extends EditorInput {
 	private _model: IBrowserViewModel | undefined;
 	private _modelPromise: Promise<IBrowserViewModel> | undefined;
 	private _modelStore = this._register(new DisposableStore());
+
+	private readonly _onBeforeDispose = this._register(new Emitter<IBeforeDisposeBrowserEditorEvent>());
+	readonly onBeforeDispose: Event<IBeforeDisposeBrowserEditorEvent> = this._onBeforeDispose.event;
 
 	constructor(
 		options: IBrowserEditorInputData,
@@ -88,7 +100,7 @@ export class BrowserEditorInput extends EditorInput {
 
 		// Auto-close editor when webcontents closes
 		this._modelStore.add(this._model.onDidClose(() => {
-			this.dispose();
+			this.dispose(true);
 		}));
 
 		// Listen for label-relevant changes to fire onDidChangeLabel
@@ -286,7 +298,15 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
-	override dispose(): void {
+	override dispose(force?: boolean): void {
+		if (!force) {
+			let vetoed = false;
+			this._onBeforeDispose.fire({ veto: () => { vetoed = true; } });
+			if (vetoed) {
+				return;
+			}
+		}
+
 		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
 		if (this._model) {
 			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.

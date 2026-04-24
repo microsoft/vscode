@@ -402,6 +402,10 @@ export class ComputeAutomaticInstructions {
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
+				if (!skill.description) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNoDescription', 'no description for model invocation') });
+					return false;
+				}
 				if (skill.disableModelInvocation) {
 					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
 					return false;

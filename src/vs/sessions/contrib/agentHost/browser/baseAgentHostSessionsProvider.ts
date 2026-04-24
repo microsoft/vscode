@@ -44,7 +44,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sess
  */
 export interface IAgentHostAdapterOptions {
 	readonly icon: ThemeIcon;
-	readonly description: IMarkdownString;
+	readonly description: IMarkdownString | undefined;
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */

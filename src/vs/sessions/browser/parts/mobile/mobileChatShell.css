@@ -51,6 +51,14 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+.mobile-top-bar .mobile-top-bar-center {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
 .mobile-top-bar .mobile-session-title {
 	flex: 1;
 	min-width: 0;
@@ -63,10 +71,43 @@
 	white-space: nowrap;
 	padding: 0 4px;
 	cursor: pointer;
+	border: none;
+	background: none;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.monaco-workbench .mobile-top-bar .mobile-session-title:focus {
+	outline: none !important;
+}
+
+.mobile-top-bar .mobile-session-title:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mobile-top-bar .mobile-session-title:active {
 	opacity: 0.7;
+}
+
+.mobile-top-bar .mobile-top-bar-actions {
+	display: none;
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	height: 100%;
+}
+
+/* When the welcome screen is visible and the center menu has contributed
+	items (e.g., the web host filter on the home screen) the title is
+	hidden and the toolbar takes its place. */
+.mobile-top-bar.show-actions .mobile-session-title {
+	display: none;
+}
+
+.mobile-top-bar.show-actions .mobile-top-bar-actions {
+	display: flex;
+	flex-direction: column;
 }
 
 /* ---- Phone Layout: Full-screen chat ---- */

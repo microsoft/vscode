@@ -1143,3 +1143,220 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
 	});
 });
+
+suite('LanguageModels - Provider Group Detail Fallback', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model.detail falls back to the group name so multiple instances of the same vendor are distinguishable', async function () {
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [
+						{ vendor: 'multi-vendor', name: 'Local' },
+						{ vendor: 'multi-vendor', name: 'Remote' }
+					];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			// Cast needed: TypeFromJsonSchema resolves the `anyOf`+`$ref` configuration
+			// field to `undefined`, but the runtime value must be truthy so the
+			// service treats this vendor as a configurable (BYOK) provider and
+			// resolves models for every group rather than stopping after the first.
+			{ vendor: 'multi-vendor', displayName: 'Multi Vendor', configuration: {} as unknown as undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('multi-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (!options.group) {
+					return [];
+				}
+				// Provider returns the same model id for each group, but the
+				// identifier is namespaced by group so they don't collide.
+				// The provider does not set `detail`; the service should fall
+				// back to the per-instance group name.
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Shared Model',
+						vendor: 'multi-vendor',
+						family: 'shared',
+						version: '1.0',
+						id: 'shared-model',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `multi-vendor/${options.group}/shared-model`
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+
+		const local = languageModelsService.lookupLanguageModel('multi-vendor/Local/shared-model');
+		const remote = languageModelsService.lookupLanguageModel('multi-vendor/Remote/shared-model');
+
+		assert.deepStrictEqual(
+			{ localDetail: local?.detail, remoteDetail: remote?.detail },
+			{ localDetail: 'Local', remoteDetail: 'Remote' }
+		);
+	});
+
+	test('model.detail falls back to the group name even when there is only a single group for the vendor', async function () {
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [
+						{ vendor: 'single-vendor', name: 'Only Instance' }
+					];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'single-vendor', displayName: 'Single Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('single-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (!options.group) {
+					return [];
+				}
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Solo Model',
+						vendor: 'single-vendor',
+						family: 'solo',
+						version: '1.0',
+						id: 'solo-model',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `single-vendor/${options.group}/solo-model`
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+
+		const solo = languageModelsService.lookupLanguageModel('single-vendor/Only Instance/solo-model');
+
+		assert.strictEqual(solo?.detail, 'Only Instance');
+	});
+
+	test('a provider-supplied detail is preserved when multiple groups exist', async function () {
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [
+						{ vendor: 'detail-vendor', name: 'Local' },
+						{ vendor: 'detail-vendor', name: 'Remote' }
+					];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			// Cast needed: see equivalent comment in the multi-vendor test above.
+			{ vendor: 'detail-vendor', displayName: 'Detail Vendor', configuration: {} as unknown as undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('detail-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (!options.group) {
+					return [];
+				}
+				// Provider supplies its own detail. The service should leave
+				// it untouched and only fall back to the group name when the
+				// provider does not set one.
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Detailed Model',
+						vendor: 'detail-vendor',
+						family: 'detailed',
+						version: '1.0',
+						id: 'detailed-model',
+						detail: `Detailed (${options.group})`,
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `detail-vendor/${options.group}/detailed-model`
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+
+		const local = languageModelsService.lookupLanguageModel('detail-vendor/Local/detailed-model');
+		const remote = languageModelsService.lookupLanguageModel('detail-vendor/Remote/detailed-model');
+
+		assert.deepStrictEqual(
+			{ localDetail: local?.detail, remoteDetail: remote?.detail },
+			{ localDetail: 'Detailed (Local)', remoteDetail: 'Detailed (Remote)' }
+		);
+	});
+});

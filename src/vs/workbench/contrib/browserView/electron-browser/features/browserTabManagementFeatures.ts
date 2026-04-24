@@ -89,12 +89,12 @@ class BrowserTabQuickPick extends Disposable {
 		this._quickPick.buttons = [closeAllButtonItem];
 
 		this._register(this._quickPick.onDidTriggerItemButton(async ({ item }) => {
-			item.editor?.dispose();
+			item.editor?.dispose(true);
 		}));
 
 		this._register(this._quickPick.onDidTriggerButton(async () => {
 			for (const editor of this._browserViewService.getKnownBrowserViews().values()) {
-				editor.dispose();
+				editor.dispose(true);
 			}
 		}));
 

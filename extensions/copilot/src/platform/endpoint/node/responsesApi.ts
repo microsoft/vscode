@@ -65,7 +65,8 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolSearchEnabled = isResponsesApiToolSearchEnabled(endpoint, configService, expService);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
-	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
+	const toolSearchInRequest = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && toolSearchInRequest;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 
 	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;

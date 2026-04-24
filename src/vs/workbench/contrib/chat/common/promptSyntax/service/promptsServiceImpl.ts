@@ -50,37 +50,6 @@ import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 
-/**
- * Error thrown when a skill file is missing the required name attribute.
- */
-export class SkillMissingNameError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a name attribute');
-	}
-}
-
-/**
- * Error thrown when a skill file is missing the required description attribute.
- */
-export class SkillMissingDescriptionError extends Error {
-	constructor(public readonly uri: URI) {
-		super('Skill file must have a description attribute');
-	}
-}
-
-/**
- * Error thrown when a skill's name does not match its parent folder name.
- */
-export class SkillNameMismatchError extends Error {
-	constructor(
-		public readonly uri: URI,
-		public readonly skillName: string,
-		public readonly folderName: string
-	) {
-		super(`Skill name must match folder name: expected "${folderName}" but got "${skillName}"`);
-	}
-}
-
 type PromptFileProviderEntry = {
 	extension: IExtensionDescription;
 	type: PromptsType;
@@ -635,7 +604,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
-				const rawName = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				let rawName: string;
+				if (promptPath.type === PromptsType.skill) {
+					// For skills, always use the folder name as the canonical name
+					// (consistent with computeSkillDiscoveryInfo)
+					rawName = getSkillFolderName(promptPath.uri);
+				} else {
+					rawName = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				}
 				// For plugin resources, ensure the canonical plugin prefix is always preserved even when the
 				// file's frontmatter overrides the name.
 				const name = promptPath.source === PromptFileSource.Plugin && promptPath.pluginUri
@@ -1074,30 +1050,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private async validateAndSanitizeSkillFile(uri: URI, token: CancellationToken): Promise<{ name: string; description: string | undefined }> {
 		const parsedFile = await this.parseNew(uri, token);
-		const name = parsedFile.header?.name;
+		const folderName = getSkillFolderName(uri);
 
+		let name = parsedFile.header?.name;
 		if (!name) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute: ${uri}`);
-			throw new SkillMissingNameError(uri);
+			this.logger.debug(`[validateAndSanitizeSkillFile] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+			name = folderName;
 		}
 
 		const description = parsedFile.header?.description;
-		if (!description) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill file missing description attribute: ${uri}`);
-			throw new SkillMissingDescriptionError(uri);
-		}
 
 		// Sanitize the name first (remove XML tags and truncate)
-		const sanitizedName = this.truncateAgentSkillName(name, uri);
+		let sanitizedName = this.truncateAgentSkillName(name, uri);
 
-		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const folderName = getSkillFolderName(uri);
+		// If sanitized name doesn't match folder name, use folder name (consistent with computeSkillDiscoveryInfo)
 		if (sanitizedName !== folderName) {
-			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
+			this.logger.debug(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+			sanitizedName = folderName;
 		}
 
-		const sanitizedDescription = this.truncateAgentSkillDescription(parsedFile.header?.description, uri);
+		const sanitizedDescription = description ? this.truncateAgentSkillDescription(description, uri) : undefined;
 		return { name: sanitizedName, description: sanitizedDescription };
 	}
 
