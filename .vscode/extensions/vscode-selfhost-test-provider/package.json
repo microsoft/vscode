@@ -1,7 +1,7 @@
 {
   "name": "vscode-selfhost-test-provider",
   "displayName": "VS Code Selfhost Test Provider",
-  "description": "Test provider for the VS Code project",
+  "description": "Test Explorer integration for the VS Code selfhost workspace",
   "enabledApiProposals": [
     "testObserver",
     "testRelatedCode"
@@ -52,14 +52,35 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "vscode",
+    "selfhost",
+    "testing",
+    "test-explorer",
+    "coverage"
+  ],
+  "galleryBanner": {
+    "color": "#007ACC",
+    "theme": "dark"
+  },
   "activationEvents": [
     "workspaceContains:src/vscode-dts/vscode.d.ts"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "VS Code Selfhost Test Provider requires full file system access to discover tests, run workspace scripts, update snapshots, and collect failure logs."
+    }
+  },
   "workspaceTrust": {
     "request": "onDemand",
     "description": "Trust is required to execute tests in the workspace."
   },
   "main": "./out/extension.js",
+  "homepage": "https://github.com/microsoft/vscode/tree/main/.vscode/extensions/vscode-selfhost-test-provider",
   "prettier": {
     "printWidth": 100,
     "singleQuote": true,
@@ -70,7 +91,11 @@
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
   },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode/issues"
+  },
   "license": "MIT",
+  "qna": false,
   "scripts": {
     "compile": "gulp compile-extension:vscode-selfhost-test-provider",
     "watch": "gulp watch-extension:vscode-selfhost-test-provider",
