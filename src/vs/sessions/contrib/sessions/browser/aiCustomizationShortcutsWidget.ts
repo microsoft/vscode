@@ -15,13 +15,14 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../browser/menus.js';
-import { getCustomizationTotalCount, getActiveItemProvider } from './customizationCounts.js';
+import { getCustomizationTotalCount, getActiveHarnessProviders } from './customizationCounts.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -47,6 +48,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IMcpService private readonly mcpService: IMcpService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IFileService private readonly fileService: IFileService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -108,7 +110,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService, getActiveItemProvider(this.sessionsManagementService, this.harnessService));
+			const { itemProvider, syncProvider } = getActiveHarnessProviders(this.sessionsManagementService, this.harnessService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService, itemProvider, syncProvider, this.fileService);
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
@@ -131,9 +134,12 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._register(autorun(reader => {
 			this.sessionsManagementService.activeSession.read(reader);
 			this.harnessService.availableHarnesses.read(reader);
-			const provider = getActiveItemProvider(this.sessionsManagementService, this.harnessService);
-			if (provider) {
-				reader.store.add(provider.onDidChange(() => updateHeaderTotalCount()));
+			const { itemProvider, syncProvider } = getActiveHarnessProviders(this.sessionsManagementService, this.harnessService);
+			if (itemProvider) {
+				reader.store.add(itemProvider.onDidChange(() => updateHeaderTotalCount()));
+			}
+			if (syncProvider) {
+				reader.store.add(syncProvider.onDidChange(() => updateHeaderTotalCount()));
 			}
 			updateHeaderTotalCount();
 		}));

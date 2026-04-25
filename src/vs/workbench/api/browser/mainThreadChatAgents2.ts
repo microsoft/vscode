@@ -714,11 +714,31 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
-		// In the sessions window, only accept harnesses for session types that
-		// have a registered content provider (i.e., can actually run sessions).
-		// AHP remote servers register directly via registerExternalHarness.
+		// In the sessions window, wait for the content provider to be registered
+		// so extensions that register customization providers before their content
+		// provider don't get silently dropped.
 		if (this._environmentService.isSessionsWindow && !this._chatSessionService.getContentProviderSchemes().includes(chatSessionType)) {
-			return;
+			const contentProviderReady = new DeferredPromise<void>();
+			let isDisposed = false;
+			const waitForContentProvider = this._chatSessionService.onDidChangeContentProviderSchemes(e => {
+				if (e.added.includes(chatSessionType)) {
+					waitForContentProvider.dispose();
+					contentProviderReady.complete();
+				}
+			});
+
+			this._customizationProviders.set(handle, {
+				dispose: () => {
+					isDisposed = true;
+					waitForContentProvider.dispose();
+					contentProviderReady.complete();
+				}
+			});
+
+			await contentProviderReady.p;
+			if (isDisposed) {
+				return;
+			}
 		}
 
 		const extension = await this._extensionService.getExtension(extensionId.value);

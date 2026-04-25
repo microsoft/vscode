@@ -5,7 +5,6 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -29,7 +28,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getSourceCounts, getSourceCountsTotal, getActiveItemProvider } from './customizationCounts.js';
+import { getActiveHarnessProviders, getItemCount } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -165,9 +164,12 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		this._viewItemDisposables.add(autorun(reader => {
 			this._activeSessionService.activeSession.read(reader);
 			this._harnessService.availableHarnesses.read(reader);
-			const provider = getActiveItemProvider(this._activeSessionService, this._harnessService);
-			if (provider) {
-				reader.store.add(provider.onDidChange(() => this._updateCounts()));
+			const { itemProvider, syncProvider } = getActiveHarnessProviders(this._activeSessionService, this._harnessService);
+			if (itemProvider) {
+				reader.store.add(itemProvider.onDidChange(() => this._updateCounts()));
+			}
+			if (syncProvider) {
+				reader.store.add(syncProvider.onDidChange(() => this._updateCounts()));
 			}
 			this._updateCounts();
 		}));
@@ -184,26 +186,22 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}
 
 		const requestId = ++this._updateCountsRequestId;
-		const itemProvider = getActiveItemProvider(this._activeSessionService, this._harnessService);
 
 		if (this._config.promptType) {
-			if (itemProvider) {
-				const allItems = await itemProvider.provideChatSessionCustomizations(CancellationToken.None);
-				if (requestId !== this._updateCountsRequestId) {
-					return;
-				}
-				const total = allItems?.filter(item => item.type === this._config.promptType).length ?? 0;
-				this._renderTotalCount(this._countContainer, total);
-			} else {
-				const type = this._config.promptType;
-				const filter = this._workspaceService.getStorageSourceFilter(type);
-				const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService, this._fileService);
-				if (requestId !== this._updateCountsRequestId) {
-					return;
-				}
-				const total = getSourceCountsTotal(counts, filter);
-				this._renderTotalCount(this._countContainer, total);
+			const { itemProvider, syncProvider } = getActiveHarnessProviders(this._activeSessionService, this._harnessService);
+			const total = await getItemCount(
+				this._config.promptType,
+				this._promptsService,
+				this._workspaceService,
+				this._workspaceContextService,
+				itemProvider,
+				syncProvider,
+				this._fileService,
+			);
+			if (requestId !== this._updateCountsRequestId) {
+				return;
 			}
+			this._renderTotalCount(this._countContainer, total);
 		} else if (this._config.isMcp) {
 			const total = this._mcpService.servers.get().length;
 			this._renderTotalCount(this._countContainer, total);

@@ -15,7 +15,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { parseHooksFromFile } from '../../../../workbench/contrib/chat/common/promptSyntax/hookCompatibility.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { parse as parseJSONC } from '../../../../base/common/jsonc.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -42,6 +42,28 @@ export function getSourceCountsTotal(counts: ISourceCounts, filter: IStorageSour
 		}
 	}
 	return total;
+}
+
+/**
+ * Counts individual hook entries in a single hook file.
+ * Falls back to 1 when the file can't be parsed.
+ */
+async function countHooksInFile(uri: URI, activeRoot: URI | undefined, fileService: IFileService): Promise<number> {
+	try {
+		const content = await fileService.readFile(uri);
+		const json = parseJSONC(content.value.toString());
+		const { hooks } = parseHooksFromFile(uri, json, activeRoot, '');
+		if (hooks.size > 0) {
+			let count = 0;
+			for (const [, entry] of hooks) {
+				count += entry.hooks.length;
+			}
+			return count;
+		}
+	} catch {
+		// Parse failed — count as single file
+	}
+	return 1;
 }
 
 /**
@@ -103,20 +125,8 @@ export async function getSourceCounts(
 		const hookFiles = await promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 		const activeRoot = workspaceService.getActiveProjectRoot();
 		for (const hookFile of hookFiles) {
-			try {
-				const content = await fileService.readFile(hookFile.uri);
-				const json = parseJSONC(content.value.toString());
-				const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, '');
-				if (hooks.size > 0) {
-					for (const [, entry] of hooks) {
-						for (let i = 0; i < entry.hooks.length; i++) {
-							items.push({ storage: hookFile.storage, uri: hookFile.uri });
-						}
-					}
-				} else {
-					items.push({ storage: hookFile.storage, uri: hookFile.uri });
-				}
-			} catch {
+			const hookCount = await countHooksInFile(hookFile.uri, activeRoot, fileService);
+			for (let i = 0; i < hookCount; i++) {
 				items.push({ storage: hookFile.storage, uri: hookFile.uri });
 			}
 		}
@@ -139,7 +149,88 @@ export async function getSourceCounts(
 }
 
 const PROMPT_TYPES: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.hook];
-const PROMPT_TYPE_SET = new Set<string>(PROMPT_TYPES);
+
+// #region Provider item counting
+
+/**
+ * Caches provider results for the duration of a microtask so multiple
+ * count widgets refreshing simultaneously share a single provider call.
+ */
+const _providerResultCache = new WeakMap<ICustomizationItemProvider, Promise<ICustomizationItem[] | undefined>>();
+
+function getCachedProviderItems(provider: ICustomizationItemProvider): ReturnType<ICustomizationItemProvider['provideChatSessionCustomizations']> {
+	const cached = _providerResultCache.get(provider);
+	if (cached) {
+		return cached;
+	}
+	const result = provider.provideChatSessionCustomizations(CancellationToken.None);
+	_providerResultCache.set(provider, result);
+	queueMicrotask(() => _providerResultCache.delete(provider));
+	return result;
+}
+
+async function getProviderItemCount(
+	provider: ICustomizationItemProvider,
+	promptType: PromptsType,
+	workspaceService: IAICustomizationWorkspaceService,
+	fileService?: IFileService,
+): Promise<number> {
+	const allItems = await getCachedProviderItems(provider);
+	if (!allItems) {
+		return 0;
+	}
+
+	if (promptType === PromptsType.hook && fileService) {
+		const hookItems = allItems.filter(item => item.type === PromptsType.hook);
+		const activeRoot = workspaceService.getActiveProjectRoot();
+		const counts = await Promise.all(hookItems.map(item =>
+			item.storage === PromptsStorage.plugin
+				? 1
+				: countHooksInFile(item.uri, activeRoot, fileService)
+		));
+		return counts.reduce((sum, n) => sum + n, 0);
+	}
+
+	return allItems.filter(item => item.type === promptType).length;
+}
+
+async function getLocalSyncableCount(
+	promptsService: IPromptsService,
+	promptType: PromptsType,
+): Promise<number> {
+	const files = await promptsService.listPromptFiles(promptType, CancellationToken.None);
+	return files.filter(f => f.storage === PromptsStorage.local || f.storage === PromptsStorage.user).length;
+}
+
+// #endregion
+
+/**
+ * Unified per-type count that handles both provider-backed and local-only
+ * harnesses, blending syncable local items when a sync provider is present.
+ */
+export async function getItemCount(
+	promptType: PromptsType,
+	promptsService: IPromptsService,
+	workspaceService: IAICustomizationWorkspaceService,
+	workspaceContextService: IWorkspaceContextService,
+	itemProvider?: ICustomizationItemProvider,
+	syncProvider?: ICustomizationSyncProvider,
+	fileService?: IFileService,
+): Promise<number> {
+	if (itemProvider) {
+		if (syncProvider) {
+			const [providerCount, localCount] = await Promise.all([
+				getProviderItemCount(itemProvider, promptType, workspaceService, fileService),
+				getLocalSyncableCount(promptsService, promptType),
+			]);
+			return providerCount + localCount;
+		}
+		return getProviderItemCount(itemProvider, promptType, workspaceService, fileService);
+	}
+	const filter = workspaceService.getStorageSourceFilter(promptType);
+	const counts = await getSourceCounts(promptsService, promptType, filter, workspaceContextService, workspaceService, fileService);
+	return getSourceCountsTotal(counts, filter);
+}
 
 export async function getCustomizationTotalCount(
 	promptsService: IPromptsService,
@@ -148,31 +239,27 @@ export async function getCustomizationTotalCount(
 	workspaceContextService: IWorkspaceContextService,
 	agentPluginService?: IAgentPluginService,
 	itemProvider?: ICustomizationItemProvider,
+	syncProvider?: ICustomizationSyncProvider,
+	fileService?: IFileService,
 ): Promise<number> {
-	let promptTotal: number;
-	if (itemProvider) {
-		const allItems = await itemProvider.provideChatSessionCustomizations(CancellationToken.None);
-		promptTotal = allItems?.filter(item => PROMPT_TYPE_SET.has(item.type)).length ?? 0;
-	} else {
-		const results = await Promise.all(PROMPT_TYPES.map(type => {
-			const filter = workspaceService.getStorageSourceFilter(type);
-			return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
-				.then(counts => getSourceCountsTotal(counts, filter));
-		}));
-		promptTotal = results.reduce((sum, n) => sum + n, 0);
-	}
-
+	const results = await Promise.all(PROMPT_TYPES.map(type =>
+		getItemCount(type, promptsService, workspaceService, workspaceContextService, itemProvider, syncProvider, fileService)
+	));
+	const promptTotal = results.reduce((sum, n) => sum + n, 0);
 	const pluginCount = agentPluginService?.plugins.get().length ?? 0;
 	return promptTotal + mcpService.servers.get().length + pluginCount;
 }
 
-export function getActiveItemProvider(
+export function getActiveHarnessProviders(
 	sessionsManagementService: ISessionsManagementService,
 	harnessService: ICustomizationHarnessService,
-): ICustomizationItemProvider | undefined {
+): { itemProvider?: ICustomizationItemProvider; syncProvider?: ICustomizationSyncProvider } {
 	const sessionType = sessionsManagementService.activeSession.get()?.sessionType;
 	if (sessionType) {
-		return harnessService.findHarnessById(sessionType)?.itemProvider;
+		const harness = harnessService.findHarnessById(sessionType);
+		if (harness) {
+			return { itemProvider: harness.itemProvider, syncProvider: harness.syncProvider };
+		}
 	}
-	return undefined;
+	return {};
 }
