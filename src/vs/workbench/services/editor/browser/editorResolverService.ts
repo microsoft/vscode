@@ -127,6 +127,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && (this.resourceMatchesCache(resource) || this.resourceMatchesUserAssociation(resource))) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
+			// After extensions register, contribution points (like custom editors) may have
+			// added new entries to `_editors`. Re-flatten so subsequent lookups (getEditor,
+			// findMatchingEditors, getAssociationsForResource) see the freshly-registered editors.
+			// This is required for files opened via CLI at startup, where the resolver is
+			// invoked before extensions register their custom editor contributions (#197374).
+			this._flattenedEditors = this._flattenEditorsMap();
 		}
 
 		// Undefined resource -> untilted. Other malformed URI's are unresolvable

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,6 +15,8 @@ import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
+import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
@@ -513,6 +516,86 @@ suite('EditorResolverService', () => {
 		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
 			assert.strictEqual(resultingResolution.editor.typeId, CUSTOM_EDITOR_INPUT_ID,
 				'Should resolve to custom editor when user has configured editor association');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail('Expected editor to resolve successfully');
+		}
+
+		defaultEditor.dispose();
+		customEditor.dispose();
+	});
+
+	test('Custom editor registered during whenInstalledExtensionsRegistered await is honored on CLI startup #197374', async () => {
+		const CUSTOM_EDITOR_INPUT_ID = 'testDeferredCustomEditorInput';
+
+		// Simulate a controllable extension service whose `whenInstalledExtensionsRegistered`
+		// only resolves once we have registered the custom editor (mirrors real startup,
+		// where extension contributions are accepted before the barrier opens).
+		const extensionsRegistered = new DeferredPromise<boolean>();
+		class DeferredExtensionService extends TestExtensionService {
+			override whenInstalledExtensionsRegistered(): Promise<boolean> {
+				return extensionsRegistered.p;
+			}
+		}
+
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.md': 'CUSTOM_MD_EDITOR'
+				}
+			})
+		}, disposables);
+		instantiationService.stub(IExtensionService, new DeferredExtensionService());
+
+		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorResolverService = instantiationService.createInstance(EditorResolverService);
+		disposables.add(editorResolverService);
+
+		// Only the default editor exists at the moment `resolveEditor` is invoked.
+		const defaultEditor = editorResolverService.registerEditor('*',
+			{
+				id: 'default',
+				label: 'Default Editor',
+				detail: 'Default',
+				priority: RegisteredEditorPriority.default
+			},
+			{},
+			{
+				createEditorInput: ({ resource }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) })
+			}
+		);
+
+		// Kick off resolution. It must wait for `whenInstalledExtensionsRegistered`
+		// because the user has a non-default editor association for *.md.
+		const resolvePromise = editorResolverService.resolveEditor(
+			{ resource: URI.file('test.md') },
+			part.activeGroup
+		);
+
+		// After resolution starts, register the custom editor (as the markdown extension
+		// does on activation), then signal that extension registration is complete.
+		const customEditor = editorResolverService.registerEditor('*.md',
+			{
+				id: 'CUSTOM_MD_EDITOR',
+				label: 'Markdown Preview',
+				detail: 'Markdown Preview Details',
+				priority: RegisteredEditorPriority.option
+			},
+			{},
+			{
+				createEditorInput: ({ resource }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), CUSTOM_EDITOR_INPUT_ID) })
+			}
+		);
+		extensionsRegistered.complete(true);
+
+		const resultingResolution = await resolvePromise;
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(resultingResolution.editor.typeId, CUSTOM_EDITOR_INPUT_ID,
+				'Should resolve to the custom editor that registered during the extension-registered await');
 			resultingResolution.editor.dispose();
 		} else {
 			assert.fail('Expected editor to resolve successfully');
