@@ -28,6 +28,7 @@ export interface IChatMLFetcherSuccessfulData {
 	bytesReceived: number | undefined;
 	suspendEventSeen: boolean | undefined;
 	resumeEventSeen: boolean | undefined;
+	modelCallId: string | undefined;
 }
 
 export interface IChatMLFetcherCancellationProperties {
@@ -99,6 +100,7 @@ export class ChatMLFetcherTelemetrySender {
 			bytesReceived,
 			suspendEventSeen,
 			resumeEventSeen,
+			modelCallId,
 		}: IChatMLFetcherSuccessfulData,
 	) {
 		/* __GDPR__
@@ -208,7 +210,7 @@ export class ChatMLFetcherTelemetrySender {
 				associatedRequestId: baseTelemetry?.properties.associatedRequestId,
 				reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
 				reasoningSummary: requestBody.reasoning?.summary,
-				modelCallId: baseTelemetry?.properties.modelCallId,
+				modelCallId,
 				parentRequestId: baseTelemetry?.properties.parentRequestId,
 				parentToolCallId: baseTelemetry?.properties.parentToolCallId,
 				parentHeaderRequestId: baseTelemetry?.properties.parentHeaderRequestId,
@@ -244,7 +246,7 @@ export class ChatMLFetcherTelemetrySender {
 				resumeEventSeen: resumeEventSeen ? 1 : 0,
 			};
 			console.log(`[response.success][DEBUG] event sent to GH+MSFT telemetry, properties: ${JSON.stringify(_props)}, measurements: ${JSON.stringify(_meas)}`);
-			console.log(`[response.success][DEBUG] requestId sources: chatCompletion.requestId.headerRequestId=${chatCompletion.requestId.headerRequestId}, baseTelemetry.properties.headerRequestId=${baseTelemetry?.properties.headerRequestId}, baseTelemetry.properties.messageId=${baseTelemetry?.properties.messageId}, baseTelemetry.properties.modelCallId=${baseTelemetry?.properties.modelCallId}`);
+			console.log(`[response.success][DEBUG] requestId sources: chatCompletion.requestId.headerRequestId=${chatCompletion.requestId.headerRequestId}, baseTelemetry.properties.headerRequestId=${baseTelemetry?.properties.headerRequestId}, baseTelemetry.properties.messageId=${baseTelemetry?.properties.messageId}, modelCallId=${modelCallId}`);
 		}
 		// >>> END DEBUG BLOCK <<<
 	}

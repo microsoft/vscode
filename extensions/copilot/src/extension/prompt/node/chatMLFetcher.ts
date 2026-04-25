@@ -1773,6 +1773,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					bytesReceived,
 					suspendEventSeen,
 					resumeEventSeen,
+					modelCallId,
 				}
 			);
 
