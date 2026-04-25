@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostMainService } from '../../node/sshRemoteAgentHostService.js';
+import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 
 /** Minimal mock SSHChannel for testing. */
 class MockSSHChannel {
@@ -1011,58 +1011,31 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 });
 
 /**
- * Subclass that runs the real _connectSSH auth-config logic but replaces
- * the ssh2 Client with a mock that captures the connectConfig and resolves
- * immediately.
+ * Subclass that exposes `_buildAuthAttempts` and stubs out the disk/env seams
+ * so the auth-attempt building logic can be tested in isolation.
  */
-class ConnectSSHTestService extends SSHRemoteAgentHostMainService {
+class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 
-	lastConnectConfig: Record<string, unknown> | undefined;
-	fallbackKeyResult: { path: string; contents: Buffer } | undefined;
+	agentSock: string | undefined = undefined;
+	keyFiles: Map<string, Buffer> = new Map();
 
-	async testConnectSSH(config: ISSHAgentHostConfig) {
-		return this._connectSSH(config);
+	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return this._buildAuthAttempts(config);
 	}
 
-	protected override async _connectSSH(config: ISSHAgentHostConfig) {
-		// Replicate the auth-config building from the real _connectSSH,
-		// then capture the config instead of opening a real SSH connection.
-		const connectConfig: Record<string, unknown> = {
-			host: config.host,
-			port: config.port ?? 22,
-			username: config.username,
-		};
-
-		switch (config.authMethod) {
-			case SSHAuthMethod.Agent: {
-				connectConfig.agent = process.env['SSH_AUTH_SOCK'];
-				const fallbackKey = await this._findDefaultKeyFile();
-				if (fallbackKey) {
-					connectConfig.privateKey = fallbackKey.contents;
-				}
-				break;
-			}
-			case SSHAuthMethod.KeyFile:
-				// skip actual file read for tests
-				break;
-			case SSHAuthMethod.Password:
-				connectConfig.password = config.password;
-				break;
-		}
-
-		this.lastConnectConfig = connectConfig;
-		return new MockSSHClient() as never;
+	protected override _isAgentAvailable(): string | undefined {
+		return this.agentSock;
 	}
 
-	protected override async _findDefaultKeyFile() {
-		return this.fallbackKeyResult;
+	protected override async _readKeyFileIfExists(keyPath: string): Promise<Buffer | undefined> {
+		return this.keyFiles.get(keyPath);
 	}
 }
 
-suite('SSHRemoteAgentHostMainService - _connectSSH auth config', () => {
+suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 	const disposables = new DisposableStore();
-	let service: ConnectSSHTestService;
+	let service: AuthAttemptsTestService;
 
 	setup(() => {
 		const logService = new NullLogService();
@@ -1070,7 +1043,7 @@ suite('SSHRemoteAgentHostMainService - _connectSSH auth config', () => {
 			_serviceBrand: undefined,
 			quality: 'insider',
 		};
-		service = new ConnectSSHTestService(
+		service = new AuthAttemptsTestService(
 			logService,
 			productService as IProductService,
 		);
@@ -1081,33 +1054,183 @@ suite('SSHRemoteAgentHostMainService - _connectSSH auth config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('agent auth includes fallback privateKey when default key exists', async () => {
-		const keyContents = Buffer.from('fake-key-contents');
-		service.fallbackKeyResult = { path: '~/.ssh/id_ed25519', contents: keyContents };
+	const RSA = Buffer.from('rsa-key-bytes');
+	const ED = Buffer.from('ed25519-key-bytes');
+	const EXPLICIT = Buffer.from('explicit-key-bytes');
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa only', async () => {
+		service.agentSock = undefined;
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.ok(Object.hasOwn(service.lastConnectConfig, 'agent'), 'should set agent');
-		assert.strictEqual(service.lastConnectConfig.privateKey, keyContents, 'should include fallback privateKey');
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+		]);
 	});
 
-	test('agent auth omits privateKey when no default key found', async () => {
-		service.fallbackKeyResult = undefined;
+	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa', async () => {
+		// This is the regression-driving case: agent is set but doesn't have
+		// the key, so we must still fall through to the on-disk default key.
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.ok(Object.hasOwn(service.lastConnectConfig, 'agent'), 'should set agent');
-		assert.strictEqual(service.lastConnectConfig.privateKey, undefined, 'should not include privateKey');
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+		]);
 	});
 
-	test('keyfile auth does not use fallback key', async () => {
-		service.fallbackKeyResult = { path: '~/.ssh/id_ed25519', contents: Buffer.from('should-not-be-used') };
+	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', ED);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.KeyFile }));
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.strictEqual(service.lastConnectConfig.privateKey, undefined, 'should not include fallback key for KeyFile auth');
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+		]);
+	});
+
+	test('Agent + SSH_AUTH_SOCK + no default keys → agent only', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → explicit, agent, id_rsa', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('/some/explicit/key', EXPLICIT);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: '/some/explicit/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath that matches a default → explicit added once', async () => {
+		// When the user pins ~/.ssh/id_rsa explicitly, we shouldn't end up
+		// with the same key twice in the queue.
+		service.agentSock = undefined;
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: '~/.ssh/id_rsa',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+		]);
+	});
+
+	test('KeyFile + explicit path → publickey only', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('/some/explicit/key', EXPLICIT);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/some/explicit/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+		]);
+	});
+
+	test('KeyFile + missing privateKeyPath throws', async () => {
+		await assert.rejects(
+			() => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.KeyFile })),
+			/private key path/i,
+		);
+	});
+
+	test('KeyFile + unreadable key throws with the path in the message', async () => {
+		await assert.rejects(
+			() => service.testBuildAuthAttempts(makeConfig({
+				authMethod: SSHAuthMethod.KeyFile,
+				privateKeyPath: '/missing/key',
+			})),
+			/\/missing\/key/,
+		);
+	});
+
+	test('Password → password only', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Password,
+			password: 'pw',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'password', username: 'testuser', password: 'pw' },
+		]);
+	});
+});
+
+suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const KEY = Buffer.from('k');
+	const attempts: SSHAuthAttempt[] = [
+		{ type: 'agent', username: 'u', agent: '/sock' },
+		{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
+	];
+
+	test('walks attempts in order, then signals exhaustion', () => {
+		const handler = makeAuthHandler(attempts, new NullLogService());
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [
+			{ type: 'agent', username: 'u', agent: '/sock' },
+			{ type: 'publickey', username: 'u', key: KEY }, // keyPath stripped
+			false,
+		]);
+	});
+
+	test('skips attempts whose method the server has rejected', () => {
+		const handler = makeAuthHandler(attempts, new NullLogService());
+		const calls: Array<object | false> = [];
+		// Server only allows password — both attempts should be skipped and
+		// the handler should signal exhaustion immediately.
+		handler(['password'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [false]);
+	});
+
+	test('agent attempts are kept when server allows publickey', () => {
+		// `agent` is a publickey-flavored method; servers advertise `publickey`,
+		// not `agent`, so the agent attempt must not be filtered out here.
+		const handler = makeAuthHandler(
+			[{ type: 'agent', username: 'u', agent: '/sock' }],
+			new NullLogService(),
+		);
+		const calls: Array<object | false> = [];
+		handler(['publickey'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [{ type: 'agent', username: 'u', agent: '/sock' }]);
 	});
 });

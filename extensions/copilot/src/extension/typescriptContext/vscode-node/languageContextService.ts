@@ -14,13 +14,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Queue } from '../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import * as protocol from '../common/serverProtocol';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemResultBuilder, ContextItemSummary, ResolvedRunnableResult, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 
 const currentTokenBudget: number = 8 * 1024;
 
@@ -1975,7 +1975,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 			}
 
 			// Register with chat always.
-			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions]));
+			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions, ProviderTarget.NES]));
 			this.telemetrySender.sendInlineCompletionProviderTelemetry(KnownSources.completion, true);
 			logService.info('Registered TypeScript context provider with Copilot inline completions.');
 		} catch (error) {

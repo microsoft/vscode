@@ -10,9 +10,9 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentSubagentStartedEvent, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { IProtectedResourceMetadata, type IModelSelection } from '../../common/state/protocol/state.js';
-import type { IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
+import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type ToolCallResult } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -36,16 +36,16 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
-	readonly setPendingMessagesCalls: { session: URI; steeringMessage: IPendingMessage | undefined; queuedMessages: readonly IPendingMessage[] }[] = [];
+	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
-	readonly changeModelCalls: { session: URI; model: IModelSelection }[] = [];
+	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
-	readonly setClientCustomizationsCalls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: CustomizationRef[] }[] = [];
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
-	customizations: ICustomizationRef[] = [];
+	customizations: CustomizationRef[] = [];
 
 	/** Configurable return value for getSessionMessages. */
 	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
@@ -59,7 +59,7 @@ export class MockAgent implements IAgent {
 		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent` };
 	}
 
-	getProtectedResources(): IProtectedResourceMetadata[] {
+	getProtectedResources(): ProtectedResourceMetadata[] {
 		if (this.id === 'copilot') {
 			return [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
 		}
@@ -84,11 +84,11 @@ export class MockAgent implements IAgent {
 		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
 	}
 
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return { items: [] };
 	}
 
@@ -96,7 +96,7 @@ export class MockAgent implements IAgent {
 		this.sendMessageCalls.push({ session, prompt });
 	}
 
-	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
@@ -121,7 +121,7 @@ export class MockAgent implements IAgent {
 		// no-op for tests
 	}
 
-	async changeModel(session: URI, model: IModelSelection): Promise<void> {
+	async changeModel(session: URI, model: ModelSelection): Promise<void> {
 		this.changeModelCalls.push({ session, model });
 	}
 
@@ -130,11 +130,11 @@ export class MockAgent implements IAgent {
 		return true;
 	}
 
-	getCustomizations(): ICustomizationRef[] {
+	getCustomizations(): CustomizationRef[] {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
@@ -193,7 +193,7 @@ export class ScriptedMockAgent implements IAgent {
 	private readonly _preExistingMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [
 		{ type: 'message', role: 'user', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-1', content: 'What files are here?' },
 		{ type: 'tool_start', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', toolName: 'list_files', displayName: 'List Files', invocationMessage: 'Listing files...' },
-		{ type: 'tool_complete', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', result: { pastTenseMessage: 'Listed files', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } satisfies IToolCallResult },
+		{ type: 'tool_complete', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', result: { pastTenseMessage: 'Listed files', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } satisfies ToolCallResult },
 		{ type: 'message', role: 'assistant', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-2', content: 'Here are the files: file1.ts and file2.ts' },
 	];
 
@@ -247,7 +247,7 @@ export class ScriptedMockAgent implements IAgent {
 		return { session, project: mockProject(this.id) };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
 		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
 		return {
@@ -278,7 +278,7 @@ export class ScriptedMockAgent implements IAgent {
 		};
 	}
 
-	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		if (params.property !== 'branch') {
 			return { items: [] };
 		}
@@ -577,7 +577,7 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, _queuedMessages: readonly IPendingMessage[]): void {
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
@@ -596,7 +596,7 @@ export class ScriptedMockAgent implements IAgent {
 
 	setClientTools(): void { }
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: IToolCallResult): void {
+	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
 		// Fire tool_complete and resolve any pending callback.
 		this._onDidSessionProgress.fire({
 			type: 'tool_complete',
@@ -630,7 +630,7 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	async changeModel(_session: URI, _model: IModelSelection): Promise<void> {
+	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
 		// Mock agent doesn't track model state
 	}
 

@@ -13,9 +13,9 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
-import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -114,7 +114,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 function createMockHarnessService(): ICustomizationHarnessService {
 	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+		override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }

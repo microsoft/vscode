@@ -8,6 +8,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
@@ -72,6 +73,18 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures;
 	}
 
+	async extractCommandKeywords(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		const captures = await this._queryTree(languageId, commandLine, '(command_name) @command');
+		const keywords = new Set<string>();
+		for (const capture of captures) {
+			const normalized = this._normalizeCommandKeyword(capture.node.text);
+			if (normalized) {
+				keywords.add(normalized);
+			}
+		}
+		return [...keywords];
+	}
+
 	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
 		let query: string;
 		switch (languageId) {
@@ -122,6 +135,17 @@ export class TreeSitterCommandParser extends Disposable {
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
 		return query.captures(tree.rootNode);
+	}
+
+	private _normalizeCommandKeyword(token: string): string | undefined {
+		const unquoted = token.replace(/^['"]|['"]$/g, '');
+		if (!unquoted) {
+			return undefined;
+		}
+
+		const pathBase = unquoted.includes('\\') ? win32.basename(unquoted) : posix.basename(unquoted);
+		const normalized = pathBase.toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/i, '');
+		return normalized || undefined;
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {

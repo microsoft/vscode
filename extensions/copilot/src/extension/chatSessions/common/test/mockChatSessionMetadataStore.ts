@@ -54,11 +54,8 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		return undefined;
 	}
 
-	async getWorktreeProperties(sessionIdOrFolder: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> {
-		if (typeof sessionIdOrFolder === 'string') {
-			return this._worktreeProperties.get(sessionIdOrFolder);
-		}
-		return undefined;
+	async getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined> {
+		return this._worktreeProperties.get(sessionId);
 	}
 
 	async getSessionWorkspaceFolder(_sessionId: string): Promise<vscode.Uri | undefined> {
@@ -154,5 +151,32 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	getSessionParentId(_sessionId: string): Promise<string | undefined> {
 		return Promise.resolve(undefined);
+	}
+
+	getSessionIdsForFolder(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		for (const [sessionId, entry] of this._workspaceFolders) {
+			if (entry.folderPath === folderPath && !sessionIds.includes(sessionId)) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
+	}
+
+	getWorktreeSessions(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
 	}
 }

@@ -22,8 +22,6 @@ import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { PromptsConfig } from '../config/config.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -42,7 +40,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -143,9 +140,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		const target = getTarget(promptType, header);
 		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, target));
-		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-			attributesToPropose.delete(PromptHeaderAttributes.hooks);
-		}
 		for (const attr of header.attributes) {
 			attributesToPropose.delete(attr.key);
 		}

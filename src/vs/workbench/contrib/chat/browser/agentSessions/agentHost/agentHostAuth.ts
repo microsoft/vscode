@@ -8,6 +8,46 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 
 /**
+ * Tracks the last bearer token pushed to a given agent host connection
+ * for each protected resource, so that redundant `authenticate` RPCs can
+ * be suppressed when neither the resource nor the token has changed.
+ *
+ * One instance per connection. Owned by the contribution that drives
+ * authentication for that connection so the cache is dropped naturally
+ * when the connection is disposed.
+ */
+export class AgentHostAuthTokenCache {
+	private readonly _lastTokens = new Map<string, string>();
+
+	/**
+	 * Record that we just sent `token` for `resource`, and return whether
+	 * this is a change from the last token sent. When `false`, callers
+	 * should skip the `authenticate` RPC.
+	 */
+	updateAndIsChanged(resource: string, token: string): boolean {
+		const previous = this._lastTokens.get(resource);
+		if (previous === token) {
+			return false;
+		}
+		this._lastTokens.set(resource, token);
+		return true;
+	}
+
+	/**
+	 * Clear the cached token for a specific resource, or all resources if
+	 * no argument is given. Call after a failed `authenticate` RPC (per-resource)
+	 * or when the agent host process restarts (all resources).
+	 */
+	clear(resource?: string): void {
+		if (resource !== undefined) {
+			this._lastTokens.delete(resource);
+		} else {
+			this._lastTokens.clear();
+		}
+	}
+}
+
+/**
  * Resolves a bearer token for a protected resource by trying each
  * authorization server in order. First attempts an exact scope match,
  * then falls back to finding the session whose scopes are the narrowest

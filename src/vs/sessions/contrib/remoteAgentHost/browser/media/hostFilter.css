@@ -5,8 +5,12 @@
 
 /* Compound widget (dropdown pill + connect button). Expands to fill the
  * space available in the titlebar's left toolbar after the sidebar toggle,
- * so the pill + connect button appear centered in the remaining width. */
-.agent-host-filter-combo {
+ * so the pill + connect button appear centered in the remaining width.
+ *
+ * Higher specificity than the default `.monaco-action-bar .action-item`
+ * (which sets `display: block`) so the li lays out its two child controls
+ * (dropdown + connect) as a horizontal flex row. */
+.monaco-action-bar .action-item.agent-host-filter-combo {
 	display: flex;
 	align-items: center;
 	justify-content: center;

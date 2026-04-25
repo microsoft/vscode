@@ -52,7 +52,7 @@ export class PromptsServiceImpl extends Disposable implements IPromptsService {
 		return Promise.resolve(vscode.chat.getCustomAgents(token));
 	}
 
-	getSlashCommands(token: CancellationToken): Promise<readonly ParsedPromptFile[]> {
+	getSlashCommands(token: CancellationToken): Promise<readonly vscode.ChatSlashCommand[]> {
 		return Promise.resolve(vscode.chat.getSlashCommands(token));
 	}
 

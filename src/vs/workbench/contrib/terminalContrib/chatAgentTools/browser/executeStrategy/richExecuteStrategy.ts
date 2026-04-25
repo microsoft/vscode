@@ -17,6 +17,7 @@ import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecute
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { isMultilineCommand } from '../runInTerminalHelpers.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -90,7 +91,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = isMacintosh;
+			const forceBracketedPasteMode = isMacintosh || isMultilineCommand(commandLine);
 			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode, commandLineForMetadata);
 
 			// Wait for the terminal to idle

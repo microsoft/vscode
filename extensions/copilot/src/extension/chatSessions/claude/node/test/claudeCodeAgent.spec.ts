@@ -500,6 +500,79 @@ describe('ClaudeCodeSession', () => {
 		expect(mockService.lastQueryOptions?.resume).toBe('existing-session');
 		expect(mockService.lastQueryOptions?.sessionId).toBeUndefined();
 	});
+
+	it('passes effort in SDK options when reasoning effort is set in session state', async () => {
+		const serverConfig = { port: 8080, nonce: 'test-nonce' };
+		const mockServer = createMockLangModelServer();
+		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
+
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		sessionStateService.setReasoningEffortForSession('test-session', 'low');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
+		const stream = new MockChatResponseStream();
+
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+
+		expect(mockService.lastQueryOptions?.effort).toBe('low');
+	});
+
+	it('does not include effort in SDK options when reasoning effort is not set', async () => {
+		const serverConfig = { port: 8080, nonce: 'test-nonce' };
+		const mockServer = createMockLangModelServer();
+		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
+
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
+		const stream = new MockChatResponseStream();
+
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+
+		expect(mockService.lastQueryOptions?.effort).toBeUndefined();
+	});
+
+	it('restarts session when effort level changes', async () => {
+		const serverConfig = { port: 8080, nonce: 'test-nonce' };
+		const mockServer = createMockLangModelServer();
+		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
+		mockService.queryCallCount = 0;
+
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
+
+		// First request with no effort
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream1, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		// Change effort level
+		sessionStateService.setReasoningEffortForSession('test-session', 'high');
+
+		// Second request should restart session (new query created)
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello again'), {} as vscode.ChatParticipantToolToken, stream2, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(2);
+	});
+
+	it('does not restart session when effort level is unchanged', async () => {
+		const serverConfig = { port: 8080, nonce: 'test-nonce' };
+		const mockServer = createMockLangModelServer();
+		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
+		mockService.queryCallCount = 0;
+
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		sessionStateService.setReasoningEffortForSession('test-session', 'medium');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
+
+		// First request
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream1, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		// Second request with same effort level
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello again'), {} as vscode.ChatParticipantToolToken, stream2, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+	});
 });
 
 describe('ClaudeAgentManager - error handling', () => {

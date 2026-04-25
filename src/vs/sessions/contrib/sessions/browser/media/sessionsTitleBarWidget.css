@@ -10,31 +10,18 @@
 }
 
 .agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
-	position: relative;
-	margin-left: 8px;
-	padding-left: 12px;
-}
-
-.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	top: 50%;
-	width: 1px;
-	height: 16px;
-	transform: translateY(-50%);
-	background-color: var(--vscode-commandCenter-border);
-	pointer-events: none;
+	margin-left: 0;
 }
 
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 100%;
+	flex: 1;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	min-width: 0;
+	margin-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -45,7 +32,7 @@
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
-	padding-left: 0;
+	margin-left: 0;
 }
 
 /* Session pill - clickable area for session picker */
@@ -118,12 +105,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	opacity: 0.7;
-}
-
-/* Dot separator */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	opacity: 0.5;
-	flex-shrink: 0;
 }
 
 /* Provider label (shown for untitled sessions) */

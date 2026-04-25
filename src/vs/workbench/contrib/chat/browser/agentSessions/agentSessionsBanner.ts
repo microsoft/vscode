@@ -10,7 +10,8 @@ import { ICommandService, CommandsRegistry } from '../../../../../platform/comma
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
-const OPEN_AGENTS_WINDOW_COMMAND = 'workbench.action.openAgentsWindow';
+import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+
 
 type AgentsBannerClickedEvent = {
 	source: string;
@@ -36,7 +37,7 @@ export interface IAgentsBannerResult {
  */
 export function canShowAgentsBanner(productService: IProductService): boolean {
 	return productService.quality !== 'stable'
-		&& !!CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND);
+		&& !!CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND_ID);
 }
 
 export interface IAgentsBannerOptions {
@@ -71,7 +72,7 @@ export function createAgentsBanner(
 	disposables.add(addDisposableListener(button, 'click', () => {
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND, { forceNewWindow: true });
+		commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND_ID, { forceNewWindow: true });
 	}));
 
 	const element = $(`.${options.cssClass}`, {}, button);

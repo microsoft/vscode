@@ -9,6 +9,7 @@ import { AGENT_FILE_EXTENSION } from '../../../platform/customInstructions/commo
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { AgentConfig, AgentHandoff, buildAgentMarkdown, DEFAULT_READ_TOOLS } from './agentTypes';
 
@@ -22,10 +23,8 @@ const BASE_PLAN_AGENT_CONFIG: AgentConfig = {
 	argumentHint: 'Outline the goal or problem to research',
 	target: 'vscode',
 	disableModelInvocation: true,
-	agents: ['Explore'],
 	tools: [
 		...DEFAULT_READ_TOOLS,
-		'agent',
 	],
 	handoffs: [], // Handoffs are generated dynamically in buildCustomizedConfig
 	body: '' // Body is generated dynamically in buildCustomizedConfig
@@ -52,6 +51,7 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@ILogService private readonly logService: ILogService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super();
 
@@ -63,7 +63,9 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 			if (e.affectsConfiguration(ConfigKey.PlanAgentAdditionalTools.fullyQualifiedId) ||
 				e.affectsConfiguration(ConfigKey.Deprecated.PlanAgentModel.fullyQualifiedId) ||
 				e.affectsConfiguration('chat.planAgent.defaultModel') ||
-				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId)) {
+				e.affectsConfiguration(ConfigKey.ImplementAgentModel.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.ExploreAgentEnabled.fullyQualifiedId) ||
+				e.affectsConfiguration(ConfigKey.Advanced.SearchSubagentToolEnabled.fullyQualifiedId)) {
 				this._onDidChangeCustomAgents.fire();
 			}
 		}));
@@ -103,12 +105,27 @@ export class PlanAgentProvider extends Disposable implements vscode.ChatCustomAg
 		return fileUri;
 	}
 
-	static buildAgentBody(): string {
-		const discoverySection = `## 1. Discovery
+	static buildAgentBody(exploreEnabled: boolean, searchSubagentEnabled: boolean): string {
+		let discoverySection: string;
+		if (exploreEnabled) {
+			discoverySection = `## 1. Discovery
 
 Run the *Explore* subagent to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 *Explore* subagents in parallel** — one per area — to speed up discovery.
 
 Update the plan with your findings.`;
+		} else if (searchSubagentEnabled) {
+			discoverySection = `## 1. Discovery
+
+Use #tool:searchSubagent to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities. When the task spans multiple independent areas (e.g., frontend + backend, different features, separate repos), launch **2-3 search subagents in parallel** — one per area — to speed up discovery.
+
+Update the plan with your findings.`;
+		} else {
+			discoverySection = `## 1. Discovery
+
+Search the codebase to gather context, analogous existing features to use as implementation templates, and potential blockers or ambiguities.
+
+Update the plan with your findings.`;
+		}
 
 		return `You are a PLANNING AGENT, pairing with the user to create a detailed, actionable plan.
 
@@ -197,6 +214,8 @@ Rules:
 
 	private buildCustomizedConfig(): AgentConfig {
 		const additionalTools = this.configurationService.getConfig(ConfigKey.PlanAgentAdditionalTools);
+		const isExploreEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, this.experimentationService);
+		const isSearchSubagentEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, this.experimentationService);
 		const coreDefaultModel = this.configurationService.getNonExtensionConfig<string>('chat.planAgent.defaultModel');
 		const modelOverride = coreDefaultModel || this.configurationService.getConfig(ConfigKey.Deprecated.PlanAgentModel);
 
@@ -225,6 +244,11 @@ Rules:
 		// Always include askQuestions tool (now provided by core)
 		toolsToAdd.push('vscode/askQuestions');
 
+		// When explore agent is enabled, include the 'agent' tool to allow sub-agent calls
+		if (isExploreEnabled) {
+			toolsToAdd.push('agent');
+		}
+
 		// Merge additional tools (deduplicated)
 		const tools = toolsToAdd.length > 0
 			? [...new Set([...BASE_PLAN_AGENT_CONFIG.tools, ...toolsToAdd])]
@@ -233,9 +257,11 @@ Rules:
 		// Start with base config
 		return {
 			...BASE_PLAN_AGENT_CONFIG,
+			// When explore agent is enabled, allow the Explore subagent
+			...(isExploreEnabled ? { agents: ['Explore'] } : {}),
 			tools,
 			handoffs: [startImplementationHandoff, openInEditorHandoff, ...(BASE_PLAN_AGENT_CONFIG.handoffs ?? [])],
-			body: PlanAgentProvider.buildAgentBody(),
+			body: PlanAgentProvider.buildAgentBody(isExploreEnabled, isSearchSubagentEnabled),
 			...(modelOverride ? { model: modelOverride } : {}),
 		};
 	}

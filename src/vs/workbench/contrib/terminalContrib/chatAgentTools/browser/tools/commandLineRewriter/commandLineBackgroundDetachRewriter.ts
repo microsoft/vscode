@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { isPowerShell } from '../../runInTerminalHelpers.js';
+import { isFish, isPowerShell } from '../../runInTerminalHelpers.js';
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 /**
@@ -46,11 +46,57 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	}
 
 	private _rewriteForPosix(options: ICommandLineRewriterOptions): ICommandLineRewriterResult {
+		const trimmed = options.commandLine.trimEnd();
+
+		// nohup only accepts a simple external command as its argument — it cannot exec
+		// compound statements (for/while/if/case) or shell builtins (eval/set/export/source).
+		// Wrap those in `<shell> -c '...'` so the whole construct runs as a single executable.
+		let commandToWrap = trimmed;
+		if (this._needsShellCWrapper(trimmed)) {
+			if (isFish(options.shell, options.os)) {
+				// Fish does not support the POSIX '\'' escape inside single-quoted strings.
+				// Use a double-quoted string and escape backslash and double-quote instead.
+				const escaped = trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+				commandToWrap = `${options.shell} -c "${escaped}"`;
+			} else {
+				// bash/zsh: escape single quotes for use inside a single-quoted shell -c '...' string.
+				const escaped = trimmed.replace(/'/g, `'\\''`);
+				commandToWrap = `${options.shell} -c '${escaped}'`;
+			}
+		}
+
+		// If the command already ends with a single trailing `&` (background operator,
+		// as opposed to `&&` for command chaining), don't append another one.
+		const endsWithBackgroundAmp = /(?:^|[^&])&$/.test(commandToWrap);
+		const rewritten = endsWithBackgroundAmp
+			? `nohup ${commandToWrap}`
+			: `nohup ${commandToWrap} &`;
 		return {
-			rewritten: `nohup ${options.commandLine} &`,
+			rewritten,
 			reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 			forDisplay: options.commandLine,
 		};
+	}
+
+	/**
+	 * Returns true when the command uses shell compound constructs or builtins that
+	 * `nohup` cannot exec directly. Such commands must be wrapped in `<shell> -c '...'` before
+	 * being passed to nohup.
+	 */
+	private _needsShellCWrapper(commandLine: string): boolean {
+		const trimmed = commandLine.trimStart();
+		return (
+			// Bash compound command keywords — syntax constructs that are not executables.
+			/^(for|while|until|if|case|select|function)\b/.test(trimmed) ||
+			// Shell builtins — these only run meaningfully inside the current shell; nohup
+			// cannot exec them (eval, set, export, source, unset, declare, etc.).
+			/^(eval|set|export|source|unset|declare|typeset|local|readonly|alias)\b/.test(trimmed) ||
+			// `. file` (dot-source builtin). Exclude `./script` (relative path) by requiring
+			// whitespace after the dot.
+			/^\.\s/.test(trimmed) ||
+			// Compound groupings: subshell `( ... )` or brace group `{ ...; }`.
+			/^[{(]/.test(trimmed)
+		);
 	}
 
 	private _rewriteForPowerShell(options: ICommandLineRewriterOptions): ICommandLineRewriterResult | undefined {

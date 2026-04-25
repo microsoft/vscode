@@ -58,6 +58,7 @@ import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/c
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../../chatSessions/claude/node/claudeCodeSdkService';
 import { ClaudeRuntimeDataService } from '../../chatSessions/claude/node/claudeRuntimeDataService';
+import { IClaudePluginService } from '../../chatSessions/claude/node/claudeSkills';
 import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { ClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
 import { MockClaudeCodeSdkService } from '../../chatSessions/claude/node/test/mockClaudeCodeSdkService';
@@ -167,7 +168,16 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
 	testingServiceCollection.define(IAutomodeService, new SyncDescriptor(NullAutomodeService));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
+	testingServiceCollection.define(IClaudePluginService, new NullClaudePluginService());
 	return testingServiceCollection;
+}
+
+class NullClaudePluginService implements IClaudePluginService {
+	declare readonly _serviceBrand: undefined;
+
+	async getPluginLocations(): Promise<never[]> {
+		return [];
+	}
 }
 
 class NullSimilarFilesContextService implements ISimilarFilesContextService {

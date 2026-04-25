@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
+import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string) {
@@ -61,7 +63,18 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
 
-	test('rejects non-Claude models', () => {
+	test('supports OpenAI gpt-5.4 models when the setting is enabled', () => {
+		const configurationService = {
+			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
+		} as unknown as IConfigurationService;
+		const experimentationService = {} as IExperimentationService;
+
+		expect(modelSupportsToolSearch('gpt-5.4', configurationService, experimentationService)).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.4')).toBe(false);
+	});
+
+	test('rejects other non-Claude models', () => {
 		expect(modelSupportsToolSearch('gpt-5')).toBe(false);
 		expect(modelSupportsToolSearch('gemini-2.5-pro')).toBe(false);
 		expect(modelSupportsToolSearch('o4-mini')).toBe(false);

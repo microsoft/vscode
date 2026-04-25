@@ -84,9 +84,11 @@ export interface ISessionsProvider {
 
 	/**
 	 * Resolve a workspace for the given repository URI.
+	 * Returns `undefined` when the provider cannot handle the given URI
+	 * (e.g. wrong scheme or authority).
 	 * @param repositoryUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
 
 	/**
 	 * Create a new session for the given repository URI.

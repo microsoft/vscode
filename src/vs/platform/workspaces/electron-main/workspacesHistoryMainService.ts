@@ -252,7 +252,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -269,8 +269,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Wait for global storage to be ready
 		await this.applicationStorageMainService.whenReady;
 
-		// Store in global storage (but do not sync since this is mainly local paths)
-		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		// Store in application shared storage (but do not sync since this is mainly local paths)
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {

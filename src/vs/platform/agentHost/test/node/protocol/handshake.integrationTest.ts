@@ -8,8 +8,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import {
 	JSON_RPC_PARSE_ERROR,
-	type IInitializeResult,
-	type IJsonRpcErrorResponse,
+	type InitializeResult,
+	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
 import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
 
@@ -40,7 +40,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 	test('handshake returns initialize response with protocol version', async function () {
 		this.timeout(5_000);
 
-		const result = await client.call<IInitializeResult>('initialize', {
+		const result = await client.call<InitializeResult>('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: 'test-handshake',
 			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
@@ -60,7 +60,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		const responsePromise = raw.waitForRawMessage();
 		raw.sendRaw('this is not valid json{{{');
 
-		const response = await responsePromise as IJsonRpcErrorResponse;
+		const response = await responsePromise as JsonRpcErrorResponse;
 		assert.strictEqual(response.jsonrpc, '2.0');
 		assert.strictEqual(response.id, null);
 		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);

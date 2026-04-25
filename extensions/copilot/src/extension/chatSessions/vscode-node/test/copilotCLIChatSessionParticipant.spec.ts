@@ -14,8 +14,7 @@ import { NullNativeEnvService } from '../../../../platform/env/common/nullEnvSer
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
-import { IGithubRepositoryService, IOctoKitService } from '../../../../platform/github/common/githubService';
-import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -49,7 +48,6 @@ import { IChatDelegationSummaryService } from '../../copilotcli/common/delegatio
 import { type CopilotCLIModelInfo, type ICopilotCLIModels, type ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
 import { CopilotCLISession, CopilotCLISessionInput } from '../../copilotcli/node/copilotcliSession';
-import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIMCPHandler } from '../../copilotcli/node/mcpHandler';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from '../../copilotcli/node/test/testHelpers';
@@ -190,7 +188,7 @@ class FakeChatSessionWorktreeCheckpointService extends mock<IChatSessionWorktree
 }
 
 
-class FakeModels implements ICopilotCLIModels {
+class FakeModels {
 	_serviceBrand: undefined;
 	resolveModel = vi.fn(async (modelId: string) => modelId);
 	getDefaultModel = vi.fn(async () => 'base');
@@ -394,7 +392,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), new MockAuthenticationService(), new class extends mock<IGithubRepositoryService>() { }(), new class extends mock<IFetcherService>() { }());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any);
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
@@ -416,7 +414,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			workspaceService,
 			logService,
 			tools,
-			fileSystem
+			fileSystem,
+			new MockChatSessionMetadataStore()
 		);
 
 		instantiationService = accessor.get(IInstantiationService);
@@ -462,13 +461,11 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const authInfo = await sdk.getAuthInfo();
 		expect(cliSessions.length).toBe(0);
 
-		const result = await participant.createHandler()(request, context, stream, token);
+		await participant.createHandler()(request, context, stream, token);
 
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests.length).toBe(1);
 		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], model: { model: 'base' }, authInfo, token });
-		// Result includes the model used so it can be rendered as a footer detail.
-		expect(result).toEqual({ details: 'Base' });
 	});
 
 	it('uses worktree workingDirectory when isolation is enabled for a new untitled session', async () => {

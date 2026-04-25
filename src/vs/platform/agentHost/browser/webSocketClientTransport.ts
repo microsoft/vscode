@@ -9,7 +9,7 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { IAhpServerNotification, IJsonRpcResponse, IProtocolMessage } from '../common/state/sessionProtocol.js';
+import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
@@ -22,7 +22,7 @@ import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from
  */
 export class WebSocketClientTransport extends Disposable implements IClientTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -34,6 +34,9 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	private _ws: WebSocket | undefined;
 	private _malformedFrames = 0;
 
+	/** Guards against firing onClose more than once. */
+	private _closeFired = false;
+
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
 	}
@@ -42,6 +45,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 		private readonly _address: string,
 		private readonly _connectionToken?: string,
 	) {
+		// TODO: @osortega remove console.logs
 		super();
 	}
 
@@ -114,9 +118,9 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 					return;
 				}
 				const text = event.data;
-				let message: IProtocolMessage;
+				let message: ProtocolMessage;
 				try {
-					message = JSON.parse(text) as IProtocolMessage;
+					message = JSON.parse(text) as ProtocolMessage;
 				} catch (err) {
 					this._malformedFrames++;
 					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
@@ -138,20 +142,44 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 			});
 
 			ws.addEventListener('close', () => {
-				this._onClose.fire();
+				if (!this._closeFired) {
+					this._closeFired = true;
+					this._onClose.fire();
+				}
 			});
 
 			ws.addEventListener('error', () => {
 				// Error always precedes close - closing is handled in the close handler.
-				this._onClose.fire();
+				// Only fire if close hasn't already been fired (e.g. from send failure).
+				if (!this._closeFired) {
+					this._closeFired = true;
+					this._onClose.fire();
+				}
 			});
 		});
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	/**
+	 * Send a message to the remote end. Returns `true` if the message was
+	 * sent, `false` if it was dropped (socket not open). On failure, the
+	 * transport is force-closed so reconnection is triggered immediately
+	 * rather than silently losing messages.
+	 */
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): boolean {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify(message));
+			return true;
 		}
+		console.warn(
+			`[WebSocketClientTransport] Message dropped: readyState=${this._ws?.readyState ?? 'no-socket'}`
+		);
+		// Force-close and fire onClose exactly once to trigger reconnection
+		this._ws?.close(4001, 'send-on-dead-socket');
+		if (!this._closeFired) {
+			this._closeFired = true;
+			this._onClose.fire();
+		}
+		return false;
 	}
 
 	override dispose(): void {

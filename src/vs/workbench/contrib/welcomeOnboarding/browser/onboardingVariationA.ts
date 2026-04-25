@@ -979,18 +979,13 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			? ['\u2318', '\u2303', 'I']  // Cmd+Control+I
 			: ['Ctrl', 'Alt', 'I'];
 		const shortcut = keys.map(k => this._createKbd(k));
-		el.append(
-			localize('onboarding.step.agentSessions.subtitle.before', "Tip: Press "),
-		);
+		el.append(localize('onboarding.step.agentSessions.subtitle.before', "Open Chat anytime with "));
 		for (let i = 0; i < shortcut.length; i++) {
 			if (i > 0) {
-				el.append(' + ');
+				el.append('+');
 			}
 			el.append(shortcut[i]);
 		}
-		el.append(
-			localize('onboarding.step.agentSessions.subtitle.after', " to open Chat"),
-		);
 	}
 
 	private _renderAgentSessionsStep(container: HTMLElement): void {
@@ -998,27 +993,37 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
-		this._createFeatureCard(features, Codicon.deviceDesktop,
-			localize('onboarding.sessions.local', "Local"),
-			localize('onboarding.sessions.local.desc', "Run agents interactively in the editor with full access to your workspace, tools, and terminal. Best for hands-on work where you want to review changes as they happen."));
+		// Group 1: Chat modes — Plan / Agent / Ask
+		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
+		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
+		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Choose Your Agent");
+		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-3'));
 
-		this._createFeatureCard(features, Codicon.cloud,
-			localize('onboarding.sessions.cloud', "Cloud"),
-			localize('onboarding.sessions.cloud.desc', "Delegate tasks to a cloud agent that creates a branch, implements changes, and opens a pull request. The agent continues working even if you close VS Code."));
+		this._createFeatureCard(chatGrid, Codicon.listOrdered,
+			localize('onboarding.sessions.planMode', "Plan"),
+			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an implementation agent to execute."));
 
-		this._createFeatureCard(features, Codicon.worktree,
-			localize('onboarding.sessions.worktree', "Copilot CLI"),
-			localize('onboarding.sessions.worktree.desc', "Run agents autonomously in an isolated worktree on your machine. Work on something else while the agent builds, tests, and iterates in the background."));
+		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
+			localize('onboarding.sessions.agentMode', "Agent"),
+			localize('onboarding.sessions.agentMode.desc', "Describe a goal. The agent plans the approach, edits files, runs commands, and self-corrects. You review and approve along the way."));
 
-		const inlineDesc = this._createFeatureCard(features, Codicon.sparkle,
-			localize('onboarding.sessions.inline', "Inline Suggestions"));
-		inlineDesc.append(
-			localize('onboarding.sessions.inline.desc1', "As you type, AI suggests completions and next edit predictions inline. Press "),
-			this._createKbd(localize('onboarding.sessions.inline.tab', "Tab")),
-			localize('onboarding.sessions.inline.desc2', " to accept or "),
-			this._createKbd(localize('onboarding.sessions.inline.esc', "Esc")),
-			localize('onboarding.sessions.inline.desc3', " to dismiss."),
-		);
+		this._createFeatureCard(chatGrid, Codicon.comment,
+			localize('onboarding.sessions.askMode', "Ask"),
+			localize('onboarding.sessions.askMode.desc', "Ask questions about your code or technical concepts and get answers grounded in your codebase."));
+
+		// Group 2: ways to run and customize agents beyond the default Chat experience
+		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
+		const moreLabel = append(moreGroup, $('div.onboarding-a-sessions-group-label'));
+		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents That Work Your Way");
+		const moreGrid = append(moreGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
+
+		this._createFeatureCard(moreGrid, Codicon.rocket,
+			localize('onboarding.sessions.runAnywhere', "Run Agents Anywhere"),
+			localize('onboarding.sessions.runAnywhere.desc', "Run agents locally for interactive work, in the background with Copilot CLI, or in the cloud with cloud agents that open a pull request your team can review."));
+
+		this._createFeatureCard(moreGrid, Codicon.settingsGear,
+			localize('onboarding.sessions.customize', "Customize Your Agents"),
+			localize('onboarding.sessions.customize.desc', "Tailor Copilot to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
 
 		// Tutorial link at bottom of content, above footer
 		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));

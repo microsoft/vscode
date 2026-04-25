@@ -19,7 +19,7 @@ import { IEditorWorkerService } from '../../../../../../editor/common/services/e
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { FileEditKind, ToolCallStatus, type IToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { EditorActivation } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -183,7 +183,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		}
 	}
 
-	addToolCallEdits(requestId: string, tc: IToolCallState): IChatProgress[] {
+	addToolCallEdits(requestId: string, tc: ToolCallState): IChatProgress[] {
 		if (tc.status !== ToolCallStatus.Completed) {
 			return [];
 		}

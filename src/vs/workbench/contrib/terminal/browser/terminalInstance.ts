@@ -69,7 +69,7 @@ import { TerminalWidgetManager } from './widgets/widgetManager.js';
 import { LineDataEventAddon } from './xterm/lineDataEventAddon.js';
 import { XtermTerminal, getXtermScaledDimensions } from './xterm/xtermTerminal.js';
 import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
+import { ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
@@ -162,7 +162,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
-	private _skipTerminalCommands: string[];
 	private _shellType: TerminalShellType | undefined;
 	private _agentShellTypeFromSequence: GeneralShellType | undefined;
 	private _title: string = '';
@@ -413,7 +412,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._widgetManager = this._register(instantiationService.createInstance(TerminalWidgetManager));
 
-		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
@@ -1149,7 +1147,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// keyboard protocol, xterm.js encodes Meta-modified keys as CSI u sequences and
 			// consumes them via preventDefault. The (non-kitty) traditional xterm.js handler already skips
 			// Meta keys so they bubble up naturally, but the kitty handler does not.
-			if (!this._terminalConfigurationService.config.sendKeybindingsToShell && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && (event.metaKey || this._skipTerminalCommands.some(k => k === resolveResult.commandId))) {
+			if (!this._terminalConfigurationService.config.sendKeybindingsToShell && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && (event.metaKey || this._terminalConfigurationService.shouldCommandSkipShell(resolveResult.commandId))) {
 				event.preventDefault();
 				return false;
 			}
@@ -1947,7 +1945,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	updateConfig(): void {
-		this._setCommandsToSkipShell(this._terminalConfigurationService.config.commandsToSkipShell);
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 
@@ -1957,13 +1954,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	updateAccessibilitySupport(): void {
 		this.xterm!.raw.options.screenReaderMode = this._accessibilityService.isScreenReaderOptimized();
-	}
-
-	private _setCommandsToSkipShell(commands: string[]): void {
-		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
-		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
-			return !excludeCommands.includes(defaultCommand);
-		}).concat(commands);
 	}
 
 	layout(dimension: dom.Dimension): void {

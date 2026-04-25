@@ -480,7 +480,7 @@ export interface ISearchConfigurationProperties {
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
-	search: ISearchConfigurationProperties;
+	search?: ISearchConfigurationProperties;
 	editor: {
 		wordSeparators: string;
 	};

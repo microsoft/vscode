@@ -564,6 +564,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				items: { type: 'string' },
 				default: []
 			},
+			allowRead: {
+				type: 'array',
+				description: localize('agentSandbox.linuxFileSystemSetting.allowRead', "Array of paths to re-allow read access within denied regions. Takes precedence over denyRead."),
+				items: { type: 'string' },
+				default: []
+			},
 			allowWrite: {
 				type: 'array',
 				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
@@ -579,6 +585,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		default: {
 			denyRead: [],
+			allowRead: [],
 			allowWrite: ['.'],
 			denyWrite: []
 		},
@@ -592,6 +599,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			denyRead: {
 				type: 'array',
 				description: localize('agentSandbox.macFileSystemSetting.denyRead', "Array of paths to deny read access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowRead: {
+				type: 'array',
+				description: localize('agentSandbox.macFileSystemSetting.allowRead', "Array of paths to re-allow read access within denied regions. Takes precedence over denyRead."),
 				items: { type: 'string' },
 				default: []
 			},
@@ -610,6 +623,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		default: {
 			denyRead: [],
+			allowRead: [],
 			allowWrite: ['.'],
 			denyWrite: []
 		},

@@ -20,7 +20,7 @@ import { LogLevel } from '../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -148,6 +148,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,
 					source: extensionId,
+					order: McpCollectionSortOrder.Extension,
 					resolveServerLanch: collection.canResolveLaunch ? (async def => {
 						const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 						return r ? McpServerLaunch.fromSerialized(r) : undefined;

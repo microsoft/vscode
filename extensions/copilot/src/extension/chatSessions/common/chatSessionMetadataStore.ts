@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import type { Uri } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ChatSessionWorktreeProperties } from './chatSessionWorktreeService';
 import type { IWorkspaceInfo } from './workspaceInfo';
@@ -118,9 +117,7 @@ export interface IChatSessionMetadataStore {
 	storeWorkspaceFolderInfo(sessionId: string, entry: WorkspaceFolderEntry): Promise<void>;
 	storeRepositoryProperties(sessionId: string, properties: RepositoryProperties): Promise<void>;
 	getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined>;
-	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
 	getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined>;
 	getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]>;
@@ -147,4 +144,13 @@ export interface IChatSessionMetadataStore {
 	 * on demand. Concurrent calls collapse: at most one in-flight + one pending.
 	 */
 	refresh(): Promise<void>;
+	/**
+	 * Returns session IDs whose working directory (worktree path or workspace folder)
+	 * matches the given folder URI.
+	 */
+	getSessionIdsForFolder(folder: vscode.Uri): string[];
+	/**
+	 * Returns session IDs that have a worktree whose path matches the given folder URI.
+	 */
+	getWorktreeSessions(folder: vscode.Uri): string[];
 }

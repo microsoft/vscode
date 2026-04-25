@@ -7,9 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type ISessionState } from '../../common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type SessionState } from '../../common/state/sessionState.js';
 
-function makeSession(): ISessionState {
+function makeSession(): SessionState {
 	return {
 		summary: {
 			resource: 'copilot:/test',
@@ -25,7 +25,7 @@ function makeSession(): ISessionState {
 	};
 }
 
-function withActiveTurnAndToolCall(state: ISessionState): ISessionState {
+function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	state = sessionReducer(state, {
 		type: ActionType.SessionTurnStarted,
 		session: 'copilot:/test',

@@ -811,7 +811,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -869,7 +869,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -901,6 +901,7 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
+					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
@@ -947,7 +948,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -1039,7 +1040,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'github-agent',
@@ -1157,7 +1158,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'copilot-agent',
@@ -1259,7 +1260,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'demonstrate',
@@ -1331,7 +1332,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'restricted-agent',
@@ -3286,6 +3287,112 @@ suite('PromptsService', () => {
 			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
 			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
+
+		test('should use folder name for contributed skill with missing name', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-no-name-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/my-skill/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'description: "A skill without a name"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'my-skill');
+			assert.ok(skill, 'Should find skill using folder name as fallback');
+			assert.strictEqual(skill.description, 'A skill without a name');
+
+			registered.dispose();
+		});
+
+		test('should accept contributed skill with missing description', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-no-desc-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/no-desc-skill/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'name: "no-desc-skill"',
+						'---',
+						'Skill content without description',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'no-desc-skill');
+			assert.ok(skill, 'Should find skill even without description');
+			assert.strictEqual(skill.description, undefined);
+
+			registered.dispose();
+		});
+
+		test('should override contributed skill name with folder name on mismatch', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-mismatch-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/actual-folder/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'name: "wrong-name"',
+						'description: "A skill with mismatched name"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'actual-folder');
+			assert.ok(skill, 'Should find skill using folder name instead of mismatched name');
+			assert.strictEqual(skill.description, 'A skill with mismatched name');
+
+			registered.dispose();
+		});
 	});
 
 	suite('getPromptSlashCommands - skills', () => {
@@ -3640,14 +3747,47 @@ suite('PromptsService', () => {
 
 			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
-			// Should include skill with fallback name from filename (SKILL without extension)
-			const fallbackNameCommand = slashCommands.find(cmd => cmd.name === 'SKILL');
-			assert.ok(fallbackNameCommand, 'Should find skill with fallback name from filename');
+			// Should include skill with fallback name from folder name
+			const fallbackNameCommand = slashCommands.find(cmd => cmd.name === 'no-name');
+			assert.ok(fallbackNameCommand, 'Should find skill with fallback name from folder name');
 			assert.strictEqual(fallbackNameCommand.description, 'Skill without name');
 
 			// Should include valid skill
 			const validSkillCommand = slashCommands.find(cmd => cmd.name === 'valid-skill');
 			assert.ok(validSkillCommand, 'Should find valid skill');
+		});
+
+		test('should use folder name as slash command name when frontmatter name differs', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'slash-commands-folder-name-override';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/test/SKILL.md`,
+					contents: [
+						'---',
+						'name: "foo"',
+						'description: "A skill with mismatched frontmatter name"',
+						'---',
+						'say hiya!',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const folderNameCommand = slashCommands.find(cmd => cmd.name === 'test');
+			assert.ok(folderNameCommand, 'Should find skill using folder name as slash command name');
+			assert.strictEqual(folderNameCommand.description, 'A skill with mismatched frontmatter name');
+
+			const frontmatterNameCommand = slashCommands.find(cmd => cmd.name === 'foo');
+			assert.strictEqual(frontmatterNameCommand, undefined, 'Should not find skill using frontmatter name');
 		});
 
 		test('should not duplicate slash commands with same name from different types', async () => {
@@ -4088,12 +4228,15 @@ suite('PromptsService', () => {
 
 			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
-			// Even when SKILL.md has name: "run-ci", it must be prefixed with the plugin name
-			const skillCommand = slashCommands.find(cmd => cmd.name === 'devtools:run-ci');
-			assert.ok(skillCommand, 'Plugin skill frontmatter name should be qualified with plugin prefix');
+			// Skill name is derived from folder name (ci), not frontmatter name (run-ci),
+			// and prefixed with the plugin name
+			const skillCommand = slashCommands.find(cmd => cmd.name === 'devtools:ci');
+			assert.ok(skillCommand, 'Plugin skill folder name should be qualified with plugin prefix');
 			assert.strictEqual(skillCommand.description, 'Run CI pipeline');
 
-			// The unprefixed name should not appear
+			// The frontmatter name should not appear
+			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'devtools:run-ci'), undefined,
+				'Frontmatter skill name should not appear as slash command');
 			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'run-ci'), undefined,
 				'Unprefixed skill name should not appear as slash command');
 

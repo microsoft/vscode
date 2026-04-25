@@ -32,8 +32,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { CustomizationHarness, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -763,12 +762,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					const sessionType = getChatSessionType(sessionResource);
-					const harnessId = sessionType === localChatSessionType
-						? CustomizationHarness.VSCode
-						: sessionType;
-					const available = harnessService.availableHarnesses.get();
-					if (available.some(h => h.id === harnessId)) {
-						harnessService.setActiveHarness(harnessId);
+					const harness = harnessService.findHarnessById(sessionType);
+					if (harness) {
+						harnessService.setActiveHarness(sessionType);
 					}
 				}
 

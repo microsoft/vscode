@@ -14,6 +14,7 @@ export interface ITerminalSandboxRuntimeConfig {
 	};
 	filesystem?: {
 		denyRead?: string[];
+		allowRead?: string[];
 		allowWrite?: string[];
 		denyWrite?: string[];
 	};

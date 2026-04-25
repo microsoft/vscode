@@ -14,15 +14,14 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, IConstructorSignature, BrandedService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { IBrowserEditorViewState, IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, IBrowserViewCertificateError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,10 +38,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
-import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -69,10 +67,10 @@ export abstract class BrowserEditorContribution extends Disposable {
 
 	constructor(protected readonly editor: BrowserEditor) {
 		super();
-		this._register(editor.onDidChangeModel(model => {
+		this._register(editor.onDidChangeModel(({ model, isNew }) => {
 			this._modelStore.clear();
 			if (model) {
-				this.subscribeToModel(model, this._modelStore);
+				this.subscribeToModel(model, this._modelStore, isNew);
 			} else {
 				this.clear();
 			}
@@ -82,7 +80,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called whenever the editor model changes to update state.
 	 */
-	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore): void { }
+	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
 
 	/**
 	 * Called when the model is cleared to reset state.
@@ -341,7 +339,10 @@ export class BrowserEditor extends EditorPane {
 
 	private _model: IBrowserViewModel | undefined;
 	get model(): IBrowserViewModel | undefined { return this._model; }
-	private readonly _onDidChangeModel = this._register(new Emitter<IBrowserViewModel | undefined>());
+	private readonly _onDidChangeModel = this._register(new Emitter<{
+		model: IBrowserViewModel | undefined;
+		isNew: boolean;
+	}>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	// -- State ----------------------------------------------------------
@@ -376,10 +377,17 @@ export class BrowserEditor extends EditorPane {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
+
+		// Be sure to hide the view when the workbench is reloading, as `clearInput()` may not be called.
+		this._register(this.lifecycleService.onWillShutdown((e) => {
+			if (e.reason === ShutdownReason.RELOAD) {
+				this._model?.setVisible(false);
+			}
+		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -534,24 +542,28 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
-		// Set initial navigation state from the input so that the UI is populated while the model is loading.
-		this.updateNavigationState({
-			url: input.url || '',
-			title: input.title || '',
-			canGoBack: false,
-			canGoForward: false,
-			certificateError: undefined
-		});
+		let model = input.model;
+		const isNew = !model;
+		if (!model) {
+			// Set initial navigation state from the input so that the UI is populated while the model is loading.
+			this.updateNavigationState({
+				url: input.url || '',
+				title: input.title || '',
+				canGoBack: false,
+				canGoForward: false,
+				certificateError: undefined
+			});
 
-		// Resolve the browser view model from the input
-		const model = await input.resolve();
+			// Resolve the browser view model from the input
+			model = await input.resolve();
+		}
 
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 
 		this._model = model;
-		this._onDidChangeModel.fire(model);
+		this._onDidChangeModel.fire({ model, isNew });
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -596,31 +608,6 @@ export class BrowserEditor extends EditorPane {
 				this._onDidFocus?.fire();
 				this.ensureBrowserFocus();
 			}
-		}));
-
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, url, location, position }) => {
-			logBrowserOpen(this.telemetryService, (() => {
-				switch (location) {
-					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
-					case BrowserNewPageLocation.Foreground: return 'browserLinkForeground';
-					case BrowserNewPageLocation.NewWindow: return 'browserLinkNewWindow';
-				}
-			})());
-
-			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
-			const viewState: IBrowserEditorViewState = { url };
-			this.editorService.openEditor({
-				resource: URI.revive(resource),
-				options: {
-					pinned: true,
-					inactive: location === BrowserNewPageLocation.Background,
-					auxiliary: {
-						bounds: position,
-						compact: true
-					},
-					viewState
-				}
-			}, targetGroup);
 		}));
 
 		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {
@@ -1027,12 +1014,18 @@ export class BrowserEditor extends EditorPane {
 	 * Recompute the layout of the browser container and update the model with the new bounds.
 	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	layoutBrowserContainer(retries = 2): void {
 		if (this._model) {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
 			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
+
+			// This can happen under certain conditions. Keep trying for a couple of frames to allow things to stabilize.
+			if ((containerRect.width === 0 || containerRect.height === 0) && retries > 0) {
+				this.window.requestAnimationFrame(() => this.layoutBrowserContainer(retries - 1));
+				return;
+			}
 
 			void this._model.layout({
 				windowId: this.group.windowId,
@@ -1055,7 +1048,7 @@ export class BrowserEditor extends EditorPane {
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
-		this._onDidChangeModel.fire(undefined);
+		this._onDidChangeModel.fire({ model: undefined, isNew: false });
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();

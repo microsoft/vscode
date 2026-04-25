@@ -29,7 +29,7 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference', "Your AI Style");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions', "Meet Your Agentic Coding Partner");
+			return localize('onboarding.step.agentSessions', "Build with AI Agents");
 	}
 }
 
@@ -45,7 +45,7 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions.subtitle', "Tip: Press {0} to open Chat", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
+			return localize('onboarding.step.agentSessions.subtitle', "Open Chat anytime with {0}", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
 	}
 }
 

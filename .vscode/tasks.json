@@ -45,9 +45,17 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
-				"pattern": "$tsc",
+				"source": "ts",
+				"pattern": {
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
+					"file": 1,
+					"location": 2,
+					"code": 3,
+					"message": 4
+				},
 				"background": {
 					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
@@ -71,7 +79,12 @@
 					"relative",
 					"${workspaceFolder}"
 				],
-				"pattern": "$tsc",
+				"pattern": {
+					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
 				"background": {
 					"beginsPattern": "Starting compilation",
 					"endsPattern": "Finished compilation"

@@ -437,4 +437,57 @@ suite('RemoteAgentHostService', () => {
 		assert.deepStrictEqual(configService.entries, []);
 		assert.strictEqual(service.connections.length, 0);
 	});
+
+	suite('addManagedConnection', () => {
+
+		// Build a transport disposable that records when it ran.
+		function makeTransportDisposable(): { disposable: { dispose(): void }; disposed: () => boolean } {
+			let disposed = false;
+			return {
+				disposable: { dispose: () => { disposed = true; } },
+				disposed: () => disposed,
+			};
+		}
+
+		// Inject a managed connection (mimicking the SSH/tunnel renderer flow).
+		async function addManaged(name: string, address: string, transport?: { dispose(): void }) {
+			const mockClient = disposables.add(new MockProtocolClient(`ws://${address}`));
+			return service.addManagedConnection(
+				{ name, connection: { type: RemoteAgentHostEntryType.WebSocket, address } },
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+				transport,
+			);
+		}
+
+		test('disposes transportDisposable when entry is removed via removeRemoteAgentHost', async () => {
+			const t = makeTransportDisposable();
+			await addManaged('Managed', 'managed:1234', t.disposable);
+			assert.strictEqual(t.disposed(), false);
+
+			await service.removeRemoteAgentHost('ws://managed:1234');
+
+			assert.strictEqual(t.disposed(), true, 'transport disposable runs when entry is removed');
+			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
+		});
+
+		test('disposes previous transportDisposable when entry is replaced', async () => {
+			const t1 = makeTransportDisposable();
+			await addManaged('Managed', 'managed:1234', t1.disposable);
+
+			const t2 = makeTransportDisposable();
+			await addManaged('Managed', 'managed:1234', t2.disposable);
+
+			assert.strictEqual(t1.disposed(), true, 'first transport disposable runs when entry is replaced');
+			assert.strictEqual(t2.disposed(), false, 'second transport disposable is still alive');
+		});
+
+		test('disposes transportDisposable when service itself is disposed', async () => {
+			const t = makeTransportDisposable();
+			await addManaged('Managed', 'managed:1234', t.disposable);
+
+			service.dispose();
+
+			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+	});
 });

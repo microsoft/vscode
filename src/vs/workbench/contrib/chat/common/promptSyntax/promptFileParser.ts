@@ -84,6 +84,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
+	export const context = 'context';
 }
 
 export class PromptHeader {
@@ -314,6 +315,10 @@ export class PromptHeader {
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	public get context(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.context);
 	}
 
 	/**

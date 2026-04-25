@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	CustomizationHarnessServiceBase,
-} from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 
 /**
  * Sessions-window override of the customization harness service.
@@ -15,7 +14,9 @@ import {
  * and AHP remote servers register directly via `registerExternalHarness()`.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
-	constructor() {
-		super([], '');
+	constructor(
+		@IPromptsService promptsService: IPromptsService
+	) {
+		super([], '', promptsService);
 	}
 }

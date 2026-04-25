@@ -15,8 +15,8 @@ import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/r
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { IToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -56,7 +56,7 @@ function makeToolCall(opts: {
 	afterURI: string;
 	added?: number;
 	removed?: number;
-}): IToolCallCompletedState {
+}): ToolCallCompletedState {
 	return {
 		status: ToolCallStatus.Completed,
 		toolCallId: opts.toolCallId,
@@ -196,7 +196,7 @@ suite('AgentHostEditingSession', () => {
 	test('addToolCallEdits ignores non-completed tool calls', () => {
 		const session = createSession(store, new Map());
 
-		const tc = { ...makeToolCall({ toolCallId: 'tc-1', filePath: '/f.ts', beforeURI: 'b', afterURI: 'a' }), status: ToolCallStatus.Running } as IToolCallState;
+		const tc = { ...makeToolCall({ toolCallId: 'tc-1', filePath: '/f.ts', beforeURI: 'b', afterURI: 'a' }), status: ToolCallStatus.Running } as ToolCallState;
 		session.addToolCallEdits('req-1', tc);
 
 		assert.strictEqual(session.state.get(), ChatEditingSessionState.Idle);

@@ -328,6 +328,28 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
+	// --- Claude provider: also uses worktree/repository path ---
+
+	test('creates a terminal at the worktree for a Claude session', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ worktree: worktreeUri, repository: URI.file('/repo'), providerType: AgentSessionProviders.Claude });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
+	});
+
+	test('falls back to repository when worktree is undefined for a Claude session', async () => {
+		const repoUri = URI.file('/repo');
+		const session = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Claude });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+	});
+
 	// --- Non-background providers: use home directory ---
 
 	test('uses home directory for a cloud agent session', async () => {
@@ -471,6 +493,7 @@ suite('SessionsTerminalContribution', () => {
 		const session = makeAgentSession({
 			isArchived: true,
 			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
 		});
 		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
@@ -503,13 +526,29 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
+	test('closes terminals when archived session has only a repository (no worktree)', async () => {
+		const repoUri = URI.file('/repo');
+		const session = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Background, isArchived: false });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+
+		const archivedSession = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Background, isArchived: true });
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1);
+	});
+
 	test('closes terminals when session is removed', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		assert.strictEqual(createdTerminals.length, 1);
 
-		const session = makeAgentSession({ worktree: worktreeUri });
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Background });
 		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 		await tick();
 

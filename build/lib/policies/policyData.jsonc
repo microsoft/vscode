@@ -69,6 +69,21 @@
             "included": false
         },
         {
+            "key": "chat.approvedAccountOrganizations",
+            "name": "ChatApprovedAccountOrganizations",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.118",
+            "localization": {
+                "description": {
+                    "key": "chat.approvedAccountOrganizations.policy.description",
+                    "value": "Setting this policy to a non-empty list activates the Approved Account gate: all AI features are disabled until the user signs into a GitHub account whose organizations intersect this list AND the account-side policy data has resolved. Comparison is case-insensitive. Use '*' as a wildcard to accept any signed-in GitHub or GHE account (use this for GHE deployments where the organization list is not surfaced)."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": false
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",

@@ -200,7 +200,7 @@ class CodeMain {
 		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService, productService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Use FileUserDataProvider for user data to

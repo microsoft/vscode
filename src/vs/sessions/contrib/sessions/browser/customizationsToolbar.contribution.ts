@@ -5,6 +5,7 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -12,6 +13,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -27,16 +29,18 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getSourceCounts, getSourceCountsTotal } from './customizationCounts.js';
+import { getSourceCounts, getSourceCountsTotal, getActiveItemProvider } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	readonly section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 	readonly promptType?: PromptsType;
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
@@ -47,36 +51,42 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		id: 'sessions.customization.agents',
 		label: localize('agents', "Agents"),
 		icon: agentIcon,
+		section: AICustomizationManagementSection.Agents,
 		promptType: PromptsType.agent,
 	},
 	{
 		id: 'sessions.customization.skills',
 		label: localize('skills', "Skills"),
 		icon: skillIcon,
+		section: AICustomizationManagementSection.Skills,
 		promptType: PromptsType.skill,
 	},
 	{
 		id: 'sessions.customization.instructions',
 		label: localize('instructions', "Instructions"),
 		icon: instructionsIcon,
+		section: AICustomizationManagementSection.Instructions,
 		promptType: PromptsType.instructions,
 	},
 	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
+		section: AICustomizationManagementSection.Hooks,
 		promptType: PromptsType.hook,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
 		label: localize('mcpServers', "MCP Servers"),
 		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
 		isMcp: true,
 	},
 	{
 		id: 'sessions.customization.plugins',
 		label: localize('plugins', "Plugins"),
 		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
 		isPlugins: true,
 	},
 ];
@@ -103,6 +113,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -153,6 +164,11 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
 		this._viewItemDisposables.add(autorun(reader => {
 			this._activeSessionService.activeSession.read(reader);
+			this._harnessService.availableHarnesses.read(reader);
+			const provider = getActiveItemProvider(this._activeSessionService, this._harnessService);
+			if (provider) {
+				reader.store.add(provider.onDidChange(() => this._updateCounts()));
+			}
 			this._updateCounts();
 		}));
 
@@ -168,16 +184,26 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}
 
 		const requestId = ++this._updateCountsRequestId;
+		const itemProvider = getActiveItemProvider(this._activeSessionService, this._harnessService);
 
 		if (this._config.promptType) {
-			const type = this._config.promptType;
-			const filter = this._workspaceService.getStorageSourceFilter(type);
-			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService, this._fileService);
-			if (requestId !== this._updateCountsRequestId) {
-				return;
+			if (itemProvider) {
+				const allItems = await itemProvider.provideChatSessionCustomizations(CancellationToken.None);
+				if (requestId !== this._updateCountsRequestId) {
+					return;
+				}
+				const total = allItems?.filter(item => item.type === this._config.promptType).length ?? 0;
+				this._renderTotalCount(this._countContainer, total);
+			} else {
+				const type = this._config.promptType;
+				const filter = this._workspaceService.getStorageSourceFilter(type);
+				const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService, this._fileService);
+				if (requestId !== this._updateCountsRequestId) {
+					return;
+				}
+				const total = getSourceCountsTotal(counts, filter);
+				this._renderTotalCount(this._countContainer, total);
 			}
-			const total = getSourceCountsTotal(counts, filter);
-			this._renderTotalCount(this._countContainer, total);
 		} else if (this._config.isMcp) {
 			const total = this._mcpService.servers.get().length;
 			this._renderTotalCount(this._countContainer, total);
@@ -231,8 +257,17 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
+					const harnessService = accessor.get(ICustomizationHarnessService);
+					const sessionsManagementService = accessor.get(ISessionsManagementService);
+					const activeSessionType = sessionsManagementService.activeSession.get()?.sessionType;
+					if (activeSessionType && harnessService.findHarnessById(activeSessionType)) {
+						harnessService.setActiveHarness(activeSessionType);
+					}
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					await editorService.openEditor(input, { pinned: true });
+					const pane = await editorService.openEditor(input, { pinned: true });
+					if (pane instanceof AICustomizationManagementEditor) {
+						pane.selectSectionById(config.section);
+					}
 				}
 			}));
 		}

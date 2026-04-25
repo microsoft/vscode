@@ -819,3 +819,112 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		expect(body.output_config).toEqual({ effort: 'low' });
 	});
 });
+
+describe('createMessagesRequestBody tool search deferral', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+
+	function createMockEndpoint(supportsToolSearch: boolean): IChatEndpoint {
+		return {
+			model: 'claude-sonnet-4.6',
+			family: 'claude-sonnet-4.6',
+			modelProvider: 'Anthropic',
+			maxOutputTokens: 8192,
+			modelMaxPromptTokens: 200000,
+			supportsToolCalls: true,
+			supportsVision: true,
+			supportsPrediction: false,
+			supportsToolSearch,
+			showInModelPicker: true,
+			isFallback: false,
+			name: 'test',
+			version: '1.0',
+			policy: 'enabled',
+			urlOrRequestMetadata: 'https://test.com',
+			tokenizer: 0,
+			isDefault: false,
+			processResponseFromChatEndpoint: () => { throw new Error('not implemented'); },
+			acceptChatPolicy: () => { throw new Error('not implemented'); },
+			makeChatRequest2: () => { throw new Error('not implemented'); },
+			createRequestBody: () => { throw new Error('not implemented'); },
+			cloneWithTokenOverride: () => { throw new Error('not implemented'); },
+			interceptBody: () => { },
+			getExtraHeaders: () => ({}),
+		} as unknown as IChatEndpoint;
+	}
+
+	function makeTool(name: string) {
+		return { type: 'function' as const, function: { name, description: `${name} tool`, parameters: { type: 'object', properties: {} } } };
+	}
+
+	function createOptions(tools: ReturnType<typeof makeTool>[]): ICreateEndpointBodyOptions {
+		return {
+			debugName: 'test',
+			requestId: 'test-request-id',
+			finishedCb: undefined,
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }],
+			}],
+			postOptions: { max_tokens: 8192 },
+			location: ChatLocation.Agent,
+			modelCapabilities: { enableToolSearch: true },
+			requestOptions: { tools },
+		} as ICreateEndpointBodyOptions;
+	}
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const services = disposables.add(createPlatformServices(disposables));
+		// Non-deferred allowlist matches production: core tools + tool_search itself.
+		const nonDeferred = new Set(['read_file', 'grep_search', CUSTOM_TOOL_SEARCH_NAME]);
+		services.define(IToolDeferralService, {
+			_serviceBrand: undefined,
+			isNonDeferredTool: (name: string) => nonDeferred.has(name),
+		});
+		const accessor = services.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+	});
+
+	test('does not set defer_loading when tool_search is not in the request tool list', () => {
+		// Repro for https://github.com/microsoft/vscode/issues/311946: a custom agent
+		// with `tools: ['my-mcp-server/*']` filters out tool_search. Without this gate,
+		// every MCP tool gets defer_loading=true and Anthropic rejects the request with
+		// "At least one tool must have defer_loading=false."
+		const endpoint = createMockEndpoint(true);
+		const options = createOptions([makeTool('some_mcp_tool'), makeTool('another_mcp_tool')]);
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		const tools = body.tools as AnthropicMessagesTool[];
+		expect(tools.every(t => !t.defer_loading)).toBe(true);
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
+		expect(tools.find(t => t.name === 'another_mcp_tool')).toBeDefined();
+	});
+
+	test('defers MCP tools when tool_search is in the request tool list', () => {
+		const endpoint = createMockEndpoint(true);
+		const options = createOptions([
+			makeTool('read_file'),
+			makeTool('some_mcp_tool'),
+			makeTool(CUSTOM_TOOL_SEARCH_NAME),
+		]);
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		const tools = body.tools as AnthropicMessagesTool[];
+		expect(tools.find(t => t.name === 'read_file')?.defer_loading).toBeUndefined();
+		expect(tools.find(t => t.name === CUSTOM_TOOL_SEARCH_NAME)?.defer_loading).toBeUndefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')?.defer_loading).toBe(true);
+	});
+
+	test('does not defer when endpoint does not support tool search', () => {
+		const endpoint = createMockEndpoint(false);
+		const options = createOptions([makeTool('read_file'), makeTool('some_mcp_tool'), makeTool(CUSTOM_TOOL_SEARCH_NAME)]);
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		const tools = body.tools as AnthropicMessagesTool[];
+		expect(tools.every(t => !t.defer_loading)).toBe(true);
+	});
+});

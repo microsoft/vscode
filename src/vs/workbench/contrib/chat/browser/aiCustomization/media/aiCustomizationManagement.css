@@ -208,10 +208,9 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	padding: 5px 8px;
+	padding: 3px 6px;
 	border: 1px solid var(--vscode-dropdown-border, transparent);
-	border-radius: 4px;
-	background: var(--vscode-dropdown-background);
+	border-radius: 6px;
 	color: var(--vscode-dropdown-foreground);
 	cursor: pointer;
 	font-size: 12px;
@@ -220,7 +219,6 @@
 
 .ai-customization-management-editor .harness-dropdown-button:hover {
 	background: var(--vscode-dropdown-background);
-	border-color: var(--vscode-focusBorder);
 }
 
 .ai-customization-management-editor .harness-dropdown-button:focus-visible {

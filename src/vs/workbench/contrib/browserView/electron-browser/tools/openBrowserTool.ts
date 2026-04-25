@@ -13,6 +13,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -49,6 +50,7 @@ export class OpenBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
@@ -84,7 +86,7 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existingResult = await getExistingPagesResult(this.editorService, this.playwrightService, params.url, { agentNetworkFilterService: this.agentNetworkFilterService });
+			const existingResult = await getExistingPagesResult(this.editorService, this.browserViewService, this.playwrightService, params.url, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (existingResult) {
 				return existingResult;
 			}

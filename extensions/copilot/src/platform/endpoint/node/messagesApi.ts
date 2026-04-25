@@ -101,7 +101,8 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
 
-	const toolSearchEnabled = !!endpoint.supportsToolSearch;
+	const toolSearchEnabled = !!endpoint.supportsToolSearch
+		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last

@@ -906,6 +906,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 				try {
 					const models = await provider.provideLanguageModelChatInfo({ group: group.name, silent, configuration }, CancellationToken.None);
 					if (models.length) {
+						// Provide a sensible default for `metadata.detail` so that
+						// multiple instances of the same vendor (e.g. multiple
+						// Ollama servers) are distinguishable in the model picker.
+						// Providers that supply their own `detail` keep it; when
+						// the provider does not set one, fall back to the user-
+						// configured group name.
+						for (let i = 0; i < models.length; i++) {
+							if (!models[i].metadata.detail) {
+								models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
+							}
+						}
 						allModels.push(...models);
 						languageModelsGroups.push({ group, modelIdentifiers: models.map(m => m.identifier) });
 					}

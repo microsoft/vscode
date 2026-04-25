@@ -8,8 +8,6 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InlineChatEditorAffordance } from '../../../../contrib/inlineChat/browser/inlineChatEditorAffordance.js';
-import { InlineChatInputWidget } from '../../../../contrib/inlineChat/browser/inlineChatOverlayWidget.js';
-import { IInlineChatHistoryService } from '../../../../contrib/inlineChat/browser/inlineChatHistoryService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -17,13 +15,15 @@ import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/acti
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
+
+
 // Register menu items
 import '../../../../contrib/inlineChat/browser/inlineChatActions.js';
 import '../../../../../editor/contrib/codeAction/browser/codeActionContributions.js';
 
 import '../../../../contrib/inlineChat/browser/media/inlineChatEditorAffordance.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
-import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
 
 const SAMPLE_CODE = `function greet(name: string): string {
 	return "Hello, " + name;
@@ -95,96 +95,9 @@ function renderInlineChatAffordance({ container, disposableStore, theme }: Compo
 	));
 }
 
-function renderInlineChatOverlay({ container, disposableStore, theme }: ComponentFixtureContext): void {
-	container.style.width = '500px';
-	container.style.height = '280px';
-	container.style.border = '1px solid var(--vscode-editorWidget-border)';
-
-	// Register fake menu items scoped to this fixture's lifetime
-	disposableStore.add(MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineMenu, {
-		group: '0_chat', order: 2, when: ChatContextKeys.enabled,
-		command: { id: 'workbench.action.chat.attachSelection', title: 'Add Selection to Chat' },
-	}));
-	disposableStore.add(MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineMenu, {
-		group: '1_actions', order: 1,
-		command: { id: 'inlineChat.explain', title: 'Explain' },
-	}));
-	disposableStore.add(MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineMenu, {
-		group: '1_actions', order: 2,
-		command: { id: 'inlineChat.review', title: 'Review' },
-	}));
-
-	const instantiationService = createEditorServices(disposableStore, {
-		colorTheme: theme,
-		additionalServices: (reg) => {
-			registerWorkbenchServices(reg);
-			reg.define(IContextKeyService, ContextKeyService);
-			reg.define(IMenuService, MenuService);
-			reg.definePartialInstance(IInlineChatHistoryService, {
-				_serviceBrand: undefined,
-				addToHistory: () => { },
-				previousValue: () => undefined,
-				nextValue: () => undefined,
-				isAtEnd: () => true,
-				replaceLast: () => { },
-				resetCursor: () => { },
-			});
-		},
-	});
-
-	const textModel = disposableStore.add(createTextModel(
-		instantiationService,
-		`const {
-	addCard,
-	updateCard,
-	deleteCard,
-	moveCard,
-	addLabel,
-	deleteLabel,
-	updateLabel,
-} = useAppState();
-
-return (
-	<div className="app-layout">`,
-		URI.parse('inmemory://inline-chat-overlay.tsx'),
-		'typescriptreact'
-	));
-
-	const editor = disposableStore.add(instantiationService.createInstance(
-		CodeEditorWidget,
-		container,
-		{
-			automaticLayout: true,
-			minimap: { enabled: false },
-			lineNumbers: 'on',
-			scrollBeyondLastLine: false,
-			fontSize: 14,
-			cursorBlinking: 'solid',
-		},
-		{ contributions: [] } satisfies ICodeEditorWidgetOptions
-	));
-
-	editor.setModel(textModel);
-
-	const contextKeyService = instantiationService.get(IContextKeyService);
-	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-	EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService).set(true);
-
-	editor.setSelection(new Selection(2, 1, 8, 15));
-	editor.focus();
-
-	const editorObs = observableCodeEditor(editor);
-	const inputWidget = disposableStore.add(instantiationService.createInstance(InlineChatInputWidget, editorObs));
-	inputWidget.show(8, 160, false, 'Describe how to change this');
-}
-
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	InlineChatAffordance: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderInlineChatAffordance(context, true),
-	}),
-	InlineChatOverlay: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (context) => renderInlineChatOverlay(context),
 	}),
 });

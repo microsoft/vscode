@@ -4,4 +4,3 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const SessionsExperimentalShellGradientBackgroundSettingId = 'sessions.experimental.shellGradientBackground';
-export const SessionsExperimentalSendButtonGradientSettingId = 'sessions.experimental.sendButtonGradient';

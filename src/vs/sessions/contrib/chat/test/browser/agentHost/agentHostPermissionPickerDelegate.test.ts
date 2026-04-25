@@ -10,7 +10,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IResolveSessionConfigResult, ISessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema } from '../../../browser/agentHost/agentHostPermissionPickerDelegate.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
@@ -21,7 +21,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../servi
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
 
-function makeWellKnownConfig(value: string | undefined): IResolveSessionConfigResult {
+function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigResult {
 	return {
 		schema: {
 			type: 'object',
@@ -36,7 +36,7 @@ function makeWellKnownConfig(value: string | undefined): IResolveSessionConfigRe
 			},
 		},
 		values: value === undefined ? {} : { autoApprove: value },
-	} as IResolveSessionConfigResult;
+	} as ResolveSessionConfigResult;
 }
 
 class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
@@ -44,10 +44,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
 
-	config: IResolveSessionConfigResult | undefined;
+	config: ResolveSessionConfigResult | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 
-	getSessionConfig(_sessionId: string): IResolveSessionConfigResult | undefined {
+	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
@@ -177,14 +177,14 @@ suite('AgentHostPermissionPickerDelegate', () => {
 suite('isWellKnownAutoApproveSchema', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function schema(overrides: Partial<ISessionConfigPropertySchema> = {}): ISessionConfigPropertySchema {
+	function schema(overrides: Partial<SessionConfigPropertySchema> = {}): SessionConfigPropertySchema {
 		return {
 			title: 'Auto Approve',
 			description: 'desc',
 			type: 'string',
 			enum: ['default', 'autoApprove', 'autopilot'],
 			...overrides,
-		} as ISessionConfigPropertySchema;
+		} as SessionConfigPropertySchema;
 	}
 
 	test('matches the canonical three-value enum', () => {

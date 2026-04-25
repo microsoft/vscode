@@ -42,6 +42,8 @@ export interface ISSHAgentHostConfig {
 	readonly sshConfigHost?: string;
 	/** Dev override: custom command to start the remote agent host instead of the default CLI. */
 	readonly remoteAgentHostCommand?: string;
+	/** When true, enables OpenSSH agent forwarding (auth-agent@openssh.com) for this connection. Requires {@link authMethod} to be Agent. */
+	readonly agentForward?: boolean;
 }
 
 /**
@@ -208,5 +210,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Resolves the SSH config alias, connects, and returns fresh
 	 * connection info with a new local forwarded port.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult>;
 }

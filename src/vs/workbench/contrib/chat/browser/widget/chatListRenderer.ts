@@ -1061,6 +1061,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
+		// Never show working progress while an unresolved plan review is in
+		// the response. The plan review widget surfaces its own "Plan review
+		// required" progress row and is blocking on user input, so a second
+		// working indicator below it is redundant. This must run before any
+		// settings/mode-driven branches so it applies regardless of
+		// persistent-progress / shimmer / progressMessageAtBottomOfResponse.
+		if (partsToRender.some(part => part.kind === 'planReview' && !part.isUsed)) {
+			return undefined;
+		}
+
 		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
 			&& this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
 		if (element.isComplete) {
@@ -1149,8 +1159,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart.isAttachedToThinking) {
 				return undefined;
 			}
+
+			const isEffectivelyHiddenToolInvocation = IChatToolInvocation.isEffectivelyHidden(lastPart);
 			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-			if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
+			if (!isEffectivelyHiddenToolInvocation && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
 				return undefined;
 			}
 		}
@@ -2224,7 +2236,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'questionCarousel') {
 				return this.renderQuestionCarousel(context, content, templateData);
 			} else if (content.kind === 'planReview') {
-				return this.renderPlanReview(context, content);
+				return this.renderPlanReview(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
 			} else if (content.kind === 'mcpServersStarting') {
@@ -2884,10 +2896,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// OS toast notification is handled by ChatWindowNotifier
 	}
 
-	private renderPlanReview(context: IChatContentPartRenderContext, review: IChatPlanReview): IChatContentPart {
+	private renderPlanReview(context: IChatContentPartRenderContext, review: IChatPlanReview, templateData: IChatListItemTemplate): IChatContentPart {
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const reviewKey = review.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
+
+		// A pending plan review blocks the agent on user input, so stop any
+		// active thinking part — parity with elicitation / question carousel.
+		this.finalizeCurrentThinkingPart(context, templateData);
 
 		const handleSubmit = (result: IChatPlanReviewResult) => {
 			review.data = result;
@@ -2898,23 +2914,80 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			widget?.input.clearPlanReview(undefined, reviewKey);
 		};
 
-		// Once the review has been answered (or the response is complete),
-		// render nothing in the chat stream. The docked widget was already
-		// removed from the input part when the user submitted, and we don't
-		// want a lingering summary in the response (parity with
-		// ChatToolConfirmationCarouselPart behaviour).
+		// Once the response is complete without a user response, mark the
+		// review as used and clear any docked widget. This matches the
+		// no-answer cancellation path in ChatToolConfirmationCarouselPart.
 		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
-		if (review.isUsed || responseIsComplete) {
-			if (responseIsComplete && !review.isUsed) {
-				review.isUsed = true;
-				if (review instanceof ChatPlanReviewData) {
-					review.completion.complete(undefined);
-				}
-				if (responseId) {
-					widget?.input.clearPlanReview(responseId);
-				}
+		if (responseIsComplete && !review.isUsed) {
+			review.isUsed = true;
+			if (review instanceof ChatPlanReviewData) {
+				review.completion.complete(undefined);
 			}
-			return this.renderNoContent(other => other.kind === 'planReview');
+			if (responseId) {
+				widget?.input.clearPlanReview(responseId);
+			}
+		}
+
+		// Build the inline progress message for the response stream. While
+		// pending, this is "Plan review required" with a spinner. Once the
+		// user has answered, it transitions to the action that was taken
+		// (e.g. "Approved plan", "Started implementation with autopilot"),
+		// and — when the user provided feedback — appends that feedback
+		// inline in the same progress row after a colon, collapsing
+		// whitespace so the transcript reads as a single line.
+		const renderProgress = (): IChatContentPart => {
+			const message = this.getPlanReviewProgressMessage(review);
+			if (!message) {
+				return this.renderNoContent(other => other.kind === 'planReview');
+			}
+			// Capture the used state at render time. `other` and `review`
+			// are typically the same mutable object, so comparing
+			// `other.isUsed` against `review.isUsed` would always match.
+			// Snapshotting here lets `hasSameContent` detect the
+			// pending → used transition and trigger a re-render.
+			const renderedAsUsed = !!review.isUsed;
+			const isPending = !renderedAsUsed;
+			const feedbackText = renderedAsUsed && !review.data?.rejected ? review.data?.feedback?.trim() : undefined;
+			const fullMessage = feedbackText
+				? localize('chat.planReview.feedbackInline', "{0}: {1}", message, feedbackText.replace(/\s+/g, ' '))
+				: message;
+			const content = new MarkdownString(undefined, { supportThemeIcons: true });
+			content.appendText(fullMessage);
+			const progressPart = this.instantiationService.createInstance(
+				ChatProgressContentPart,
+				{ content },
+				this.chatContentMarkdownRenderer,
+				context,
+				/* forceShowSpinner */ isPending,
+				/* forceShowMessage */ true,
+				/* icon */ isPending ? undefined : Codicon.check,
+				undefined,
+				/* shimmer */ isPending,
+			);
+			return {
+				domNode: progressPart.domNode,
+				dispose: () => progressPart.dispose(),
+				hasSameContent: (other, _followingContent, _element) => {
+					if (other.kind !== 'planReview') {
+						return false;
+					}
+					// Re-render when the used state flips so we transition
+					// from "Plan review required" to the final action label.
+					if (!!review.isUsed !== renderedAsUsed) {
+						return false;
+					}
+					if (review.resolveId && other.resolveId) {
+						return review.resolveId === other.resolveId;
+					}
+					return other === review;
+				},
+			};
+		};
+
+		// If the review has been answered (or the response is complete), the
+		// docked widget is gone. Render only the final progress line.
+		if (review.isUsed) {
+			return renderProgress();
 		}
 
 		// Dock the active review above the chat input (not while editing).
@@ -2931,20 +3004,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return fallbackPart;
 		}
 
-		// Return a placeholder. Re-render when the review is used/complete so
-		// we can transition to the no-content path above and drop the widget.
-		return this.renderNoContent((other, _followingContent, element) => {
-			if (review.isUsed || (isResponseVM(element) && element.isComplete)) {
-				return false;
-			}
-			if (other.kind === 'planReview') {
-				if (review.resolveId && other.resolveId) {
-					return review.resolveId === other.resolveId;
-				}
-				return other === review;
-			}
-			return false;
-		});
+		return renderProgress();
+	}
+
+	private getPlanReviewProgressMessage(review: IChatPlanReview): string | undefined {
+		if (!review.isUsed) {
+			return localize('chat.planReview.required', "Plan review required");
+		}
+		const result = review.data;
+		if (!result) {
+			return undefined;
+		}
+		if (result.rejected) {
+			return localize('chat.planReview.rejected', "Rejected plan");
+		}
+		if (result.feedback) {
+			return localize('chat.planReview.feedback', "Provided feedback");
+		}
+		const action = review.actions.find(a => a.label === result.action);
+		if (action?.permissionLevel === 'autopilot') {
+			return localize('chat.planReview.autopilot', "Started implementation with Autopilot");
+		}
+		return localize('chat.planReview.approved', "Approved plan");
 	}
 
 	private removeCarouselFromTracking(context: IChatContentPartRenderContext, part: ChatQuestionCarouselPart): void {

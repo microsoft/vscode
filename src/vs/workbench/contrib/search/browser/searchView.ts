@@ -57,7 +57,7 @@ import { Memento } from '../../../common/memento.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { NotebookEditor } from '../../notebook/browser/notebookEditor.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from './patternInputWidget.js';
-import { IFindInFilesArgs } from './searchActionsFind.js';
+import { IFindInFilesArgs } from './searchActionsBase.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
@@ -2168,7 +2168,7 @@ export class SearchView extends ViewPane {
 
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
-		if (showingCancelled || forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search.searchOnType) {
+		if (showingCancelled || forceHideMessages || !this.configurationService.getValue<ISearchConfiguration>().search?.searchOnType) {
 			// when in search to type, don't preemptively hide, as it causes flickering and shifting of the live results
 			dom.hide(this.messagesElement);
 		}
@@ -2184,7 +2184,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private onFocus(lineMatch: ISearchTreeMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search?.useReplacePreview;
 
 		const resource = isSearchTreeMatch(lineMatch) ? lineMatch.parent().resource : (<ISearchTreeFileMatch>lineMatch).resource;
 		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?

@@ -196,6 +196,19 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	/**
+	 * Serializes `setMetadata` writes per key. `@vscode/sqlite3` runs in
+	 * parallelized mode, so two `db.run()` calls on the same connection
+	 * can be dispatched to the libuv thread pool and complete out of
+	 * submission order. For "last writer wins" keys (notably `configValues`
+	 * via {@link setMetadata}), that meant a fast-following second write
+	 * could be overtaken by the first and silently lose its value — see
+	 * the "Session Config persistence across restarts" integration test.
+	 * Sequencing by key preserves intra-key order while still allowing
+	 * writes for different keys to run concurrently.
+	 */
+	private readonly _metadataSequencer = new SequencerByKey<string>();
+
+	/**
 	 * In-flight write operations. Tracked so {@link whenIdle} can await them
 	 * before the process exits — without this, a `SIGTERM` arriving between
 	 * a fire-and-forget mutating call (e.g. `setMetadata`) being invoked and
@@ -483,10 +496,10 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string): Promise<void> {
-		return this._track(async () => {
+		return this._track(() => this._metadataSequencer.queue(key, async () => {
 			const db = await this._ensureDb();
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
-		});
+		}));
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {

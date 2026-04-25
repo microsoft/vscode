@@ -19,7 +19,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
-import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
+import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {

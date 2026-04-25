@@ -294,6 +294,53 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 		expect(result[0].role).toBe(Raw.ChatRole.Assistant);
 		expect((result[0] as Raw.AssistantChatMessage).toolCalls).toHaveLength(2);
 	});
+
+	it('converts tool_search_call and tool_search_output items to raw messages', () => {
+		const body: OpenAI.Responses.ResponseCreateParams = {
+			model: 'gpt-5-mini',
+			input: [
+				{
+					type: 'tool_search_call',
+					execution: 'client',
+					call_id: 'ts_call_1',
+					status: 'completed',
+					arguments: { query: 'file editing tools' },
+				} as unknown as OpenAI.Responses.ResponseInputItem,
+				{
+					type: 'tool_search_output',
+					execution: 'client',
+					call_id: 'ts_call_1',
+					status: 'completed',
+					tools: [
+						{ type: 'function', name: 'grep_search', description: 'Search files', defer_loading: true, parameters: {} },
+						{ type: 'function', name: 'file_search', description: 'Find files', defer_loading: true, parameters: {} },
+					],
+				} as unknown as OpenAI.Responses.ResponseInputItem
+			]
+		};
+
+		const result = responseApiInputToRawMessagesForLogging(body);
+
+		expect(result).toEqual([
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{
+					id: 'ts_call_1',
+					type: 'function',
+					function: {
+						name: 'tool_search',
+						arguments: '{"query":"file editing tools"}',
+					}
+				}]
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search","file_search"]' }],
+				toolCallId: 'ts_call_1',
+			}
+		]);
+	});
 });
 
 describe('createResponsesRequestBody', () => {
@@ -516,6 +563,59 @@ describe('createResponsesRequestBody', () => {
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
 		expect(body.input).toHaveLength(0);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('adds namespace field only to function_call for tools loaded via tool_search_output', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const tools = [
+			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'grep_search', description: 'Grep files', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'read_file', description: 'Read a file', parameters: {} } },
+		];
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'find something' }],
+			},
+			// Assistant calls tool_search
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'ts_1', type: 'function', function: { name: 'tool_search', arguments: '{"query":"search"}' } }],
+			},
+			// tool_search returns grep_search
+			{
+				role: Raw.ChatRole.Tool,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search"]' }],
+				toolCallId: 'ts_1',
+			},
+			// Assistant calls grep_search (loaded via tool_search) and read_file (not loaded via tool_search)
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{ id: 'call_grep', type: 'function', function: { name: 'grep_search', arguments: '{"q":"hello"}' } },
+					{ id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.ts"}' } },
+				],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), requestOptions: { tools } }, testEndpoint.model, testEndpoint));
+
+		// grep_search was loaded via tool_search_output — should have namespace
+		const grepCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'grep_search') as any;
+		expect(grepCall).toBeDefined();
+		expect(grepCall.namespace).toBe('grep_search');
+
+		// read_file was NOT loaded via tool_search — should NOT have namespace
+		const readCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'read_file') as any;
+		expect(readCall).toBeDefined();
+		expect(readCall).not.toHaveProperty('namespace');
 
 		accessor.dispose();
 		services.dispose();
@@ -1079,6 +1179,110 @@ describe('summarizedAtRoundId and stateful marker interaction', () => {
 
 		expect(body.previous_response_id).toBeUndefined();
 		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+});
+
+describe('phase commentary followed by phase final_answer', () => {
+	it('inserts a separator between commentary and final_answer text in the stream', async () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const accumulatedTexts: string[] = [];
+		const phases: string[] = [];
+
+		const commentaryText = 'Responding directly in commentary as requested. My name is GitHub Copilot.';
+		const finalText = 'My name is GitHub Copilot.';
+
+		// Real-world Responses API stream: commentary message (output_index 0)
+		// followed by final_answer message (output_index 1), with incremental
+		// text deltas for each.
+		const events = [
+			{ type: 'response.output_item.added', output_index: 0, item: { type: 'message', role: 'assistant', content: [], phase: 'commentary', status: 'in_progress' }, sequence_number: 2 },
+			{ type: 'response.content_part.added', output_index: 0, content_index: 0, item_id: 'item-0', part: { type: 'output_text', text: '', annotations: [], logprobs: [] }, sequence_number: 3 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: 'Respond', logprobs: [], sequence_number: 4 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: 'ing', logprobs: [], sequence_number: 5 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' directly', logprobs: [], sequence_number: 6 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' in', logprobs: [], sequence_number: 7 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' commentary', logprobs: [], sequence_number: 8 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' as', logprobs: [], sequence_number: 9 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' requested', logprobs: [], sequence_number: 10 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: '.', logprobs: [], sequence_number: 11 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' My', logprobs: [], sequence_number: 12 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' name', logprobs: [], sequence_number: 13 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' is', logprobs: [], sequence_number: 14 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' Git', logprobs: [], sequence_number: 15 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: 'Hub', logprobs: [], sequence_number: 16 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: ' Cop', logprobs: [], sequence_number: 17 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: 'ilot', logprobs: [], sequence_number: 18 },
+			{ type: 'response.output_text.delta', output_index: 0, content_index: 0, item_id: 'item-0', delta: '.', logprobs: [], sequence_number: 19 },
+			{ type: 'response.output_text.done', output_index: 0, content_index: 0, item_id: 'item-0', text: commentaryText, logprobs: [], sequence_number: 20 },
+			{ type: 'response.content_part.done', output_index: 0, content_index: 0, item_id: 'item-0', part: { type: 'output_text', text: commentaryText, annotations: [], logprobs: [] }, sequence_number: 21 },
+			{ type: 'response.output_item.done', output_index: 0, item: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: commentaryText, annotations: [], logprobs: [] }], phase: 'commentary', status: 'completed' }, sequence_number: 22 },
+			{ type: 'response.output_item.added', output_index: 1, item: { type: 'message', role: 'assistant', content: [], phase: 'final_answer', status: 'in_progress' }, sequence_number: 23 },
+			{ type: 'response.content_part.added', output_index: 1, content_index: 0, item_id: 'item-1', part: { type: 'output_text', text: '', annotations: [], logprobs: [] }, sequence_number: 24 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: 'My', logprobs: [], sequence_number: 25 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: ' name', logprobs: [], sequence_number: 26 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: ' is', logprobs: [], sequence_number: 27 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: ' Git', logprobs: [], sequence_number: 28 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: 'Hub', logprobs: [], sequence_number: 29 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: ' Cop', logprobs: [], sequence_number: 30 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: 'ilot', logprobs: [], sequence_number: 31 },
+			{ type: 'response.output_text.delta', output_index: 1, content_index: 0, item_id: 'item-1', delta: '.', logprobs: [], sequence_number: 32 },
+			{ type: 'response.output_text.done', output_index: 1, content_index: 0, item_id: 'item-1', text: finalText, logprobs: [], sequence_number: 33 },
+			{ type: 'response.content_part.done', output_index: 1, content_index: 0, item_id: 'item-1', part: { type: 'output_text', text: finalText, annotations: [], logprobs: [] }, sequence_number: 34 },
+			{ type: 'response.output_item.done', output_index: 1, item: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: finalText, annotations: [], logprobs: [] }], phase: 'final_answer', status: 'completed' }, sequence_number: 35 },
+			{
+				type: 'response.completed',
+				response: {
+					id: 'resp_phase_test',
+					model: 'gpt-5.4-2026-03-05',
+					created_at: 1776962259,
+					usage: { input_tokens: 8432, output_tokens: 35, total_tokens: 8467, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+					output: [
+						{ type: 'message', content: [{ type: 'output_text', text: commentaryText, annotations: [], logprobs: [] }], phase: 'commentary', role: 'assistant', status: 'completed' },
+						{ type: 'message', content: [{ type: 'output_text', text: finalText, annotations: [], logprobs: [] }], phase: 'final_answer', role: 'assistant', status: 'completed' },
+					],
+				},
+				sequence_number: 36,
+			}
+		];
+
+		const sseBody = events.map(e => `data: ${JSON.stringify(e)}\n\n`).join('');
+		const response = createFakeStreamResponse(sseBody);
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-phase-test' }, {});
+
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async (text, _unused, delta) => {
+				accumulatedTexts.push(text);
+				if (delta.phase) {
+					phases.push(delta.phase);
+				}
+				return undefined;
+			},
+			telemetryData,
+		);
+
+		for await (const _ of stream) {
+			// consume stream
+		}
+
+		expect(phases).toEqual(['commentary', 'final_answer']);
+
+		// The accumulated text must separate commentary and final_answer text
+		const finalAccumulatedText = accumulatedTexts[accumulatedTexts.length - 1];
+		expect(finalAccumulatedText).toBe(
+			commentaryText + '\n\n' + finalText
+		);
 
 		accessor.dispose();
 		services.dispose();

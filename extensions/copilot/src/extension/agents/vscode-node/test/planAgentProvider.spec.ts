@@ -362,6 +362,70 @@ suite('PlanAgentProvider', () => {
 
 		assert.equal(eventFired, true);
 	});
+
+	test('fires onDidChangeCustomAgents when SearchSubagentToolEnabled setting changes', async () => {
+		const provider = createProvider();
+
+		let eventFired = false;
+		provider.onDidChangeCustomAgents(() => {
+			eventFired = true;
+		});
+
+		await mockConfigurationService.setConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, true);
+
+		assert.equal(eventFired, true);
+	});
+
+	test('buildAgentBody uses Explore discovery when explore is enabled', () => {
+		const body = PlanAgentProvider.buildAgentBody(true, true);
+		assert.ok(body.includes('Run the *Explore* subagent'));
+		assert.ok(!body.includes('#tool:searchSubagent'));
+	});
+
+	test('buildAgentBody uses search subagent discovery when explore is disabled but search is enabled', () => {
+		const body = PlanAgentProvider.buildAgentBody(false, true);
+		assert.ok(body.includes('#tool:searchSubagent'));
+		assert.ok(!body.includes('Run the *Explore* subagent'));
+	});
+
+	test('buildAgentBody uses generic discovery when both explore and search are disabled', () => {
+		const body = PlanAgentProvider.buildAgentBody(false, false);
+		assert.ok(body.includes('Search the codebase to gather context'));
+		assert.ok(!body.includes('Run the *Explore* subagent'));
+		assert.ok(!body.includes('#tool:searchSubagent'));
+	});
+
+	test('excludes agent tool and Explore subagent when explore is disabled', async () => {
+		await mockConfigurationService.setConfig(ConfigKey.ExploreAgentEnabled, false);
+
+		const provider = createProvider();
+		const agents = await provider.provideCustomAgents({}, {} as any);
+		const content = await getAgentContent(agents[0]);
+
+		// Should not have the 'agent' tool
+		const toolsMatch = content.match(/tools: \[([^\]]+)\]/);
+		assert.ok(toolsMatch);
+		assert.ok(!toolsMatch[1].includes('\'agent\''), 'Should not include agent tool when explore is disabled');
+
+		// Should not have agents field
+		assert.ok(!content.includes('agents:'), 'Should not include agents field when explore is disabled');
+	});
+
+	test('includes agent tool and Explore subagent when explore is enabled', async () => {
+		await mockConfigurationService.setConfig(ConfigKey.ExploreAgentEnabled, true);
+
+		const provider = createProvider();
+		const agents = await provider.provideCustomAgents({}, {} as any);
+		const content = await getAgentContent(agents[0]);
+
+		// Should have the 'agent' tool
+		const toolsMatch = content.match(/tools: \[([^\]]+)\]/);
+		assert.ok(toolsMatch);
+		assert.ok(toolsMatch[1].includes('\'agent\''), 'Should include agent tool when explore is enabled');
+
+		// Should have agents field with Explore
+		assert.ok(content.includes('agents:'), 'Should include agents field when explore is enabled');
+	});
 });
 
 suite('buildAgentMarkdown', () => {

@@ -114,6 +114,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	declare _serviceBrand: undefined;
 
 	private defaultAccount: IDefaultAccount | null = null;
+	get currentDefaultAccount(): IDefaultAccount | null { return this.defaultAccount; }
 	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
 	get copilotTokenInfo(): ICopilotTokenInfo | null { return this.defaultAccountProvider?.copilotTokenInfo ?? null; }
 

@@ -1,6 +1,5 @@
 # Base Utilities
 src/vs/base/common/oauth.ts @TylerLeonhardt
-src/vs/base/common/uri.ts @jrieken
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/parts/quickinput/** @TylerLeonhardt
 
@@ -18,13 +17,6 @@ src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
 src/vs/platform/terminal/electron-main/** @anthonykim1
 src/vs/platform/terminal/node/** @anthonykim1
-src/vs/platform/actions/common/menuService.ts @jrieken
-src/vs/platform/instantiation/** @jrieken
-
-# Editor Core
-src/vs/editor/contrib/snippet/** @jrieken
-src/vs/editor/contrib/suggest/** @jrieken
-src/vs/editor/contrib/format/** @jrieken
 
 # Electron Main
 src/vs/code/** @deepak1556
@@ -73,10 +65,6 @@ extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
-
-# Chat Editing, Inline Chat
-src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
-src/vs/workbench/contrib/inlineChat/** @jrieken
 
 # Testing
 test/sanity/** @dmitrivMS

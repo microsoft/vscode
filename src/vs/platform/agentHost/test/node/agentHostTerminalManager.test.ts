@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, IStateAction } from '../../common/state/protocol/actions.js';
-import { ITerminalContentPart } from '../../common/state/protocol/state.js';
+import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
+import { TerminalContentPart } from '../../common/state/protocol/state.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -36,8 +36,8 @@ interface ITestCommandTracker {
  * that can be tested without node-pty or a real AgentHostStateManager.
  */
 class TestTerminalDataHandler {
-	readonly dispatched: IStateAction[] = [];
-	content: ITerminalContentPart[] = [];
+	readonly dispatched: StateAction[] = [];
+	content: TerminalContentPart[] = [];
 	cwd = '/home/user';
 
 	constructor(

@@ -18,8 +18,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
-import { ISessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
+import { SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
@@ -30,7 +30,7 @@ import { createSessionDataService } from '../common/sessionTestHelpers.js';
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
  * {@link mapSessionEvents}, and returns the result suitable for setting
  * on {@link MockAgent.sessionMessages}. This tests the full pipeline:
- * SDK events → mapSessionEvents → _buildTurnsFromMessages → ITurn[].
+ * SDK events → mapSessionEvents → _buildTurnsFromMessages → Turn[].
  *
  * Fixture files live in `test-cases/` and are sanitized copies of real
  * `events.jsonl` files from `~/.copilot/session-state/`.
@@ -108,7 +108,7 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 1,
 			);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
@@ -254,10 +254,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('seeds activeClient into the initial session state when provided', async () => {
 			service.registerProvider(copilotAgent);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(env => envelopes.push(env)));
 
-			const activeClient: ISessionActiveClient = {
+			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
 				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
@@ -342,7 +342,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
-			const mdPart = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdPart = state!.turns[0].responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
@@ -367,9 +367,9 @@ suite('AgentService (node dispatcher)', () => {
 			const state = service.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
 			const turn = state!.turns[0];
-			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = turn.responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(toolCallParts.length, 1);
-			const tc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			const tc = toolCallParts[0].toolCall as ToolCallCompletedState;
 			assert.strictEqual(tc.status, ToolCallStatus.Completed);
 			assert.strictEqual(tc.toolCallId, 'tc-1');
 			assert.strictEqual(tc.confirmed, ToolCallConfirmationReason.NotNeeded);
@@ -439,11 +439,11 @@ suite('AgentService (node dispatcher)', () => {
 			// The parent turn should only have the parent tool call — inner
 			// tool calls are excluded from the parent and belong to the
 			// child subagent session instead.
-			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = turn.responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(toolCallParts.length, 1, `Expected 1 tool call (parent only) but got ${toolCallParts.length}`);
 
 			// Parent subagent tool call
-			const parentTc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			const parentTc = toolCallParts[0].toolCall as ToolCallCompletedState;
 			assert.strictEqual(parentTc.toolCallId, 'tc-sub');
 			assert.strictEqual(parentTc.status, ToolCallStatus.Completed);
 			assert.strictEqual(parentTc._meta?.toolKind, 'subagent');
@@ -462,13 +462,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(snapshot?.state, 'Child session snapshot should exist');
 			assert.ok(childState, 'Child session state should exist');
 			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
-			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(childToolParts.length, 2, `Child session should have 2 inner tool calls but got ${childToolParts.length}`);
 			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'Should have tc-inner-1');
 			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-2'), 'Should have tc-inner-2');
 
 			// The turn should also have the final markdown
-			const mdParts = turn.responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdParts = turn.responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.some(p => p.content.includes('3 issues')), 'Should have the final markdown response');
 		});
 
@@ -490,7 +490,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 
 			// Should have the parent subagent tool call with subagent content
-			const toolCallParts = state!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = state!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			const parentTc = toolCallParts.find(p => p.toolCall.toolName === 'task');
 			assert.ok(parentTc, 'Should have a task tool call');
 			assert.strictEqual(parentTc!.toolCall._meta?.toolKind, 'subagent');
@@ -508,11 +508,11 @@ suite('AgentService (node dispatcher)', () => {
 			const childState = service.stateManager.getSessionState(childSessionUri);
 			assert.ok(childState, 'Child session state should exist');
 			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
-			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.ok(childToolParts.length > 0, `Child session should have inner tool calls but got ${childToolParts.length}`);
 
 			// Should have the final markdown
-			const mdParts = state!.turns[0].responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
 	});

@@ -97,4 +97,16 @@ export interface IPolicy {
 	 * If `undefined`, the feature's setting is not locked and can be overridden by other means.
 	 */
 	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+
+	/**
+	 * The most-restrictive value that should be applied when the user is subject to the
+	 * "Require Approved Account" gate but the gate is not yet satisfied (i.e. no approved
+	 * GitHub account is signed in or the account-side policy data has not yet resolved).
+	 *
+	 * If omitted, the gate falls back to a type-driven safe default
+	 * (`false` for boolean, `0` for number, `''` for string).
+	 *
+	 * Only consulted while the gate is active and unsatisfied; ignored otherwise.
+	 */
+	readonly restrictedValue?: string | number | boolean;
 }

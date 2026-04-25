@@ -44,13 +44,3 @@ export function getCopilotCLIWorkspaceFile(sessionId: string) {
 export function getCopilotBulkMetadataFile(): string {
 	return join(getCopilotHome(), 'vscode.session.metadata.cache.json');
 }
-
-/**
- * Path of the shared worktree-sessions JSONL index. Append-only, one
- * {@link WorktreeSessionEntry} per line.
- * Used as a worktree folder → session-id fallback
- * when an entry has been evicted from the bulk cache.
- */
-export function getCopilotWorktreeSessionsFile(): string {
-	return join(getCopilotHome(), 'vscode.session.worktree.jsonl');
-}

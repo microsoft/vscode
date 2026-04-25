@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import type { IAhpServerNotification, IJsonRpcResponse, IProtocolMessage } from '../common/state/sessionProtocol.js';
+import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService } from '../common/sshRemoteAgentHost.js';
 
@@ -18,7 +18,7 @@ import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService } from '../common
  */
 export class SSHRelayTransport extends Disposable implements IProtocolTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -34,7 +34,7 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		this._register(this._sshService.onDidRelayMessage((msg: ISSHRelayMessage) => {
 			if (msg.connectionId === this._connectionId) {
 				try {
-					const parsed = JSON.parse(msg.data) as IProtocolMessage;
+					const parsed = JSON.parse(msg.data) as ProtocolMessage;
 					this._onMessage.fire(parsed);
 				} catch {
 					// Malformed message — drop
@@ -50,7 +50,7 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		}));
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		this._sshService.relaySend(this._connectionId, JSON.stringify(message)).catch(() => {
 			// Send failed — connection probably closed
 		});

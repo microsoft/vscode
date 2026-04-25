@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill } from 'vscode';
+import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill, ChatSlashCommand } from 'vscode';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
@@ -31,7 +31,7 @@ export class MockPromptsService extends Disposable implements IPromptsService {
 	readonly onDidChangePlugins: Event<void> = this._onDidChangePlugins.event;
 
 	private _customAgents: readonly ChatCustomAgent[] = [];
-	private _slashCommands: readonly ParsedPromptFile[] = [];
+	private _slashCommands: readonly ChatSlashCommand[] = [];
 	private _instructions: readonly ChatInstruction[] = [];
 	private _skills: readonly ChatSkill[] = [];
 	private _hooks: readonly ChatHook[] = [];
@@ -47,7 +47,7 @@ export class MockPromptsService extends Disposable implements IPromptsService {
 		this._onDidChangeCustomAgents.fire();
 	}
 
-	setSlashCommands(commands: readonly ParsedPromptFile[]): void {
+	setSlashCommands(commands: readonly ChatSlashCommand[]): void {
 		this._slashCommands = commands;
 	}
 
@@ -87,7 +87,7 @@ export class MockPromptsService extends Disposable implements IPromptsService {
 		return Promise.resolve(this._customAgents);
 	}
 
-	getSlashCommands(_token: CancellationToken): Promise<readonly ParsedPromptFile[]> {
+	getSlashCommands(_token: CancellationToken): Promise<readonly ChatSlashCommand[]> {
 		return Promise.resolve(this._slashCommands);
 	}
 

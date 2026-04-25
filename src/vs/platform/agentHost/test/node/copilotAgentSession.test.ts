@@ -109,6 +109,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
+	workingDirectory?: URI;
 }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
@@ -172,6 +173,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			wrapperFactory: factory,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
+			workingDirectory: options?.workingDirectory,
 		},
 	));
 
@@ -505,6 +507,85 @@ suite('CopilotAgentSession', () => {
 			if (progressEvents[0].type === 'tool_start') {
 				assert.strictEqual(progressEvents[0].toolCallId, 'tc-10');
 				assert.strictEqual(progressEvents[0].toolName, 'bash');
+			}
+		});
+
+		test('live tool_start strips redundant cd prefix matching workingDirectory', async () => {
+			const wd = URI.file('/repo/project');
+			const { mockSession, progressEvents } = await createAgentSession(disposables, { workingDirectory: wd });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-cd',
+				toolName: 'bash',
+				arguments: { command: 'cd /repo/project && npm test' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.strictEqual(progressEvents.length, 1);
+			const ev = progressEvents[0];
+			assert.strictEqual(ev.type, 'tool_start');
+			if (ev.type === 'tool_start') {
+				assert.strictEqual(ev.toolInput, 'npm test');
+				assert.ok(ev.toolArguments && ev.toolArguments.includes('"npm test"'), `toolArguments should contain rewritten command, was: ${ev.toolArguments}`);
+				assert.ok(!ev.toolArguments?.includes('cd /repo/project'), 'toolArguments should not contain stripped prefix');
+			}
+		});
+
+		test('live tool_complete past-tense message reflects the rewritten command', async () => {
+			const wd = URI.file('/repo/project');
+			const { mockSession, progressEvents } = await createAgentSession(disposables, { workingDirectory: wd });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-cd-complete',
+				toolName: 'bash',
+				arguments: { command: 'cd /repo/project && npm test' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-cd-complete',
+				success: true,
+				result: { content: 'all tests passed' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			assert.strictEqual(progressEvents.length, 2);
+			const completeEv = progressEvents[1];
+			assert.strictEqual(completeEv.type, 'tool_complete');
+			if (completeEv.type === 'tool_complete') {
+				const past = completeEv.result.pastTenseMessage;
+				const pastStr = typeof past === 'string' ? past : (past?.markdown ?? '');
+				assert.ok(!pastStr.includes('cd /repo/project'), `past-tense message should not contain stripped prefix, got: ${pastStr}`);
+				assert.ok(pastStr.includes('npm test'), `past-tense message should contain the rewritten command, got: ${pastStr}`);
+			}
+		});
+
+		test('live tool_start does not rewrite when cd target differs from workingDirectory', async () => {
+			const wd = URI.file('/repo/project');
+			const { mockSession, progressEvents } = await createAgentSession(disposables, { workingDirectory: wd });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-cd-other',
+				toolName: 'bash',
+				arguments: { command: 'cd /tmp && ls' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.strictEqual(progressEvents.length, 1);
+			const ev = progressEvents[0];
+			assert.strictEqual(ev.type, 'tool_start');
+			if (ev.type === 'tool_start') {
+				assert.strictEqual(ev.toolInput, 'cd /tmp && ls');
+			}
+		});
+
+		test('live tool_start without workingDirectory passes command through', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-cd-nowd',
+				toolName: 'bash',
+				arguments: { command: 'cd /repo/project && npm test' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.strictEqual(progressEvents.length, 1);
+			const ev = progressEvents[0];
+			assert.strictEqual(ev.type, 'tool_start');
+			if (ev.type === 'tool_start') {
+				assert.strictEqual(ev.toolInput, 'cd /repo/project && npm test');
 			}
 		});
 

@@ -11,14 +11,17 @@ import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { InstantiationService } from '../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
-import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionConfigState, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
+import { ActionType, ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction, isSessionAction } from '../common/state/sessionActions.js';
+import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type ResponsePart, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolCallCompletedState, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
@@ -49,7 +52,7 @@ export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
 	/** Protocol: fires when state is mutated by an action. */
-	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
+	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
 
 	/** Protocol: fires for ephemeral notifications (sessionAdded/Removed). */
@@ -91,11 +94,22 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
-		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
+
+		// Build a local instantiation scope so downstream components can
+		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
+		// via DI rather than being plumbed plain-class references.
+		const configurationService: IAgentConfigurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService));
+		const services = new ServiceCollection(
+			[ILogService, this._logService],
+			[IAgentConfigurationService, configurationService],
+		);
+		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
-		}, this._logService));
+		}));
 
 		// Terminal management — the terminal manager listens to the state
 		// manager's action stream and dispatches PTY output back through it.
@@ -121,7 +135,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- auth ---------------------------------------------------------------
 
-	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
 		for (const provider of this._providers.values()) {
 			const resources = provider.getProtectedResources();
@@ -152,7 +166,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true });
 					let updated = s;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
@@ -160,8 +174,10 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m.isRead !== undefined) {
 						updated = { ...updated, isRead: m.isRead === 'true' };
 					}
-					if (m.isDone !== undefined) {
-						updated = { ...updated, isDone: m.isDone === 'true' };
+					if (m.isArchived !== undefined) {
+						updated = { ...updated, isArchived: m.isArchived === 'true' };
+					} else if (m.isDone !== undefined) {
+						updated = { ...updated, isArchived: m.isDone === 'true' };
 					}
 					if (m.diffs) {
 						try { updated = { ...updated, diffs: JSON.parse(m.diffs) }; } catch { /* ignore malformed */ }
@@ -243,13 +259,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// the source session's turns so the client sees the forked history.
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			let sourceTurns: ITurn[] = [];
+			let sourceTurns: Turn[] = [];
 			if (sourceState && config.fork.turnIdMapping) {
 				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary: ISessionSummary = {
+			const summary: SessionSummary = {
 				resource: session.toString(),
 				provider: provider.id,
 				title: sourceState?.summary.title ?? 'Forked Session',
@@ -266,7 +282,7 @@ export class AgentService extends Disposable implements IAgentService {
 			state.activeClient = config.activeClient;
 		} else {
 			// Create empty state for new sessions
-			const summary: ISessionSummary = {
+			const summary: SessionSummary = {
 				resource: session.toString(),
 				provider: provider.id,
 				title: '',
@@ -294,7 +310,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return session;
 	}
 
-	private _persistConfigValues(session: URI, values: Record<string, string>): void {
+	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
 		let ref;
 		try {
 			ref = this._sessionDataService.openDatabase(session);
@@ -309,7 +325,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 	}
 
-	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<ISessionConfigState | undefined> {
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
 		if (!config?.config && !config?.workingDirectory) {
 			return undefined;
 		}
@@ -326,7 +342,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const providerId = params.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
 		if (!provider) {
@@ -335,7 +351,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.resolveSessionConfig(params);
 	}
 
-	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		const providerId = params.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
 		if (!provider) {
@@ -358,7 +374,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: CreateTerminalParams): Promise<void> {
 		await this._terminalManager.createTerminal(params);
 	}
 
@@ -399,7 +415,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// in Phase 4 (multi-client). For now this is a no-op.
 	}
 
-	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const origin = { clientId, clientSeq };
@@ -412,7 +428,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resourceList(uri: URI): Promise<IResourceListResult> {
+	async resourceList(uri: URI): Promise<ResourceListResult> {
 		let stat;
 		try {
 			stat = await this._fileService.resolve(uri);
@@ -424,7 +440,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Not a directory: ${uri.toString()}`);
 		}
 
-		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
+		const entries: DirectoryEntry[] = (stat.children ?? []).map(child => ({
 			name: child.name,
 			type: child.isDirectory ? 'directory' : 'file',
 		}));
@@ -476,7 +492,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Check for persisted metadata in the session database
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
-		let isDone: boolean | undefined;
+		let isArchived: boolean | undefined;
 		let diffs: ISessionFileDiff[] | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
@@ -485,15 +501,17 @@ export class AgentService extends Disposable implements IAgentService {
 				const db = await ref;
 				if (db) {
 					try {
-						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true, configValues: true });
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true, configValues: true });
 						if (m.customTitle) {
 							title = m.customTitle;
 						}
 						if (m.isRead !== undefined) {
 							isRead = m.isRead === 'true';
 						}
-						if (m.isDone !== undefined) {
-							isDone = m.isDone === 'true';
+						if (m.isArchived !== undefined) {
+							isArchived = m.isArchived === 'true';
+						} else if (m.isDone !== undefined) {
+							isArchived = m.isDone === 'true';
 						}
 						if (m.diffs) {
 							try { diffs = JSON.parse(m.diffs); } catch { /* ignore malformed */ }
@@ -514,18 +532,25 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const summary: ISessionSummary = {
+		// Encode isRead/isArchived as status bitmask flags
+		let status: SessionStatus = SessionStatus.Idle;
+		if (isRead) {
+			status |= SessionStatus.IsRead;
+		}
+		if (isArchived) {
+			status |= SessionStatus.IsArchived;
+		}
+
+		const summary: SessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
 			title,
-			status: SessionStatus.Idle,
+			status,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
 			workingDirectory: meta.workingDirectory?.toString(),
-			isRead,
-			isDone,
 			diffs,
 		};
 
@@ -550,7 +575,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 	}
 
-	async resourceRead(uri: URI): Promise<IResourceReadResult> {
+	async resourceRead(uri: URI): Promise<ResourceReadResult> {
 		// Handle session-db: URIs that reference file-edit content stored
 		// in a per-session SQLite database.
 		const dbFields = parseSessionDbUri(uri.toString());
@@ -570,7 +595,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult> {
+	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
 		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
 		let content: VSBuffer;
 		if (params.encoding === ContentEncoding.Base64) {
@@ -597,7 +622,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult> {
+	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
 		const source = URI.parse(params.source);
 		const destination = URI.parse(params.destination);
 		try {
@@ -615,7 +640,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult> {
+	async resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
 		const fileUri = URI.parse(params.uri);
 		try {
 			await this._fileService.del(fileUri, { recursive: params.recursive });
@@ -629,7 +654,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult> {
+	async resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		const source = URI.parse(params.source);
 		const destination = URI.parse(params.destination);
 		try {
@@ -660,21 +685,21 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- helpers ------------------------------------------------------------
 
 	/**
-	 * Reconstructs completed `ITurn[]` from a sequence of agent session
+	 * Reconstructs completed `Turn[]` from a sequence of agent session
 	 * messages. Each user-message starts a new turn; the assistant message
 	 * closes it.
 	 */
 	private _buildTurnsFromMessages(
 		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
-	): ITurn[] {
-		const turns: ITurn[] = [];
+	): Turn[] {
+		const turns: Turn[] = [];
 		// Track subagent metadata by parent tool call ID so we can inject
-		// IToolResultSubagentContent into the parent tool call's completion content
+		// ToolResultSubagentContent into the parent tool call's completion content
 		const subagentsByToolCallId = new Map<string, IAgentSubagentStartedEvent>();
 		let currentTurn: {
 			id: string;
 			userMessage: { text: string };
-			responseParts: IResponsePart[];
+			responseParts: ResponsePart[];
 			pendingTools: Map<string, IAgentToolStartEvent>;
 		} | undefined;
 
@@ -756,7 +781,7 @@ export class AgentService extends Disposable implements IAgentService {
 						});
 					}
 
-					const tc: IToolCallCompletedState = {
+					const tc: ToolCallCompletedState = {
 						status: ToolCallStatus.Completed,
 						toolCallId: msg.toolCallId,
 						toolName: start?.toolName ?? 'unknown',
@@ -799,7 +824,7 @@ export class AgentService extends Disposable implements IAgentService {
 		parentMessages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
 		parentToolCallId: string,
 		childSessionUri: string,
-	): ITurn[] {
+	): Turn[] {
 		// Collect all inner tool call IDs that belong to this subagent
 		const innerToolCallIds = new Set<string>();
 		for (const msg of parentMessages) {
@@ -833,7 +858,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Build a single turn with all inner tool calls
-		const responseParts: IResponsePart[] = [];
+		const responseParts: ResponsePart[] = [];
 		const pendingTools = new Map<string, IAgentToolStartEvent>();
 
 		for (const msg of innerMessages) {
@@ -856,7 +881,7 @@ export class AgentService extends Disposable implements IAgentService {
 					});
 				}
 
-				const tc: IToolCallCompletedState = {
+				const tc: ToolCallCompletedState = {
 					status: ToolCallStatus.Completed,
 					toolCallId: msg.toolCallId,
 					toolName: start?.toolName ?? 'unknown',
@@ -900,7 +925,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}];
 	}
 
-	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IResourceReadResult> {
+	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<ResourceReadResult> {
 		const sessionUri = URI.parse(fields.sessionUri);
 		const ref = this._sessionDataService.openDatabase(sessionUri);
 		try {
@@ -948,10 +973,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// Search completed turns and active turn for the subagent content metadata
 		const allTurns = [...parentState.turns];
 		if (parentState.activeTurn) {
-			allTurns.push(parentState.activeTurn as ITurn);
+			allTurns.push(parentState.activeTurn as Turn);
 		}
 
-		let subagentContent: IToolResultSubagentContent | undefined;
+		let subagentContent: ToolResultSubagentContent | undefined;
 		for (const turn of allTurns) {
 			for (const part of turn.responseParts) {
 				if (part.kind === ResponsePartKind.ToolCall) {
@@ -977,7 +1002,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Load parent's raw messages and extract inner events for this subagent
-		let childTurns: ITurn[] = [];
+		let childTurns: Turn[] = [];
 		const agent = this._findProviderForSession(parentUri);
 		if (agent) {
 			try {

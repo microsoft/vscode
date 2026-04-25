@@ -37,7 +37,6 @@ const defaultChat = {
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
@@ -271,6 +270,5 @@ export class ChatSetup {
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }

@@ -13,7 +13,8 @@ import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
-import { AgentHostIpcChannels, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import * as inspector from 'inspector';
+import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -147,6 +148,52 @@ function startAgentHost(): void {
 			logService.info(`[AgentHost] Dynamic WebSocket server listening on ${socketPath}`);
 			dynamicSocketInfo = { socketPath };
 			return dynamicSocketInfo;
+		},
+		async getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> {
+			let url = inspector.url();
+			if (!url && tryEnable) {
+				try {
+					inspector.open(0, '127.0.0.1', false);
+				} catch (err) {
+					logService.error('[AgentHost] Failed to open inspector', err);
+					return undefined;
+				}
+				url = inspector.url();
+			}
+			if (!url) {
+				return undefined;
+			}
+			// Inspector URL looks like: ws://host:port/uuid (host may be IPv6 in brackets)
+			try {
+				const parsedUrl = new URL(url);
+				if (parsedUrl.protocol !== 'ws:') {
+					logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+					return undefined;
+				}
+
+				const port = Number(parsedUrl.port);
+				const auth = parsedUrl.pathname.replace(/^\/+/, '');
+				if (!Number.isInteger(port) || !auth) {
+					logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+					return undefined;
+				}
+
+				const host = parsedUrl.hostname === '0.0.0.0'
+					? '127.0.0.1'
+					: parsedUrl.hostname === '::'
+						? '::1'
+						: parsedUrl.hostname;
+				const devtoolsHost = host.includes(':') ? `[${host}]` : host;
+
+				return {
+					host,
+					port,
+					devtoolsUrl: `devtools://devtools/bundled/js_app.html?v8only=true&ws=${devtoolsHost}:${parsedUrl.port}/${auth}`,
+				};
+			} catch {
+				logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+				return undefined;
+			}
 		},
 	};
 	const connectionTrackerChannel = ProxyChannel.fromService(connectionTrackerService, disposables);

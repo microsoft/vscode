@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -12,12 +12,14 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
+import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -33,9 +35,16 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	order: 11,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: SESSIONS_FILES_CONTAINER_ID,
-	hideIfEmpty: true,
-	windowVisibility: WindowVisibility.Sessions,
-}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true, isDefault: true });
+	hideIfEmpty: false,
+	openCommandActionDescriptor: {
+		id: SESSIONS_FILES_CONTAINER_ID,
+		title: localize2('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miFiles', comment: ['&& denotes a mnemonic'] }, "Fil&&es"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
+		order: 0
+	},
+	windowEnablement: WindowEnablement.Sessions,
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
 class RegisterFilesViewContribution implements IWorkbenchContribution {
 
@@ -50,10 +59,10 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
-			canToggleVisibility: true,
+			canToggleVisibility: false,
 			canMoveView: false,
-			when: WorkspaceFolderCountContext.notEqualsTo('0'),
-			windowVisibility: WindowVisibility.Sessions,
+			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate()),
+			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 
 		// Register an empty view to show when there are no workspace folders
@@ -62,10 +71,10 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
-			canToggleVisibility: true,
+			canToggleVisibility: false,
 			canMoveView: false,
-			when: WorkspaceFolderCountContext.isEqualTo('0'),
-			windowVisibility: WindowVisibility.Sessions,
+			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate()),
+			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 	}
 }

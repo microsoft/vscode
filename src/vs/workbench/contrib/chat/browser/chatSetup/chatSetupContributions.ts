@@ -61,7 +61,6 @@ const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
@@ -830,7 +829,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }
 

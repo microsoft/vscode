@@ -5,13 +5,13 @@
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import {
-	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
 	createVSCodeHarnessDescriptor,
 } from '../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -20,11 +20,14 @@ import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js
  * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
-	constructor() {
+	constructor(
+		@IPromptsService promptsService: IPromptsService
+	) {
 		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
 		super(
 			[createVSCodeHarnessDescriptor(localExtras)],
-			CustomizationHarness.VSCode,
+			SessionType.Local,
+			promptsService,
 		);
 	}
 }

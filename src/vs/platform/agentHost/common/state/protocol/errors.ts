@@ -50,7 +50,7 @@ export const AhpErrorCodes = {
 	/**
 	 * A command failed because the client has not authenticated for a required
 	 * protected resource. The `data` field of the JSON-RPC error SHOULD contain
-	 * an `IProtectedResourceMetadata[]` array describing the resources that
+	 * a `ProtectedResourceMetadata[]` array describing the resources that
 	 * require authentication.
 	 *
 	 * @see {@link /specification/authentication | Authentication}

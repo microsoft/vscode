@@ -35,7 +35,7 @@ import { autorun, IObservable, observableFromEvent } from '../../../util/vs/base
 import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { LineCheck } from '../../inlineChat/vscode-node/naturalLanguageHint';
+import { LineCheck } from './naturalLanguageHint';
 import { createCorrelationId } from '../common/correlationId';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';

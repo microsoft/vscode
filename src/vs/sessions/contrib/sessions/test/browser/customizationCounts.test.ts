@@ -10,10 +10,14 @@ import { PromptsType } from '../../../../../workbench/contrib/chat/common/prompt
 import { IPromptsService, PromptsStorage, IPromptPath, ILocalPromptPath, IUserPromptPath, IExtensionPromptPath, IAgentInstructionFile, AgentInstructionFileType } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { getSourceCounts, getSourceCountsTotal, getCustomizationTotalCount } from '../../browser/customizationCounts.js';
+import { getSourceCounts, getSourceCountsTotal, getCustomizationTotalCount, getActiveItemProvider } from '../../browser/customizationCounts.js';
 import { IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
 function localFile(path: string): ILocalPromptPath {
 	return { uri: URI.file(path), storage: PromptsStorage.local, type: PromptsType.instructions };
@@ -688,6 +692,148 @@ suite('customizationCounts', () => {
 
 			// 0 agents + 0 skills + 2 instructions (1 file + 1 AGENTS.md) + 0 prompts + 0 hooks + 0 mcp = 2
 			assert.strictEqual(total, 2);
+		});
+	});
+
+	suite('getActiveItemProvider', () => {
+		function createMockSessionsService(sessionType?: string): ISessionsManagementService {
+			const activeSession = observableValue<IActiveSession | undefined>(
+				'test',
+				sessionType ? { sessionType } as IActiveSession : undefined,
+			);
+			return { activeSession } as unknown as ISessionsManagementService;
+		}
+
+		function createMockHarnessService(harnesses: { id: string; itemProvider?: ICustomizationItemProvider }[]): ICustomizationHarnessService {
+			return {
+				findHarnessById: (sessionType: string) => {
+					const h = harnesses.find(h => h.id === sessionType);
+					return h ? { id: h.id, itemProvider: h.itemProvider } as IHarnessDescriptor : undefined;
+				},
+			} as unknown as ICustomizationHarnessService;
+		}
+
+		test('returns undefined when no active session', () => {
+			const sessionsService = createMockSessionsService(undefined);
+			const harnessService = createMockHarnessService([]);
+			assert.strictEqual(getActiveItemProvider(sessionsService, harnessService), undefined);
+		});
+
+		test('returns undefined when session type has no matching harness', () => {
+			const sessionsService = createMockSessionsService('unknown-type');
+			const harnessService = createMockHarnessService([{ id: 'copilotcli' }]);
+			assert.strictEqual(getActiveItemProvider(sessionsService, harnessService), undefined);
+		});
+
+		test('returns undefined when harness has no itemProvider', () => {
+			const sessionsService = createMockSessionsService('copilotcli');
+			const harnessService = createMockHarnessService([{ id: 'copilotcli', itemProvider: undefined }]);
+			assert.strictEqual(getActiveItemProvider(sessionsService, harnessService), undefined);
+		});
+
+		test('returns the itemProvider when harness exists with one', () => {
+			const mockProvider: ICustomizationItemProvider = {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+			};
+			const sessionsService = createMockSessionsService('claude-code');
+			const harnessService = createMockHarnessService([{ id: 'claude-code', itemProvider: mockProvider }]);
+			assert.strictEqual(getActiveItemProvider(sessionsService, harnessService), mockProvider);
+		});
+	});
+
+	suite('getCustomizationTotalCount with itemProvider', () => {
+		function createItemProvider(items: ICustomizationItem[]): ICustomizationItemProvider {
+			return {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async (_token: CancellationToken) => items,
+			};
+		}
+
+		function makeItem(type: string, name: string): ICustomizationItem {
+			return { uri: URI.file(`/mock/${name}`), type, name, extensionId: undefined, pluginUri: undefined };
+		}
+
+		test('uses itemProvider counts when provided', async () => {
+			const promptsService = createMockPromptsService({});
+			const mcpService = {
+				servers: observableValue('test', [{ id: 's1' }]),
+			} as unknown as IMcpService;
+			const workspaceService = createMockWorkspaceService({ filter: { sources: [PromptsStorage.local] } });
+			const contextService = createMockWorkspaceContextService([]);
+
+			const provider = createItemProvider([
+				makeItem('agent', 'my-agent'),
+				makeItem('skill', 'my-skill'),
+				makeItem('instructions', 'my-instruction'),
+				makeItem('hook', 'my-hook'),
+			]);
+
+			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService, undefined, provider);
+
+			// 4 from provider + 1 mcp = 5
+			assert.strictEqual(total, 5);
+		});
+
+		test('ignores non-prompt types from itemProvider', async () => {
+			const promptsService = createMockPromptsService({});
+			const mcpService = {
+				servers: observableValue('test', []),
+			} as unknown as IMcpService;
+			const workspaceService = createMockWorkspaceService({ filter: { sources: [PromptsStorage.local] } });
+			const contextService = createMockWorkspaceContextService([]);
+
+			const provider = createItemProvider([
+				makeItem('agent', 'a'),
+				makeItem('unknown-type', 'x'),
+				makeItem('prompt', 'p'),
+			]);
+
+			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService, undefined, provider);
+
+			// Only 'agent' matches the prompt types (agent, skill, instructions, hook)
+			assert.strictEqual(total, 1);
+		});
+
+		test('itemProvider returning undefined counts as zero', async () => {
+			const promptsService = createMockPromptsService({});
+			const mcpService = {
+				servers: observableValue('test', [{ id: 's1' }, { id: 's2' }]),
+			} as unknown as IMcpService;
+			const workspaceService = createMockWorkspaceService({ filter: { sources: [PromptsStorage.local] } });
+			const contextService = createMockWorkspaceContextService([]);
+
+			const provider: ICustomizationItemProvider = {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => undefined,
+			};
+
+			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService, undefined, provider);
+
+			// 0 from provider + 2 mcp = 2
+			assert.strictEqual(total, 2);
+		});
+
+		test('sums itemProvider counts with plugins and mcp', async () => {
+			const promptsService = createMockPromptsService({});
+			const mcpService = {
+				servers: observableValue('test', [{ id: 's1' }]),
+			} as unknown as IMcpService;
+			const workspaceService = createMockWorkspaceService({ filter: { sources: [PromptsStorage.local] } });
+			const contextService = createMockWorkspaceContextService([]);
+
+			const provider = createItemProvider([
+				makeItem('agent', 'a'),
+				makeItem('skill', 's'),
+			]);
+			const agentPluginService = {
+				plugins: observableValue('test', [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]),
+			} as unknown as IAgentPluginService;
+
+			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService, agentPluginService, provider);
+
+			// 2 from provider + 1 mcp + 3 plugins = 6
+			assert.strictEqual(total, 6);
 		});
 	});
 

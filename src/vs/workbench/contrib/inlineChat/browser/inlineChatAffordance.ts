@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, debouncedObservable, derived, observableSignalFromEvent, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
+import { autorun, debouncedObservable, derived, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
-import { ScrollType } from '../../../../editor/common/editorCommon.js';
+
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InlineChatConfigKeys, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { InlineChatEditorAffordance } from './inlineChatEditorAffordance.js';
-import { InlineChatInputWidget } from './inlineChatOverlayWidget.js';
-import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { assertType } from '../../../../base/common/types.js';
+
+import { Selection } from '../../../../editor/common/core/selection.js';
+
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
@@ -41,14 +41,11 @@ type InlineChatAffordanceClassification = {
 export class InlineChatAffordance extends Disposable {
 
 	readonly #editor: ICodeEditor;
-	readonly #inputWidget: InlineChatInputWidget;
 	readonly #instantiationService: IInstantiationService;
-	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number; placeholder: string; value?: string } | undefined>(this, undefined);
 	readonly #selectionData = observableValue<Selection | undefined>(this, undefined);
 
 	constructor(
 		editor: ICodeEditor,
-		inputWidget: InlineChatInputWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
@@ -58,7 +55,6 @@ export class InlineChatAffordance extends Disposable {
 	) {
 		super();
 		this.#editor = editor;
-		this.#inputWidget = inputWidget;
 		this.#instantiationService = instantiationService;
 
 		const editorObs = observableCodeEditor(this.#editor);
@@ -153,54 +149,9 @@ export class InlineChatAffordance extends Disposable {
 			}
 		}));
 
-		this._store.add(autorun(r => {
-			const data = this.#menuData.read(r);
-			if (!data) {
-				return;
-			}
-
-			// Reveal the line in case it's outside the viewport (e.g., when triggered from sticky scroll)
-			this.#editor.revealLineInCenterIfOutsideViewport(data.lineNumber, ScrollType.Immediate);
-
-			const editorDomNode = this.#editor.getDomNode()!;
-			const editorRect = editorDomNode.getBoundingClientRect();
-			const left = data.rect.left - editorRect.left;
-
-			// Show the overlay widget
-			this.#inputWidget.show(data.lineNumber, left, data.above, data.placeholder, data.value);
-		}));
-
-		this._store.add(autorun(r => {
-			const pos = this.#inputWidget.position.read(r);
-			if (pos === null) {
-				this.#menuData.set(undefined, undefined);
-			}
-		}));
 	}
 
 	dismiss(): void {
 		this.#selectionData.set(undefined, undefined);
-	}
-
-	async showMenuAtSelection(placeholder: string, value?: string): Promise<void> {
-		assertType(this.#editor.hasModel());
-
-		const direction = this.#editor.getSelection().getDirection();
-		const position = this.#editor.getPosition();
-		const editorDomNode = this.#editor.getDomNode();
-		const scrolledPosition = this.#editor.getScrolledVisiblePosition(position);
-		const editorRect = editorDomNode.getBoundingClientRect();
-		const x = editorRect.left + scrolledPosition.left;
-		const y = editorRect.top + scrolledPosition.top;
-
-		this.#menuData.set({
-			rect: new DOMRect(x, y, 0, scrolledPosition.height),
-			above: direction === SelectionDirection.RTL,
-			lineNumber: position.lineNumber,
-			placeholder,
-			value
-		}, undefined);
-
-		await waitForState(this.#inputWidget.position, pos => pos === null);
 	}
 }

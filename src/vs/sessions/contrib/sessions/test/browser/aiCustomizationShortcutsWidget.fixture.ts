@@ -21,6 +21,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
@@ -203,6 +204,10 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly availableHarnesses = observableValue<readonly never[]>('availableHarnesses', []);
+				override findHarnessById() { return undefined; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;

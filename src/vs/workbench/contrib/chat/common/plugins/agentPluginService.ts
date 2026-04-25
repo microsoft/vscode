@@ -66,6 +66,13 @@ export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, comma
 		return normalizedCommand;
 	}
 
+	// When the skill name matches the plugin name, use just the plugin
+	// name so the user can invoke `/plugin-name` instead of the redundant
+	// `/plugin-name:plugin-name`.
+	if (prefix === normalizedCommand) {
+		return prefix;
+	}
+
 	return `${prefix}:${normalizedCommand}`;
 }
 

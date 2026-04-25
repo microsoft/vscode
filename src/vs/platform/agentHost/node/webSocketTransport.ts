@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
-import { JSON_RPC_PARSE_ERROR, type IAhpServerNotification, type IJsonRpcResponse, type IProtocolMessage } from '../common/state/sessionProtocol.js';
+import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
@@ -42,7 +42,7 @@ export interface IWebSocketServerOptions {
  */
 export class WebSocketProtocolTransport extends Disposable implements IProtocolTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -57,7 +57,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text) as IProtocolMessage;
+				const message = JSON.parse(text) as ProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
 				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
@@ -74,7 +74,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {
 			this._ws.send(JSON.stringify(message));
 		}

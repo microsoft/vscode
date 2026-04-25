@@ -417,7 +417,7 @@ export class AgentPluginEditor extends EditorPane {
 
 			webview.claim(this, this.window, undefined);
 			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.setAnchorElement(container);
 
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
@@ -428,7 +428,7 @@ export class AgentPluginEditor extends EditorPane {
 
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webview.layoutWebviewOverElement(container);
+					webview.setAnchorElement(container);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));

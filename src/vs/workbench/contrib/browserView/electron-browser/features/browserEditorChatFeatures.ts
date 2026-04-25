@@ -227,7 +227,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	}
 
 	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._shareButtonContainer, order: 100 }];
+		return [{ element: this._shareButtonContainer, order: 50 }];
 	}
 
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {

@@ -80,10 +80,10 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.showPostInstallInfo': {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('showPostInstallInfo', "Show update information tooltip in the title bar after a new version is installed."),
-			included: false,
+			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
+			tags: ['usesOnlineServices']
 		}
 	}
 });

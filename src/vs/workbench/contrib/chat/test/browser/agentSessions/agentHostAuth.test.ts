@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { resolveTokenForResource } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { resolveTokenForResource, AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 
 function createMockAuthService(overrides: {
 	getOrActivateProviderIdForServer?: (serverUri: URI, resourceUri: URI) => Promise<string | undefined>;
@@ -110,5 +110,47 @@ suite('resolveTokenForResource', () => {
 		);
 		assert.strictEqual(token, 'server2-token');
 		assert.strictEqual(calls.length, 2);
+	});
+});
+
+suite('AgentHostAuthTokenCache', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('first token for a resource is reported as changed', () => {
+		const cache = new AgentHostAuthTokenCache();
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
+	});
+
+	test('repeating the same token for the same resource is reported as unchanged', () => {
+		const cache = new AgentHostAuthTokenCache();
+		cache.updateAndIsChanged('https://api.example.com', 'tok1');
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
+	});
+
+	test('a different token for the same resource is reported as changed', () => {
+		const cache = new AgentHostAuthTokenCache();
+		cache.updateAndIsChanged('https://api.example.com', 'tok1');
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok2'), true);
+		// And the new token is now the cached one.
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok2'), false);
+	});
+
+	test('tokens for distinct resources are tracked independently', () => {
+		const cache = new AgentHostAuthTokenCache();
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok1'), false);
+	});
+
+	test('clear forgets every cached token', () => {
+		const cache = new AgentHostAuthTokenCache();
+		cache.updateAndIsChanged('https://api.example.com', 'tok1');
+		cache.updateAndIsChanged('https://other.example.com', 'tok2');
+		cache.clear();
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok2'), true);
 	});
 });

@@ -15,13 +15,14 @@ import { autorun, derived, IObservable, observableValue, transaction } from '../
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostSessionConfigBranchNameHintKey, AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ICustomizationRef, TerminalClaimKind, ToolResultContentType, type IProtectedResourceMetadata, type IToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, ISessionTurnStartedAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, SessionTurnStartedAction, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type IMessageAttachment, type IModelSelection, type IResponsePart, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MessageAttachment, type ModelSelection, type ResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -67,7 +68,7 @@ interface ITurnProcessingContext {
 	readonly progress: (parts: IChatProgress[]) => void;
 	readonly cancellationToken: CancellationToken;
 	/** Called when a completed tool produces file edits. */
-	readonly onFileEdits?: (tc: IToolCallState, fileEdits: IToolCallFileEdit[]) => void;
+	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 }
 
 /**
@@ -119,11 +120,11 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 
 /**
  * Converts carousel answers (IChatQuestionAnswers) to protocol
- * ISessionInputAnswer records, handling text, single-select,
+ * SessionInputAnswer records, handling text, single-select,
  * and multi-select answer shapes.
  */
-export function convertCarouselAnswers(raw: IChatQuestionAnswers): Record<string, ISessionInputAnswer> {
-	const answers: Record<string, ISessionInputAnswer> = {};
+export function convertCarouselAnswers(raw: IChatQuestionAnswers): Record<string, SessionInputAnswer> {
+	const answers: Record<string, SessionInputAnswer> = {};
 	for (const [qId, answer] of Object.entries(raw)) {
 		if (typeof answer === 'string') {
 			answers[qId] = {
@@ -289,13 +290,13 @@ export interface IAgentHostSessionHandlerConfig {
 	 * @param protectedResources The protected resources from the agent's root
 	 *   state that require authentication.
 	 */
-	readonly resolveAuthentication?: (protectedResources: IProtectedResourceMetadata[]) => Promise<boolean>;
+	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
 
 	/**
 	 * Observable set of agent-level customizations to include in the active
 	 * client set. When the value changes, active sessions are updated.
 	 */
-	readonly customizations?: IObservable<ICustomizationRef[]>;
+	readonly customizations?: IObservable<CustomizationRef[]>;
 }
 
 export function getAgentHostBranchNameHint(message: string): string | undefined {
@@ -321,13 +322,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
-	private readonly _pendingHistoryTurns = new ResourceMap<readonly ITurn[]>();
+	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
 	/** Active session subscriptions, keyed by backend session URI string. */
-	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<ISessionState>>>();
+	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
 
 	/** Observable of client-provided tools filtered by the allowlist and `when` clauses. */
 	private readonly _clientToolsObs: IObservable<readonly IToolData[]>;
@@ -731,7 +732,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
-	private _dispatchAction(action: ISessionAction): void {
+	private _dispatchAction(action: SessionAction): void {
 		this._config.connection.dispatch(action);
 	}
 
@@ -740,7 +741,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * role for this session and publish the current customizations and
 	 * client-provided tools.
 	 */
-	private _dispatchActiveClient(backendSession: URI, customizations: ICustomizationRef[]): void {
+	private _dispatchActiveClient(backendSession: URI, customizations: CustomizationRef[]): void {
 		this._dispatchAction({
 			type: ActionType.SessionActiveClientChanged,
 			session: backendSession.toString(),
@@ -885,7 +886,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			cancellationToken: CancellationToken.None,
 		};
 
-		const processState = (sessionState: ISessionState) => {
+		const processState = (sessionState: SessionState) => {
 			if (finished) {
 				return;
 			}
@@ -931,7 +932,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._clientDispatchedTurnIds.add(turnId);
 		const cleanUpTurnId = () => this._clientDispatchedTurnIds.delete(turnId);
 		const attachments = this._convertVariablesToAttachments(request);
-		const messageAttachments: IMessageAttachment[] = attachments.map(a => ({
+		const messageAttachments: MessageAttachment[] = attachments.map(a => ({
 			type: a.type,
 			path: a.path,
 			displayName: a.displayName,
@@ -962,7 +963,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
 			const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
 			if (!previousRequest && protocolState.turns.length > 0) {
-				const truncateAction: ISessionTruncatedAction = {
+				const truncateAction: SessionTruncatedAction = {
 					type: ActionType.SessionTruncated,
 					session: session.toString(),
 				};
@@ -970,7 +971,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else {
 				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
 				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
-					const truncateAction: ISessionTruncatedAction = {
+					const truncateAction: SessionTruncatedAction = {
 						type: ActionType.SessionTruncated,
 						session: session.toString(),
 						turnId: previousRequest!.id,
@@ -982,7 +983,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
-		const turnAction: ISessionTurnStartedAction = {
+		const turnAction: SessionTurnStartedAction = {
 			type: ActionType.SessionTurnStarted,
 			session: session.toString(),
 			turnId,
@@ -1099,10 +1100,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		session: URI,
 		turnId: string,
 		cancellationToken: CancellationToken,
+		protocolOptions?: ConfirmationOption[],
 	): void {
 		IChatToolInvocation.awaitConfirmation(invocation, cancellationToken).then(reason => {
-			const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
-			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}`);
+			// When the user picked a custom button, resolve the matching
+			// protocol option so we can forward `selectedOptionId` and
+			// derive approve/deny from the option's kind.
+			let selectedOption: ConfirmationOption | undefined;
+			if (reason.type === ToolConfirmKind.UserAction && reason.selectedButton && protocolOptions) {
+				selectedOption = protocolOptions.find(o => o.id === reason.selectedButton);
+			}
+
+			const approved = selectedOption
+				? selectedOption.kind === ConfirmationOptionKind.Approve
+				: reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
+
+			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			if (approved) {
 				this._config.connection.dispatch({
 					type: ActionType.SessionToolCallConfirmed,
@@ -1111,6 +1124,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: true,
 					confirmed: ToolCallConfirmationReason.UserAction,
+					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 			} else {
 				this._config.connection.dispatch({
@@ -1120,6 +1134,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
+					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 			}
 		}).catch(err => {
@@ -1141,7 +1156,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _updateToolCallState(
 		existing: ChatToolInvocation,
-		tc: IToolCallState,
+		tc: ToolCallState,
 		ctx: ITurnProcessingContext,
 	): { invocation: ChatToolInvocation; fileEdits: IToolCallFileEdit[] } {
 		const toolCallId = tc.toolCallId;
@@ -1155,7 +1170,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const confirmInvocation = toolCallStateToInvocation(tc, undefined, ctx.backendSession, this._config.connectionAuthority);
 				ctx.activeToolInvocations.set(toolCallId, confirmInvocation);
 				ctx.progress([confirmInvocation]);
-				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
+				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
 				existing = confirmInvocation;
 			}
 		} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingResultConfirmation) {
@@ -1197,7 +1212,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * The actual {@link ILanguageModelToolsService.invokeTool} call is
 	 * deferred until {@link _tryInvokeClientTool} sees the tool parameters.
 	 */
-	private _beginClientToolInvocation(tc: IToolCallState, ctx: ITurnProcessingContext): void {
+	private _beginClientToolInvocation(tc: ToolCallState, ctx: ITurnProcessingContext): void {
 		const toolCallId = tc.toolCallId;
 
 		const toolData = this._toolsService.getToolByName(tc.toolName);
@@ -1319,7 +1334,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * streaming invocation created in {@link _beginClientToolInvocation}.
 	 * Settlement is handled by {@link _handleClientToolSettled}.
 	 */
-	private _tryInvokeClientTool(tc: IToolCallState, ctx: ITurnProcessingContext): void {
+	private _tryInvokeClientTool(tc: ToolCallState, ctx: ITurnProcessingContext): void {
 		const entry = this._clientToolCalls.get(tc.toolCallId);
 		if (!entry || entry.invoked || entry.cts.token.isCancellationRequested) {
 			return;
@@ -1488,7 +1503,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _reviveTerminalIfNeeded(
 		invocation: ChatToolInvocation,
-		tc: IToolCallState,
+		tc: ToolCallState,
 		backendSession: URI,
 	): void {
 		// content is only present on Running/Completed/PendingResultConfirmation.
@@ -1541,7 +1556,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 *   `progress`.
 	 */
 	private _processSessionState(
-		sessionState: ISessionState,
+		sessionState: SessionState,
 		ctx: ITurnProcessingContext,
 	): boolean {
 		const activeTurn = sessionState.activeTurn;
@@ -1595,7 +1610,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							ctx.progress([existing]);
 
 							if (tc.status === ToolCallStatus.PendingConfirmation) {
-								this._awaitToolConfirmation(existing, tc.toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
+								this._awaitToolConfirmation(existing, tc.toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
 							} else {
 								// First snapshot may already be Running/Completed/
 								// Cancelled (due to throttling). Process immediately
@@ -1647,7 +1662,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _syncInputRequests(
 		active: Map<string, ChatQuestionCarouselData>,
-		inputRequests: readonly ISessionInputRequest[] | undefined,
+		inputRequests: readonly SessionInputRequest[] | undefined,
 		session: URI,
 		token: CancellationToken,
 		progress: (items: IChatProgress[]) => void,
@@ -1673,7 +1688,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the `SessionInputCompleted` action when the user answers or cancels.
 	 */
 	private _handleInputRequest(
-		inputReq: ISessionInputRequest,
+		inputReq: SessionInputRequest,
 		session: URI,
 		cancellationToken: CancellationToken,
 		progress: (items: IChatProgress[]) => void,
@@ -1782,7 +1797,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * tool call IDs.
 	 */
 	private _observeSubagentToolCalls(
-		sessionState: ISessionState,
+		sessionState: SessionState,
 		turnId: string,
 		activeToolInvocations: Map<string, ChatToolInvocation>,
 		observedSubagentToolIds: Set<string>,
@@ -1909,7 +1924,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables.add(toDisposable(() => childCts.dispose(true)));
 
 		// Helper to process response parts from a child turn
-		const processChildParts = (responseParts: readonly IResponsePart[], turnId: string) => {
+		const processChildParts = (responseParts: readonly ResponsePart[], turnId: string) => {
 			for (const rp of responseParts) {
 				if (rp.kind === ResponsePartKind.ToolCall) {
 					const tc = rp.toolCall;
@@ -1921,7 +1936,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						emitProgress([existing]);
 
 						if (tc.status === ToolCallStatus.PendingConfirmation) {
-							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
 						}
 					} else if (tc.status === ToolCallStatus.PendingConfirmation) {
 						const existingState = existing.state.get();
@@ -1930,7 +1945,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
 							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
 							emitProgress([confirmInvocation]);
-							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
 						}
 					} else if (tc.status === ToolCallStatus.Running) {
 						updateRunningToolSpecificData(existing, tc, this._config.connectionAuthority);
@@ -2037,7 +2052,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		reconnectDisposables.add(toDisposable(() => cts.dispose(true)));
 		for (const [toolCallId, invocation] of activeToolInvocations) {
 			if (!IChatToolInvocation.isComplete(invocation)) {
-				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token);
+				// Look up the tool call state to forward protocol options on reconnection
+				const tcState = currentState?.activeTurn?.responseParts.find(
+					rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === toolCallId
+				);
+				const tcOptions = tcState?.kind === ResponsePartKind.ToolCall && tcState.toolCall.status === ToolCallStatus.PendingConfirmation
+					? tcState.toolCall.options
+					: undefined;
+				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token, tcOptions);
 			}
 			if (invocation.toolSpecificData?.kind === 'subagent' && !observedSubagentToolIds.has(toolCallId)) {
 				observedSubagentToolIds.add(toolCallId);
@@ -2062,7 +2084,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			progress: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
 		};
-		const processStateChange = (sessionState: ISessionState) => {
+		const processStateChange = (sessionState: SessionState) => {
 			const isActive = this._processSessionState(sessionState, ctx);
 			this._syncInputRequests(activeInputRequests, sessionState.inputRequests, backendSession, cts.token, appendProgress);
 
@@ -2138,7 +2160,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _hydrateFileEdits(
 		sessionResource: URI,
 		requestId: string,
-		tc: IToolCallState,
+		tc: ToolCallState,
 	): IChatProgress[] {
 		const editingSession = this._ensureEditingSession(sessionResource);
 		if (editingSession) {
@@ -2237,8 +2259,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: IModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, string>, branchNameHint?: string): Promise<URI> {
-		const config = branchNameHint ? { ...sessionConfig, [AgentHostSessionConfigBranchNameHintKey]: branchNameHint } : sessionConfig;
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
+		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
 		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
@@ -2348,7 +2370,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return false;
 	}
 
-	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): IModelSelection | undefined {
+	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): ModelSelection | undefined {
 		const rawModelId = this._extractRawModelId(languageModelIdentifier);
 		if (!rawModelId) {
 			return undefined;
@@ -2364,7 +2386,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
 	}
 
-	private _modelSelectionsEqual(a: IModelSelection | undefined, b: IModelSelection | undefined): boolean {
+	private _modelSelectionsEqual(a: ModelSelection | undefined, b: ModelSelection | undefined): boolean {
 		if (a?.id !== b?.id) {
 			return false;
 		}
@@ -2433,7 +2455,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Get or create a session subscription. The first call for a given URI
 	 * triggers a server subscribe; subsequent calls increment the refcount.
 	 */
-	private _ensureSessionSubscription(sessionUri: string): IAgentSubscription<ISessionState> {
+	private _ensureSessionSubscription(sessionUri: string): IAgentSubscription<SessionState> {
 		let ref = this._sessionSubscriptions.get(sessionUri);
 		if (!ref) {
 			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
@@ -2457,7 +2479,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Read the current optimistic session state for a backend session URI.
 	 */
-	private _getSessionState(sessionUri: string): ISessionState | undefined {
+	private _getSessionState(sessionUri: string): SessionState | undefined {
 		const ref = this._sessionSubscriptions.get(sessionUri);
 		if (!ref) {
 			return undefined;
@@ -2469,7 +2491,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Read the current root state.
 	 */
-	private _getRootState(): IRootState | undefined {
+	private _getRootState(): RootState | undefined {
 		const value = this._config.connection.rootState.value;
 		return (value && !(value instanceof Error)) ? value : undefined;
 	}
@@ -2496,22 +2518,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 // =============================================================================
 
 /**
- * Converts an internal {@link IToolData} to a protocol {@link IToolDefinition}.
+ * Converts an internal {@link IToolData} to a protocol {@link ToolDefinition}.
  */
-export function toolDataToDefinition(tool: IToolData): IToolDefinition {
+export function toolDataToDefinition(tool: IToolData): ToolDefinition {
 	return {
 		name: tool.toolReferenceName ?? tool.id,
 		title: tool.displayName,
 		description: tool.modelDescription,
 		inputSchema: tool.inputSchema?.type === 'object'
-			? tool.inputSchema as IToolDefinition['inputSchema']
+			? tool.inputSchema as ToolDefinition['inputSchema']
 			: undefined,
 	};
 }
 
 /**
  * Converts an internal {@link IToolResult} to a protocol
- * {@link import('../../../../../../platform/agentHost/common/state/protocol/state.js').IToolCallResult}.
+ * {@link import('../../../../../../platform/agentHost/common/state/protocol/state.js').ToolCallResult}.
  */
 export function toolResultToProtocol(result: IToolResult, toolName: string): {
 	success: boolean;

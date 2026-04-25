@@ -494,7 +494,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 		return undefined;
 	}
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
 	}
 	if (source.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
@@ -507,14 +507,7 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		// Migrate old ExtensionAgentSourceType values ('contribution'/'provider') to PromptFileSource values
-		let type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
-		if (data.type === 'provider' as string /* old type value */ || data.type === PromptFileSource.ExtensionAPI) {
-			type = PromptFileSource.ExtensionAPI;
-		} else {
-			type = PromptFileSource.ExtensionContribution;
-		}
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };

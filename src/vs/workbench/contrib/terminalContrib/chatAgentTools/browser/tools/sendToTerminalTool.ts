@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../../../base/common/async.js';
-import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { appendEscapedMarkdownInlineCode, createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -16,9 +16,9 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../../../chat/common/chatService/chatService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITerminalChatService, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../outputHelpers.js';
-import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, isMultilineCommand, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { isSessionAutoApproveLevel } from './terminalToolAutoApprove.js';
 import { TerminalToolId } from './toolIds.js';
@@ -27,7 +27,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send input text to an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). The result includes the last few lines of terminal output captured shortly after sending.`,
+	modelDescription: `Send input text to an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). By default, returns the last 20 lines of terminal output captured shortly after sending. Set 'waitForOutput' to true for interactive programs (games, REPLs, etc.) to wait until the terminal becomes idle before returning output — this gives you the program's response to your input.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -42,6 +42,10 @@ export const SendToTerminalToolData: IToolData = {
 				type: 'string',
 				description: 'The input text to send to the terminal. The text is sent followed by Enter. Provide an empty or whitespace string to send just Enter (for interactive prompts).'
 			},
+			waitForOutput: {
+				type: 'boolean',
+				description: 'When true, waits for the terminal to become idle (no new output for a short period) before returning, instead of returning immediately. Use this for interactive programs where you need to see the full response to your input. Defaults to false.'
+			},
 		},
 		required: [
 			'id',
@@ -53,6 +57,7 @@ export const SendToTerminalToolData: IToolData = {
 export interface ISendToTerminalInputParams {
 	id: string;
 	command: string;
+	waitForOutput?: boolean;
 }
 
 const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
@@ -320,7 +325,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		return false;
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as ISendToTerminalInputParams;
 
 		if (!args.id) {
@@ -342,16 +347,74 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		// Register a marker before sending so we can scope output to just the response
+		const startMarker = execution.instance.registerMarker?.();
 
-		await timeout(100);
-		const recentOutput = getOutput(execution.instance, undefined, { lastNLines: 5 });
+		if (isMultilineCommand(args.command)) {
+			// Multiline commands (e.g. heredocs) must preserve newlines and use
+			// bracketed paste mode so the shell treats the input as a single paste
+			// rather than executing each line independently. Intentionally skip
+			// normalizeCommandForExecution here so neither newlines nor the
+			// trailing/leading whitespace `.trim()` it performs are stripped.
+			await execution.instance.sendText(args.command, true, true);
+		} else {
+			await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		}
+
+		let recentOutput: string;
+		if (args.waitForOutput) {
+			// Wait for the terminal to become idle (no new data) before returning.
+			// This is critical for interactive programs (games, REPLs, etc.) where
+			// the response arrives asynchronously after the input.
+			recentOutput = await this._waitForIdleOutput(execution, startMarker, token);
+		} else {
+			await timeout(2000, token);
+			recentOutput = getOutput(execution.instance, startMarker ?? undefined, { lastNLines: 20 });
+		}
 
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output (last 5 lines):\n${recentOutput}` : ''}`
+				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output:\n${recentOutput}` : ''}`
 			}]
 		};
+	}
+
+	/**
+	 * Waits for the terminal to become idle (no new output for a sustained period)
+	 * and returns the output produced since the given marker.
+	 */
+	private async _waitForIdleOutput(
+		execution: ReturnType<typeof RunInTerminalTool.getExecution> & {},
+		startMarker: ReturnType<ITerminalInstance['registerMarker']> | undefined,
+		token: CancellationToken,
+	): Promise<string> {
+		const maxWaitMs = 30_000; // 30 seconds maximum wait
+		const idleThresholdMs = 2_000; // Consider idle after 2s of no data
+		const pollIntervalMs = 500;
+		let waited = 0;
+		let lastDataTime = Date.now();
+
+		const cts = new CancellationTokenSource(token);
+		const dataListener = execution.instance.onData(() => {
+			lastDataTime = Date.now();
+		});
+
+		try {
+			while (!cts.token.isCancellationRequested && waited < maxWaitMs) {
+				await timeout(pollIntervalMs, cts.token);
+				waited += pollIntervalMs;
+
+				const timeSinceLastData = Date.now() - lastDataTime;
+				if (timeSinceLastData >= idleThresholdMs) {
+					break;
+				}
+			}
+		} finally {
+			dataListener.dispose();
+			cts.dispose();
+		}
+
+		return getOutput(execution.instance, startMarker ?? undefined);
 	}
 }

@@ -49,8 +49,8 @@
 .agent-sessions-workbench .sessions-account-titlebar-widget-avatar {
 	display: none;
 	flex: 0 0 auto;
-	width: 16px;
-	height: 16px;
+	width: 18px;
+	height: 18px;
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	border-radius: 50%;
 	box-sizing: border-box;

@@ -18,9 +18,10 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { IFileEdit, IToolDefinition } from '../../common/state/protocol/state.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type IPendingMessage, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
+import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
@@ -42,7 +43,7 @@ function getCopilotCLISessionStateDir(userHome: string): string {
  */
 export interface IActiveClientSnapshot {
 	readonly clientId: string;
-	readonly tools: readonly IToolDefinition[];
+	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly IParsedPlugin[];
 }
 
@@ -88,6 +89,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	readonly wrapperFactory: SessionWrapperFactory;
 	readonly shellManager: ShellManager | undefined;
+	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
+	readonly workingDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
 }
@@ -104,11 +107,11 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: IToolResultContent[] }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[] }>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
-	private readonly _pendingUserInputs = new Map<string, { deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, ISessionInputAnswer> }>; questionId: string }>();
+	private readonly _pendingUserInputs = new Map<string, { deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>; questionId: string }>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
@@ -132,6 +135,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	private readonly _wrapperFactory: SessionWrapperFactory;
 	private readonly _shellManager: ShellManager | undefined;
+	private readonly _workingDirectory: URI | undefined;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -147,6 +151,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._wrapperFactory = options.wrapperFactory;
 		this._shellManager = options.shellManager;
+		this._workingDirectory = options.workingDirectory;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -232,7 +237,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Resolves a pending client tool call. Returns `true` if the
 	 * toolCallId was found and handled.
 	 */
-	handleClientToolCallComplete(toolCallId: string, result: IToolCallResult) {
+	handleClientToolCallComplete(toolCallId: string, result: ToolCallResult) {
 		let deferred = this._pendingClientToolCalls.get(toolCallId);
 		if (!deferred) {
 			deferred = new DeferredPromise<ToolResultObject>();
@@ -308,7 +313,7 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
-	async sendSteering(steeringMessage: IPendingMessage): Promise<void> {
+	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
 		try {
 			await this._wrapper.session.send({
@@ -333,7 +338,7 @@ export class CopilotAgentSession extends Disposable {
 		} catch {
 			// Database may not exist yet — that's fine
 		}
-		return mapSessionEvents(this.sessionUri, db, events);
+		return mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
 	}
 
 	async abort(): Promise<void> {
@@ -389,9 +394,9 @@ export class CopilotAgentSession extends Disposable {
 			this._pendingPermissions.set(toolCallId, deferred);
 
 			// Derive display information from the permission request kind
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request);
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory);
 
-			// For write permission requests, build an IFileEdit preview so the
+			// For write permission requests, build an FileEdit preview so the
 			// client can show a diff before the user approves or denies. This
 			// awaits async filesystem operations; the SDK already calls
 			// `handlePermissionRequest` from an arbitrary async context, so the
@@ -451,7 +456,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Builds an {@link IFileEdit} preview for a write permission request.
+	 * Builds an {@link FileEdit} preview for a write permission request.
 	 *
 	 * The `before` side references the existing file on disk directly (if it
 	 * exists); the `after` side is written to the `pending-edit-content:`
@@ -463,7 +468,7 @@ export class CopilotAgentSession extends Disposable {
 	 * the in-memory write completes (e.g. the session was aborted), the
 	 * just-written entry is deleted so it cannot leak.
 	 */
-	private async _buildEditsForPermission(request: ITypedPermissionRequest, toolCallId: string): Promise<{ items: IFileEdit[] } | undefined> {
+	private async _buildEditsForPermission(request: ITypedPermissionRequest, toolCallId: string): Promise<{ items: FileEdit[] } | undefined> {
 		if (request.kind !== 'write') {
 			return undefined;
 		}
@@ -504,7 +509,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const diffCounts = typeof request.diff === 'string' ? countUnifiedDiffLines(request.diff) : undefined;
 
-		const edit: IFileEdit = {
+		const edit: FileEdit = {
 			...(beforeExists ? { before: { uri: fileUriStr, content: { uri: fileUriStr } } } : {}),
 			after: { uri: fileUriStr, content: { uri: afterUri.toString() } },
 			...(diffCounts ? { diff: diffCounts } : {}),
@@ -540,11 +545,11 @@ export class CopilotAgentSession extends Disposable {
 			const questionId = generateUuid();
 			this._logService.info(`[Copilot:${this.sessionId}] User input request: requestId=${requestId}, question="${questionPreview}"`);
 
-			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, ISessionInputAnswer> }>();
+			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
 			this._pendingUserInputs.set(requestId, { deferred, questionId });
 
-			// Build the protocol ISessionInputRequest from the SDK's simple format
-			const inputRequest: ISessionInputRequest = {
+			// Build the protocol SessionInputRequest from the SDK's simple format
+			const inputRequest: SessionInputRequest = {
 				id: requestId,
 				message: request.question,
 				questions: [request.choices && request.choices.length > 0
@@ -599,7 +604,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, ISessionInputAnswer>): boolean {
+	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): boolean {
 		const pending = this._pendingUserInputs.get(requestId);
 		if (pending) {
 			this._pendingUserInputs.delete(requestId);
@@ -691,10 +696,16 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
-			const toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
+			let toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
 			let parameters: Record<string, unknown> | undefined;
 			if (toolArgs) {
 				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
+			}
+			// Strip redundant `cd <workingDirectory> && …` prefixes from shell tool
+			// commands so clients see the simplified form. Mirrors the logic in
+			// mapSessionEvents (which handles the history-replay path).
+			if (stripRedundantCdPrefix(e.data.toolName, parameters, this._workingDirectory)) {
+				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
@@ -731,7 +742,7 @@ export class CopilotAgentSession extends Disposable {
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 
-			const content: IToolResultContent[] = [...tracked.content];
+			const content: ToolResultContent[] = [...tracked.content];
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}

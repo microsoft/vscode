@@ -107,3 +107,76 @@
 .new-chat-in-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
 	animation: none;
 }
+
+/* --- Sub-session tip banner --- */
+
+.new-chat-in-session .sub-session-tip-container {
+	width: 100%;
+	max-width: 950px;
+}
+
+/* When tip is present, remove top border-radius from the input area so
+	the tip and input connect seamlessly. */
+.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area {
+	border-radius: 0 0 var(--vscode-cornerRadius-large, 8px) var(--vscode-cornerRadius-large, 8px) !important;
+}
+
+.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor,
+.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor .overflow-guard,
+.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor-background {
+	border-radius: 0 !important;
+}
+
+.new-chat-in-session .sub-session-tip-widget {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: 6px 8px;
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
+	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-editorWidget-border, var(--vscode-input-border, transparent)));
+	border-bottom: none;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	color: var(--vscode-descriptionForeground);
+}
+
+.new-chat-in-session .sub-session-tip-icon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.new-chat-in-session .sub-session-tip-text {
+	flex: 1;
+	min-width: 0;
+	line-height: 1.4;
+}
+
+.new-chat-in-session .sub-session-tip-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	border: none;
+	background: transparent;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	touch-action: manipulation;
+}
+
+.new-chat-in-session .sub-session-tip-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.new-chat-in-session .sub-session-tip-dismiss:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

@@ -171,12 +171,20 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 	}
 }
 
+/** Max total characters for the formatted result to avoid blowing up the context window. */
+const TOTAL_FORMAT_BUDGET = 30_000;
+
 function formatSqlResult(rows: Record<string, unknown>[], truncated: boolean, source: string): string {
 	if (rows.length === 0) {
 		return `No results found (source: ${source}).`;
 	}
 
 	const columns = Object.keys(rows[0]);
+
+	// Adaptive per-cell limit: distribute budget evenly across all cells
+	const cellCount = rows.length * columns.length;
+	const perCellLimit = Math.floor(TOTAL_FORMAT_BUDGET / cellCount);
+
 	const lines: string[] = [];
 	lines.push(`Results: ${rows.length} rows (source: ${source})${truncated ? ' [TRUNCATED]' : ''}`);
 	lines.push('');
@@ -189,7 +197,7 @@ function formatSqlResult(rows: Record<string, unknown>[], truncated: boolean, so
 				return '';
 			}
 			const s = String(v);
-			return s.length > 100 ? s.slice(0, 100) + '...' : s;
+			return s.length > perCellLimit ? s.slice(0, perCellLimit) + '...' : s;
 		});
 		lines.push(`| ${values.join(' | ')} |`);
 	}
@@ -199,7 +207,14 @@ function formatSqlResult(rows: Record<string, unknown>[], truncated: boolean, so
 		lines.push('⚠️ Results were truncated. Add a LIMIT clause or narrow your query.');
 	}
 
-	return lines.join('\n');
+	let result = lines.join('\n');
+
+	// Hard budget enforcement — truncate the entire output if it still exceeds the budget
+	if (result.length > TOTAL_FORMAT_BUDGET) {
+		result = result.slice(0, TOTAL_FORMAT_BUDGET) + '\n\n⚠️ Output truncated to stay within context budget.';
+	}
+
+	return result;
 }
 
 ToolRegistry.registerTool(SessionStoreSqlTool);

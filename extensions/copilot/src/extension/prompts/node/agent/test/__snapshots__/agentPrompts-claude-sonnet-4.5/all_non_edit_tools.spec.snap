@@ -91,6 +91,7 @@ get_project_setup_info
 get_search_view_results
 get_vscode_api
 github_repo
+github_text_search
 install_extension
 read_notebook_cell_output
 read_project_structure

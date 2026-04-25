@@ -6,7 +6,7 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
@@ -78,6 +78,10 @@ export class ChatCompositeBar extends Disposable {
 			const mainChatUri = activeSession.mainChat.resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 		}));
+
+		// Scroll active tab into view on resize
+		const resizeObserver = this._register(new DisposableResizeObserver(() => this._revealActiveTab()));
+		this._register(resizeObserver.observe(this._tabsContainer));
 
 
 		this._updateStyles();
@@ -195,7 +199,15 @@ export class ChatCompositeBar extends Disposable {
 			const isActive = tab.chat.resource.toString() === activeChatId;
 			tab.element.classList.toggle('active', isActive);
 			tab.element.setAttribute('aria-selected', String(isActive));
+			if (isActive) {
+				tab.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
 		}
+	}
+
+	private _revealActiveTab(): void {
+		const activeTab = this._tabs.find(t => t.element.classList.contains('active'));
+		activeTab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	private _updateVisibility(): void {

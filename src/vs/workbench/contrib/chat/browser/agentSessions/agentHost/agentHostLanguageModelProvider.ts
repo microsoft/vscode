@@ -6,20 +6,20 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IConfigSchema, ISessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
- * root state (via {@link IAgentInfo.models}) rather than via RPC.
+ * root state (via {@link AgentInfo.models}) rather than via RPC.
  */
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _models: readonly ISessionModelInfo[] = [];
+	private _models: readonly SessionModelInfo[] = [];
 
 	constructor(
 		private readonly _sessionType: string,
@@ -31,7 +31,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/**
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
-	updateModels(models: readonly ISessionModelInfo[]): void {
+	updateModels(models: readonly SessionModelInfo[]): void {
 		this._models = models;
 		this._onDidChange.fire();
 	}
@@ -64,7 +64,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			}));
 	}
 
-	private _toLanguageModelConfigurationSchema(schema: IConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}

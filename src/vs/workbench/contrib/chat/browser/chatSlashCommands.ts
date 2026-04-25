@@ -16,7 +16,7 @@ import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
@@ -29,7 +29,6 @@ import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
@@ -67,7 +66,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
@@ -88,7 +87,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
@@ -99,7 +98,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
@@ -122,7 +121,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
@@ -133,7 +132,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
@@ -144,7 +143,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
@@ -155,7 +154,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
@@ -180,7 +179,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();
 			if (title) {
@@ -202,7 +201,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -213,7 +212,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -224,7 +223,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -235,7 +234,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -247,7 +246,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 					executeImmediately: true,
 					silent: true,
 					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
+					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
 				}));
@@ -258,7 +257,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 					executeImmediately: true,
 					silent: true,
 					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
+					sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 				}, async (_prompt, _progress, _history, _location, sessionResource) => {
 					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 				}));
@@ -271,7 +270,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
@@ -359,7 +358,6 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 
 		const store = new DisposableStore();
 		const seen = new Set<string>();
-		const whenClause = ChatContextKeys.chatSessionType.isEqualTo(chatSessionType);
 
 		for (const group of groups) {
 			for (const item of group.items) {
@@ -371,12 +369,12 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 					this.logService.warn(`[ChatSessionOptionSlashCommands] Skipping duplicate slash command '${name}' contributed by session type '${chatSessionType}'.`);
 					continue;
 				}
-				if (this.slashCommandService.hasCommand(name)) {
+				if (this.slashCommandService.hasCommand(name, chatSessionType)) {
 					this.logService.warn(`[ChatSessionOptionSlashCommands] Slash command '${name}' contributed by session type '${chatSessionType}' is already registered; skipping.`);
 					continue;
 				}
 				seen.add(name);
-				store.add(this.registerOne(chatSessionType, group, item, name, whenClause));
+				store.add(this.registerOne(chatSessionType, group, item, name));
 			}
 		}
 
@@ -391,8 +389,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 		chatSessionType: string,
 		group: IChatSessionProviderOptionGroup,
 		item: IChatSessionProviderOptionItem,
-		name: string,
-		whenClause: ReturnType<typeof ChatContextKeys.chatSessionType.isEqualTo>,
+		name: string
 	) {
 		return this.slashCommandService.registerSlashCommand({
 			command: name,
@@ -401,7 +398,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			when: whenClause,
+			sessionTypes: [chatSessionType],
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			if (!sessionResource) {
 				return;

@@ -385,3 +385,22 @@
 	font-size: 12px;
 	white-space: nowrap;
 }
+
+/* Status Placeholder */
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder {
+	margin-left: auto;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder .action-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	cursor: default;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget:hover .status-placeholder,
+.monaco-workbench .zone-widget.inline-chat-widget:focus-within .status-placeholder {
+	opacity: 1;
+}

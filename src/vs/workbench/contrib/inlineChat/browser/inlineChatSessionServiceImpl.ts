@@ -21,7 +21,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { IInlineChatSession2, IInlineChatSessionService, InlineChatSessionTerminationState } from './inlineChatSessionService.js';
+import { IInlineChatSession, IInlineChatSessionService, InlineChatSessionTerminationState } from './inlineChatSessionService.js';
 
 export class InlineChatError extends Error {
 	static readonly code = 'InlineChatError';
@@ -36,7 +36,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	declare _serviceBrand: undefined;
 
 	readonly #store = new DisposableStore();
-	readonly #sessions = new ResourceMap<IInlineChatSession2>();
+	readonly #sessions = new ResourceMap<IInlineChatSession>();
 
 	readonly #onWillStartSession = this.#store.add(new Emitter<IActiveCodeEditor>());
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this.#onWillStartSession.event;
@@ -68,7 +68,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 
-	createSession(editor: IActiveCodeEditor): IInlineChatSession2 {
+	createSession(editor: IActiveCodeEditor): IInlineChatSession {
 		const uri = editor.getModel().uri;
 
 		if (this.#sessions.has(uri)) {
@@ -128,7 +128,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			}
 		}));
 
-		const result: IInlineChatSession2 = {
+		const result: IInlineChatSession = {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
 			initialSelection: editor.getSelection(),
@@ -146,7 +146,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		return result;
 	}
 
-	getSessionByTextModel(uri: URI): IInlineChatSession2 | undefined {
+	getSessionByTextModel(uri: URI): IInlineChatSession | undefined {
 		let result = this.#sessions.get(uri);
 		if (!result) {
 			// no direct session, try to find an editing session which has a file entry for the uri
@@ -161,7 +161,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		return result;
 	}
 
-	getSessionBySessionUri(sessionResource: URI): IInlineChatSession2 | undefined {
+	getSessionBySessionUri(sessionResource: URI): IInlineChatSession | undefined {
 		for (const session of this.#sessions.values()) {
 			if (isEqual(session.chatModel.sessionResource, sessionResource)) {
 				return session;
@@ -193,7 +193,7 @@ export class InlineChatEnabler {
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
-		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
+		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.NotebookAgent, false, configService);
 
 		this.#store.add(autorun(r => {
 			const agent = agentObs.read(r);

@@ -5,12 +5,11 @@
 
 
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { InlineChatIntent } from '../../inlineChat/node/inlineChatIntent';
+import { InlineChatIntent } from '../../inlineChat2/node/inlineChatIntent';
 import { IntentRegistry } from '../../prompt/node/intentRegistry';
 import { AgentIntent } from './agentIntent';
 import { AskAgentIntent } from './askAgentIntent';
 import { ChronicleIntent } from './chronicleIntent';
-import { InlineDocIntent } from './docIntent';
 import { EditCodeIntent } from './editCodeIntent';
 import { ExplainIntent } from './explainIntent';
 import { FixIntent } from './fixIntent';
@@ -30,7 +29,6 @@ import { UnknownIntent } from './unknownIntent';
 import { VscodeIntent } from './vscodeIntent';
 
 IntentRegistry.setIntents([
-	new SyncDescriptor(InlineDocIntent),
 	new SyncDescriptor(EditCodeIntent),
 	new SyncDescriptor(AgentIntent),
 	new SyncDescriptor(SearchIntent),

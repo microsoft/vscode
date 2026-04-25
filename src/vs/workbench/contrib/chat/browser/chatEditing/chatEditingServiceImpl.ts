@@ -237,10 +237,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const enum K { Stream, Workspace }
 		const editsSeen: ({ kind: K.Stream; seen: number; stream: IStreamingEdits } | { kind: K.Workspace })[] = [];
 
-		let editorDidChange = false;
-		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
-			editorDidChange = true;
-		});
+		const initialActiveEditor = this._editorService.activeEditorPane?.input;
 		const editorOpenPromises = new ResourceMap<Promise<void>>();
 		const openChatEditedFiles = this._configurationService.getValue('accessibility.openChatEditedFiles');
 
@@ -252,6 +249,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			editorOpenPromises.set(uri, (async () => {
 				if (this.notebookService.getNotebookTextModel(uri) || uri.scheme === Schemas.untitled || await this._fileService.exists(uri).catch(() => false)) {
 					const activeUri = this._editorService.activeEditorPane?.input.resource;
+					const currentActiveEditor = this._editorService.activeEditorPane?.input;
+					const editorDidChange = initialActiveEditor && currentActiveEditor ? !initialActiveEditor.matches(currentActiveEditor) : initialActiveEditor !== currentActiveEditor;
 					const inactive = editorDidChange
 						|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && isEqual(this._editorService.activeEditorPane.input.sessionResource, session.chatSessionResource)
 						|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
@@ -270,7 +269,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			editsSeen.length = 0;
 			editorOpenPromises.clear();
-			editorListener.dispose();
 		};
 
 		const handleResponseParts = async () => {

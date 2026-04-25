@@ -105,7 +105,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${result.address}`);
 
-			await this._remoteAgentHostService.addSSHConnection({
+			await this._remoteAgentHostService.addManagedConnection({
 				name: result.name,
 				connectionToken: result.connectionToken,
 				connection: {

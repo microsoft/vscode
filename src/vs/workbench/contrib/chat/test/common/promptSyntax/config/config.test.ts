@@ -428,7 +428,7 @@ suite('PromptsConfig', () => {
 			test('empty object returns default skill folders', () => {
 				assert.deepStrictEqual(
 					getPaths(PromptsConfig.promptSourceFolders(createMock({}), PromptsType.skill)),
-					['.github/skills', '.agents/skills', '.claude/skills', '~/.copilot/skills', '~/.agents/skills', '~/.claude/skills'],
+					['.agents/skills', '.github/skills', '.claude/skills', '~/.agents/skills', '~/.copilot/skills', '~/.claude/skills'],
 					'Must return default skill folders.',
 				);
 			});
@@ -440,11 +440,11 @@ suite('PromptsConfig', () => {
 						'./local/skills': true,
 					}), PromptsType.skill)),
 					[
-						'.github/skills',
 						'.agents/skills',
+						'.github/skills',
 						'.claude/skills',
-						'~/.copilot/skills',
 						'~/.agents/skills',
+						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/custom/skills',
 						'./local/skills',
@@ -462,8 +462,8 @@ suite('PromptsConfig', () => {
 					[
 						'.agents/skills',
 						'.claude/skills',
-						'~/.copilot/skills',
 						'~/.agents/skills',
+						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/custom/skills',
 					],
@@ -499,11 +499,11 @@ suite('PromptsConfig', () => {
 						'\n': true,
 					}), PromptsType.skill)),
 					[
-						'.github/skills',
 						'.agents/skills',
+						'.github/skills',
 						'.claude/skills',
-						'~/.copilot/skills',
 						'~/.agents/skills',
+						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/valid/skills',
 						'./another/valid',
@@ -524,11 +524,11 @@ suite('PromptsConfig', () => {
 						'/extra/skills': true,
 					}), PromptsType.skill)),
 					[
-						'.github/skills',
 						'.agents/skills',
+						'.github/skills',
 						'.claude/skills',
-						'~/.copilot/skills',
 						'~/.agents/skills',
+						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/extra/skills',
 					],

@@ -9,9 +9,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { safeStringify } from '../../../../../base/common/objects.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -46,6 +47,19 @@ export interface IAgentSessionsModel {
 
 	readonly sessions: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
+
+	/**
+	 * Returns an observable that emits the latest {@link IAgentSession} for the
+	 * given resource (or `undefined` if no session is currently known).
+	 *
+	 * The observable updates whenever the underlying session collection changes.
+	 * The first call for a given resource lazily triggers
+	 * {@link IChatSessionsService.resolveChatSessionItem} so consumers reading
+	 * lazy properties (e.g. `changes`) see fresh values once the provider has
+	 * resolved them. In-flight resolves are deduplicated by the chat sessions
+	 * service.
+	 */
+	observeSession(resource: URI): IObservable<IAgentSession | undefined>;
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
@@ -527,6 +541,36 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		return this._sessions.get(resource);
 	}
 
+	private _changedSignal: IObservable<void> | undefined;
+	private readonly _sessionObservables = new ResourceMap<IObservable<IAgentSession | undefined>>();
+	private readonly _resolvedResources = new ResourceSet();
+
+	observeSession(resource: URI): IObservable<IAgentSession | undefined> {
+		// Trigger resolve if not yet resolved for this resource (or if
+		// the guard was cleared after a provider refresh). This is
+		// separated from the observable cache so that re-calls after a
+		// refresh re-trigger the resolve RPC even though the observable
+		// already exists.
+		if (!this._resolvedResources.has(resource)) {
+			this._resolvedResources.add(resource);
+			const sessionType = getChatSessionType(resource);
+			this.chatSessionsService.resolveChatSessionItem(sessionType, resource, CancellationToken.None)
+				.catch(error => this.logger.logIfTrace(`observeSession: resolve failed for ${resource.toString()}: ${error instanceof Error ? error.message : String(error)}`));
+		}
+
+		let observable = this._sessionObservables.get(resource);
+		if (!observable) {
+			this._changedSignal ??= observableSignalFromEvent('agentSessionsChanged', this.onDidChangeSessions);
+			const signal = this._changedSignal;
+			observable = derived(reader => {
+				signal.read(reader);
+				return this._sessions.get(resource);
+			});
+			this._sessionObservables.set(resource, observable);
+		}
+		return observable;
+	}
+
 	async resolve(provider: string | string[] | undefined): Promise<void> {
 		const providers = Array.isArray(provider)
 			? provider
@@ -567,6 +611,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
 		if (options.refreshProvider) {
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
+
+			// Clear the resolve-once guard for sessions belonging to this
+			// provider and re-trigger resolve for any that were previously
+			// observed. This is necessary because the refresh returns items
+			// with lazy properties (e.g. changes: undefined) that need a
+			// fresh resolve RPC. Re-calling observeSession() for resources
+			// already in _sessionObservables is cheap (the observable is
+			// cached) and only fires the RPC side-effect.
+			for (const resource of [...this._resolvedResources]) {
+				if (getChatSessionType(resource) === provider) {
+					this._resolvedResources.delete(resource);
+					if (this._sessionObservables.has(resource)) {
+						this.observeSession(resource);
+					}
+				}
+			}
 		}
 
 		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();

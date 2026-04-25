@@ -7,25 +7,67 @@
  * Helpers for extracting file paths and refs from tool calls.
  */
 
-/** Tools whose arguments contain a file path being modified. */
-const FILE_TRACKING_TOOLS = new Set(['apply_patch', 'str_replace_editor', 'create_file', 'create']);
+/** Tools whose arguments contain a file path being modified or read. */
+const FILE_TRACKING_TOOLS = new Set([
+	// VS Code model-facing tool names (from ToolName enum)
+	'replace_string_in_file',
+	'multi_replace_string_in_file',
+	'insert_edit_into_file',
+	'create_file',
+	'create_directory',
+	'edit_notebook_file',
+	'apply_patch',
+	'read_file',
+	'view_image',
+	'list_dir',
+	// CLI-agent tool names (backward compat)
+	'str_replace_editor',
+	'create',
+]);
 
-/** GitHub MCP server tool prefix. */
-const GH_MCP_PREFIX = 'github-mcp-server-';
+/** GitHub MCP server tool prefixes. */
+const GH_MCP_PREFIXES = ['mcp_github_', 'github-mcp-server-'];
 
 /**
  * Extract absolute file path from tool arguments if available.
- * Handles both CLI-style (edit/create with `path`) and VS Code-style
- * (apply_patch with `patch`, str_replace_editor with `filePath`, create_file with `filePath`).
+ * Handles both CLI-style (edit/create with `path`) and VS Code-style tools
+ * that use `filePath`, as well as `apply_patch` which encodes paths in the patch input.
  * @internal Exported for testing.
  */
 export function extractFilePath(toolName: string, toolArgs: unknown): string | undefined {
 	if (!FILE_TRACKING_TOOLS.has(toolName)) { return undefined; }
 	if (typeof toolArgs !== 'object' || toolArgs === null) { return undefined; }
 	const args = toolArgs as Record<string, unknown>;
-	// VS Code tools use 'filePath', CLI tools use 'path'
-	const filePath = args.filePath ?? args.path;
-	return typeof filePath === 'string' ? filePath : undefined;
+
+	// VS Code tools use 'filePath', CLI tools use 'path', list_dir uses 'path',
+	// create_directory uses 'dirPath'
+	const filePath = args.filePath ?? args.path ?? args.dirPath;
+	if (typeof filePath === 'string') { return filePath; }
+
+	// multi_replace_string_in_file stores filePath in each replacement item
+	if (toolName === 'multi_replace_string_in_file' && Array.isArray(args.replacements)) {
+		const first = args.replacements[0];
+		if (typeof first === 'object' && first !== null) {
+			const fp = (first as Record<string, unknown>).filePath;
+			if (typeof fp === 'string') { return fp; }
+		}
+	}
+
+	// apply_patch encodes file paths in the patch input text
+	if (toolName === 'apply_patch' && typeof args.input === 'string') {
+		return extractFirstFileFromPatch(args.input);
+	}
+
+	return undefined;
+}
+
+/**
+ * Extract the first file path from an apply_patch input string.
+ * Matches lines like `*** Update File: /path/to/file` or `*** Add File: /path`.
+ */
+function extractFirstFileFromPatch(input: string): string | undefined {
+	const match = input.match(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s*(.+)$/m);
+	return match?.[1]?.trim();
 }
 
 /**
@@ -137,7 +179,8 @@ export function extractRepoFromMcpTool(toolArgs: unknown): string | undefined {
 
 /**
  * Check whether a tool name is a GitHub MCP server tool.
+ * Matches both VS Code-style `mcp_github_*` and CLI-style `github-mcp-server-*` prefixes.
  */
 export function isGitHubMcpTool(toolName: string): boolean {
-	return toolName.startsWith(GH_MCP_PREFIX);
+	return GH_MCP_PREFIXES.some(prefix => toolName.startsWith(prefix));
 }

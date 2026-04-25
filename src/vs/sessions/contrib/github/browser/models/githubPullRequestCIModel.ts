@@ -25,7 +25,10 @@ export class GitHubPullRequestCIModel extends Disposable {
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>(this, GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 
+	private _pollingClients = 0;
+	private _refreshPromise: Promise<void> | undefined;
 	private readonly _pollScheduler: RunOnceScheduler;
+
 	private _disposed = false;
 
 	constructor(
@@ -43,7 +46,19 @@ export class GitHubPullRequestCIModel extends Disposable {
 	/**
 	 * Refresh all CI check data.
 	 */
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh().finally(() => {
+				if (this._refreshPromise) {
+					this._refreshPromise = undefined;
+				}
+			});
+		}
+
+		return this._refreshPromise;
+	}
+
+	private async _refresh(): Promise<void> {
 		try {
 			const checks = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef);
 			this._checks.set(checks, undefined);
@@ -78,27 +93,43 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes CI check data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.cancel();
-		this._pollScheduler.schedule(intervalMs);
+		this._pollScheduler.delay = intervalMs;
+
+		this._pollingClients++;
+		if (this._pollingClients === 1) {
+			this._pollScheduler.cancel();
+			this._pollScheduler.schedule();
+		}
 	}
 
 	/**
 	 * Stop periodic polling.
 	 */
 	stopPolling(): void {
-		this._pollScheduler.cancel();
+		if (this._pollingClients === 0) {
+			return;
+		}
+
+		this._pollingClients--;
+		if (this._pollingClients === 0) {
+			this._pollScheduler.cancel();
+		}
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
+
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
-		if (!this._disposed) {
+		if (!this._disposed && this._pollingClients > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
 	override dispose(): void {
 		this._disposed = true;
+		this._pollingClients = 0;
+		this._refreshPromise = undefined;
+
 		super.dispose();
 	}
 }

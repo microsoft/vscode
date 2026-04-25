@@ -12,7 +12,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/e
 import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorsOrder, GroupIdentifier } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -25,16 +25,26 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -77,35 +87,23 @@ class BrowserTabQuickPick extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		this._quickPick = this._register(quickInputService.createQuickPick<IBrowserQuickPickItem>({ useSeparators: true }));
-		this._quickPick.placeholder = localize('browser.quickOpenPlaceholder', "Select a browser tab or enter a URL");
+		this._quickPick.placeholder = localize('browser.quickOpenPlaceholder', "Select a browser tab");
 		this._quickPick.matchOnDescription = true;
 		this._quickPick.sortByLabel = false;
 		this._quickPick.buttons = [closeAllButtonItem];
 
 		this._register(this._quickPick.onDidTriggerItemButton(async ({ item }) => {
-			if (!item.editor) {
-				return;
-			}
-			const group = this._editorGroupsService.getGroup(item.groupId);
-			if (group) {
-				await group.closeEditor(item.editor, {
-					preserveFocus: true // Don't shift focus so the quickpick doesn't close
-				});
-			}
+			item.editor?.dispose(true);
 		}));
 
 		this._register(this._quickPick.onDidTriggerButton(async () => {
-			for (const group of this._editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-				const browserEditors = group.editors.filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput);
-				if (browserEditors.length > 0) {
-					await group.closeEditors(browserEditors, {
-						preserveFocus: true // Don't shift focus so the quickpick doesn't close
-					});
-				}
+			for (const editor of this._browserViewService.getKnownBrowserViews().values()) {
+				editor.dispose(true);
 			}
 		}));
 
@@ -156,34 +154,57 @@ class BrowserTabQuickPick extends Disposable {
 		const groupsWithBrowserEditors = groups
 			.map(group => ({ group, browserEditors: group.editors.filter((e): e is BrowserEditorInput => e instanceof BrowserEditorInput) }))
 			.filter(({ browserEditors }) => browserEditors.length > 0);
-		const multipleGroups = groupsWithBrowserEditors.length > 1;
 
-		// Build a map of group ID to aria label for screen readers
-		const mapGroupIdToGroupAriaLabel = new Map<GroupIdentifier, string>();
-		for (const { group } of groupsWithBrowserEditors) {
-			mapGroupIdToGroupAriaLabel.set(group.id, group.ariaLabel);
+		// Track which view IDs appear in at least one editor group
+		const viewsInGroups = new Set<string>();
+		for (const { browserEditors } of groupsWithBrowserEditors) {
+			for (const editor of browserEditors) {
+				viewsInGroups.add(editor.id);
+			}
 		}
 
+		// Background views: known but not open in any editor group
+		const backgroundEditors = [...this._browserViewService.getKnownBrowserViews().values()].filter(e => !viewsInGroups.has(e.id));
+		const backgroundLabel = localize('browser.backgroundGroup', "Background");
+
+		// Build sections: each editor group + optional background
+		type Section = { label: string; ariaLabel: string; groupId: number; editors: BrowserEditorInput[]; isPinned?: (e: BrowserEditorInput) => boolean };
+		const sections: Section[] = groupsWithBrowserEditors.map(({ group, browserEditors }) => ({
+			label: group.label,
+			ariaLabel: group.ariaLabel,
+			groupId: group.id,
+			editors: browserEditors,
+			isPinned: e => group.isPinned(e),
+		}));
+		if (backgroundEditors.length > 0) {
+			sections.push({ label: backgroundLabel, ariaLabel: backgroundLabel, groupId: ACTIVE_GROUP, editors: backgroundEditors });
+		}
+		for (const { group } of groupsWithBrowserEditors) {
+			this._itemListeners.add(group.onDidModelChange(() => this._buildItems()));
+		}
+		this._itemListeners.add(this._browserViewService.onDidChangeBrowserViews(() => this._buildItems()));
+
+		const hasMultipleSections = sections.length > 1;
 		let newActivePick: IBrowserQuickPickItem | undefined;
 
-		for (const { group, browserEditors } of groupsWithBrowserEditors) {
-			if (multipleGroups) {
-				picks.push({ type: 'separator', label: group.label });
+		for (const section of sections) {
+			if (hasMultipleSections) {
+				picks.push({ type: 'separator', label: section.label });
 			}
-			for (const editor of browserEditors) {
+			for (const editor of section.editors) {
 				const icon = editor.getIcon();
 				const description = editor.getDescription();
 				const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
 				const pick: IBrowserQuickPickItem = {
-					groupId: group.id,
+					groupId: section.groupId,
 					editor,
 					label: editor.getName(),
-					ariaLabel: multipleGroups
-						? localize('browserEntryAriaLabelWithGroup', "{0}, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(group.id))
+					ariaLabel: hasMultipleSections
+						? localize('browserEntryAriaLabelWithGroup', "{0}, {1}", nameAndDescription, section.ariaLabel)
 						: nameAndDescription,
 					description,
 					buttons: [closeButtonItem],
-					italic: !group.isPinned(editor),
+					italic: section.isPinned ? !section.isPinned(editor) : undefined,
 				};
 				if (icon instanceof URI) {
 					pick.iconPath = { dark: icon };
@@ -198,7 +219,6 @@ class BrowserTabQuickPick extends Disposable {
 
 				this._itemListeners.add(editor.onDidChangeLabel(() => this._buildItems()));
 			}
-			this._itemListeners.add(group.onDidModelChange(() => this._buildItems()));
 		}
 
 		picks.push({ type: 'separator' });
@@ -214,7 +234,6 @@ class BrowserTabQuickPick extends Disposable {
 
 class QuickOpenBrowserAction extends Action2 {
 	constructor() {
-		const neverShowInTitleBar = ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', false);
 		super({
 			id: BrowserViewCommandId.QuickOpen,
 			title: localize2('browser.quickOpenAction', "Quick Open Browser Tab..."),
@@ -228,12 +247,6 @@ class QuickOpenBrowserAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				when: BROWSER_EDITOR_ACTIVE
 			},
-			menu: {
-				id: MenuId.TitleBar,
-				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(CONTEXT_BROWSER_EDITOR_OPEN, neverShowInTitleBar.negate()),
-			}
 		});
 	}
 
@@ -263,22 +276,13 @@ class OpenIntegratedBrowserAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.globe,
 			f1: true,
-			menu: {
-				id: MenuId.TitleBar,
-				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(
-					// This is a hack to work around `true` just testing for truthiness of the key. It works since `1 == true` in JS.
-					ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', 1),
-					CONTEXT_BROWSER_EDITOR_OPEN.negate()
-				)
-			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
@@ -287,11 +291,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
-			const matchingEditor = editorService.editors.find((e): e is BrowserEditorInput => {
-				if (!(e instanceof BrowserEditorInput)) {
-					return false;
-				}
-
+			const matchingEditor = [...browserViewService.getKnownBrowserViews().values()].find((e) => {
 				const editorUri = URI.parse(e.url || '');
 				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
 				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
@@ -412,26 +412,38 @@ class CloseAllBrowserTabsInGroupAction extends Action2 {
 	}
 }
 
-class OpenBrowserFromViewMenuAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.openFromViewMenu';
-
+class OpenOrListBrowsersAction extends Action2 {
 	constructor() {
 		super({
-			id: OpenBrowserFromViewMenuAction.ID,
-			title: localize2('browser.openFromViewMenuAction', "Browser"),
+			id: BrowserViewCommandId.OpenOrList,
+			title: localize2('browser.openOrListAction', "Browser"),
+			icon: Codicon.globe,
 			f1: false,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
 			},
+			menu: {
+				id: MenuId.TitleBar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', false).negate(),
+					ContextKeyExpr.or(
+						CONTEXT_BROWSER_EDITOR_OPEN,
+						// This is a hack to work around `true` just testing for truthiness of the key. It works since `1 == true` in JS.
+						ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', 1)
+					)
+				),
+			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 
-		const hasOpenBrowserEditor = editorService.editors.some(editor => editor instanceof BrowserEditorInput);
+		const hasOpenBrowserEditor = browserViewService.getKnownBrowserViews().size > 0;
 
 		if (hasOpenBrowserEditor) {
 			await commandService.executeCommand(BrowserViewCommandId.QuickOpen);
@@ -446,7 +458,7 @@ class OpenBrowserFromViewMenuAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_auxbar',
 	command: {
-		id: OpenBrowserFromViewMenuAction.ID,
+		id: BrowserViewCommandId.OpenOrList,
 		title: localize({ key: 'miOpenBrowser', comment: ['&& denotes a mnemonic'] }, "&&Browser")
 	},
 	order: 2
@@ -457,7 +469,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserV
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
-registerAction2(OpenBrowserFromViewMenuAction);
+registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
 registerAction2(CloseAllBrowserTabsAction);
 registerAction2(CloseAllBrowserTabsInGroupAction);
@@ -477,25 +489,15 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IBrowserViewWorkbenchService browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		const contextKey = CONTEXT_BROWSER_EDITOR_OPEN.bindTo(contextKeyService);
-		const update = () => contextKey.set(editorService.editors.some(e => e instanceof BrowserEditorInput));
+		const update = () => contextKey.set(browserViewService.getKnownBrowserViews().size > 0);
 
 		update();
-
-		this._register(editorService.onWillOpenEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				contextKey.set(true);
-			}
-		}));
-		this._register(editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof BrowserEditorInput) {
-				update();
-			}
-		}));
+		this._register(browserViewService.onDidChangeBrowserViews(() => update()));
 	}
 }
 
@@ -537,13 +539,138 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
+		// Check whether the setting was explicitly set by the user or is still at its default value.
+		// When it is a default, tag the viewState so that the hint pill can be shown.
+		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
+
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
 		return true;
 	}
 }
 
 registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+
+// ---- Link opened hint pill (URL bar widget) --------------------------------
+
+const LOCALHOST_HINT_DISMISSED_KEY = 'workbench.browser.linkOpenedHintDismissed';
+
+/**
+ * A small pill shown in the URL bar that informs the user their link was opened
+ * in the Integrated Browser by default. Clicking it shows a tooltip
+ * with an explanation and options to open settings or dismiss permanently.
+ */
+class LinkOpenedHintPill extends BrowserEditorContribution {
+
+	private readonly _pill: HTMLElement;
+	private readonly _attentionTimeout = this._register(new MutableDisposable());
+
+	constructor(
+		editor: BrowserEditor,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	) {
+		super(editor);
+
+		this._pill = $('.browser-link-opened-hint-pill');
+		this._pill.tabIndex = 0;
+		this._pill.role = 'button';
+		this._pill.ariaLabel = localize('browser.linkOpenedHint.ariaLabel', "This link opened in the integrated browser");
+		this._pill.ariaHidden = 'true';
+
+		const icon = $('span');
+		icon.className = ThemeIcon.asClassName(Codicon.info);
+		const label = $('span');
+		label.textContent = localize('browser.linkOpenedHint.label', "Link opened here");
+
+		this._pill.appendChild(icon);
+		this._pill.appendChild(label);
+
+		const hoverOptions = () => ({
+			content: new MarkdownString(localize('browser.linkOpenedHint.detail', "**Integrated Browser**\n\nLocalhost links automatically open in the integrated browser.")),
+			actions: [
+				{
+					label: localize('browser.linkOpenedHint.openSettings', "Open Settings"),
+					commandId: 'workbench.action.openSettings',
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+					run: () => {
+						this.preferencesService.openUserSettings({ query: 'workbench.browser.openLocalhostLinks' });
+					}
+				},
+				{
+					label: localize('browser.linkOpenedHint.dismiss', "Don't Show Again"),
+					commandId: '',
+					run: () => {
+						this._dismiss();
+					}
+				}
+			],
+			position: { hoverPosition: HoverPosition.BELOW }
+		});
+
+		this._register(this.hoverService.setupDelayedHover(this._pill, hoverOptions, { setupKeyboardEvents: true }));
+		this._register(addDisposableListener(this._pill, EventType.CLICK, () => {
+			this.hoverService.showInstantHover({ ...hoverOptions(), target: this._pill, persistence: { sticky: true } }, true);
+		}));
+	}
+
+	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
+		return [{ element: this._pill, order: 100 }];
+	}
+
+	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
+			this._setVisible(false);
+			return;
+		}
+
+		const input = this.editor.input;
+		if (input instanceof BrowserEditorInput && input.isDefaultLinkOpen) {
+			const dismissed = this.storageService.getBoolean(LOCALHOST_HINT_DISMISSED_KEY, StorageScope.APPLICATION, false);
+			this._setVisible(!dismissed);
+			if (!dismissed && isNew) {
+				this._callAttention();
+			}
+		} else {
+			this._setVisible(false);
+		}
+	}
+
+	override clear(): void {
+		this._attentionTimeout.clear();
+		this._setVisible(false);
+	}
+
+	private _setVisible(visible: boolean): void {
+		if (!visible) {
+			this._attentionTimeout.clear();
+			this._pill.classList.remove('attention');
+		}
+		this._pill.classList.toggle('visible', visible);
+		this._pill.ariaHidden = visible ? 'false' : 'true';
+	}
+
+	private _callAttention(): void {
+		this._attentionTimeout.clear();
+		this._pill.classList.remove('attention');
+		// Start collapsed (icon only), expand after 300ms, then collapse back after another 2s
+		this._attentionTimeout.value = disposableTimeout(() => {
+			this._pill.classList.add('attention');
+			this._attentionTimeout.value = disposableTimeout(() => {
+				this._pill.classList.remove('attention');
+			}, 2000);
+		}, 300);
+	}
+
+	private _dismiss(): void {
+		this.storageService.store(LOCALHOST_HINT_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		this._setVisible(false);
+	}
+}
+
+BrowserEditor.registerContribution(LinkOpenedHintPill);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

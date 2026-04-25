@@ -16,7 +16,7 @@ import { measureExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';
 import { IAdoCodeSearchService } from '../../../remoteCodeSearch/common/adoCodeSearchService';
 import { IGithubCodeSearchService } from '../../../remoteCodeSearch/common/githubCodeSearchService';
-import { CodeSearchResult, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus } from '../../../remoteCodeSearch/common/remoteCodeSearch';
+import { RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus, SemanticCodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { WorkspaceChunkSearchOptions } from '../../common/workspaceChunkSearch';
 import { RepoInfo } from './repoTracker';
@@ -149,7 +149,7 @@ export interface CodeSearchRepo extends IDisposable {
 		options: WorkspaceChunkSearchOptions,
 		telemetryInfo: TelemetryCorrelationId,
 		token: CancellationToken
-	): Promise<CodeSearchResult>;
+	): Promise<SemanticCodeSearchResult>;
 
 	triggerRemoteIndexingOfRepo(triggerReason: BuildIndexTriggerReason, telemetryInfo: TelemetryCorrelationId): Promise<Result<true, TriggerIndexingError>>;
 
@@ -232,7 +232,7 @@ abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearch
 		this._onDidChangeStatus.fire(this._state.status);
 	}
 
-	public abstract searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult>;
+	public abstract searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult>;
 	public abstract triggerRemoteIndexingOfRepo(triggerReason: BuildIndexTriggerReason, telemetryInfo: TelemetryCorrelationId): Promise<Result<true, TriggerIndexingError>>;
 	public abstract prepareSearch(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<boolean>;
 
@@ -381,8 +381,9 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		super(repoInfo, remoteInfo, logService, telemetryService);
 	}
 
-	public override async searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
-		const result = await this._githubCodeSearchService.searchRepo(authOptions, embeddingType, {
+	public override async searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult> {
+		const result = await this._githubCodeSearchService.semanticSearch(authOptions, embeddingType, {
+			kind: 'repo',
 			githubRepoId: this._githubRepoId,
 			localRepoRoot: this.repoInfo.rootUri,
 			indexedCommit: undefined, // TODO
@@ -502,7 +503,7 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		super(repoInfo, remoteInfo, logService, telemetryService);
 	}
 
-	public searchRepo(authOptions: { silent: boolean }, _embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
+	public searchRepo(authOptions: { silent: boolean }, _embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult> {
 		return this._adoCodeSearchService.searchRepo(authOptions, {
 			adoRepoId: this._adoRepoId,
 			localRepoRoot: this.repoInfo.rootUri,

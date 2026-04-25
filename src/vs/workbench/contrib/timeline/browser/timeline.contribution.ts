@@ -5,12 +5,11 @@
 
 import { localize } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from '../../../common/views.js';
 import { VIEW_CONTAINER } from '../../files/browser/explorerViewlet.js';
 import { ITimelineService, TimelinePaneId } from '../common/timeline.js';
-import { TimelineHasProviderContext, TimelineService } from '../common/timelineService.js';
+import { TimelineHasProviderContext } from '../common/timelineService.js';
 import { TimelinePane } from './timelinePane.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -103,5 +102,3 @@ MenuRegistry.appendMenuItem(MenuId.TimelineTitle, {
 	order: 100,
 	icon: timelineFilter
 } satisfies ISubmenuItem);
-
-registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);

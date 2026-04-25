@@ -555,7 +555,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 			processAssistantMessage(content);
 		}
 	}
-	const lastUserMessageId = findLast(events, event => event.type === 'user.message')?.id;
+	const lastUserMessageId = findLast(events, event => event.type === 'user.message' && !isSyntheticUserMessage(event))?.id;
 	for (const event of events) {
 		if (event.type !== 'assistant.message') {
 			flushPendingAssistantMessage();
@@ -563,6 +563,9 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 
 		switch (event.type) {
 			case 'user.message': {
+				if (isSyntheticUserMessage(event)) {
+					continue;
+				}
 				details = getVSCodeRequestId(event.id);
 				// Flush any pending response parts before adding user message
 				if (currentResponseParts.length > 0) {
@@ -1730,4 +1733,13 @@ export class FakeToolsService implements IToolsService {
 	getEnabledTools(): LanguageModelToolInformation[] {
 		return [];
 	}
+}
+
+
+/**
+ * CLI sends 'synthetic' user messages for cases such as Skill invocations.
+ * We need to ensure these user.messages are not treated as regular user messages in the UI, which could cause confusion as they may not be directly from the user.
+ */
+export function isSyntheticUserMessage(event: Extract<SessionEvent, { type: 'user.message' }>): boolean {
+	return event.type === 'user.message' && !!event.data.source && (event.data.source ?? '').toLowerCase() !== 'user';
 }
