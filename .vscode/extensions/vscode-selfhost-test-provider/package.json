@@ -72,7 +72,7 @@
   "capabilities": {
     "virtualWorkspaces": {
       "supported": false,
-      "description": "VS Code Selfhost Test Provider requires full file system access to discover tests, run workspace scripts, update snapshots, and collect failure logs."
+      "description": "VS Code Selfhost Test Provider requires full file system access and process execution access to discover tests, run workspace scripts, update snapshots, and collect failure logs."
     }
   },
   "workspaceTrust": {
