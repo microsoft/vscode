@@ -6,13 +6,12 @@
 import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { IResolveSessionConfigResult, ISessionConfigCompletionsResult, ISubscribeResult } from '../../../common/state/protocol/commands.js';
-import { ActionType, type ISessionAddedNotification } from '../../../common/state/sessionActions.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { ActionType, type SessionAddedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
-import type { ISessionState } from '../../../common/state/sessionState.js';
+import type { SessionState } from '../../../common/state/sessionState.js';
 import {
 	getActionEnvelope,
 	isActionNotification,
@@ -51,7 +50,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		this.timeout(10_000);
 
 		const workingDirectory = URI.file('/mock/workspace').toString();
-		const initial = await client.call<IResolveSessionConfigResult>('resolveSessionConfig', {
+		const initial = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
 			provider: 'mock',
 			workingDirectory,
 		});
@@ -62,7 +61,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		assert.strictEqual(initial.schema.properties.branch.enumDynamic, true);
 		assert.strictEqual(initial.schema.properties.branch.readOnly, false);
 
-		const folder = await client.call<IResolveSessionConfigResult>('resolveSessionConfig', {
+		const folder = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
 			provider: 'mock',
 			workingDirectory,
 			config: { isolation: 'folder', branch: 'feature/config' },
@@ -76,7 +75,7 @@ suite('Protocol WebSocket - Session Config', function () {
 	test('sessionConfigCompletions returns dynamic branch matches', async function () {
 		this.timeout(10_000);
 
-		const result = await client.call<ISessionConfigCompletionsResult>('sessionConfigCompletions', {
+		const result = await client.call<SessionConfigCompletionsResult>('sessionConfigCompletions', {
 			provider: 'mock',
 			workingDirectory: URI.file('/mock/workspace').toString(),
 			config: { isolation: 'worktree' },
@@ -103,11 +102,11 @@ suite('Protocol WebSocket - Session Config', function () {
 		const notif = await client.waitForNotification(n =>
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
-		const notification = (notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+		const notification = (notif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
 		assert.strictEqual(Object.hasOwn(notification.summary, 'config'), false);
 
-		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: notification.summary.resource });
-		const state = snapshot.snapshot.state as ISessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: notification.summary.resource });
+		const state = snapshot.snapshot.state as SessionState;
 		assert.deepStrictEqual(state.config?.values, config);
 		assert.deepStrictEqual(Object.keys(state.config?.schema.properties ?? {}), ['isolation', 'branch']);
 	});
@@ -124,8 +123,8 @@ suite('Protocol WebSocket - Session Config', function () {
 		const notif = await client.waitForNotification(n =>
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
-		const session = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
-		await client.call<ISubscribeResult>('subscribe', { resource: session });
+		const session = ((notif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+		await client.call<SubscribeResult>('subscribe', { resource: session });
 		client.clearReceived();
 
 		client.notify('dispatchAction', {
@@ -140,8 +139,8 @@ suite('Protocol WebSocket - Session Config', function () {
 		const configChanged = await client.waitForNotification(n => isActionNotification(n, ActionType.SessionConfigChanged));
 		assert.strictEqual(getActionEnvelope(configChanged).action.type, ActionType.SessionConfigChanged);
 
-		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: session });
-		const state = snapshot.snapshot.state as ISessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: session });
+		const state = snapshot.snapshot.state as SessionState;
 		assert.deepStrictEqual(state.config?.values, { isolation: 'folder', branch: 'release' });
 	});
 });
@@ -187,9 +186,9 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			);
 			// The mock agent assigns its own URI rather than honoring the
 			// requested one, so capture the real URI from the notification.
-			sessionUri = ((addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+			sessionUri = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
 
-			await client1.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+			await client1.call<SubscribeResult>('subscribe', { resource: sessionUri });
 
 			client1.notify('dispatchAction', {
 				clientSeq: 1,
@@ -202,13 +201,15 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			const configChanged = await client1.waitForNotification(n => isActionNotification(n, ActionType.SessionConfigChanged));
 			assert.strictEqual(getActionEnvelope(configChanged).action.type, ActionType.SessionConfigChanged);
 
-			// `_persistConfigValues` is fire-and-forget; give the SQLite write
-			// a moment to flush before tearing down the server.
-			await timeout(500);
-
 			client1.close();
 		} finally {
-			server1.process.kill();
+			// Trigger graceful shutdown by closing stdin rather than sending
+			// SIGTERM — on Windows, `child.kill()` (SIGTERM) unconditionally
+			// terminates the process without invoking the shutdown handler,
+			// so in-flight `setMetadata` writes never reach SQLite. Closing
+			// stdin fires `process.stdin.on('end', shutdown)` in the server
+			// on every platform.
+			server1.process.stdin!.end();
 			await new Promise<void>(resolve => server1.process.once('exit', () => resolve()));
 		}
 
@@ -228,8 +229,8 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			// Subscribing triggers the restore-on-subscribe path on the server,
 			// which reads `configValues` from the per-session DB and overlays
 			// them on the freshly-resolved schema.
-			const snapshot = await client2.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-			const state = snapshot.snapshot.state as ISessionState;
+			const snapshot = await client2.call<SubscribeResult>('subscribe', { resource: sessionUri });
+			const state = snapshot.snapshot.state as SessionState;
 
 			assert.ok(state.config, 'restored session should have state.config populated');
 			// Schema is re-resolved by the provider (worktree-mode mock returns
@@ -239,7 +240,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client2.close();
 		} finally {
-			server2.process.kill();
+			server2.process.stdin!.end();
 			await new Promise<void>(resolve => server2.process.once('exit', () => resolve()));
 		}
 	});

@@ -198,6 +198,7 @@ suite('aiCustomizationListWidget', () => {
 				setActiveHarness: () => { },
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => descriptor,
+				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
 			});
 

@@ -67,6 +67,7 @@ jobs:
     outputs:
       test_is_version: ${{ steps.resolve.outputs.is_version }}
       test_build_arg: ${{ steps.resolve.outputs.build_arg }}
+      perf_matrix: ${{ steps.count_scenarios.outputs.matrix }}
     steps:
       - name: Resolve test build type
         id: resolve
@@ -129,7 +130,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Cache Electron
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -138,10 +139,32 @@ jobs:
         run: npx playwright install chromium
 
       - name: Cache Playwright
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      - name: Compute perf matrix
+        id: count_scenarios
+        run: |
+          node -e "
+            require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const userInput = process.env.SCENARIOS_INPUT || '';
+            const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
+            const allScens = parsed.length > 0 ? parsed : getScenarioIds();
+            if (allScens.length === 0) {
+              console.error('No scenarios found. Provide a non-empty scenarios input or ensure getScenarioIds() returns at least one scenario.');
+              process.exit(1);
+            }
+            const maxGroups = 4;
+            const needed = Math.min(allScens.length, maxGroups);
+            const groups = Array.from({ length: needed }, (_, i) => i + 1);
+            const fs = require('fs');
+            const matrix = JSON.stringify({ group: groups });
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + '\\n');
+            console.log('Total scenarios: ' + allScens.length + ', groups: ' + needed);
+          "
 
       - name: Upload build output
         uses: actions/upload-artifact@v7
@@ -160,8 +183,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix:
-        group: [ 1, 2, 3, 4 ]
+      matrix: ${{ fromJSON(needs.setup.outputs.perf_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -198,7 +220,7 @@ jobs:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -207,7 +229,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -223,10 +245,9 @@ jobs:
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
             const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
             const userInput = process.env.SCENARIOS_INPUT || '';
-            const allScens = userInput
-              ? userInput.split(',').map(s => s.trim()).filter(Boolean)
-              : getScenarioIds();
-            const groups = 4;
+            const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
+            const allScens = parsed.length > 0 ? parsed : getScenarioIds();
+            const groups = parseInt(process.env.TOTAL_GROUPS, 10);
             const group = parseInt(process.env.MATRIX_GROUP, 10);
             // Distribute scenarios round-robin across groups
             const groupScens = allScens.filter((_, i) => (i % groups) + 1 === group);
@@ -242,6 +263,7 @@ jobs:
           "
         env:
           MATRIX_GROUP: ${{ matrix.group }}
+          TOTAL_GROUPS: ${{ strategy.job-total }}
 
       - name: Run chat perf comparison
         id: perf
@@ -287,6 +309,16 @@ jobs:
             2>&1 | tee perf-output.log
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Clean up temporary build artifacts
+        if: always() && steps.scenarios.outputs.skip != 'true'
+        run: |
+          # Clean up tmp dirs used by VS Code instances
+          rm -rf /tmp/vscode-chat-simulation 2>/dev/null || true
+          # Remove the production build to free space for artifact upload
+          rm -rf ../VSCode-* 2>/dev/null || true
+          echo "Disk usage after cleanup:"
+          df -h . | tail -1
+
       - name: Upload perf results
         if: always() && steps.scenarios.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
@@ -297,6 +329,19 @@ jobs:
             perf-output.log
             .chat-simulation-data/
           retention-days: 30
+
+      - name: Upload perf summary data
+        if: always() && steps.scenarios.outputs.skip != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-summary-${{ matrix.group }}
+          include-hidden-files: true
+          path: |
+            perf-output.log
+            .chat-simulation-data/**/results.json
+            .chat-simulation-data/**/baseline-*.json
+            .chat-simulation-data/ci-summary.md
+          retention-days: 1
 
       - name: Check for regressions
         if: always() && steps.perf.outputs.exit_code != '' &&
@@ -348,7 +393,7 @@ jobs:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -357,7 +402,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -379,6 +424,11 @@ jobs:
             $LEAK_ARGS \
             2>&1 | tee leak-output.log
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Clean up temporary files
+        if: always()
+        run: |
+          rm -rf /tmp/vscode-chat-simulation 2>/dev/null || true
 
       - name: Upload leak results
         if: always()
@@ -402,7 +452,7 @@ jobs:
   # ── Report: collect results, write summary, fail on regression ──────
   report:
     name: Report
-    needs: [ chat-perf, leak-check ]
+    needs: [ setup, chat-perf, leak-check ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -417,10 +467,10 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Download all perf results
+      - name: Download perf summary data
         uses: actions/download-artifact@v7
         with:
-          pattern: perf-results-*
+          pattern: perf-summary-*
           path: perf-results
 
       - name: Download leak results
@@ -432,6 +482,8 @@ jobs:
         continue-on-error: true
 
       - name: Generate unified summary
+        env:
+          TEST_COMMIT: ${{ needs.setup.outputs.test_build_arg || github.sha }}
         run: |
           LEAK_ARG=""
           if [[ -f leak-results/.chat-simulation-data/ci-summary-leak.md ]]; then

@@ -14,7 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../util/
 import { CancellationToken, CancellationTokenSource } from '../../../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
-import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../../../../../chatSessions/common/folderRepositoryManager';
+import { IFolderRepositoryManager, FolderRepositoryMRUEntry } from '../../../../../chatSessions/common/folderRepositoryManager';
+import { IAgentSessionsWorkspace } from '../../../../../chatSessions/common/agentSessionsWorkspace';
 import { createExtensionUnitTestingServices } from '../../../../../test/node/services';
 import { IClaudeCodeSdkService } from '../../claudeCodeSdkService';
 import { computeFolderSlug } from '../../claudeProjectFolders';
@@ -103,6 +104,7 @@ describe('ClaudeCodeSessionService', () => {
 		const workspaceService = store.add(new TestWorkspaceService([folderUri]));
 		testingServiceCollection.set(IWorkspaceService, workspaceService);
 		testingServiceCollection.define(IFolderRepositoryManager, new MockFolderRepositoryManager());
+		testingServiceCollection.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: false });
 
 		const accessor = testingServiceCollection.createTestingAccessor();
 		mockFs = accessor.get(IFileSystemService) as MockFileSystemService;
@@ -272,6 +274,54 @@ describe('ClaudeCodeSessionService', () => {
 			const sessions = await service.getAllSessions(CancellationToken.None);
 
 			expect(sessions).toHaveLength(0);
+		});
+
+		describe('when in agent sessions workspace', () => {
+			let agentSessionsService: ClaudeCodeSessionService;
+			let agentSessionsSdkService: MockClaudeCodeSdkService;
+
+			beforeEach(() => {
+				agentSessionsSdkService = new MockClaudeCodeSdkService();
+				const sc = store.add(createExtensionUnitTestingServices(store));
+				sc.set(IFileSystemService, new MockFileSystemService());
+				sc.set(IClaudeCodeSdkService, agentSessionsSdkService);
+				sc.set(IWorkspaceService, store.add(new TestWorkspaceService([])));
+				sc.define(IFolderRepositoryManager, new MockFolderRepositoryManager());
+				sc.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: true });
+
+				agentSessionsService = sc.createTestingAccessor().get(IInstantiationService).createInstance(ClaudeCodeSessionService);
+			});
+
+			it('lists all sessions without a dir argument', async () => {
+				agentSessionsSdkService.mockSessions = [
+					createSdkSessionInfo({ sessionId: 'global-1', summary: 'Global session' }),
+					createSdkSessionInfo({ sessionId: 'global-2', summary: 'Another session' }),
+				];
+
+				const sessions = await agentSessionsService.getAllSessions(CancellationToken.None);
+
+				expect(sessions).toHaveLength(2);
+				expect(sessions[0].id).toBe('global-1');
+				expect(sessions[1].id).toBe('global-2');
+			});
+
+			it('returns empty array when SDK throws', async () => {
+				agentSessionsSdkService.listSessions = async () => { throw new Error('SDK failure'); };
+
+				const sessions = await agentSessionsService.getAllSessions(CancellationToken.None);
+
+				expect(sessions).toHaveLength(0);
+			});
+
+			it('does not set folderName on sessions', async () => {
+				agentSessionsSdkService.mockSessions = [
+					createSdkSessionInfo({ sessionId: 'no-folder' }),
+				];
+
+				const sessions = await agentSessionsService.getAllSessions(CancellationToken.None);
+
+				expect(sessions[0].folderName).toBeUndefined();
+			});
 		});
 	});
 
@@ -471,6 +521,7 @@ describe('ClaudeCodeSessionService', () => {
 			const emptyWorkspaceService = store.add(new TestWorkspaceService([]));
 			noWorkspaceTestingServiceCollection.set(IWorkspaceService, emptyWorkspaceService);
 			noWorkspaceTestingServiceCollection.define(IFolderRepositoryManager, noWorkspaceFolderManager);
+			noWorkspaceTestingServiceCollection.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: false });
 
 			noWorkspaceFolderManager.setMRUEntries([
 				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
@@ -500,6 +551,7 @@ describe('ClaudeCodeSessionService', () => {
 			noMruServiceCollection.set(IClaudeCodeSdkService, new MockClaudeCodeSdkService());
 			noMruServiceCollection.set(IWorkspaceService, store.add(new TestWorkspaceService([])));
 			noMruServiceCollection.define(IFolderRepositoryManager, noWorkspaceFolderManager);
+			noMruServiceCollection.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: false });
 
 			const accessor = noMruServiceCollection.createTestingAccessor();
 			const noMruService = accessor.get(IInstantiationService).createInstance(ClaudeCodeSessionService);
@@ -526,6 +578,7 @@ describe('ClaudeCodeSessionService', () => {
 			multiMruServiceCollection.set(IClaudeCodeSdkService, multiSdkService);
 			multiMruServiceCollection.set(IWorkspaceService, store.add(new TestWorkspaceService([])));
 			multiMruServiceCollection.define(IFolderRepositoryManager, noWorkspaceFolderManager);
+			multiMruServiceCollection.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: false });
 
 			const accessor = multiMruServiceCollection.createTestingAccessor();
 			const multiMruService = accessor.get(IInstantiationService).createInstance(ClaudeCodeSessionService);
@@ -553,6 +606,7 @@ describe('ClaudeCodeSessionService', () => {
 			const multiRootWorkspaceService = store.add(new TestWorkspaceService([folder1, folder2]));
 			multiRootTestingServiceCollection.set(IWorkspaceService, multiRootWorkspaceService);
 			multiRootTestingServiceCollection.define(IFolderRepositoryManager, new MockFolderRepositoryManager());
+			multiRootTestingServiceCollection.set(IAgentSessionsWorkspace, { _serviceBrand: undefined, isAgentSessionsWorkspace: false });
 
 			const accessor = multiRootTestingServiceCollection.createTestingAccessor();
 			const instaService = accessor.get(IInstantiationService);

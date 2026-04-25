@@ -435,6 +435,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/policies",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/progress",
 			"project": "vscode-workbench"
 		},
@@ -676,10 +680,10 @@
 			"name": "vs/sessions/contrib/files",
 			"project": "vscode-sessions"
 		},
-                {
-                        "name": "vs/sessions/contrib/policyBlocked",
-                        "project": "vscode-sessions"
-                },
+		{
+			"name": "vs/sessions/contrib/policyBlocked",
+			"project": "vscode-sessions"
+		},
 		{
 			"name": "vs/sessions/contrib/git",
 			"project": "vscode-sessions"
@@ -710,6 +714,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/editor",
 			"project": "vscode-sessions"
 		}
 	]

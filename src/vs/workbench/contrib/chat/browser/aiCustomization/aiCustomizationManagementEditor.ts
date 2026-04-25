@@ -83,10 +83,11 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { AgentPluginEditor } from '../agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from '../agentPluginEditor/agentPluginEditorInput.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService, CustomizationHarness, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -499,7 +500,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		let hidden: Set<string>;
 		if (this.isHarnessSelectorEnabled) {
 			const activeId = this.harnessService.activeHarness.get();
-			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
+			const descriptor = this.harnessService.findHarnessById(activeId);
 			hidden = new Set(descriptor?.hiddenSections ?? []);
 		} else {
 			hidden = new Set(); // Local harness has no hidden sections
@@ -605,12 +606,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
 		// remains active — filtering stays correct for that window.
 		if (!this.isHarnessSelectorEnabled) {
-			this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+			this.harnessService.setActiveHarness(SessionType.Local);
 		}
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
 				if (!this.isHarnessSelectorEnabled) {
-					this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+					this.harnessService.setActiveHarness(SessionType.Local);
 				}
 			}
 		}));
@@ -649,7 +650,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
 		this.harnessDropdownButton.setAttribute('aria-haspopup', 'listbox');
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.harnessDropdownButton, () => {
-			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === this.harnessService.activeHarness.get());
+			const descriptor = this.harnessService.findHarnessById(this.harnessService.activeHarness.get());
 			return descriptor?.label ?? '';
 		}));
 
@@ -780,7 +781,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 	}
 
-	private createBackArrowButton(): HTMLButtonElement {
+	private createBackArrowButton(onClick?: () => void): HTMLButtonElement {
 		const button = $('button.section-back-arrow-button') as HTMLButtonElement;
 		button.type = 'button';
 		button.setAttribute('aria-label', localize('backToOverview', "Back to overview"));
@@ -789,13 +790,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
 		icon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
-			this.showWelcomePage();
+			if (onClick) {
+				onClick();
+			} else {
+				this.showWelcomePage();
+			}
 		}));
 		return button;
 	}
 
-	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }): void {
-		widget.prependToSearchRow(this.createBackArrowButton());
+	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }, onClick?: () => void): void {
+		widget.prependToSearchRow(this.createBackArrowButton(onClick));
 	}
 
 	private createContent(): void {
@@ -859,7 +864,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.mcpListWidget);
+			this.injectBackArrowIntoSearchRow(this.mcpListWidget, () => {
+				if (this.mcpListWidget!.isInBrowseMode()) {
+					this.mcpListWidget!.exitBrowseMode();
+				} else {
+					this.showWelcomePage();
+				}
+			});
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
@@ -879,7 +890,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.pluginListWidget);
+			this.injectBackArrowIntoSearchRow(this.pluginListWidget, () => {
+				if (this.pluginListWidget!.isInBrowseMode()) {
+					this.pluginListWidget!.exitBrowseMode();
+				} else {
+					this.showWelcomePage();
+				}
+			});
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
@@ -991,7 +1008,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
-	private showWelcomePage(): void {
+	public showWelcomePage(): void {
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
 		}

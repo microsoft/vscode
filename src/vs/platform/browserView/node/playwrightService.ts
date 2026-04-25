@@ -102,7 +102,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		this._initPromise = (async () => {
 			try {
 				this.logService.debug('[PlaywrightService] Creating browser view group');
-				const group = await this.browserViewGroupRemoteService.createGroup(this.windowId);
+				const group = await this.browserViewGroupRemoteService.createGroup({ mainWindowId: this.windowId });
 
 				this.logService.debug('[PlaywrightService] Connecting to browser via CDP');
 				const playwright = await import('playwright-core');

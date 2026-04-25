@@ -159,21 +159,7 @@ export default tseslint.config(
 				}
 			],
 			'jsdoc/no-types': 'warn',
-			'local/code-no-static-self-ref': 'warn'
-		}
-	},
-	// vscode TS
-	{
-		files: [
-			'src/**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
-		rules: {
+			'local/code-no-static-self-ref': 'warn',
 			'@typescript-eslint/naming-convention': [
 				'warn',
 				{
@@ -695,6 +681,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/search/browser/replace.ts',
 			'src/vs/workbench/contrib/search/browser/replaceService.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsCopy.ts',
+			'src/vs/workbench/contrib/search/browser/searchActionsBase.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsFind.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsNav.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsRemoveReplace.ts',
@@ -1522,6 +1509,7 @@ export default tseslint.config(
 						'fs/promises',
 						'http',
 						'https',
+						'inspector',
 						'minimist',
 						'node:module',
 						'native-keymap',
@@ -1531,6 +1519,7 @@ export default tseslint.config(
 						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
+						'ssh2',
 						'stream',
 						'string_decoder',
 						'tas-client',

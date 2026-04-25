@@ -5,22 +5,37 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ISettableObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
-const LAST_SELECTED_SESSION_KEY = 'agentSessions.lastSelectedSession';
-const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
+const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
+
+/**
+ * Persisted state for a session.
+ * Extend this interface to store additional per-session state that should be
+ * remembered across restarts.
+ */
+interface ISessionState {
+	/** The resource URI of the session. */
+	sessionResource: string;
+	/** The resource URI of the last active chat within the session. */
+	activeChatResource?: string;
+	/** Whether this session was the active session at the time of save. */
+	isActive?: boolean;
+}
 
 class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
@@ -36,19 +51,19 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
-	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
-	private lastSelectedSession: URI | undefined;
+	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
+	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 	private readonly _isNewChatInSessionContext: IContextKey<boolean>;
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _isWorkspaceAgent: IContextKey<boolean>;
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
 	private _activeSessionDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _sessionStates: ResourceMap<ISessionState>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -57,6 +72,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -66,21 +82,19 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext = IsNewChatInSessionContext.bindTo(contextKeyService);
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
-		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._isWorkspaceAgent = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
 		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
 		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
-		// Load last selected session
-		this.lastSelectedSession = this.loadLastSelectedSession();
+		// Load persisted state
+		this._sessionStates = this._loadSessionStates();
 
 		// Save on shutdown
-		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
+		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
 
-		// Restore or auto-select active provider
-		this._initActiveProvider();
+		// Subscribe to provider changes for session type updates
 		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
 			this._onProvidersChanged(e);
-			this._initActiveProvider();
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
@@ -109,34 +123,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 	}
 
-	private _initActiveProvider(): void {
-		const providers = this.sessionsProvidersService.getProviders();
-		if (providers.length === 0) {
-			return;
-		}
-
-		// If already set and still valid, keep it
-		const current = this._activeProviderId.get();
-		if (current && providers.some(p => p.id === current)) {
-			return;
-		}
-
-		// Try to restore from storage
-		const stored = this.storageService.get(ACTIVE_PROVIDER_KEY, StorageScope.PROFILE);
-		if (stored && providers.some(p => p.id === stored)) {
-			this._activeProviderId.set(stored, undefined);
-			return;
-		}
-
-		// Auto-select the first (or only) provider
-		this._activeProviderId.set(providers[0].id, undefined);
-	}
-
-	setActiveProvider(providerId: string): void {
-		this._activeProviderId.set(providerId, undefined);
-		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
-
 	private onDidReplaceSession(from: ISession, to: ISession): void {
 		if (this._activeSession.get()?.sessionId === from.sessionId) {
 			this.setActiveSession(to);
@@ -151,6 +137,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private onDidChangeSessionsFromSessionsProviders(e: ISessionChangeEvent): void {
 		this._onDidChangeSessions.fire(e);
 		const currentActive = this._activeSession.get();
+
+		// Clear stale pending session if the provider removed it
+		if (e.removed.length && this._pendingNewSession) {
+			if (e.removed.some(r => r.sessionId === this._pendingNewSession!.sessionId)) {
+				this._pendingNewSession = undefined;
+			}
+		}
 
 		if (!currentActive) {
 			return;
@@ -244,10 +237,14 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
 
-		await this.chatWidgetService.openSession(sessionData.resource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		// Open the active chat (which may have been restored to the last active chat)
+		const activeChat = this._activeSession.get()?.activeChat.get();
+		const openUri = activeChat?.resource ?? sessionData.resource;
+		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
 	}
 
 	unsetNewSession(): void {
+		this._pendingNewSession = undefined;
 		this.setActiveSession(undefined);
 	}
 
@@ -262,19 +259,19 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 
 		if (!sessionTypeId) {
-			const defaultType = provider.getSessionTypes(repositoryUri)[0];
-			if (!defaultType) {
+			sessionTypeId = provider.getSessionTypes(repositoryUri)[0]?.id;
+			if (!sessionTypeId) {
 				throw new Error(`No session types available for provider '${providerId}'`);
 			}
-			sessionTypeId = defaultType.id;
 		}
-
 		const session = provider.createNewSession(repositoryUri, sessionTypeId);
+		this._pendingNewSession = session;
 		this.setActiveSession(session);
 		return session;
 	}
 
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
+		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 
@@ -312,6 +309,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		this._pendingNewSession = undefined;
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 
@@ -337,7 +335,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		if (this.isNewChatSessionContext.get()) {
 			return;
 		}
-		this.setActiveSession(undefined);
+		// Restore the pending new session if one exists, so pickers
+		// re-derive their state from the still-alive session object.
+		// Otherwise clear active session (first time / after send).
+		this.setActiveSession(this._pendingNewSession ?? undefined);
 		this.isNewChatSessionContext.set(true);
 		this._isNewChatInSessionContext.set(false);
 	}
@@ -372,16 +373,19 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
+		this._isWorkspaceAgent.set(isWorkspaceAgentSessionType(session?.sessionType));
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 
-		if (session && session.status.get() !== SessionStatus.Untitled) {
-			this.lastSelectedSession = session.resource;
-		}
-
 		if (session) {
 			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
+
+			// Trigger lazy resolve for expensive session properties (e.g. changes,
+			// badge). This is fire-and-forget — the resolve result flows back through
+			// the model's onDidChangeSessions → _refreshSessionCache → adapter.update()
+			// chain, updating observables reactively. Safe for providers without a
+			// resolve handler (returns undefined).
+			this.agentSessionsService.model.observeSession(session.resource);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
@@ -389,8 +393,24 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._activeSessionDisposables.clear();
 
 		if (session) {
-			// Create the active chat observable, defaulting to the first chat
-			const activeChatObs = observableValue<IChat>(`activeChat-${session.sessionId}`, session.chats.get()[0]);
+			// Restore the last active chat for this session, or default to the first chat
+			const chats = session.chats.get();
+			const sessionState = this._sessionStates.get(session.resource);
+			let initialChat = chats[0];
+			if (sessionState?.activeChatResource) {
+				try {
+					const lastChatResource = URI.parse(sessionState.activeChatResource);
+					const found = chats.find(c => this.uriIdentityService.extUri.isEqual(c.resource, lastChatResource));
+					if (found) {
+						initialChat = found;
+					}
+				} catch (error) {
+					this.logService.warn('[ActiveSessionService] Failed to restore active chat from stored session state', error);
+				}
+			}
+
+			// Create the active chat observable
+			const activeChatObs = observableValue<IChat>(`activeChat-${session.sessionId}`, initialChat);
 			this._activeChatObservable = activeChatObs;
 			const activeSession: IActiveSession = {
 				...session,
@@ -421,29 +441,54 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 					}
 				}
 			}));
+
+			// Track active chat changes to persist per-session state
+			this._activeSessionDisposables.add(autorun(reader => {
+				const chat = activeChatObs.read(reader);
+				if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
+					// Mark all sessions as inactive, then set this one as active
+					for (const [, state] of this._sessionStates) {
+						state.isActive = false;
+					}
+					const existing = this._sessionStates.get(session.resource);
+					this._sessionStates.set(session.resource, {
+						...existing,
+						sessionResource: session.resource.toString(),
+						activeChatResource: chat.resource.toString(),
+						isActive: true,
+					});
+				}
+			}));
 		} else {
 			this._activeChatObservable = undefined;
 			this._activeSession.set(undefined, undefined);
 		}
 	}
 
-	private loadLastSelectedSession(): URI | undefined {
-		const cached = this.storageService.get(LAST_SELECTED_SESSION_KEY, StorageScope.WORKSPACE);
-		if (!cached) {
-			return undefined;
+	private _loadSessionStates(): ResourceMap<ISessionState> {
+		const map = new ResourceMap<ISessionState>();
+		const raw = this.storageService.get(ACTIVE_SESSION_STATES_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return map;
 		}
-
 		try {
-			return URI.parse(cached);
+			const entries: ISessionState[] = JSON.parse(raw);
+			for (const entry of entries) {
+				const uri = URI.parse(entry.sessionResource);
+				map.set(uri, entry);
+			}
 		} catch {
-			return undefined;
+			// ignore corrupt data
 		}
+		return map;
 	}
 
-	private saveLastSelectedSession(): void {
-		if (this.lastSelectedSession) {
-			this.storageService.store(LAST_SELECTED_SESSION_KEY, this.lastSelectedSession.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	private _saveSessionStates(): void {
+		const entries: ISessionState[] = [];
+		for (const [, state] of this._sessionStates) {
+			entries.push(state);
 		}
+		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	// -- Session Actions --

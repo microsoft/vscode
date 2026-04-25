@@ -14,8 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type IActionEnvelope, type INotification, type ISessionAction, type ITerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, createSessionState, StateComponents, type ISessionState, type ISessionSummary, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { isSessionAction, type ActionEnvelope, type INotification, type RootAction, type SessionAction, type TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -275,17 +275,17 @@ suite('AgentHostClientTools', () => {
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
 			declare readonly _serviceBrand: undefined;
 			override readonly clientId = 'test-client';
-			private readonly _onDidAction = disposables.add(new Emitter<IActionEnvelope>());
+			private readonly _onDidAction = disposables.add(new Emitter<ActionEnvelope>());
 			override readonly onDidAction = this._onDidAction.event;
 			private readonly _onDidNotification = disposables.add(new Emitter<INotification>());
 			override readonly onDidNotification = this._onDidNotification.event;
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
 
-			private readonly _liveSubscriptions = new Map<string, { state: ISessionState; emitter: Emitter<ISessionState> }>();
-			public dispatchedActions: (ISessionAction | ITerminalAction)[] = [];
+			private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
+			public dispatchedActions: (RootAction | SessionAction | TerminalAction)[] = [];
 
-			override dispatch(action: ISessionAction | ITerminalAction): void {
+			override dispatch(action: RootAction | SessionAction | TerminalAction): void {
 				this.dispatchedActions.push(action);
 				if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
 					const entry = this._liveSubscriptions.get(action.session);
@@ -303,7 +303,7 @@ suite('AgentHostClientTools', () => {
 				}
 			}
 
-			override readonly rootState: IAgentSubscription<IRootState> = {
+			override readonly rootState: IAgentSubscription<RootState> = {
 				value: undefined,
 				verifiedValue: undefined,
 				onDidChange: Event.None,
@@ -314,7 +314,7 @@ suite('AgentHostClientTools', () => {
 			override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 				const resourceStr = resource.toString();
 				const emitter = disposables.add(new Emitter<T>());
-				const summary: ISessionSummary = {
+				const summary: SessionSummary = {
 					resource: resourceStr,
 					provider: 'copilot',
 					title: 'Test',
@@ -322,8 +322,8 @@ suite('AgentHostClientTools', () => {
 					createdAt: Date.now(),
 					modifiedAt: Date.now(),
 				};
-				const initialState: ISessionState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
-				const entry = { state: initialState, emitter: emitter as unknown as Emitter<ISessionState> };
+				const initialState: SessionState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+				const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState> };
 				this._liveSubscriptions.set(resourceStr, entry);
 
 				const self = this;

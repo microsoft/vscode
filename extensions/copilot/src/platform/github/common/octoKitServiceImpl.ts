@@ -9,7 +9,7 @@ import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
+import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
 import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
@@ -466,6 +466,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			throw new PermissiveAuthRequiredError();
 		}
 
+		let usedSuggestedActors = true;
 		try {
 			// Try suggestedActors first (preferred API)
 			const actors = await getAssignableActorsWithSuggestedActors(
@@ -484,6 +485,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 
 			// Fall back to assignableUsers for older GitHub Enterprise Server instances
 			this._logService.trace('Falling back to assignableUsers API');
+			usedSuggestedActors = false;
 			return await getAssignableActorsWithAssignableUsers(
 				this._fetcherService,
 				this._logService,
@@ -495,6 +497,21 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			);
 		} catch (e) {
 			this._logService.error(`Error fetching assignable actors: ${e}`);
+			const properties: { errorCode?: string; usedSuggestedActors: string } = {
+				usedSuggestedActors: String(usedSuggestedActors),
+			};
+			const errorCode = getErrorCode(e);
+			if (errorCode) {
+				properties.errorCode = errorCode;
+			}
+
+			/* __GDPR__
+				"pr.getAssignableUsersFailed" : {
+					"errorCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"usedSuggestedActors": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryErrorEvent('pr.getAssignableUsersFailed', properties);
 			return [];
 		}
 	}
@@ -538,3 +555,5 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
+
+

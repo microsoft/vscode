@@ -14,13 +14,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Queue } from '../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import * as protocol from '../common/serverProtocol';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemResultBuilder, ContextItemSummary, ResolvedRunnableResult, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 
 const currentTokenBudget: number = 8 * 1024;
 
@@ -477,7 +477,7 @@ type ContextRequestState = {
 type CacheInfo = {
 	version: number;
 	state: CacheState;
-}
+};
 
 enum CacheState {
 	NotPopulated = 'NotPopulated',
@@ -1244,9 +1244,9 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 
 	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.isDebugging = process.execArgv.some((arg) => /^--(?:inspect|debug)(?:-brk)?(?:=\d+)?$/i.test(arg));
@@ -1791,7 +1791,7 @@ async function* mapAsyncIterable<T, U>(
 const showContextInspectorViewContextKey = `github.copilot.chat.showContextInspectorView`;
 export class InlineCompletionContribution implements vscode.Disposable, TokenBudgetProvider {
 
-	private disposables: DisposableStore;
+	private readonly disposables: DisposableStore;
 
 	private registrations: DisposableStore | undefined;
 	private readonly registrationQueue: Queue<void>;
@@ -1799,10 +1799,10 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 	private readonly telemetrySender: TelemetrySender;
 
 	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@ILogService readonly logService: ILogService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 		@ILanguageContextService private readonly languageContextService: ILanguageContextService,
 		@ILanguageContextProviderService private readonly languageContextProviderService: ILanguageContextProviderService,
 	) {
@@ -1975,7 +1975,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 			}
 
 			// Register with chat always.
-			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions]));
+			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions, ProviderTarget.NES]));
 			this.telemetrySender.sendInlineCompletionProviderTelemetry(KnownSources.completion, true);
 			logService.info('Registered TypeScript context provider with Copilot inline completions.');
 		} catch (error) {

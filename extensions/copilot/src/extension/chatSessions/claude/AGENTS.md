@@ -133,6 +133,20 @@ All interactions are displayed through VS Code's native chat UI, providing a sea
 - Used to resume previous Claude Code conversations
 - See `node/sessionParser/README.md` for detailed documentation
 
+### `node/claudeSkills.ts`
+
+**IClaudePluginService / ClaudePluginService**
+- Resolves plugin root directories for the Claude SDK's `plugins` option
+- Combines three sources of plugin locations:
+  1. **Config skill locations** — from `chat.agentSkillsLocations` setting, resolved via the shared `resolveSkillConfigLocations()` utility. These point to skills directories (e.g. `.../skills/`), so the service walks **one level up** to reach the plugin root expected by the SDK.
+  2. **Discovered skills** — from `IPromptsService.getSkills()`. Each skill has a `SKILL.md` at `<plugin-root>/skills/<skill-name>/SKILL.md`, so the service walks **three levels up** (`dirname(dirname(dirname(uri)))`) to reach the plugin root.
+  3. **Direct plugins** — from `IPromptsService.getPlugins()`, returned as-is since they already point to plugin root directories.
+- Filters out `.claude` directories (the Claude SDK loads these automatically)
+- Deduplicates results using `ResourceSet`
+- Plugin roots are passed to the SDK as `SdkPluginConfig[]` with `{ type: 'local', path }` in `ClaudeCodeSession._doStartSession()`
+
+**Shared utility:** `../../common/skillConfigLocations.ts` — `resolveSkillConfigLocations()` handles `~/` expansion, absolute paths, and relative paths joined to workspace folders. Used by both `ClaudePluginService` and `CopilotCLISkills`.
+
 ### `common/claudeTools.ts`
 
 Defines Claude Code's tool interface:
@@ -214,18 +228,59 @@ In multi-root and empty workspaces, a folder picker option appears in the chat s
 ### Key Files
 
 - **`common/claudeFolderInfo.ts`**: `ClaudeFolderInfo` interface
-- **`../../chatSessions/vscode-node/claudeChatSessionContentProvider.ts`**: Folder resolution, picker options, and handler integration
+- **`../../chatSessions/common/claudeWorkspaceFolderService.ts`**: `IClaudeWorkspaceFolderService` interface — computes git diff changes for session items
+- **`../../chatSessions/vscode-node/claudeWorkspaceFolderServiceImpl.ts`**: Implementation — diffs the session's branch against its base branch, caches results, and maps changes to `ChatSessionChangedFile[]` for display in the Sessions view
+- **`../../chatSessions/vscode-node/claudeChatSessionContentProvider.ts`**: Folder resolution, picker options, session metadata enrichment, and git command handlers
+- **`../../chatSessions/common/builtinSlashCommands.ts`**: Shared constants for built-in slash commands (`/commit`, `/sync`, `/merge`, etc.) used by both Claude and CopilotCLI sessions
 - **`../../chatSessions/vscode-node/folderRepositoryManagerImpl.ts`**: `FolderRepositoryManager` (abstract base) with `ClaudeFolderRepositoryManager` subclass — the Claude subclass does not depend on `ICopilotCLISessionService` (CopilotCLI has its own subclass `CopilotCLIFolderRepositoryManager`)
 - **`node/claudeCodeAgent.ts`**: Consumes `ClaudeFolderInfo` in `ClaudeCodeSession._startSession()`
 - **`node/sessionParser/claudeCodeSessionService.ts`**: `_getProjectSlugs()` generates slugs for all folders
+
+## Session Metadata and Git Commands
+
+### Session Metadata Enrichment
+
+Each Claude session item carries metadata that drives the Sessions view UI (button visibility, status indicators). The `ClaudeChatSessionItemController._buildSessionMetadata()` method enriches session items with git repository state.
+
+**Workspace Trust:** Session metadata and git change detection are gated on workspace trust via `IWorkspaceService.isResourceTrusted()`. For untrusted working directories, `_buildSessionMetadata()` returns only the `workingDirectoryPath` (no git data), and `getWorkspaceChanges()` is skipped entirely. The trust check is resolved once in `_createClaudeChatSessionItem` and passed into `_buildSessionMetadata` to avoid redundant calls. When trusted, the metadata fetch and workspace changes fetch run concurrently via `Promise.all`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workingDirectoryPath` | `string` | Session's working directory (always present) |
+| `repositoryPath` | `string?` | Git repository root path |
+| `branchName` | `string?` | Current HEAD branch name |
+| `upstreamBranchName` | `string?` | Upstream tracking ref (e.g., `origin/main`) |
+| `hasGitHubRemote` | `boolean?` | Whether any remote points to GitHub |
+| `incomingChanges` | `number?` | Commits behind upstream |
+| `outgoingChanges` | `number?` | Commits ahead of upstream |
+| `uncommittedChanges` | `number?` | Total uncommitted changes (merge + index + working tree + untracked) |
+
+These metadata fields map to `when`-clause context keys in `package.json` (e.g., `sessions.hasGitRepository`, `sessions.hasUncommittedChanges`, `sessions.hasUpstream`) that control which action buttons appear in the Changes view.
+
+### Git Action Commands
+
+The `ClaudeChatSessionItemController` registers four git-related commands that appear as action buttons in the Sessions/Changes view:
+
+| Command | When Visible | Action |
+|---------|-------------|--------|
+| `github.copilot.claude.sessions.commit` | Has git repo + uncommitted changes | Sends `/commit` prompt to the session |
+| `github.copilot.claude.sessions.commitAndSync` | Has git repo + uncommitted changes + upstream | Sends `/commit and /sync` prompt |
+| `github.copilot.claude.sessions.sync` | Has git repo + no uncommitted changes + upstream | Sends `/sync` prompt |
+| `github.copilot.claude.sessions.initializeRepository` | No git repo | Calls `IGitService.initRepository()` on the session's workspace folder |
+
+The commit, commitAndSync, and sync commands use a shared `_registerPromptCommand()` helper that extracts the session resource and dispatches via `workbench.action.chat.openSessionWithPrompt.claude-code`. The slash command strings come from the shared `builtinSlashCommands` module (`../../common/builtinSlashCommands.ts`).
 
 ## Testing
 
 Unit tests are located in `node/test/`:
 - `claudeCodeAgent.spec.ts`: Tests for agent and session logic
 - `claudeCodeSessionService.spec.ts`: Tests for session loading and persistence
+- `claudePluginService.spec.ts`: Tests for plugin location resolution
 - `mockClaudeCodeSdkService.ts`: Mock SDK service for testing
 - `fixtures/`: Sample `.jsonl` session files for testing
+
+Additional tests for the session item controller and content provider:
+- `../../chatSessions/vscode-node/test/claudeChatSessionContentProvider.spec.ts`: Tests for session metadata enrichment, git command handlers, session lifecycle, and content provider behavior
 
 ## Extension Registries
 
