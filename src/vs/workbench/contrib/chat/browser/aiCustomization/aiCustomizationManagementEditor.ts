@@ -59,6 +59,7 @@ import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/servi
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
+import { findHookCommandSelection } from '../promptSyntax/hookUtils.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -826,6 +827,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const isWorkspaceFile = storage === PromptsStorage.local;
 			const isReadOnly = !storage || storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
 			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage ?? BUILTIN_STORAGE, isWorkspaceFile, isReadOnly);
+		}));
+
+		// Handle hook child selection (jump to specific hook in file)
+		this.editorDisposables.add(this.listWidget.onDidSelectHookChild(async ({ item, child }) => {
+			const storage = item.storage;
+			const isWorkspaceFile = storage === PromptsStorage.local;
+			const isReadOnly = !storage || storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+			await this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage ?? BUILTIN_STORAGE, isWorkspaceFile, isReadOnly);
+			// Jump to the specific hook command in the file
+			if (this.embeddedEditor?.hasModel()) {
+				const content = this.embeddedEditor.getModel()!.getValue();
+				const selection = findHookCommandSelection(content, child.originalHookTypeId, child.index, child.commandFieldKey);
+				if (selection) {
+					this.embeddedEditor.setSelection({
+						startLineNumber: selection.startLineNumber,
+						startColumn: selection.startColumn,
+						endLineNumber: selection.endLineNumber ?? selection.startLineNumber,
+						endColumn: selection.endColumn ?? selection.startColumn,
+					});
+					this.embeddedEditor.revealLineInCenter(selection.startLineNumber);
+				}
+			}
 		}));
 
 		// Handle create actions - AI-guided creation

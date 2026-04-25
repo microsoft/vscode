@@ -44,7 +44,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, Prompts
 import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
@@ -4592,6 +4592,184 @@ suite('PromptsService', () => {
 			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
 			assert.ok(pluginInstruction, 'Plugin instruction should be listed');
 			assert.strictEqual(pluginInstruction!.name, 'deploy-tools:lint-check');
+		});
+	});
+
+	suite('setDisabledPromptFiles', () => {
+
+		let storageService: InMemoryStorageService;
+		let localService: IPromptsService;
+
+		setup(() => {
+			// Replace the stub storage with a real InMemoryStorageService instance
+			storageService = disposables.add(new InMemoryStorageService());
+			instaService.stub(IStorageService, storageService);
+			localService = disposables.add(instaService.createInstance(PromptsService));
+		});
+
+		test('disabled skills are excluded from findAgentSkills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'disabled-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const skillUri = URI.joinPath(rootFolderUri, '.github/skills/my-skill/SKILL.md');
+
+			await mockFiles(fileService, [{
+				path: skillUri.path,
+				contents: [
+					'---',
+					'name: my-skill',
+					'description: A test skill',
+					'---',
+					'Skill content',
+				],
+			}]);
+
+			const skills = await localService.findAgentSkills(CancellationToken.None);
+			assert.ok(skills?.some(s => s.uri.toString() === skillUri.toString()), 'Skill should be found before disabling');
+
+			const disabled = new ResourceSet();
+			disabled.add(skillUri);
+			localService.setDisabledPromptFiles(PromptsType.skill, disabled);
+
+			const skillsAfter = await localService.findAgentSkills(CancellationToken.None);
+			assert.ok(!skillsAfter?.some(s => s.uri.toString() === skillUri.toString()), 'Disabled skill should be excluded');
+		});
+
+		test('disabled prompts are excluded from getPromptSlashCommands', async () => {
+			const rootFolderName = 'disabled-prompts-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const promptUri = URI.joinPath(rootFolderUri, '.github/prompts/my-prompt.prompt.md');
+
+			await mockFiles(fileService, [{
+				path: promptUri.path,
+				contents: [
+					'---',
+					'name: my-prompt',
+					'description: A test prompt',
+					'---',
+					'Prompt content',
+				],
+			}]);
+
+			const commands = await localService.getPromptSlashCommands(CancellationToken.None);
+			assert.ok(commands.some(c => c.uri.toString() === promptUri.toString()), 'Prompt should be found before disabling');
+
+			const disabled = new ResourceSet();
+			disabled.add(promptUri);
+			localService.setDisabledPromptFiles(PromptsType.prompt, disabled);
+
+			const commandsAfter = await localService.getPromptSlashCommands(CancellationToken.None);
+			assert.ok(!commandsAfter.some(c => c.uri.toString() === promptUri.toString()), 'Disabled prompt should be excluded');
+		});
+
+		test('disabled agents are excluded from getCustomAgents', async () => {
+			const rootFolderName = 'disabled-agents-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/my-agent.agent.md');
+
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: my-agent',
+					'description: A test agent',
+					'---',
+					'Agent content',
+				],
+			}]);
+
+			const agents = await localService.getCustomAgents(CancellationToken.None);
+			assert.ok(agents.some(a => a.uri.toString() === agentUri.toString()), 'Agent should be found before disabling');
+
+			const disabled = new ResourceSet();
+			disabled.add(agentUri);
+			localService.setDisabledPromptFiles(PromptsType.agent, disabled);
+
+			const agentsAfter = await localService.getCustomAgents(CancellationToken.None);
+			assert.ok(!agentsAfter.some(a => a.uri.toString() === agentUri.toString()), 'Disabled agent should be excluded');
+		});
+
+		test('getDisabledPromptFiles returns persisted set', () => {
+			const uri1 = URI.file('/test/file1.instructions.md');
+			const uri2 = URI.file('/test/file2.instructions.md');
+
+			const disabled = new ResourceSet();
+			disabled.add(uri1);
+			disabled.add(uri2);
+			localService.setDisabledPromptFiles(PromptsType.instructions, disabled);
+
+			const result = localService.getDisabledPromptFiles(PromptsType.instructions);
+			assert.strictEqual(result.size, 2, 'Should persist two disabled URIs');
+			assert.ok(result.has(uri1), 'Should contain first URI');
+			assert.ok(result.has(uri2), 'Should contain second URI');
+		});
+
+		test('re-enabling removes from disabled set', () => {
+			const uri = URI.file('/test/file.instructions.md');
+
+			const disabled = new ResourceSet();
+			disabled.add(uri);
+			localService.setDisabledPromptFiles(PromptsType.instructions, disabled);
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.instructions).size, 1);
+
+			const reEnabled = new ResourceSet();
+			localService.setDisabledPromptFiles(PromptsType.instructions, reEnabled);
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.instructions).size, 0);
+		});
+
+		test('disabled types are independent', () => {
+			const uri = URI.file('/test/file.md');
+
+			const disabledInstructions = new ResourceSet();
+			disabledInstructions.add(uri);
+			localService.setDisabledPromptFiles(PromptsType.instructions, disabledInstructions);
+
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.instructions).size, 1, 'Instructions should have disabled URI');
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.skill).size, 0, 'Skills should be unaffected');
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.prompt).size, 0, 'Prompts should be unaffected');
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.agent).size, 0, 'Agents should be unaffected');
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.hook).size, 0, 'Hooks should be unaffected');
+		});
+
+		test('workspace-scoped disablement is independent from profile', () => {
+			const uri = URI.file('/test/file.instructions.md');
+
+			const profileDisabled = new ResourceSet();
+			profileDisabled.add(uri);
+			localService.setDisabledPromptFiles(PromptsType.instructions, profileDisabled, StorageScope.PROFILE);
+
+			assert.strictEqual(localService.getDisabledPromptFilesForScope(PromptsType.instructions, StorageScope.PROFILE).size, 1, 'Profile scope should have the URI');
+			assert.strictEqual(localService.getDisabledPromptFilesForScope(PromptsType.instructions, StorageScope.WORKSPACE).size, 0, 'Workspace scope should be empty');
+			assert.strictEqual(localService.getDisabledPromptFiles(PromptsType.instructions).size, 1, 'Combined should include profile-disabled URI');
+		});
+
+		test('workspace-scoped disablement merges with profile in getDisabledPromptFiles', () => {
+			const profileUri = URI.file('/test/profile-disabled.instructions.md');
+			const workspaceUri = URI.file('/test/workspace-disabled.instructions.md');
+
+			const profileDisabled = new ResourceSet();
+			profileDisabled.add(profileUri);
+			localService.setDisabledPromptFiles(PromptsType.instructions, profileDisabled, StorageScope.PROFILE);
+
+			const workspaceDisabled = new ResourceSet();
+			workspaceDisabled.add(workspaceUri);
+			localService.setDisabledPromptFiles(PromptsType.instructions, workspaceDisabled, StorageScope.WORKSPACE);
+
+			const combined = localService.getDisabledPromptFiles(PromptsType.instructions);
+			assert.strictEqual(combined.size, 2, 'Combined should include both scopes');
+			assert.ok(combined.has(profileUri), 'Combined should include profile-disabled URI');
+			assert.ok(combined.has(workspaceUri), 'Combined should include workspace-disabled URI');
 		});
 	});
 });

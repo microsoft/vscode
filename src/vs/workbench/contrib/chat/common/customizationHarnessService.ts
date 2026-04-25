@@ -134,6 +134,11 @@ export interface IHarnessDescriptor {
 	 * this harness is active.
 	 */
 	readonly syncProvider?: ICustomizationSyncProvider;
+	/**
+	 * When set, this harness manages its own enablement state. When absent,
+	 * the management UI falls back to promptsService (StorageService).
+	 */
+	readonly enablementHandler?: ICustomizationEnablementHandler;
 }
 
 /**
@@ -158,12 +163,30 @@ export interface ICustomizationItem {
 	readonly statusMessage?: string;
 	/** Whether this customization is currently enabled. */
 	readonly enabled?: boolean;
+	/** Per-item enablement scope override. Defaults to 'none' (not disableable) when absent. */
+	readonly enablementScope?: 'none' | 'global' | 'workspace';
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
 	readonly badgeTooltip?: string;
+}
+
+/**
+ * Handler interface for per-harness enablement state.
+ *
+ * Each harness can supply its own enablement handler to control where
+ * disabled state is stored (e.g. StorageService for VS Code, settings.json
+ * for CLI). When a harness does not supply an enablement handler, the
+ * management UI falls back to the core promptsService storage.
+ */
+export interface ICustomizationEnablementHandler {
+	/**
+	 * Enables or disables a single customization item.
+	 * The handler is expected to persist the change and fire {@link ICustomizationItemProvider.onDidChange}.
+	 */
+	handleCustomizationEnablement(uri: URI, type: PromptsType, enabled: boolean, scope: 'global' | 'workspace'): void;
 }
 
 /**
@@ -265,6 +288,12 @@ export interface ICustomizationHarnessService {
 	 */
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
 
+	/**
+	 * Returns the enablement handler of the currently active harness, or
+	 * `undefined` when the harness has no custom enablement handler
+	 * (in which case the caller should fall back to promptsService).
+	 */
+	getActiveEnablementHandler(): ICustomizationEnablementHandler | undefined;
 
 	/**
 	 * Fires when one of the provided slash commands changes.
@@ -370,7 +399,7 @@ function buildAllSources(extras: readonly string[]): readonly string[] {
  * Creates a "VS Code" harness descriptor that shows all storage sources
  * with no user-root restrictions.
  */
-export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarnessDescriptor {
+export function createVSCodeHarnessDescriptor(extras: readonly string[], enablementHandler?: ICustomizationEnablementHandler): IHarnessDescriptor {
 	const filter: IStorageSourceFilter = { sources: buildAllSources(extras) };
 	return {
 		id: SessionType.Local,
@@ -383,6 +412,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 			}],
 		]),
 		getStorageSourceFilter: () => filter,
+		enablementHandler,
 	};
 }
 
@@ -398,6 +428,7 @@ interface IRestrictedHarnessOptions {
 	readonly sectionOverrides?: ReadonlyMap<string, ISectionOverride>;
 	readonly requiredAgentId?: string;
 	readonly instructionFileFilter?: readonly string[];
+	readonly enablementHandler?: ICustomizationEnablementHandler;
 }
 
 function createRestrictedHarnessDescriptor(
@@ -421,6 +452,7 @@ function createRestrictedHarnessDescriptor(
 		sectionOverrides: options?.sectionOverrides,
 		requiredAgentId: options?.requiredAgentId,
 		instructionFileFilter: options?.instructionFileFilter,
+		enablementHandler: options?.enablementHandler,
 		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 			if (type === PromptsType.hook) {
 				return HOOKS_FILTER;
@@ -436,7 +468,7 @@ function createRestrictedHarnessDescriptor(
 /**
  * Creates a "Copilot CLI" harness descriptor.
  */
-export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
+export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly string[], enablementHandler?: ICustomizationEnablementHandler): IHarnessDescriptor {
 	return createRestrictedHarnessDescriptor(
 		SessionType.CopilotCLI,
 		localize('harness.cli', "Copilot CLI"),
@@ -452,6 +484,7 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 					rootFileShortcuts: [AGENT_MD_FILENAME],
 				}],
 			]),
+			enablementHandler,
 		},
 	);
 }
@@ -624,6 +657,10 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return EMPTY_DESCRIPTOR;
 		}
 		return all.find(h => h.id === activeId) ?? all[0];
+	}
+
+	getActiveEnablementHandler(): ICustomizationEnablementHandler | undefined {
+		return this.getActiveDescriptor().enablementHandler;
 	}
 
 	async getSlashCommands(sessionType: string, token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {

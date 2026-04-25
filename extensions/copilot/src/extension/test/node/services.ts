@@ -54,10 +54,12 @@ import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/d
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
 import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
 import { IClaudeRuntimeDataService } from '../../chatSessions/claude/common/claudeRuntimeDataService';
+import { IClaudeSettingsService } from '../../chatSessions/claude/common/claudeSettingsService';
 import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/claudeToolPermissionService';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../../chatSessions/claude/node/claudeCodeSdkService';
 import { ClaudeRuntimeDataService } from '../../chatSessions/claude/node/claudeRuntimeDataService';
+import { ClaudeSettingsService } from '../../chatSessions/claude/node/claudeSettingsService';
 import { IClaudePluginService } from '../../chatSessions/claude/node/claudeSkills';
 import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { ClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
@@ -130,6 +132,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels));
 	testingServiceCollection.define(IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService));
 	testingServiceCollection.define(IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService));
+	testingServiceCollection.define(IClaudeSettingsService, new SyncDescriptor(ClaudeSettingsService));
 	testingServiceCollection.define(IMcpService, new SyncDescriptor(NullMcpService));
 	testingServiceCollection.define(IEditLogService, new SyncDescriptor(EditLogService));
 	testingServiceCollection.define(IProxyModelsService, new SyncDescriptor(NullProxyModelsService));

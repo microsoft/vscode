@@ -1765,9 +1765,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangePlugins(listener, thisArgs, disposables);
 			},
-			registerChatSessionCustomizationProvider(chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
+			registerChatSessionCustomizationProvider(chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider, enablementHandler?: vscode.ChatSessionCustomizationEnablementHandler): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatSessionCustomizationProvider');
-				return extHostChatAgents2.registerChatSessionCustomizationProvider(extension, chatSessionType, metadata, provider);
+				return extHostChatAgents2.registerChatSessionCustomizationProvider(extension, chatSessionType, metadata, provider, enablementHandler);
 			},
 		};
 
@@ -2158,6 +2158,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
 			ChatSessionCustomizationType: extHostTypes.ChatSessionCustomizationType,
+			ChatSessionCustomizationEnablementScope: extHostTypes.ChatSessionCustomizationEnablementScope,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,
 			ChatDebugHookResult: extHostTypes.ChatDebugHookResult,

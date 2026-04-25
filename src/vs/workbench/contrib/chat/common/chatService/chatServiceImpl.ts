@@ -54,7 +54,7 @@ import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../langua
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME, PromptsType } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
@@ -1122,7 +1122,10 @@ export class ChatService extends Disposable implements IChatService {
 						const agents = await this.promptsService.getCustomAgents(token);
 						const customAgent = agents.find(a => a.name === agentName);
 						if (customAgent?.hooks) {
-							collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
+							const disabledHooks = this.promptsService.getDisabledPromptFiles(PromptsType.hook);
+							if (!disabledHooks.has(customAgent.uri)) {
+								collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
+							}
 						}
 					} catch (error) {
 						this.logService.warn('[ChatService] Failed to collect agent hooks:', error);

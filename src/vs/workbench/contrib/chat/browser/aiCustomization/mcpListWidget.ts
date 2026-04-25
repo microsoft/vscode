@@ -216,7 +216,16 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 			const disabled = server ? isContributionDisabled(server.enablement.read(reader)) : false;
 			const connectionState = server?.connectionState.read(reader);
 			templateData.container.classList.toggle('disabled', disabled);
-			this.updateStatus(templateData.status, disabled ? 'disabled' : connectionState?.state);
+
+			// Swap icon to eye-closed when disabled
+			templateData.typeIcon.className = 'mcp-server-icon';
+			if (disabled) {
+				templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.eyeClosed));
+				templateData.status.style.display = 'none';
+			} else {
+				templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
+				this.updateStatus(templateData.status, connectionState?.state);
+			}
 		}));
 	}
 

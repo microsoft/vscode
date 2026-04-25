@@ -42,6 +42,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { getSkillFolderName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 
 //#region Context Keys
 
@@ -545,8 +546,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const result: IAICustomizationFileItem[] = filtered
 				.map(skill => {
 					seenUris.add(skill.uri.toString());
-					// Use skill name from frontmatter, or fallback to parent folder name
-					const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
+					const skillName = getSkillFolderName(skill.uri);
 					return {
 						type: 'file' as const,
 						id: skill.uri.toString(),

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { FileStat, FileSystemWatcher } from 'vscode';
+import { Emitter } from '../../../../util/vs/base/common/event';
 import { basename, dirname } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IFileSystemService } from '../../common/fileSystemService';
@@ -84,7 +85,17 @@ export class MockFileSystemService implements IFileSystemService {
 
 	// Required interface methods
 	isWritableFileSystem(): boolean | undefined { return true; }
-	createFileSystemWatcher(): FileSystemWatcher { throw new Error('not implemented'); }
+	createFileSystemWatcher(): FileSystemWatcher {
+		return {
+			ignoreCreateEvents: false,
+			ignoreChangeEvents: false,
+			ignoreDeleteEvents: false,
+			onDidCreate: new Emitter<URI>().event,
+			onDidChange: new Emitter<URI>().event,
+			onDidDelete: new Emitter<URI>().event,
+			dispose() { },
+		} satisfies FileSystemWatcher as FileSystemWatcher;
+	}
 
 	async createDirectory(uri: URI): Promise<void> {
 		const uriString = uri.toString();

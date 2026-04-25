@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -18,7 +18,8 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
-import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
+import { getFriendlyName, getHookFileFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
+import { getSkillFolderName } from '../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -56,7 +57,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<ICustomizationItem[]> {
 		const items: ICustomizationItem[] = [];
-		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
 
 		if (promptType === PromptsType.agent) {
@@ -74,7 +74,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					name: agent.name,
 					description: agent.description,
 					storage: agent.source.storage,
-					enabled: !disabledUris.has(agent.uri),
 					extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
 					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined
 				});
@@ -91,45 +90,20 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				}
 			}
 			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
-			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
-				const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
-				seenUris.add(skill.uri);
-				const skillFolderName = basename(dirname(skill.uri));
-				const uiTooltip = uiIntegrations.get(skillFolderName);
+				const skillName = getSkillFolderName(skill.uri);
+				const uiTooltip = uiIntegrations.get(skillName);
 				items.push({
 					uri: skill.uri,
 					type: promptType,
 					name: skillName,
 					description: skill.description,
 					storage: skill.storage,
-					enabled: true,
 					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
 					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
 					pluginUri: skill.pluginUri
 				});
-			}
-			if (disabledUris.size > 0) {
-				for (const file of allSkillFiles) {
-					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
-						const disabledName = file.name || basename(dirname(file.uri)) || basename(file.uri);
-						const disabledFolderName = basename(dirname(file.uri));
-						const uiTooltip = uiIntegrations.get(disabledFolderName);
-						items.push({
-							uri: file.uri,
-							type: promptType,
-							name: disabledName,
-							description: file.description,
-							storage: file.storage,
-							enabled: false,
-							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
-							badgeTooltip: uiTooltip,
-							extensionId: file.extension?.identifier.value,
-							pluginUri: file.pluginUri
-						});
-					}
-				}
 			}
 		} else if (promptType === PromptsType.prompt) {
 			const commands = await this.promptsService.getPromptSlashCommands(token);
@@ -143,7 +117,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					name: command.name,
 					description: command.description,
 					storage: command.storage,
-					enabled: !disabledUris.has(command.uri),
 					extensionId: command.extension?.identifier.value,
 					pluginUri: command.pluginUri
 				});
@@ -152,15 +125,15 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
-			await this.fetchPromptServiceHooks(items, disabledUris, promptType);
+			await this.fetchPromptServiceHooks(items, promptType);
 		} else {
-			await this.fetchPromptServiceInstructions(items, extensionInfoByUri, disabledUris, promptType);
+			await this.fetchPromptServiceInstructions(items, extensionInfoByUri, promptType);
 		}
 
 		return this.applyLocalFilters(this.applyBuiltinGroupKeys(items, extensionInfoByUri), promptType);
 	}
 
-	private async fetchPromptServiceHooks(items: ICustomizationItem[], disabledUris: ResourceSet, promptType: PromptsType): Promise<void> {
+	private async fetchPromptServiceHooks(items: ICustomizationItem[], promptType: PromptsType): Promise<void> {
 		const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 
 		// Non-plugin hooks: return raw file items — expansion into individual
@@ -171,9 +144,8 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			items.push({
 				uri: f.uri,
 				type: promptType,
-				name: f.name || getFriendlyName(basename(f.uri)),
+				name: f.name || getHookFileFriendlyName(f.uri.path, f.storage),
 				storage: f.storage,
-				enabled: !disabledUris.has(f.uri),
 				extensionId: f.extension?.identifier.value,
 				pluginUri: f.pluginUri
 			});
@@ -202,7 +174,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 						description: `${agent.name}: ${truncatedCmd || localize('hookUnset', "(unset)")}`,
 						storage: agent.source.storage,
 						groupKey: 'agents',
-						enabled: !disabledUris.has(agent.uri),
 						extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
 						pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined
 					});
@@ -211,7 +182,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		}
 	}
 
-	private async fetchPromptServiceInstructions(items: ICustomizationItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>, disabledUris: ResourceSet, promptType: PromptsType): Promise<void> {
+	private async fetchPromptServiceInstructions(items: ICustomizationItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>, promptType: PromptsType): Promise<void> {
 		const instructionFiles = await this.promptsService.getInstructionFiles(CancellationToken.None);
 		for (const file of instructionFiles) {
 			if (file.extension) {
@@ -230,7 +201,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				name: filename,
 				storage,
 				groupKey: 'agent-instructions',
-				enabled: !disabledUris.has(file.uri),
 				extensionId: undefined,
 				pluginUri: undefined
 			});
@@ -259,7 +229,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					description,
 					storage,
 					groupKey: 'context-instructions',
-					enabled: !disabledUris.has(uri),
 					extensionId: extension?.identifier.value,
 					pluginUri
 				});
@@ -271,7 +240,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					description,
 					storage,
 					groupKey: 'on-demand-instructions',
-					enabled: !disabledUris.has(uri),
 					extensionId: extension?.identifier.value,
 					pluginUri
 				});
@@ -336,7 +304,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			items = items.filter(item => matchesInstructionFileFilter(item.uri.path, instrFilter));
 		}
 
-		return items;
+		// All items from PromptsServiceCustomizationItemProvider are VS Code items
+		// and should be disableable at workspace scope.
+		return items.map(item => ({ ...item, enablementScope: 'workspace' as const }));
 	}
 
 }

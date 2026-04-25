@@ -46,7 +46,7 @@ import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationEnablementHandler, ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
@@ -281,7 +281,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $provideCustomAgents(token: CancellationToken): Promise<ICustomAgentDto[]> {
-		const customAgents = await this._promptsService.getCustomAgents(token);
+		const customAgents = await this._promptsService.getCustomAgents(token, { includeDisabled: true });
 		return customAgents.map(agent => this._toCustomAgentDto(agent));
 	}
 
@@ -291,7 +291,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $provideSkills(token: CancellationToken): Promise<ISkillDto[]> {
-		const skills = await this._promptsService.findAgentSkills(token) ?? [];
+		const skills = await this._promptsService.findAgentSkills(token, { includeDisabled: true }) ?? [];
 		return skills.map(skill => this._toSkillDto(skill));
 	}
 
@@ -713,7 +713,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 	}
 
-	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier, hasEnablementHandler: boolean): Promise<void> {
 		// In the sessions window, only accept harnesses for session types that
 		// have a registered content provider (i.e., can actually run sessions).
 		// AHP remote servers register directly via registerExternalHarness.
@@ -738,7 +738,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				if (!items) {
 					return undefined;
 				}
-				return items.map((item: IChatSessionCustomizationItemDto): ICustomizationItem => ({
+				const convertItem = (item: IChatSessionCustomizationItemDto): ICustomizationItem => ({
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
@@ -746,9 +746,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					groupKey: item.groupKey,
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
+					enabled: item.enabled,
+					enablementScope: item.enablementScope,
+					pluginUri: item.pluginUri ? URI.revive(item.pluginUri) : undefined,
 					extensionId: undefined,
-					pluginUri: undefined
-				}));
+				});
+				return items.map(i => convertItem(i));
 			},
 		};
 
@@ -775,6 +778,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
 		}
 
+		// Build an enablement provider when the extension implements handleCustomizationEnablement.
+		// This delegates disable/enable to the extension instead of VS Code's StorageService.
+		let enablementHandler: ICustomizationEnablementHandler | undefined;
+		if (hasEnablementHandler) {
+			const proxy = this._proxy;
+			const providerHandle = handle;
+			enablementHandler = {
+				handleCustomizationEnablement: (uri: URI, type: PromptsType, enabled: boolean, scope: 'global' | 'workspace'): void => {
+					proxy.$handleCustomizationEnablement(providerHandle, uri.toJSON(), type, enabled, scope);
+				},
+			};
+		}
+
 		const descriptor: IHarnessDescriptor = {
 			id: chatSessionType,
 			label: metadata.label,
@@ -786,6 +802,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
 			}),
 			itemProvider,
+			enablementHandler,
 		};
 
 		const registration = this._customizationHarnessService.registerExternalHarness(descriptor);

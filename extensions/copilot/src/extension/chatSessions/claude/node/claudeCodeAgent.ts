@@ -33,6 +33,7 @@ import { resolvePromptToContentBlocks } from './claudePromptResolver';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
 import { ParsedClaudeModelId } from '../common/claudeModelId';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
+import { IClaudeSettingsService } from '../common/claudeSettingsService';
 
 // Manages Claude Code agent interactions and language model server lifecycle
 export class ClaudeAgentManager extends Disposable {
@@ -218,6 +219,7 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
+		@IClaudeSettingsService private readonly settingsService: IClaudeSettingsService,
 	) {
 		super();
 		this._currentModelId = initialModelId;
@@ -263,15 +265,7 @@ export class ClaudeCodeSession extends Disposable {
 
 		// Track settings/hooks files
 		tracker.registerPathResolver(() => {
-			const paths: URI[] = [];
-			// User-level settings
-			paths.push(URI.joinPath(this.envService.userHome, '.claude', 'settings.json'));
-			// Project-level settings files
-			for (const folder of this.workspaceService.getWorkspaceFolders()) {
-				paths.push(URI.joinPath(folder, '.claude', 'settings.json'));
-				paths.push(URI.joinPath(folder, '.claude', 'settings.local.json'));
-			}
-			return paths;
+			return this.settingsService.getUris();
 		});
 
 		// Track agent files in agents directories

@@ -92,8 +92,8 @@ export class AgenticPromptsService extends PromptsService {
 		}));
 	}
 
-	public override async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
-		const baseResult = await super.findAgentSkills(token);
+	public override async findAgentSkills(token: CancellationToken, options?: { includeDisabled?: boolean }): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token, options);
 		if (baseResult === undefined) {
 			return undefined;
 		}
@@ -108,8 +108,8 @@ export class AgenticPromptsService extends PromptsService {
 				.filter(s => s.storage === PromptsStorage.local || s.storage === PromptsStorage.user)
 				.map(s => s.name)
 		);
-		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
-		const nonOverridden = builtinSkills.filter(s => !existingNames.has(s.name) && !disabledSkills.has(s.uri));
+		const disabledSkills = options?.includeDisabled ? undefined : this.getDisabledPromptFiles(PromptsType.skill);
+		const nonOverridden = builtinSkills.filter(s => !existingNames.has(s.name) && !disabledSkills?.has(s.uri));
 		if (nonOverridden.length === 0) {
 			return baseResult;
 		}

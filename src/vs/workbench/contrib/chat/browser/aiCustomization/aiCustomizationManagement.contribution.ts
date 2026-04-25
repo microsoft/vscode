@@ -35,8 +35,9 @@ import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWo
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
@@ -48,6 +49,8 @@ import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY,
+	AI_CUSTOMIZATION_ENABLEMENT_SCOPE_KEY,
+	AI_CUSTOMIZATION_ITEM_DISABLEABLE_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
@@ -174,6 +177,20 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 		return undefined;
 	}
 	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
+}
+
+/**
+ * Extracts the serialized plugin URI from context, if present.
+ */
+function extractPlugin(context: AICustomizationContext): URI | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	const raw = context.plugin;
+	if (!raw || typeof raw !== 'string') {
+		return undefined;
+	}
+	return URI.parse(raw);
 }
 
 /**
@@ -496,7 +513,10 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootInline', "Troubleshoot"), icon: Codicon.bug },
 	group: 'inline',
 	order: 2,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	),
 });
 
 // Context menu items (shown on right-click)
@@ -510,14 +530,20 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: RUN_PROMPT_MGMT_ID, title: localize('runPrompt', "Run Prompt"), icon: Codicon.play },
 	group: '2_run',
 	order: 1,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootItem', "Troubleshoot") },
 	group: '2_run',
 	order: 2,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -629,6 +655,98 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: WHEN_ITEM_IS_PLUGIN,
 });
 
+// Disable plugin action (for plugin sub-items — disables the entire parent plugin)
+const DISABLE_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.disablePlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DISABLE_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('disablePlugin', "Disable Plugin"),
+			icon: Codicon.eyeClosed,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const pluginUri = extractPluginUri(context);
+		if (!pluginUri) {
+			return;
+		}
+		const plugin = agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUri.toString());
+		if (!plugin || isContributionDisabled(plugin.enablement.get())) {
+			return;
+		}
+		agentPluginService.enablementModel.setEnabled(pluginUri.toString(), ContributionEnablementState.DisabledProfile);
+	}
+});
+
+// Enable plugin action (for plugin sub-items — enables the entire parent plugin)
+const ENABLE_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.enablePlugin';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ENABLE_PLUGIN_AI_CUSTOMIZATION_ID,
+			title: localize2('enablePlugin', "Enable Plugin"),
+			icon: Codicon.eye,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const agentPluginService = accessor.get(IAgentPluginService);
+		const pluginUri = extractPluginUri(context);
+		if (!pluginUri) {
+			return;
+		}
+		const plugin = agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUri.toString());
+		if (!plugin || isContributionEnabled(plugin.enablement.get())) {
+			return;
+		}
+		agentPluginService.enablementModel.setEnabled(pluginUri.toString(), ContributionEnablementState.EnabledProfile);
+	}
+});
+
+// Context menu: Disable Plugin (shown for plugin items when plugin is enabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('disablePlugin', "Disable Plugin") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		WHEN_ITEM_IS_PLUGIN,
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	),
+});
+
+// Inline hover: Disable Plugin
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('disablePlugin', "Disable Plugin"), icon: Codicon.eyeClosed },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		WHEN_ITEM_IS_PLUGIN,
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+	),
+});
+
+// Context menu: Enable Plugin (shown for plugin items when plugin is disabled)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('enablePlugin', "Enable Plugin") },
+	group: '5_toggle',
+	order: 1,
+	when: ContextKeyExpr.and(
+		WHEN_ITEM_IS_PLUGIN,
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+	),
+});
+
+// Inline hover: Enable Plugin
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: ENABLE_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('enablePlugin', "Enable Plugin"), icon: Codicon.eye },
+	group: 'inline',
+	order: 5,
+	when: ContextKeyExpr.and(
+		WHEN_ITEM_IS_PLUGIN,
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+	),
+});
+
 // Disable item action
 const DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.disableItem';
 registerAction2(class extends Action2 {
@@ -640,16 +758,53 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
-		const promptsService = accessor.get(IPromptsService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
 		const uri = extractURI(context);
 		const promptType = extractPromptType(context);
 		if (!promptType) {
 			return;
 		}
 
-		const disabled = promptsService.getDisabledPromptFiles(promptType);
-		disabled.add(uri);
-		promptsService.setDisabledPromptFiles(promptType, disabled);
+		// When this item has a parent plugin, disable the plugin instead
+		const plugin = extractPlugin(context);
+		if (plugin) {
+			const enablementHandler = harnessService.getActiveEnablementHandler();
+			if (enablementHandler) {
+				enablementHandler.handleCustomizationEnablement(plugin, 'plugins' as PromptsType, false, 'global');
+			}
+			return;
+		}
+
+		// Provider-managed items: delegate to the harness's enablement provider.
+		// All harnesses now own their disablement through enablementHandler.
+		const enablementHandler = harnessService.getActiveEnablementHandler();
+		if (enablementHandler) {
+			enablementHandler.handleCustomizationEnablement(uri, promptType, false, 'global');
+		}
+	}
+});
+
+// Disable item for workspace action
+const DISABLE_WORKSPACE_AI_CUSTOMIZATION_MGMT_ITEM_ID = 'aiCustomizationManagement.disableItemForWorkspace';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DISABLE_WORKSPACE_AI_CUSTOMIZATION_MGMT_ITEM_ID,
+			title: localize2('disableForWorkspace', "Disable (Workspace)"),
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const uri = extractURI(context);
+		const promptType = extractPromptType(context);
+		if (!promptType) {
+			return;
+		}
+
+		const enablementHandler = harnessService.getActiveEnablementHandler();
+		if (enablementHandler) {
+			enablementHandler.handleCustomizationEnablement(uri, promptType, false, 'workspace');
+		}
 	}
 });
 
@@ -664,64 +819,104 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
-		const promptsService = accessor.get(IPromptsService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
 		const uri = extractURI(context);
 		const promptType = extractPromptType(context);
 		if (!promptType) {
 			return;
 		}
 
-		const disabled = promptsService.getDisabledPromptFiles(promptType);
-		disabled.delete(uri);
-		promptsService.setDisabledPromptFiles(promptType, disabled);
+		// When this item has a parent plugin, enable the plugin instead
+		const plugin = extractPlugin(context);
+		if (plugin) {
+			const enablementHandler = harnessService.getActiveEnablementHandler();
+			if (enablementHandler) {
+				enablementHandler.handleCustomizationEnablement(plugin, 'plugins' as PromptsType, true, 'global');
+			}
+			return;
+		}
+
+		// Provider-managed items: delegate to the harness's enablement provider.
+		// All harnesses now own their disablement through enablementHandler.
+		const enablementHandler = harnessService.getActiveEnablementHandler();
+		if (enablementHandler) {
+			enablementHandler.handleCustomizationEnablement(uri, promptType, true, 'global');
+		}
 	}
 });
 
-// Context menu: Disable (shown when builtin item is enabled)
+/**
+ * When clause that applies to non-plugin items (plugins use their own EnablementModel).
+ */
+const WHEN_ITEM_IS_NOT_PLUGIN = ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
+
+const WHEN_ENABLEMENT_SUPPORTED = ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ENABLEMENT_SCOPE_KEY, 'none');
+const WHEN_ITEM_DISABLEABLE = ContextKeyExpr.and(WHEN_ENABLEMENT_SUPPORTED, ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLEABLE_KEY, true));
+
+// Context menu: Disable (shown when non-plugin item is enabled and enablement is supported)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
 	group: '5_toggle',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		WHEN_ITEM_IS_NOT_PLUGIN,
+		WHEN_ITEM_DISABLEABLE,
 	),
 });
 
-// Context menu: Enable (shown when builtin item is disabled)
+// Context menu: Disable (Workspace) (shown when enablement scope is 'workspace', for user-level
+// and extension items, when a workspace is open)
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: DISABLE_WORKSPACE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disableForWorkspace', "Disable (Workspace)") },
+	group: '5_toggle',
+	order: 2,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+		WHEN_ITEM_IS_NOT_PLUGIN,
+		WHEN_ITEM_DISABLEABLE,
+		ContextKeyExpr.equals(AI_CUSTOMIZATION_ENABLEMENT_SCOPE_KEY, 'workspace'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.user),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.extension),
+		),
+		ContextKeyExpr.notEquals('workbenchState', 'empty'),
+	),
+});
+
+// Context menu: Enable (shown when non-plugin item is disabled and enablement is supported)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
 	group: '5_toggle',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		WHEN_ITEM_IS_NOT_PLUGIN,
+		WHEN_ITEM_DISABLEABLE,
 	),
 });
 
-// Inline hover: Disable (shown when builtin item is enabled)
+// Inline hover: Disable (shown when non-plugin item is enabled and enablement is supported)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
 	group: 'inline',
 	order: 5,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		WHEN_ITEM_IS_NOT_PLUGIN,
+		WHEN_ITEM_DISABLEABLE,
 	),
 });
 
-// Inline hover: Enable (shown when builtin item is disabled)
+// Inline hover: Enable (shown when non-plugin item is disabled and enablement is supported)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
 	group: 'inline',
 	order: 5,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		WHEN_ITEM_IS_NOT_PLUGIN,
+		WHEN_ITEM_DISABLEABLE,
 	),
 });
 

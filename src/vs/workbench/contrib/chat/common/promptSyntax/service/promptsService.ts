@@ -15,6 +15,7 @@ import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 
@@ -623,9 +624,10 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeInstructions: Event<void>;
 
 	/**
-	 * Finds all available custom agents
+	 * Finds all available custom agents.
+	 * @param options.includeDisabled If true, includes disabled agents in the result.
 	 */
-	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(token: CancellationToken, options?: { includeDisabled?: boolean }): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -666,8 +668,14 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Persists the set of disabled prompt file URIs for the given type.
+	 * @param scope Storage scope — defaults to profile. Use WORKSPACE to disable for the current workspace only.
 	 */
-	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet, scope?: StorageScope): void;
+
+	/**
+	 * Returns the disabled prompt file URIs for a specific scope.
+	 */
+	getDisabledPromptFilesForScope(type: PromptsType, scope: StorageScope): ResourceSet;
 
 	/**
 	 * Registers a prompt file provider that can provide prompt files for repositories.
@@ -683,8 +691,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets list of agent skills files.
+	 * @param options.includeDisabled If true, includes disabled skills in the result.
 	 */
-	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken, options?: { includeDisabled?: boolean }): Promise<IAgentSkill[] | undefined>;
 
 	/**
 	 * Event that is triggered when the list of skills changes.

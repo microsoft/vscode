@@ -431,7 +431,10 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.ai-customization-list-item.disabled {
+.ai-customization-list-item.disabled .item-name,
+.ai-customization-list-item.disabled .item-description,
+.ai-customization-list-item.disabled .item-type-icon,
+.ai-customization-list-item.disabled .item-badge {
 	opacity: 0.5;
 }
 
@@ -985,12 +988,13 @@
 }
 
 .mcp-server-item.disabled {
-	opacity: 0.5;
+	opacity: 1;
 }
 
-.mcp-server-item .mcp-server-status.disabled {
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+.mcp-server-item.disabled .mcp-server-name,
+.mcp-server-item.disabled .mcp-server-description,
+.mcp-server-item.disabled .mcp-server-icon {
+	opacity: 0.5;
 }
 
 /* Button group for Add Server + Browse Marketplace */
@@ -1166,3 +1170,160 @@
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+/* Hook file header styling */
+.ai-customization-hook-file-header {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px 4px 24px;
+	cursor: pointer;
+	border-radius: 4px;
+	user-select: none;
+}
+
+.ai-customization-hook-file-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-hook-file-header.disabled .hook-file-label,
+.ai-customization-hook-file-header.disabled .hook-file-icon,
+.ai-customization-hook-file-header.disabled .hook-file-description {
+	opacity: 0.5;
+}
+
+.ai-customization-hook-file-header .hook-file-left {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	overflow: hidden;
+	gap: 6px;
+	min-width: 0;
+}
+
+.ai-customization-hook-file-header .hook-file-text {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-hook-file-header .hook-file-name-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	overflow: hidden;
+}
+
+.ai-customization-hook-file-header .hook-file-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
+}
+
+.ai-customization-hook-file-header .hook-file-chevron {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.ai-customization-hook-file-header .hook-file-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	opacity: 0.8;
+}
+
+.ai-customization-hook-file-header .hook-file-label {
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 18px;
+}
+
+.ai-customization-hook-file-header .hook-file-count {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+	min-width: 14px;
+	text-align: center;
+	line-height: 16px;
+}
+
+.ai-customization-hook-file-header .item-right {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 8px;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.1s ease;
+}
+
+.ai-customization-hook-file-header:hover .item-right,
+.ai-customization-hook-file-header:focus-within .item-right {
+	opacity: 1;
+}
+
+/* Hook child item styling */
+.ai-customization-hook-child {
+	display: flex;
+	align-items: center;
+	padding: 2px 8px 2px 56px;
+	cursor: pointer;
+	border-radius: 4px;
+	gap: 6px;
+}
+
+.ai-customization-hook-child:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-hook-child.disabled .hook-child-label,
+.ai-customization-hook-child.disabled .hook-child-description,
+.ai-customization-hook-child.disabled .hook-child-icon {
+	opacity: 0.5;
+}
+
+.ai-customization-hook-child .hook-child-icon {
+	flex-shrink: 0;
+	width: 14px;
+	height: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	opacity: 0.6;
+}
+
+.ai-customization-hook-child .hook-child-label {
+	flex-shrink: 0;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 16px;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-hook-child .hook-child-description {
+	flex: 1;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
+}

@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -33,7 +34,7 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariable
 import { ComputeAutomaticInstructions, getFilePath, InstructionsCollectionEvent } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles, TestInMemoryFileSystemProviderWithRealPath } from './testUtils/mockFilesystem.js';
@@ -2603,6 +2604,54 @@ suite('ComputeAutomaticInstructions', () => {
 		assert.ok(paths.includes(copilotUri.path), 'Should include copilot-instructions.md');
 		assert.ok(!paths.includes(agentMdUri.path), 'Should not include AGENTS.md (symlink to copilot)');
 		assert.ok(!paths.includes(claudeMdUri.path), 'Should not include CLAUDE.md (symlink to copilot)');
+	});
+
+	test('disabled instructions are excluded from collect', async () => {
+		// Replace the stub storage with a real InMemoryStorageService
+		const realStorage = disposables.add(new InMemoryStorageService());
+		instaService.stub(IStorageService, realStorage);
+		const localService = disposables.add(instaService.createInstance(PromptsService));
+		instaService.stub(IPromptsService, localService);
+
+		const rootFolderName = 'disabled-instructions-collect';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		const enabledUri = URI.joinPath(rootFolderUri, '.github/instructions/enabled.instructions.md');
+		const disabledUri = URI.joinPath(rootFolderUri, '.github/instructions/disabled.instructions.md');
+
+		await mockFiles(fileService, [
+			{
+				path: enabledUri.path,
+				contents: ['---', 'description: Enabled instruction', 'applyTo: "**"', '---', 'Enabled content'],
+			},
+			{
+				path: disabledUri.path,
+				contents: ['---', 'description: Disabled instruction', 'applyTo: "**"', '---', 'Disabled content'],
+			},
+			{
+				path: `${rootFolder}/src/index.ts`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Disable one instruction
+		const disabled = new ResourceSet();
+		disabled.add(disabledUri);
+		localService.setDisabledPromptFiles(PromptsType.instructions, disabled);
+
+		const computer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/index.ts')));
+
+		await computer.collect(variables, CancellationToken.None);
+
+		const promptVars = variables.asArray().filter(isPromptFileVariableEntry);
+		const uris = promptVars.map(v => v.value.toString());
+
+		assert.ok(uris.includes(enabledUri.toString()), 'Enabled instruction should be added');
+		assert.ok(!uris.includes(disabledUri.toString()), 'Disabled instruction should be excluded');
 	});
 });
 

@@ -112,6 +112,22 @@ export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItem
 export const AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY = 'aiCustomizationManagementSupportsTroubleshoot';
 
 /**
+ * Context key for the resolved enablement scope of the active harness.
+ * Values: `'none'`, `'global'`, or `'workspace'`.
+ */
+export const AI_CUSTOMIZATION_ENABLEMENT_SCOPE_KEY = 'aiCustomizationManagementEnablementScope';
+
+/**
+ * Context key indicating whether the current item's type is disableable by the active harness.
+ */
+export const AI_CUSTOMIZATION_ITEM_DISABLEABLE_KEY = 'aiCustomizationManagementItemDisableable';
+
+/**
+ * Context key indicating whether the current item has a parent plugin (from provider).
+ */
+export const AI_CUSTOMIZATION_ITEM_HAS_PLUGIN_KEY = 'aiCustomizationManagementItemHasPlugin';
+
+/**
  * Storage key for persisting the selected section.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY = 'aiCustomizationManagement.selectedSection';

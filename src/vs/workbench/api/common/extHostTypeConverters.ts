@@ -3532,6 +3532,9 @@ export namespace ChatSessionCustomizationType {
 	export function from(type: types.ChatSessionCustomizationType): string {
 		return type.id;
 	}
+	export function to(id: string): types.ChatSessionCustomizationType {
+		return new types.ChatSessionCustomizationType(id);
+	}
 }
 
 export namespace ChatPromptReference {

@@ -3590,6 +3590,12 @@ export class ChatSessionCustomizationType {
 	constructor(public readonly id: string) { }
 }
 
+export enum ChatSessionCustomizationEnablementScope {
+	None = 0,
+	Global = 1,
+	Workspace = 2,
+}
+
 export enum ChatDebugLogLevel {
 	Trace = 0,
 	Info = 1,

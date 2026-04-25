@@ -359,6 +359,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ICustomizationHarnessService, {
 		registerExternalHarness: () => toDisposable(() => { }),
+		getActiveEnablementHandler: () => undefined,
 	});
 	instantiationService.stub(IAgentPluginService, {
 		plugins: observableValue('plugins', []),

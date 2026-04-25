@@ -1588,7 +1588,7 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$registerPromptFileProvider(handle: number, type: string, extension: ExtensionIdentifier): void;
 	$unregisterPromptFileProvider(handle: number): void;
 	$onDidChangePromptFiles(handle: number): void;
-	$registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extension: ExtensionIdentifier): void;
+	$registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extension: ExtensionIdentifier, hasEnablementHandler: boolean): void;
 	$unregisterChatSessionCustomizationProvider(handle: number): void;
 	$onDidChangeCustomizations(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
@@ -1672,6 +1672,7 @@ export interface ExtHostChatAgentsShape2 {
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
 	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
+	$handleCustomizationEnablement(handle: number, uri: UriComponents, type: string, enabled: boolean, scope: 'global' | 'workspace'): Promise<void>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
@@ -1740,6 +1741,9 @@ export interface IChatSessionCustomizationItemDto {
 	readonly badge?: string;
 
 	readonly badgeTooltip?: string;
+	readonly enabled?: boolean;
+	readonly enablementScope?: 'none' | 'global' | 'workspace';
+	readonly pluginUri?: UriComponents;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
