@@ -107,6 +107,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
+		override getAllProjectRoots() { return [URI.file('/workspace')]; }
 		override getStorageSourceFilter() { return defaultFilter; }
 	}();
 }

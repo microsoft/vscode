@@ -107,6 +107,7 @@ function createMockWorkspaceService(opts: {
 		_serviceBrand: undefined,
 		activeProjectRoot: observableValue('test', opts.activeRoot),
 		getActiveProjectRoot: () => opts.activeRoot,
+		getAllProjectRoots: () => opts.activeRoot ? [opts.activeRoot] : [],
 		managementSections: [],
 		getStorageSourceFilter: () => defaultFilter,
 		preferManualCreation: false,

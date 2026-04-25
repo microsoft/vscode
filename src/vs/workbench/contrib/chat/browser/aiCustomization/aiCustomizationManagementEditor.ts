@@ -1268,19 +1268,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const projectRoots = this.workspaceService.getAllProjectRoots();
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const subpaths = descriptor.workspaceSubpaths;
 
-		// Partition folders by whether they're under the active project root.
+		const isUnderAnyRoot = (uri: URI) => projectRoots.some(root => isEqualOrParent(uri, root));
+
+		// Partition folders by whether they're under any project root.
 		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
 		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
+		// so we use the project roots as the authoritative boundary.
 		let matchingFolders;
 		if (target === 'workspace') {
-			matchingFolders = projectRoot
+			matchingFolders = projectRoots.length > 0
 				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
+					if (!isUnderAnyRoot(f.uri)) {
 						return false;
 					}
 					// When the active harness specifies workspaceSubpaths, only offer
@@ -1292,8 +1294,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				})
 				: [];
 		} else {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
+			matchingFolders = projectRoots.length > 0
+				? allFolders.filter(f => !isUnderAnyRoot(f.uri))
 				: allFolders;
 
 			// When the active harness restricts user roots, only offer

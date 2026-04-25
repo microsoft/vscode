@@ -101,6 +101,13 @@ export interface IAICustomizationWorkspaceService {
 	getActiveProjectRoot(): URI | undefined;
 
 	/**
+	 * Returns all project roots for the current workspace.
+	 * In a multiroot workspace this returns all workspace folder roots.
+	 * In a sessions window this returns the active session's repository root.
+	 */
+	getAllProjectRoots(): readonly URI[];
+
+	/**
 	 * The sections to show in the AI Customization Management Editor sidebar.
 	 */
 	readonly managementSections: readonly AICustomizationManagementSection[];

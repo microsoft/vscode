@@ -162,6 +162,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly activeProjectRoot = activeProjectRoot;
 		override getActiveProjectRoot() { return undefined; }
+		override getAllProjectRoots() { return []; }
 		override getStorageSourceFilter() { return defaultFilter; }
 	}();
 }

@@ -110,19 +110,21 @@ export class CustomizationCreatorService {
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const projectRoots = this.workspaceService.getAllProjectRoots();
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const subpaths = descriptor.workspaceSubpaths;
 
-		// Filter to only workspace-scoped folders (under the active project root).
+		const isUnderAnyRoot = (uri: URI) => projectRoots.some(root => isEqualOrParent(uri, root));
+
+		// Filter to only workspace-scoped folders (under any project root).
 		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
 		// Deduplicate by URI to avoid inflated counts and duplicate picker entries.
 		// When the active harness specifies workspaceSubpaths, further restrict to
 		// directories whose path includes one of those sub-paths (e.g. `.claude`).
 		const seen = new Set<string>();
-		const workspaceFolders = projectRoot
+		const workspaceFolders = projectRoots.length > 0
 			? allFolders.filter(f => {
-				if (!isEqualOrParent(f.uri, projectRoot)) {
+				if (!isUnderAnyRoot(f.uri)) {
 					return false;
 				}
 				const key = f.uri.toString();
