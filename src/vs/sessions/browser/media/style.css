@@ -686,10 +686,22 @@
 
 /* ---- Phone Layout: Touch Target Sizing ---- */
 
-/* Ensure interactive elements meet 44px minimum touch target */
+/* Ensure interactive elements meet 44px minimum touch target.
+	Excludes:
+	- Quick pick toolbars: 44x44 icons crowd the small popup header.
+	- Chat input toolbars: a dense row of picker buttons (Local, Auto,
+	agent, model, tools, send...). Enforcing 44px makes items 50px tall
+	and shows a huge hover/active background next to smaller adjacent
+	labels, making the bar feel unbalanced. */
 .agent-sessions-workbench.phone-layout .action-item > .action-label {
 	min-height: 44px;
 	min-width: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .action-item > .action-label,
+.agent-sessions-workbench.phone-layout .chat-input-toolbars .action-item > .action-label {
+	min-height: 0;
+	min-width: 0;
 }
 
 /* Touch action for tap responsiveness */
@@ -711,48 +723,25 @@
 
 /* ---- Phone Layout: Mobile Quick Picks ---- */
 
-/* Transform quick pick into full-width bottom sheet on phone */
+/* On phone, expand quick picks to use the viewport with safe-area gutters
+	rather than the desktop-default narrow popup near the trigger. Position
+	is left untouched so the picker stays anchored where the user invoked
+	it (avoids feeling modal/jumpy). */
 .agent-sessions-workbench.phone-layout .quick-input-widget {
-	top: auto !important;
-	bottom: 0 !important;
-	left: 0 !important;
-	right: 0 !important;
-	width: 100% !important;
-	max-width: 100% !important;
-	border-radius: 16px 16px 0 0;
-	padding-bottom: env(safe-area-inset-bottom);
+	left: 8px !important;
+	right: 8px !important;
+	width: auto !important;
+	max-width: none !important;
 }
 
-.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list {
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree {
 	max-height: 50vh;
 }
 
-.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row {
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree .monaco-list-row {
 	min-height: 44px;
-}
-
-/* ---- Phone Layout: Mobile Context Menus ---- */
-
-/* Transform context menus into bottom action sheets on phone */
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu {
-	position: fixed !important;
-	bottom: 0 !important;
-	left: 0 !important;
-	right: 0 !important;
-	top: auto !important;
-	width: 100% !important;
-	max-width: 100% !important;
-	border-radius: 16px 16px 0 0;
-	padding-bottom: env(safe-area-inset-bottom);
-}
-
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu .monaco-action-bar .action-item {
-	min-height: 44px;
-}
-
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu .monaco-action-bar .action-label {
-	font-size: 16px;
-	padding: 8px 16px;
 }
 
 /* ---- Phone Layout: Mobile Dialogs ---- */

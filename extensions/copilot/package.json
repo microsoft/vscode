@@ -1316,6 +1316,7 @@
 					"resolveMemoryFileUri",
 					"runCommand",
 					"switchAgent",
+					"toolSearch",
 					"vscodeAPI"
 				]
 			},

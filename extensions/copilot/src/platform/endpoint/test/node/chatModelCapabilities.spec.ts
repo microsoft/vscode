@@ -45,6 +45,9 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-5-20251101')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4-6')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4.6')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4.7')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4-7@1.0.0')).toBe(true);
+		expect(modelSupportsToolSearch('claude-sonnet-4-6@1.0.0')).toBe(true);
 	});
 
 	test('rejects pre-4.5 models, including date-suffixed ones', () => {

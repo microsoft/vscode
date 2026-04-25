@@ -98,8 +98,8 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 	return HIDDEN_MODEL_F_HASHES.includes(h);
 }
 
-export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
-	const family_hash = getCachedSha256Hash(model.family);
+export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
@@ -391,11 +391,13 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 }
 
 /**
- * Returns true if the model supports the tool search tool.
- * Matches OpenAI gpt-5.4 models only when the Responses API tool search setting
- * is enabled, and any Claude Sonnet or Opus model with version >= 4.5. The
- * minor version is bounded to 1-2 digits so date suffixes like `-20250514`
- * cannot be misread as a minor version.
+ * Tool search is supported by:
+ * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
+ * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
+ * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
+ * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
+ * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
+ * - OpenAI gpt-5.4 (gpt-5.4-*), but only when the `ResponsesApiToolSearchEnabled` setting is enabled
  */
 export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
 	const lower = modelId.toLowerCase();
@@ -404,13 +406,12 @@ export function modelSupportsToolSearch(modelId: string, configurationService?: 
 	}
 
 	const normalized = lower.replace(/\./g, '-');
-	const match = normalized.match(/^claude-(?:sonnet|opus)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
-	if (!match) {
-		return false;
-	}
-	const major = parseInt(match[1], 10);
-	const minor = match[2] !== undefined ? parseInt(match[2], 10) : 0;
-	return major > 4 || (major === 4 && minor >= 5);
+	return normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-7') ||
+		isHiddenModelG(modelId);
 }
 
 export function isResponsesApiToolSearchEnabled(

@@ -239,8 +239,8 @@
 	justify-content: center;
 	flex-shrink: 0;
 	position: relative;
-	width: 23px;
-	height: 23px;
+	width: 22px;
+	height: 22px;
 	border-radius: 4px;
 }
 
@@ -248,9 +248,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 23px;
-	height: 23px;
-	min-width: 23px;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
 	padding: 0;
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
@@ -308,10 +308,10 @@
 	mirroring around the mid-point. */
 .sessions-chat-send-button .monaco-button:not(.disabled) {
 	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
 	color: var(--vscode-button-foreground);
 	animation: chat-send-button-spin 8s linear infinite;
 	transition: box-shadow 120ms ease;
@@ -332,11 +332,11 @@
 	inset: -2px;
 	border-radius: 6px;
 	background: conic-gradient(from 135deg,
-		var(--vscode-chat-inputWorkingBorderColor1),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor3),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor1));
+			var(--vscode-chat-inputWorkingBorderColor1),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor3),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor1));
 	pointer-events: none;
 	animation: chat-send-button-pulse 400ms ease-out forwards;
 	z-index: 0;
@@ -356,8 +356,8 @@
 
 .agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
 	box-sizing: border-box;
-	width: 23px;
-	height: 23px;
+	width: 22px;
+	height: 22px;
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
@@ -384,10 +384,10 @@
 	asymmetric conic stops. */
 .agent-sessions-workbench .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
 	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
 	color: var(--vscode-button-foreground) !important;
 	border-radius: 5px;
 	animation: chat-send-button-spin 8s linear infinite;
@@ -412,11 +412,11 @@
 	inset: -2px;
 	border-radius: 7px;
 	background: conic-gradient(from 135deg,
-		var(--vscode-chat-inputWorkingBorderColor1),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor3),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor1));
+			var(--vscode-chat-inputWorkingBorderColor1),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor3),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor1));
 	pointer-events: none;
 	animation: chat-send-button-pulse 400ms ease-out forwards;
 	z-index: 0;
