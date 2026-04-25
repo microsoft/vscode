@@ -1085,5 +1085,70 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 		});
+
+		// Regression tests for issue #239765 — when a chat participant streams
+		// markdown that contains HTML, partial tags from the in-flight chunk
+		// must not be rendered as raw escaped text.
+		suite('unclosed html tag', () => {
+			test('paragraph ending mid open tag is trimmed', () => {
+				const incomplete = '<sup><span';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const expected = marked.marked.lexer('<sup>');
+				assert.deepStrictEqual(newTokens, expected);
+			});
+
+			test('paragraph ending mid open tag with attribute is trimmed', () => {
+				const incomplete = '<sup><span style="color:red"';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const expected = marked.marked.lexer('<sup>');
+				assert.deepStrictEqual(newTokens, expected);
+			});
+
+			test('paragraph ending mid closing tag is trimmed', () => {
+				const incomplete = '<sup>hello</sp';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const expected = marked.marked.lexer('<sup>hello');
+				assert.deepStrictEqual(newTokens, expected);
+			});
+
+			test('complete html is left alone', () => {
+				const complete = '<sup><span>hello</span></sup>';
+				const tokens = marked.marked.lexer(complete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('literal less-than is not treated as a tag', () => {
+				const text = '5 < 10';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('trailing bare less-than without tag chars is not trimmed', () => {
+				const text = 'hello <';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('renderMarkdown does not show partial tag as escaped text', () => {
+				const mds = new MarkdownString('<sup><span', { supportHtml: true });
+				const result = store.add(renderMarkdown(mds, { fillInIncompleteTokens: true })).element;
+
+				// The dangling `<span` must not surface as escaped text.
+				assert.ok(!result.innerHTML.includes('&lt;span'),
+					`Expected no escaped <span in output, got: ${result.innerHTML}`);
+			});
+		});
 	});
 });
