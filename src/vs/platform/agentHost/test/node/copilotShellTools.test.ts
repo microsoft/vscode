@@ -14,7 +14,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import type { TerminalClaim, TerminalInfo } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { ShellManager, getContentSinceOffset, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
+import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
@@ -85,12 +85,5 @@ suite('CopilotShellTools', () => {
 	test('prefixForHistorySuppression prepends a space for POSIX shells, no-op for PowerShell', () => {
 		assert.strictEqual(prefixForHistorySuppression('bash'), ' ');
 		assert.strictEqual(prefixForHistorySuppression('powershell'), '');
-	});
-
-	test('getContentSinceOffset keeps current content when the saved offset is no longer valid', () => {
-		assert.strictEqual(getContentSinceOffset('hello', Number.NaN), 'hello');
-		assert.strictEqual(getContentSinceOffset('hello', -1), 'hello');
-		assert.strictEqual(getContentSinceOffset('hello', 99), 'hello');
-		assert.strictEqual(getContentSinceOffset('hello', 2), 'llo');
 	});
 });
