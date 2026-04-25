@@ -2098,7 +2098,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private renderCurrentEditorPreview(): void {
 		const model = this.getCurrentEditingModel();
 		const promptType = this.currentEditingPromptType;
-		if (!model || !promptType) {
+		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
 			this.clearEditorPreview();
 			return;
 		}
@@ -2197,7 +2197,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(new MarkdownString(bodyContent, { supportThemeIcons: true })));
+		const markdown = new MarkdownString(bodyContent, { supportThemeIcons: true });
+		markdown.baseUri = parsedPromptFile.uri;
+		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
 		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
 	}
 
