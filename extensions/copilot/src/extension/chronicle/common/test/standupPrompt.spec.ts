@@ -100,8 +100,8 @@ describe('extractFilePath', () => {
 		expect(extractFilePath('create', { path: '/src/new.ts' })).toBe('/src/new.ts');
 	});
 
-	it('returns undefined for non-file-tracking tools', () => {
-		expect(extractFilePath('read_file', { filePath: '/src/index.ts' })).toBeUndefined();
+	it('extracts filePath from read_file args', () => {
+		expect(extractFilePath('read_file', { filePath: '/src/index.ts' })).toBe('/src/index.ts');
 	});
 
 	it('returns undefined for null args', () => {

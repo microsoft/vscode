@@ -51,7 +51,7 @@ Sessions-specific overrides:
 ```
 src/vs/sessions/contrib/chat/browser/
 ├── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
-├── customizationHarnessService.ts              # Sessions harness service (CLI harness only)
+├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
 ├── aiCustomizationShortcutsWidget.ts           # Shortcuts widget
@@ -92,7 +92,7 @@ Available harnesses:
 | `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
 
 In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
-In sessions, only CLI is registered (single harness, toggle bar hidden).
+In sessions, harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). AHP remote servers register directly via `registerExternalHarness`.
 
 ### IHarnessDescriptor
 
@@ -220,7 +220,7 @@ Skills that are directly invoked by UI elements (toolbar buttons, menu items) ar
 
 ### Count Consistency
 
-`customizationCounts.ts` uses the **same data sources** as the list widget. Both go through the active harness's `ICustomizationItemProvider` (or the `PromptsServiceCustomizationItemProvider` fallback), ensuring counts match what the list displays.
+`customizationCounts.ts` uses the **same data sources** as the list widget. When a harness with an `itemProvider` is active (determined by `getActiveItemProvider()`), counts come from that provider's `provideChatSessionCustomizations()`. Otherwise, both counts and the list go through the `PromptsServiceCustomizationItemProvider` fallback, ensuring counts match what the list displays.
 
 ### Item Badges
 

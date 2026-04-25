@@ -189,6 +189,8 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			uri: s.uri,
 			type: vscode.ChatSessionCustomizationType.Skill,
 			name: s.name,
+			extensionId: s.extensionId,
+			pluginUri: s.pluginUri,
 		}));
 	}
 

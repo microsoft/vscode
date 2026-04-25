@@ -67,10 +67,10 @@ export abstract class BrowserEditorContribution extends Disposable {
 
 	constructor(protected readonly editor: BrowserEditor) {
 		super();
-		this._register(editor.onDidChangeModel(model => {
+		this._register(editor.onDidChangeModel(({ model, isNew }) => {
 			this._modelStore.clear();
 			if (model) {
-				this.subscribeToModel(model, this._modelStore);
+				this.subscribeToModel(model, this._modelStore, isNew);
 			} else {
 				this.clear();
 			}
@@ -80,7 +80,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	/**
 	 * Called whenever the editor model changes to update state.
 	 */
-	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore): void { }
+	protected subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, _isNew: boolean): void { }
 
 	/**
 	 * Called when the model is cleared to reset state.
@@ -339,7 +339,10 @@ export class BrowserEditor extends EditorPane {
 
 	private _model: IBrowserViewModel | undefined;
 	get model(): IBrowserViewModel | undefined { return this._model; }
-	private readonly _onDidChangeModel = this._register(new Emitter<IBrowserViewModel | undefined>());
+	private readonly _onDidChangeModel = this._register(new Emitter<{
+		model: IBrowserViewModel | undefined;
+		isNew: boolean;
+	}>());
 	readonly onDidChangeModel = this._onDidChangeModel.event;
 
 	// -- State ----------------------------------------------------------
@@ -539,24 +542,28 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
-		// Set initial navigation state from the input so that the UI is populated while the model is loading.
-		this.updateNavigationState({
-			url: input.url || '',
-			title: input.title || '',
-			canGoBack: false,
-			canGoForward: false,
-			certificateError: undefined
-		});
+		let model = input.model;
+		const isNew = !model;
+		if (!model) {
+			// Set initial navigation state from the input so that the UI is populated while the model is loading.
+			this.updateNavigationState({
+				url: input.url || '',
+				title: input.title || '',
+				canGoBack: false,
+				canGoForward: false,
+				certificateError: undefined
+			});
 
-		// Resolve the browser view model from the input
-		const model = await input.resolve();
+			// Resolve the browser view model from the input
+			model = await input.resolve();
+		}
 
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 
 		this._model = model;
-		this._onDidChangeModel.fire(model);
+		this._onDidChangeModel.fire({ model, isNew });
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -1007,12 +1014,18 @@ export class BrowserEditor extends EditorPane {
 	 * Recompute the layout of the browser container and update the model with the new bounds.
 	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	layoutBrowserContainer(retries = 2): void {
 		if (this._model) {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
 			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
+
+			// This can happen under certain conditions. Keep trying for a couple of frames to allow things to stabilize.
+			if ((containerRect.width === 0 || containerRect.height === 0) && retries > 0) {
+				this.window.requestAnimationFrame(() => this.layoutBrowserContainer(retries - 1));
+				return;
+			}
 
 			void this._model.layout({
 				windowId: this.group.windowId,
@@ -1035,7 +1048,7 @@ export class BrowserEditor extends EditorPane {
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
-		this._onDidChangeModel.fire(undefined);
+		this._onDidChangeModel.fire({ model: undefined, isNew: false });
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();

@@ -1368,6 +1368,7 @@ export class ActionListWidget<T> extends Disposable {
 					const child = group.actions[ci];
 					const icon = (child as IAction & { icon?: ThemeIcon }).icon
 						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+					const hoverContent = (child as IAction & { hoverContent?: string }).hoverContent;
 					submenuItems.push({
 						item: child,
 						kind: ActionListItemKind.Action,
@@ -1375,7 +1376,7 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: hoverContent } : {},
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {

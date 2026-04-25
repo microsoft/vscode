@@ -63,7 +63,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, preserveFocus: true, viewState: { url: params.url } } });
 
 		return {
 			content: [{

@@ -34,6 +34,7 @@ import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems, clearTodoList } from '../common/copilotCLITools';
+import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext } from '../common/pendingRequestContext';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { SessionIdForCLI } from '../common/utils';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
@@ -68,6 +69,9 @@ interface McSharedState {
 	mcFlushInterval: ReturnType<typeof setInterval> | undefined;
 	mcPollInterval: ReturnType<typeof setInterval> | undefined;
 	mcLastEventId: string | null;
+	mcLastSubmitAttemptTimeMs: number;
+	mcProcessedCommandIds: Set<string>;
+	mcPendingCommandCompletionIds?: Set<string>;
 	/** Reference to the SDK session for steering from the command poller. */
 	mcSdkSession: Session;
 	/** Dispose function for the persistent on('*') listener for MC events. */
@@ -76,6 +80,8 @@ interface McSharedState {
 	mcSessionResource: import('vscode').Uri;
 }
 const mcStateBySessionId = new Map<string, McSharedState>();
+
+const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
 
 interface McPermissionResponseCommandData {
 	readonly promptId?: string;
@@ -90,7 +96,6 @@ const skippedMissionControlEventTypes = new Set([
 	'session.error',
 	'session.usage_info',
 	'assistant.usage',
-	'session.title_changed',
 	'pending_messages.modified',
 	'session.mcp_server_status_changed',
 	'session.mcp_servers_loaded',
@@ -116,14 +121,54 @@ function shouldForwardMissionControlEvent(event: { type?: string; data?: unknown
 	return true;
 }
 
+function getMissionControlCommandIdFromEvent(event: { type?: string; data?: unknown }): string | undefined {
+	if (event.type !== 'user.message') {
+		return undefined;
+	}
+
+	const source = typeof event.data === 'object' && event.data !== null && 'source' in event.data
+		? event.data.source
+		: undefined;
+	return typeof source === 'string' && source.startsWith('command-')
+		? source.slice('command-'.length)
+		: undefined;
+}
+
+function getMissionControlSessionTitleFromEvent(event: { type?: string; data?: unknown }): string | undefined {
+	if (event.type !== 'session.title_changed') {
+		return undefined;
+	}
+
+	const title = typeof event.data === 'object' && event.data !== null && 'title' in event.data
+		? event.data.title
+		: undefined;
+	return typeof title === 'string' && title.trim().length > 0 ? title : undefined;
+}
+
+function getMissionControlPendingCommandCompletionIds(state: McSharedState): Set<string> {
+	state.mcPendingCommandCompletionIds ??= new Set();
+	return state.mcPendingCommandCompletionIds;
+}
+
+function maybeAcknowledgeMissionControlCommandFromEvent(state: McSharedState, event: { type?: string; data?: unknown }): void {
+	const commandId = getMissionControlCommandIdFromEvent(event);
+	if (!commandId) {
+		return;
+	}
+
+	if (getMissionControlPendingCommandCompletionIds(state).delete(commandId)) {
+		state.mcCompletedCommandIds.push(commandId);
+	}
+}
+
 export { builtinSlashCommands as builtinSlashSCommands } from '../../common/builtinSlashCommands';
 
 /**
  * Either a free-form prompt **or** a known command.
  */
 export type CopilotCLISessionInput =
-	| { readonly prompt: string }
-	| { readonly prompt?: string; readonly command: CopilotCLICommand };
+	| { readonly prompt: string; readonly source?: SendOptions['source'] }
+	| { readonly prompt?: string; readonly command: CopilotCLICommand; readonly source?: SendOptions['source'] };
 
 function getPromptLabel(input: CopilotCLISessionInput): string {
 	if ('command' in input) {
@@ -778,7 +823,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				this._stream?.markdown(`\n\nError: (${event.data.errorType}) ${event.data.message}`);
+				this._stream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -866,7 +911,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			this._stream?.markdown(`\n\nError: ${error instanceof Error ? error.message : String(error)}`);
+			this._stream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
 			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
 			if (error instanceof Error) {
@@ -982,6 +1027,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (steering) {
 				sendOptions.mode = 'immediate';
 			}
+			if (input.source) {
+				sendOptions.source = input.source;
+			}
 			await this._sdkSession.send(sendOptions);
 		}
 	}
@@ -1092,6 +1140,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				mcFlushInterval: undefined,
 				mcPollInterval: undefined,
 				mcLastEventId: null,
+				mcLastSubmitAttemptTimeMs: Date.now(),
+				mcProcessedCommandIds: new Set(),
+				mcPendingCommandCompletionIds: new Set(),
 				mcSdkSession: this._sdkSession,
 				mcEventListenerDispose: undefined,
 				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
@@ -1121,6 +1172,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			sharedState.mcEventBuffer.push(this._createMcEvent('session.remote_steerable_changed', {
 				remoteSteerable: true,
 			}));
+
+			const sessionTitle = await this._getMissionControlSessionTitle();
+			if (sessionTitle) {
+				sharedState.mcEventBuffer.push(this._createMcEvent('session.title_changed', {
+					title: sessionTitle,
+				}, true));
+			}
 
 			// Step 7b: Replay existing conversation history so the MC web UI
 			// shows all messages that occurred before /remote was invoked.
@@ -1155,15 +1213,21 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Use the static helper instead of this._bufferMcEvent to avoid
 				// relying on the instance that started MC (it may be stale).
 				const eventType = (event as { type?: string }).type ?? 'unknown';
-				if (!shouldForwardMissionControlEvent(event as { type?: string; data?: unknown })) {
+				const e = event as { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null; ephemeral?: boolean };
+				if (!shouldForwardMissionControlEvent(e)) {
 					return;
 				}
-				const e = event as { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null };
+				const updatedTitle = getMissionControlSessionTitleFromEvent(e);
+				if (updatedTitle) {
+					this._title = updatedTitle;
+				}
+				maybeAcknowledgeMissionControlCommandFromEvent(state, e);
 				if (e.id && e.timestamp) {
 					state.mcEventBuffer.push({
 						id: e.id,
 						timestamp: e.timestamp,
 						parentId: e.parentId ?? state.mcLastEventId ?? null,
+						ephemeral: e.ephemeral,
 						type: eventType,
 						data: (e.data ?? {}) as Record<string, unknown>,
 					});
@@ -1211,12 +1275,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Tear down an active Mission Control session.
+	 * Disable remote control for an active Mission Control session.
 	 */
 	private async _teardownRemoteControl(): Promise<void> {
-		// Stop exporter and poller
-		this._stopMcEventExporter();
+		// Stop local scheduling first so no more commands or periodic flushes race
+		// with the final disabled-state transition we send to Mission Control.
 		this._stopMcCommandPoller();
+		this._stopMcEventExporter(false);
 
 		const state = this._mcState;
 		if (!state) {
@@ -1234,11 +1299,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		}
 		state.mcPendingPermissionRequests.clear();
 
-		const mcSessionId = state.mcSessionId;
-		mcStateBySessionId.delete(this.sessionId);
-		this.logService.info(`[CopilotCLISession] Tearing down MC session ${mcSessionId}`);
+		state.mcEventBuffer.push(this._createMcEvent('session.remote_steerable_changed', {
+			remoteSteerable: false,
+		}));
+		state.mcEventBuffer.push(this._createMcEvent('session.idle', {}));
+		await this._flushMcEvents();
 
-		await this._missionControlApiClient.deleteSession(mcSessionId);
+		mcStateBySessionId.delete(this.sessionId);
+		this.logService.info(`[CopilotCLISession] Disabled MC remote control for session ${state.mcSessionId}`);
 	}
 
 	/**
@@ -1285,13 +1353,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/** Stop the MC event exporter. */
-	private _stopMcEventExporter(): void {
+	private _stopMcEventExporter(clearBuffer = true): void {
 		const state = this._mcState;
 		if (state?.mcFlushInterval) {
 			clearInterval(state.mcFlushInterval);
 			state.mcFlushInterval = undefined;
 		}
-		if (state) {
+		if (state && clearBuffer) {
 			state.mcEventBuffer.length = 0;
 		}
 	}
@@ -1300,7 +1368,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * Buffer an SDK event for Mission Control. Called from the per-send
 	 * on('*') handler so that events are captured on every turn.
 	 */
-	private _bufferMcEvent(event: { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null }): void {
+	private _bufferMcEvent(event: { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null; ephemeral?: boolean }): void {
 		const state = this._mcState;
 		const eventType = event.type ?? 'unknown';
 		if (!state) {
@@ -1309,7 +1377,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (!shouldForwardMissionControlEvent(event)) {
 			return;
 		}
-		this.logService.info(`[CopilotCLISession] MC buffered event: ${eventType}`);
+		const updatedTitle = getMissionControlSessionTitleFromEvent(event);
+		if (updatedTitle) {
+			this._title = updatedTitle;
+		}
+		maybeAcknowledgeMissionControlCommandFromEvent(state, event);
+		this.logService.trace(`[CopilotCLISession] MC buffered event: ${eventType}`);
 
 		// If the SDK event already has a UUID id, pass it through directly
 		// to preserve the event identity chain. Otherwise create a new event.
@@ -1318,6 +1391,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				id: event.id,
 				timestamp: event.timestamp,
 				parentId: event.parentId ?? state.mcLastEventId ?? null,
+				ephemeral: event.ephemeral,
 				type: eventType,
 				data: (event.data ?? {}) as Record<string, unknown>,
 			};
@@ -1329,13 +1403,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/** Create an MC event with a UUID v4 ID and parentId chain. */
-	private _createMcEvent(type: string, data: Record<string, unknown>): McEvent {
+	private _createMcEvent(type: string, data: Record<string, unknown>, ephemeral?: boolean): McEvent {
 		const state = this._mcState;
 		const id = crypto.randomUUID();
 		const event: McEvent = {
 			id,
 			timestamp: new Date().toISOString(),
 			parentId: state?.mcLastEventId ?? null,
+			ephemeral,
 			type,
 			data,
 		};
@@ -1343,6 +1418,41 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			state.mcLastEventId = id;
 		}
 		return event;
+	}
+
+	private async _getMissionControlSessionTitle(): Promise<string | undefined> {
+		const liveTitle = this._title?.trim();
+		if (liveTitle) {
+			return liveTitle;
+		}
+
+		const sessionEvents = this._sdkSession.getEvents() as readonly { type?: string; data?: unknown }[];
+		for (let i = sessionEvents.length - 1; i >= 0; i--) {
+			const eventTitle = getMissionControlSessionTitleFromEvent(sessionEvents[i]);
+			if (eventTitle) {
+				return eventTitle;
+			}
+		}
+
+		const customTitle = (await this._chatSessionMetadataStore.getCustomTitle(this.sessionId))?.trim();
+		if (customTitle) {
+			return customTitle;
+		}
+
+		for (const event of sessionEvents) {
+			if (event.type !== 'user.message') {
+				continue;
+			}
+			const content = typeof event.data === 'object' && event.data !== null && 'content' in event.data
+				? event.data.content
+				: undefined;
+			if (typeof content === 'string' && content.trim().length > 0) {
+				return content.trim();
+			}
+		}
+
+		const pendingTitle = this._pendingPrompt?.trim();
+		return pendingTitle || undefined;
 	}
 
 	private _waitForMcPermissionResponse(
@@ -1376,15 +1486,24 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 */
 	private async _flushMcEvents(): Promise<void> {
 		const state = this._mcState;
-		if (!state || !state.mcSessionId || state.mcEventBuffer.length === 0) {
+		if (!state || !state.mcSessionId) {
 			return;
 		}
 
-		const events = state.mcEventBuffer.splice(0, 500);
 		const completedCommandIds = state.mcCompletedCommandIds.splice(0);
+		const shouldSendKeepAlive =
+			state.mcEventBuffer.length === 0 &&
+			completedCommandIds.length === 0 &&
+			Date.now() - state.mcLastSubmitAttemptTimeMs >= MISSION_CONTROL_KEEPALIVE_INTERVAL_MS;
+		if (state.mcEventBuffer.length === 0 && completedCommandIds.length === 0 && !shouldSendKeepAlive) {
+			return;
+		}
+
+		state.mcLastSubmitAttemptTimeMs = Date.now();
+		const events = state.mcEventBuffer.splice(0, 500);
 
 		const eventTypes = events.map(e => e.type).join(', ');
-		this.logService.info(`[CopilotCLISession] Flushing ${events.length} MC event(s): [${eventTypes}]`);
+		this.logService.info(`[CopilotCLISession] Flushing ${events.length} MC event(s): [${eventTypes}]${completedCommandIds.length ? ` with ${completedCommandIds.length} completed command(s)` : ''}${shouldSendKeepAlive ? ' (keepalive)' : ''}`);
 
 		try {
 			const success = await this._missionControlApiClient.submitEvents(state.mcSessionId, events, completedCommandIds);
@@ -1393,10 +1512,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				if (state.mcEventBuffer.length < 2000) {
 					state.mcEventBuffer.unshift(...events);
 				}
+				state.mcCompletedCommandIds.unshift(...completedCommandIds);
 			} else {
 				this.logService.info(`[CopilotCLISession] MC event flush OK: ${events.length} event(s)`);
 			}
 		} catch (err) {
+			state.mcCompletedCommandIds.unshift(...completedCommandIds);
 			this.logService.warn(`[CopilotCLISession] MC event submission error: ${err}`);
 		}
 	}
@@ -1423,7 +1544,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!currentState || !currentState.mcSessionId) {
 				return;
 			}
-			CopilotCLISession._pollMcCommandsStatic(currentState, missionControlApiClient, logService).catch(err => {
+			CopilotCLISession._pollMcCommandsStatic(sessionId, currentState, missionControlApiClient, logService).catch(err => {
 				logService.warn(`[CopilotCLISession] MC command poll failed: ${err}`);
 			});
 		}, 3000);
@@ -1444,14 +1565,21 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * Poll Mission Control for pending commands and process them.
 	 * Static method to avoid capturing a stale `this` reference.
 	 */
-	private static async _pollMcCommandsStatic(state: McSharedState, missionControlApiClient: MissionControlApiClient, logService: { info(msg: string): void; warn(msg: string): void }): Promise<void> {
+	private static async _pollMcCommandsStatic(sessionId: string, state: McSharedState, missionControlApiClient: MissionControlApiClient, logService: { info(msg: string): void; warn(msg: string): void }): Promise<void> {
 		try {
 			const commands = await missionControlApiClient.getPendingCommands(state.mcSessionId);
+			const pendingCommandIds = new Set(commands.map(cmd => cmd.id));
+			for (const processedId of state.mcProcessedCommandIds) {
+				if (!pendingCommandIds.has(processedId)) {
+					state.mcProcessedCommandIds.delete(processedId);
+				}
+			}
 
 			for (const cmd of commands) {
-				if (cmd.state !== 'in_progress') {
+				if (cmd.state !== 'in_progress' || state.mcProcessedCommandIds.has(cmd.id)) {
 					continue;
 				}
+				state.mcProcessedCommandIds.add(cmd.id);
 				logService.info(`[CopilotCLISession] Processing MC command: ${cmd.type ?? 'user_message'} (${cmd.id})`);
 
 				switch (cmd.type) {
@@ -1478,6 +1606,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						// Route steering messages through the VS Code chat UI so
 						// they appear in the chat panel with proper rendering.
 						const vsCodeApi = require('vscode') as typeof import('vscode');
+						getMissionControlPendingCommandCompletionIds(state).add(cmd.id);
+						setPendingCopilotCLIRequestContext(sessionId, {
+							prompt: cmd.content,
+							attachments: [],
+							source: `command-${cmd.id}`,
+						});
 						vsCodeApi.commands.executeCommand(
 							'workbench.action.chat.openSessionWithPrompt.copilotcli',
 							{
@@ -1485,14 +1619,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 								prompt: cmd.content,
 							}
 						).then(undefined, err => {
+							clearPendingCopilotCLIRequestContext(sessionId);
+							getMissionControlPendingCommandCompletionIds(state).delete(cmd.id);
+							state.mcCompletedCommandIds.push(cmd.id);
 							logService.warn(`[CopilotCLISession] MC steering send failed: ${err}`);
 						});
 						break;
 					}
 				}
 
-				// Mark command as processed
-				state.mcCompletedCommandIds.push(cmd.id);
+				if (cmd.type !== 'user_message' && cmd.type !== undefined) {
+					state.mcCompletedCommandIds.push(cmd.id);
+				}
 			}
 		} catch {
 			// Silently ignore polling errors

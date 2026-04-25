@@ -13,7 +13,7 @@ function createMockConfigService(opts: {
 } = {}) {
 	const configs: Record<string, unknown> = {};
 	// Map by fullyQualifiedId
-	configs['github.copilot.chat.advanced.sessionSearch.localIndex.enabled'] = opts.localIndexEnabled ?? false;
+	configs['github.copilot.chat.localIndex.enabled'] = opts.localIndexEnabled ?? false;
 	configs['github.copilot.chat.advanced.sessionSearch.cloudSync.enabled'] = opts.cloudSyncEnabled ?? false;
 	configs['github.copilot.chat.advanced.sessionSearch.cloudSync.excludeRepositories'] = opts.excludeRepositories ?? [];
 

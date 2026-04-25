@@ -7,17 +7,18 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
@@ -39,7 +40,6 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IClipboardService clipboardService: IClipboardService,
@@ -48,6 +48,8 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 	) {
 		super(
@@ -55,7 +57,6 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
-			sessionsManagementService,
 			remoteAgentHostService,
 			quickInputService,
 			clipboardService,
@@ -64,6 +65,8 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			configurationService,
 			commandService,
 			workspacesService,
+			menuService,
+			contextKeyService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

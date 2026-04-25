@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type INotification, type SessionAction, type TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { isSessionAction, type ActionEnvelope, type INotification, type RootAction, type SessionAction, type TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -283,9 +283,9 @@ suite('AgentHostClientTools', () => {
 			override readonly onAgentHostStart = Event.None;
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
-			public dispatchedActions: (SessionAction | TerminalAction)[] = [];
+			public dispatchedActions: (RootAction | SessionAction | TerminalAction)[] = [];
 
-			override dispatch(action: SessionAction | TerminalAction): void {
+			override dispatch(action: RootAction | SessionAction | TerminalAction): void {
 				this.dispatchedActions.push(action);
 				if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
 					const entry = this._liveSubscriptions.get(action.session);

@@ -5,9 +5,10 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/sendToTerminalTool.js';
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
 import type { IToolInvocation, IToolInvocationPreparationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -45,9 +46,9 @@ suite('SendToTerminalTool', () => {
 		RunInTerminalTool.getExecution = originalGetExecution;
 	});
 
-	function createInvocation(id: string, command: string): IToolInvocation {
+	function createInvocation(id: string, command: string, waitForOutput?: boolean): IToolInvocation {
 		return {
-			parameters: { id, command },
+			parameters: { id, command, ...(waitForOutput !== undefined ? { waitForOutput } : {}) },
 			callId: 'test-call',
 			context: { sessionId: 'test-session' },
 			toolId: 'send_to_terminal',
@@ -57,17 +58,21 @@ suite('SendToTerminalTool', () => {
 		} as unknown as IToolInvocation;
 	}
 
-	function createMockExecution(output: string): IActiveTerminalExecution & { sentTexts: { text: string; shouldExecute: boolean; forceBracketedPasteMode?: boolean }[] } {
+	function createMockExecution(output: string): IActiveTerminalExecution & { sentTexts: { text: string; shouldExecute: boolean; forceBracketedPasteMode?: boolean }[]; dataEmitter: Emitter<string> } {
 		const sentTexts: { text: string; shouldExecute: boolean; forceBracketedPasteMode?: boolean }[] = [];
+		const dataEmitter = store.add(new Emitter<string>());
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
 			instance: {
 				sendText: async (text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean) => {
 					sentTexts.push({ text, shouldExecute, forceBracketedPasteMode });
 				},
+				registerMarker: () => undefined,
+				onData: dataEmitter.event,
 			} as unknown as ITerminalInstance,
 			getOutput: () => output,
 			sentTexts,
+			dataEmitter,
 		};
 	}
 
@@ -403,6 +408,36 @@ suite('SendToTerminalTool', () => {
 		const message = prepared.confirmationMessages.message as IMarkdownString;
 		assert.ok(!message.value.includes('$(terminal)'), 'Focus Terminal link should not contain literal $(terminal)');
 		assert.ok(message.value.includes('Focus Terminal'), 'should contain Focus Terminal link text');
+	});
+
+	test('tool schema includes waitForOutput parameter', () => {
+		const waitForOutputProperty = SendToTerminalToolData.inputSchema?.properties?.waitForOutput as { type?: string; description?: string } | undefined;
+		assert.ok(waitForOutputProperty, 'waitForOutput should be in the schema');
+		assert.strictEqual(waitForOutputProperty.type, 'boolean');
+		assert.ok(waitForOutputProperty.description?.includes('idle'));
+	});
+
+	test('waitForOutput=true waits for idle before returning', async () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			// Emit some data shortly after invocation starts, then stop
+			const dataDelay = setTimeout(() => {
+				mockExecution.dataEmitter.fire('some response data');
+			}, 100);
+
+			const result = await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, 'look', true),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			clearTimeout(dataDelay);
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(value.includes('Successfully sent command'));
+		});
 	});
 
 	test('preserves newlines for heredoc commands and uses bracketed paste mode', async () => {

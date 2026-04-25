@@ -72,23 +72,30 @@ export class MultiDiffEditorViewModel extends Disposable {
 		const allItems = mapObservableArrayCached(
 			this,
 			this._documentsArr,
-			(d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this))
+			(d, store) => store.add(RefCounted.create(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
 		).recomputeInitiallyAndOnChange(this._store);
 
-		const waitForNewDiffs: IObservable<ObservablePromise<readonly DocumentDiffItemViewModel[]>> = derived(this, reader => {
+		const waitForNewDiffs: IObservable<ObservablePromise<readonly RefCounted<DocumentDiffItemViewModel>[]>> = derived(this, reader => {
 			const next = allItems.read(reader);
-			const unresolved = next.filter(i => !i.waitForInitialDiffOr1s.promiseResult.read(undefined));
+			const unresolved = next.filter(i => !i.object.waitForInitialDiffOr1s.promiseResult.read(undefined));
 			if (unresolved.length === 0) {
 				return ObservablePromise.resolved(next);
 			}
 			return new ObservablePromise(
-				Promise.all(unresolved.map(i => i.waitForInitialDiffOr1s.promise)).then(() => next)
+				Promise.all(unresolved.map(i => i.object.waitForInitialDiffOr1s.promise)).then(() => next)
 			);
 		});
 
-		const resolved = new ObservableResolvedPromise(waitForNewDiffs, [] as readonly DocumentDiffItemViewModel[], this._store);
+		const resolved = new ObservableResolvedPromise(waitForNewDiffs, [] as readonly RefCounted<DocumentDiffItemViewModel>[], this._store);
 
-		this.items = resolved.lastResolved;
+		this.items = derived(this, reader => {
+			const resolvedItems = resolved.lastResolved.read(reader);
+			return resolvedItems.map(i => {
+				const ref = reader.store.add(i.createNewRef(i));
+				return ref.object;
+			});
+		});
+
 		this.isLoading = derived(this, reader =>
 			this._documents.read(reader) === 'loading' || resolved.isResolving.read(reader)
 		);

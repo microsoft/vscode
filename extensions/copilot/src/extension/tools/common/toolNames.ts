@@ -74,6 +74,7 @@ export enum ToolName {
 	ToolSearch = 'tool_search',
 	ResolveMemoryFileUri = 'resolve_memory_file_uri',
 	ExecutionSubagent = 'execution_subagent',
+	Skill = 'skill',
 	SessionStoreSql = 'session_store_sql',
 	CoreOpenBrowserPage = 'open_browser_page',
 	CoreClickElement = 'click_element',
@@ -266,6 +267,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.Memory]: ToolCategory.VSCodeInteraction,
 	[ToolName.ToolSearch]: ToolCategory.Core,
 	[ToolName.ResolveMemoryFileUri]: ToolCategory.Core,
+	[ToolName.Skill]: ToolCategory.Core,
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
 
