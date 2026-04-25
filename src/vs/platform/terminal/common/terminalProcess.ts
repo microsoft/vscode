@@ -60,6 +60,7 @@ export interface IProcessDetails {
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
 	tabActions?: ITerminalTabAction[];
+	daemonId?: string;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
