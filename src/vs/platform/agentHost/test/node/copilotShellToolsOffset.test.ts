@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getContentSinceOffset } from '../../node/copilot/copilotShellTools.js';
 
 suite('CopilotShellToolOutput', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('keeps current content when the saved offset is no longer valid', () => {
 		assert.strictEqual(getContentSinceOffset('hello', Number.NaN), 'hello');
 		assert.strictEqual(getContentSinceOffset('hello', -1), 'hello');
