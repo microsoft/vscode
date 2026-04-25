@@ -12,7 +12,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -2261,9 +2261,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
 		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
-		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
-			?? this._workingDirectoryResolver.resolve(sessionResource)
-			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
@@ -2421,23 +2419,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
 	}
 
+	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {
+		return this._config.resolveWorkingDirectory?.(sessionResource)
+			?? this._workingDirectoryResolver.resolve(sessionResource)
+			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
 	private _convertVariablesToAttachments(request: IChatAgentRequest): IAgentAttachment[] {
 		const attachments: IAgentAttachment[] = [];
 		for (const v of request.variables.variables) {
 			if (v.kind === 'file') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: AttachmentType.File, path: uri.fsPath, displayName: v.name });
+					const rebased = this._rebaseAttachmentUri(uri, request.sessionResource);
+					attachments.push({ type: AttachmentType.File, path: rebased.fsPath, displayName: v.name });
 				}
 			} else if (v.kind === 'directory') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: AttachmentType.Directory, path: uri.fsPath, displayName: v.name });
+					const rebased = this._rebaseAttachmentUri(uri, request.sessionResource);
+					attachments.push({ type: AttachmentType.Directory, path: rebased.fsPath, displayName: v.name });
 				}
 			} else if (v.kind === 'implicit' && v.isSelection) {
 				const uri = v.uri;
 				if (uri?.scheme === 'file') {
-					attachments.push({ type: AttachmentType.Selection, path: uri.fsPath, displayName: v.name });
+					const rebased = this._rebaseAttachmentUri(uri, request.sessionResource);
+					attachments.push({ type: AttachmentType.Selection, path: rebased.fsPath, displayName: v.name });
 				}
 			}
 		}
@@ -2445,6 +2452,42 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
 		}
 		return attachments;
+	}
+
+	/**
+	 * Rebase a `file:`-scheme attachment URI from the session's requested
+	 * working directory onto the server-resolved working directory. This
+	 * matters on the first turn of a worktree-isolated session, where the
+	 * provider creates a worktree under a different path than the workspace
+	 * folder the workbench attached the file from. Returns the URI unchanged
+	 * if the requested and resolved directories match, the URI is not under
+	 * the requested directory, or either side is unavailable.
+	 */
+	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
+		const requestedDir = this._resolveRequestedWorkingDirectory(sessionResource);
+		if (!requestedDir || requestedDir.scheme !== 'file') {
+			return uri;
+		}
+		const backendSession = this._sessionToBackend.get(sessionResource);
+		const rawResolvedDir = backendSession ? this._getSessionState(backendSession.toString())?.summary.workingDirectory : undefined;
+		const resolvedDir = typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir;
+		if (!resolvedDir || resolvedDir.scheme !== 'file') {
+			return uri;
+		}
+		if (extUriBiasedIgnorePathCase.isEqual(requestedDir, resolvedDir)) {
+			return uri;
+		}
+		if (!extUriBiasedIgnorePathCase.isEqualOrParent(uri, requestedDir)) {
+			return uri;
+		}
+		const rel = extUriBiasedIgnorePathCase.relativePath(requestedDir, uri);
+		if (rel === undefined) {
+			return uri;
+		}
+		if (rel === '') {
+			return resolvedDir;
+		}
+		return URI.joinPath(resolvedDir, ...rel.split('/'));
 	}
 
 	// ---- Lifecycle ----------------------------------------------------------
