@@ -100,4 +100,23 @@ describe('extractAssistantResponse', () => {
 	it('returns undefined for malformed non-truncated JSON', () => {
 		expect(extractAssistantResponse('{not valid json at all}')).toBeUndefined();
 	});
+
+	it('skips tool_call content and extracts text part in truncated JSON', () => {
+		// Simulate JSON with a tool_call part (which has a "content" field) before the text part
+		const fullJson = JSON.stringify([
+			{
+				role: 'assistant',
+				parts: [
+					{ type: 'tool_call', id: 'tc-1', content: 'should be skipped' },
+					{ type: 'text', content: 'The real answer' + 'B'.repeat(100_000) },
+				],
+			},
+		]);
+		const truncated = fullJson.substring(0, 500) + '...[truncated, original 100050 chars]';
+
+		const result = extractAssistantResponse(truncated);
+		expect(result).toBeDefined();
+		expect(result!).toContain('The real answer');
+		expect(result!).not.toContain('should be skipped');
+	});
 });

@@ -172,18 +172,17 @@ export function extractAssistantResponse(outputMessagesRaw: string | undefined):
 		// JSON parse failed — likely truncated by truncateForOTel
 	}
 
-	// Fallback: extract text from truncated JSON via substring.
-	// The JSON prefix is fixed: [{"role":"assistant","parts":[{"type":"text","content":"
-	// which is 63 chars. The content value follows, terminated by the truncation marker.
+	// Fallback: extract text from truncated JSON by matching the serialized
+	// assistant text-part prefix, then reading until the truncation marker.
 	if (!outputMessagesRaw.includes(OTEL_TRUNCATION_MARKER)) {
 		return undefined;
 	}
-	const contentPrefix = '"content":"';
-	const contentStart = outputMessagesRaw.indexOf(contentPrefix);
-	if (contentStart === -1) {
+	const assistantTextContentPrefix = '"type":"text","content":"';
+	const prefixStart = outputMessagesRaw.indexOf(assistantTextContentPrefix);
+	if (prefixStart === -1) {
 		return undefined;
 	}
-	const textStart = contentStart + contentPrefix.length;
+	const textStart = prefixStart + assistantTextContentPrefix.length;
 	const truncationIdx = outputMessagesRaw.indexOf(OTEL_TRUNCATION_MARKER, textStart);
 	if (truncationIdx === -1) {
 		return undefined;
