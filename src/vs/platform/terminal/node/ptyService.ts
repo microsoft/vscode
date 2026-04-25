@@ -97,7 +97,7 @@ let Unicode11Addon: typeof XtermUnicode11Addon;
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
+	private readonly _ptys: Map<number, PersistentTerminalProcess | DaemonTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<string, { newId: number; state: ISerializedTerminalState }> = new Map();
@@ -335,8 +335,8 @@ export class PtyService extends Disposable implements IPtyService {
 			this._logService.info(`Creating persistent process via daemon`);
 			const daemonId = await this._terminalDaemonService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, options);
 			const id = ++this._lastPtyId;
-			const daemonProcess = new DaemonTerminalProcess(id, daemonId, this._terminalDaemonService, this._logService);
-			this._ptys.set(id, daemonProcess as any);
+			const daemonProcess = new DaemonTerminalProcess(id, daemonId, shellLaunchConfig, { env, executableEnv, options }, this._terminalDaemonService, this._logService);
+			this._ptys.set(id, daemonProcess);
 
 			daemonProcess.onProcessData(event => this._onProcessData.fire({ id, event }));
 			daemonProcess.onProcessExit(event => {
@@ -679,9 +679,9 @@ export class PtyService extends Disposable implements IPtyService {
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
-			shellIntegrationNonce: (persistentProcess as any).processLaunchOptions?.options?.shellIntegration?.nonce ?? '',
+			shellIntegrationNonce: persistentProcess.processLaunchOptions?.options?.shellIntegration?.nonce ?? '',
 			tabActions: persistentProcess.shellLaunchConfig.tabActions,
-			daemonId: (persistentProcess as any).daemonId
+			daemonId: persistentProcess.daemonId
 		};
 		performance.mark(`code/didBuildProcessDetails/${id}`);
 		return result;
@@ -730,6 +730,8 @@ class DaemonTerminalProcess extends Disposable {
 	constructor(
 		private readonly _id: number,
 		private readonly _daemonId: string,
+		readonly shellLaunchConfig: IShellLaunchConfig,
+		readonly processLaunchOptions: IPersistentTerminalProcessLaunchConfig,
 		private readonly _terminalDaemonService: ITerminalDaemonService,
 		private readonly _logService: ILogService
 	) {
@@ -810,6 +812,12 @@ class DaemonTerminalProcess extends Disposable {
 	orphanQuestionReply(): void { }
 
 	reduceGraceTime(): void { }
+
+	async serializeNormalBuffer(): Promise<IPtyHostProcessReplayEvent> {
+		return { events: [], firstInstance: true };
+	}
+
+	get unicodeVersion(): '6' | '11' { return '11'; }
 }
 
 const enum InteractionState {
@@ -849,6 +857,8 @@ class PersistentTerminalProcess extends Disposable {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+
+	readonly daemonId: string | undefined = undefined;
 
 	private _inReplay = false;
 
