@@ -458,26 +458,28 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	private _setupInputState(): void {
 		this._controller.getChatSessionInputState = async (sessionResource, context, token) => {
+			let state: vscode.ChatSessionInputState;
+			let pipeline: InputStateReactivePipeline;
+
 			if (context.previousInputState) {
-				const state = this._controller.createChatSessionInputState([...context.previousInputState.groups]);
-				const pipeline = this._createInputStateReactivePipeline(state);
-				this._statePipelines.set(state, pipeline);
-				this._stateAutorunRegistry.register(state, pipeline.store);
-				return state;
+				state = this._controller.createChatSessionInputState([...context.previousInputState.groups]);
+				pipeline = this._createInputStateReactivePipeline(state);
+			} else {
+				const isExistingSession = sessionResource && await this._claudeCodeSessionService.getSession(sessionResource, token) !== undefined;
+				const initialGroups = isExistingSession
+					? await this._buildExistingSessionGroups(sessionResource)
+					: await this._optionBuilder.buildNewSessionGroups();
+				state = this._controller.createChatSessionInputState(initialGroups);
+				pipeline = this._createInputStateReactivePipeline(state);
+
+				if (isExistingSession) {
+					pipeline.isSessionStarted.set(true, undefined);
+				}
 			}
 
-			const isExistingSession = sessionResource && await this._claudeCodeSessionService.getSession(sessionResource, token) !== undefined;
-			const initialGroups = isExistingSession
-				? await this._buildExistingSessionGroups(sessionResource)
-				: await this._optionBuilder.buildNewSessionGroups();
-			const state = this._controller.createChatSessionInputState(initialGroups);
-			const pipeline = this._createInputStateReactivePipeline(state);
-
-			if (isExistingSession) {
-				pipeline.isSessionStarted.set(true, undefined);
-			}
-
-			// React to external permission mode changes for this session
+			// React to external permission mode changes for this session.
+			// Runs for both previousInputState and new-state paths so that
+			// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
 			if (sessionResource) {
 				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 				const externalPermissionMode = observableFromEvent(

@@ -131,6 +131,14 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.favicon : this._initialData.favicon;
 	}
 
+	/**
+	 * Whether this editor was opened via a default localhost link open (setting
+	 * not explicitly configured by the user). Transient — not serialized.
+	 */
+	get isDefaultLinkOpen(): boolean {
+		return !!this._initialData.isDefaultLinkOpen;
+	}
+
 	navigate(url: string): void {
 		if (this._model) {
 			void this._model.loadURL(url);

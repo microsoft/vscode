@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
@@ -391,6 +391,37 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
 			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
+		});
+	});
+
+	suite('detectsHighConfidenceInputPattern', () => {
+		test('matches y/n and PowerShell prompts', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Continue? (y/N) '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Overwrite file? [Y/n] '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('[Y] Yes  [N] No '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): '), true);
+		});
+		test('matches password and press-any-key prompts', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Password: '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Press any key to continue...'), true);
+		});
+		test('matches parenthesized defaults', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('package name: (test) '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('version: (1.0.0) '), true);
+		});
+		test('matches (END) pager', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('(END)'), true);
+		});
+		test('does NOT match bare colon prompts (too broad for fast-path)', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Enter your name: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('File to overwrite: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Building project: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Running tests:'), false);
+		});
+		test('does NOT match bare question prompts (too broad for fast-path)', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Continue? '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Are you sure? '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('What happened?'), false);
 		});
 	});
 

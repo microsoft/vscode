@@ -12,7 +12,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/e
 import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorsOrder, GroupIdentifier } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -25,17 +25,26 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -530,13 +539,138 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
+		// Check whether the setting was explicitly set by the user or is still at its default value.
+		// When it is a default, tag the viewState so that the hint pill can be shown.
+		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
+
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
 		return true;
 	}
 }
 
 registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+
+// ---- Link opened hint pill (URL bar widget) --------------------------------
+
+const LOCALHOST_HINT_DISMISSED_KEY = 'workbench.browser.linkOpenedHintDismissed';
+
+/**
+ * A small pill shown in the URL bar that informs the user their link was opened
+ * in the Integrated Browser by default. Clicking it shows a tooltip
+ * with an explanation and options to open settings or dismiss permanently.
+ */
+class LinkOpenedHintPill extends BrowserEditorContribution {
+
+	private readonly _pill: HTMLElement;
+	private readonly _attentionTimeout = this._register(new MutableDisposable());
+
+	constructor(
+		editor: BrowserEditor,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	) {
+		super(editor);
+
+		this._pill = $('.browser-link-opened-hint-pill');
+		this._pill.tabIndex = 0;
+		this._pill.role = 'button';
+		this._pill.ariaLabel = localize('browser.linkOpenedHint.ariaLabel', "This link opened in the integrated browser");
+		this._pill.ariaHidden = 'true';
+
+		const icon = $('span');
+		icon.className = ThemeIcon.asClassName(Codicon.info);
+		const label = $('span');
+		label.textContent = localize('browser.linkOpenedHint.label', "Link opened here");
+
+		this._pill.appendChild(icon);
+		this._pill.appendChild(label);
+
+		const hoverOptions = () => ({
+			content: new MarkdownString(localize('browser.linkOpenedHint.detail', "**Integrated Browser**\n\nLocalhost links automatically open in the integrated browser.")),
+			actions: [
+				{
+					label: localize('browser.linkOpenedHint.openSettings', "Open Settings"),
+					commandId: 'workbench.action.openSettings',
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+					run: () => {
+						this.preferencesService.openUserSettings({ query: 'workbench.browser.openLocalhostLinks' });
+					}
+				},
+				{
+					label: localize('browser.linkOpenedHint.dismiss', "Don't Show Again"),
+					commandId: '',
+					run: () => {
+						this._dismiss();
+					}
+				}
+			],
+			position: { hoverPosition: HoverPosition.BELOW }
+		});
+
+		this._register(this.hoverService.setupDelayedHover(this._pill, hoverOptions, { setupKeyboardEvents: true }));
+		this._register(addDisposableListener(this._pill, EventType.CLICK, () => {
+			this.hoverService.showInstantHover({ ...hoverOptions(), target: this._pill, persistence: { sticky: true } }, true);
+		}));
+	}
+
+	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
+		return [{ element: this._pill, order: 100 }];
+	}
+
+	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
+			this._setVisible(false);
+			return;
+		}
+
+		const input = this.editor.input;
+		if (input instanceof BrowserEditorInput && input.isDefaultLinkOpen) {
+			const dismissed = this.storageService.getBoolean(LOCALHOST_HINT_DISMISSED_KEY, StorageScope.APPLICATION, false);
+			this._setVisible(!dismissed);
+			if (!dismissed && isNew) {
+				this._callAttention();
+			}
+		} else {
+			this._setVisible(false);
+		}
+	}
+
+	override clear(): void {
+		this._attentionTimeout.clear();
+		this._setVisible(false);
+	}
+
+	private _setVisible(visible: boolean): void {
+		if (!visible) {
+			this._attentionTimeout.clear();
+			this._pill.classList.remove('attention');
+		}
+		this._pill.classList.toggle('visible', visible);
+		this._pill.ariaHidden = visible ? 'false' : 'true';
+	}
+
+	private _callAttention(): void {
+		this._attentionTimeout.clear();
+		this._pill.classList.remove('attention');
+		// Start collapsed (icon only), expand after 300ms, then collapse back after another 2s
+		this._attentionTimeout.value = disposableTimeout(() => {
+			this._pill.classList.add('attention');
+			this._attentionTimeout.value = disposableTimeout(() => {
+				this._pill.classList.remove('attention');
+			}, 2000);
+		}, 300);
+	}
+
+	private _dismiss(): void {
+		this.storageService.store(LOCALHOST_HINT_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		this._setVisible(false);
+	}
+}
+
+BrowserEditor.registerContribution(LinkOpenedHintPill);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

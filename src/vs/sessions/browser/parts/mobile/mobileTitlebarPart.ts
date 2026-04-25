@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../menus.js';
 
 /**
@@ -72,12 +73,27 @@ export class MobileTitlebarPart extends Disposable {
 		this._register(toDisposable(() => this.element.remove()));
 		parent.prepend(this.element);
 
-		// Hamburger button
+		// Sidebar toggle button. Uses the same icon as the desktop/web
+		// agents-app sidebar toggle and reflects open/closed state via the
+		// SideBarVisibleContext key.
 		const hamburger = append(this.element, $('button.mobile-top-bar-button'));
 		hamburger.setAttribute('aria-label', localize('mobileTopBar.openSessions', "Open sessions"));
 		const hamburgerIcon = append(hamburger, $('span'));
-		hamburgerIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.menu));
+		const closedIconClasses = ThemeIcon.asClassNameArray(Codicon.layoutSidebarLeftOff);
+		const openIconClasses = ThemeIcon.asClassNameArray(Codicon.layoutSidebarLeft);
+		hamburgerIcon.classList.add(...closedIconClasses);
 		this._register(addDisposableListener(hamburger, EventType.CLICK, () => this._onDidClickHamburger.fire()));
+
+		const sidebarVisibleKeySet = new Set([SideBarVisibleContext.key]);
+		const updateSidebarIcon = () => {
+			const isOpen = !!SideBarVisibleContext.getValue(contextKeyService);
+			hamburgerIcon.classList.remove(...closedIconClasses, ...openIconClasses);
+			hamburgerIcon.classList.add(...(isOpen ? openIconClasses : closedIconClasses));
+			hamburger.setAttribute('aria-label', isOpen
+				? localize('mobileTopBar.closeSessions', "Close sessions")
+				: localize('mobileTopBar.openSessions', "Open sessions"));
+		};
+		updateSidebarIcon();
 
 		// Center slot: title and/or actions container (mutually exclusive)
 		const center = append(this.element, $('div.mobile-top-bar-center'));
@@ -125,6 +141,9 @@ export class MobileTitlebarPart extends Disposable {
 		this._register(contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(newChatKeySet)) {
 				updateCenterMode();
+			}
+			if (e.affectsSome(sidebarVisibleKeySet)) {
+				updateSidebarIcon();
 			}
 		}));
 		this._register(toolbar.onDidChangeMenuItems(() => updateCenterMode()));

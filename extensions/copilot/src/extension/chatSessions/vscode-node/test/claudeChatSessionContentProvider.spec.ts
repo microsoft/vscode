@@ -1104,6 +1104,30 @@ describe('ChatSessionContentProvider', () => {
 			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
 		});
 
+		it('external permission change syncs into a previousInputState-restored pipeline', async () => {
+			const mocks = createDefaultMocks();
+			const { accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+
+			const existingSession = { id: 'prev-state-session', messages: [], subagents: [] };
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(existingSession as any);
+
+			const sessionUri = createClaudeSessionUri('prev-state-session');
+			const firstState = await getInputState(sessionUri);
+
+			// Simulate getChatSessionInputState being called again with previousInputState
+			// (e.g. user refocuses the chat window). The pipeline is rebuilt from scratch.
+			const restoredState = await getInputState(sessionUri, firstState);
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).not.toBe('plan');
+
+			// Permission mode changes externally (e.g. EnterPlanMode tool call)
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'plan');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('plan');
+
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'acceptEdits');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('acceptEdits');
+		});
+
 		it('markSessionStarted locks the folder group mid-session', async () => {
 			const mocks = createDefaultMocks();
 			createProviderWithServices(store, [folderA, folderB], mocks);

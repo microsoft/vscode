@@ -70,18 +70,42 @@
 
 /* ---- Phone Layout: Sidebar Drawer Overlay ---- */
 
-/* On phone, the sidebar is a drawer that slides over the chat.
-	It takes 85% width (max 360px) and sits on top of everything. */
+/* On phone, the sidebar is a full-width drawer that slides over the chat.
+	It covers the full viewport below the mobile top bar; the top bar's
+	sidebar toggle button remains visible and is used to dismiss it.
+
+	The drawer slides in/out with a transition (not a keyframe animation) so
+	that interrupted toggles retarget smoothly from the current position
+	rather than restarting. The split-view wrapper toggles `display: none`
+	via a `.visible` class; `transition-behavior: allow-discrete` defers
+	the discrete `display` change until the slide-out completes, and
+	`@starting-style` provides the offscreen origin for the slide-in. */
 .agent-sessions-workbench.phone-layout .split-view-view:has(> .part.sidebar) {
 	position: absolute !important;
 	top: 0 !important;
 	left: 0 !important;
 	bottom: 0 !important;
-	width: 85% !important;
-	max-width: 360px !important;
+	width: 100% !important;
 	height: 100% !important;
 	z-index: 250;
-	animation: sidebar-slide-in 200ms ease-out;
+	transform: translateX(0);
+	transition:
+		transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+		display 260ms allow-discrete;
+}
+
+/* Slide-in starting state (applies on each transition into .visible) */
+@starting-style {
+	.agent-sessions-workbench.phone-layout .split-view-view.visible:has(> .part.sidebar) {
+		transform: translateX(-100%);
+	}
+}
+
+/* Slide-out target: when `.visible` is removed, splitview's own rule sets
+	`display: none`. With `allow-discrete` above, the transform animates first
+	and the discrete `display` swap happens at the end of the transition. */
+.agent-sessions-workbench.phone-layout .split-view-view:not(.visible):has(> .part.sidebar) {
+	transform: translateX(-100%);
 }
 
 /* The sidebar Part inside fills its container */
@@ -90,30 +114,10 @@
 	height: 100%;
 }
 
-@keyframes sidebar-slide-in {
-	from {
-		transform: translateX(-100%);
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.sidebar) {
+		transition: none;
 	}
-	to {
-		transform: translateX(0);
-	}
-}
-
-/* Sidebar backdrop — applied via JS when sidebar is open on phone */
-.mobile-sidebar-backdrop {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background: rgba(0, 0, 0, 0.5);
-	z-index: 240;
-	animation: backdrop-fade-in 200ms ease-out;
-}
-
-@keyframes backdrop-fade-in {
-	from { opacity: 0; }
-	to { opacity: 1; }
 }
 
 /* Increase sidebar footer action button height for touch */
