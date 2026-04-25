@@ -45,7 +45,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
-import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
+import { compareMatchedCustomizationItems, getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -1226,9 +1226,13 @@ export class AICustomizationListWidget extends Disposable {
 	 * Empty groups are omitted. Collapsed groups show only their header.
 	 */
 	private buildGroupedEntries(groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[]): void {
-		// Sort items within each group
+		// Sort items within each group. While a search is active, items
+		// whose name (title) matched the query rank above items whose name
+		// did not match, so title matches appear before description-only
+		// matches. Falls back to alphabetical order otherwise.
+		const searchActive = !!this.searchQuery.trim();
 		for (const group of groups) {
-			group.items.sort((a, b) => a.name.localeCompare(b.name));
+			group.items.sort((a, b) => compareMatchedCustomizationItems(a, b, searchActive));
 		}
 
 		this.displayEntries = [];
@@ -1283,7 +1287,8 @@ export class AICustomizationListWidget extends Disposable {
 			const localItems = matchedItems.filter(i => i.syncable);
 			const entries: IListEntry[] = [];
 
-			for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
+			const searchActive = !!this.searchQuery.trim();
+			for (const item of remoteItems.sort((a, b) => compareMatchedCustomizationItems(a, b, searchActive))) {
 				entries.push({ type: 'file-item' as const, item });
 			}
 
@@ -1304,7 +1309,7 @@ export class AICustomizationListWidget extends Disposable {
 					if (a.synced !== b.synced) {
 						return a.synced ? -1 : 1;
 					}
-					return a.name.localeCompare(b.name);
+					return compareMatchedCustomizationItems(a, b, searchActive);
 				});
 				for (const item of sorted) {
 					entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });

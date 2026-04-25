@@ -47,3 +47,29 @@ export function extractExtensionIdFromPath(uriPath: string): string | undefined 
 	const versionMatch = folderName.match(/^(.+)-\d+\./);
 	return versionMatch ? versionMatch[1] : undefined;
 }
+
+/**
+ * Comparator for matched customization list items used while a search
+ * query is active. Items whose name (title) matched the query rank above
+ * items whose name did not match (e.g. only the description, filename or
+ * badge matched), so that title matches always appear before
+ * description-only matches. Items within the same rank fall back to
+ * alphabetical order by name.
+ *
+ * When `searchActive` is false this falls back to plain alphabetical
+ * order so that idle (unfiltered) views are not affected.
+ */
+export function compareMatchedCustomizationItems(
+	a: { name: string; nameMatches?: unknown },
+	b: { name: string; nameMatches?: unknown },
+	searchActive: boolean,
+): number {
+	if (searchActive) {
+		const aNameMatched = !!a.nameMatches;
+		const bNameMatched = !!b.nameMatches;
+		if (aNameMatched !== bNameMatched) {
+			return aNameMatched ? -1 : 1;
+		}
+	}
+	return a.name.localeCompare(b.name);
+}
