@@ -14,10 +14,9 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContext
 // settings
 
 export const enum InlineChatConfigKeys {
-	FinishOnType = 'inlineChat.finishOnType',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
-	notebookAgent = 'inlineChat.notebookAgent',
+	NotebookAgent = 'inlineChat.notebookAgent',
 	DefaultModel = 'inlineChat.defaultModel',
 	Affordance = 'inlineChat.affordance',
 	FixDiagnostics = 'inlineChat.fixDiagnostics',
@@ -27,11 +26,6 @@ export const enum InlineChatConfigKeys {
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
-		[InlineChatConfigKeys.FinishOnType]: {
-			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
-			default: false,
-			type: 'boolean'
-		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
 			default: false,
@@ -41,7 +35,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'auto'
 			}
 		},
-		[InlineChatConfigKeys.notebookAgent]: {
+		[InlineChatConfigKeys.NotebookAgent]: {
 			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
 			default: false,
 			type: 'boolean',

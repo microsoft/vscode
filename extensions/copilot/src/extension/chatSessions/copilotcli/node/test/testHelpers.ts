@@ -92,6 +92,9 @@ export class MockCliSdkSessionManager {
 		this.sessions.set(newId, s);
 		return Promise.resolve({ sessionId: newId });
 	}
+	async loadDeferredRepoHooks(session: unknown) {
+		//
+	}
 }
 
 export class NullCopilotCLIAgents implements ICopilotCLIAgents {

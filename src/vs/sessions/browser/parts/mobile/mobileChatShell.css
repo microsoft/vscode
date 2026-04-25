@@ -3,6 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * `!important` policy for this file:
+ *
+ * Only use `!important` when fighting one of:
+ *   1. SplitView.View.layoutContainer — sets inline position/top/left/width/height
+ *      on every `.split-view-view` (src/vs/base/browser/ui/splitview/splitview.ts).
+ *   2. Part.layoutContents — inlines width/height on `.part > .content` via size().
+ *   3. An equal-specificity desktop rule in the main workbench stylesheet.
+ *
+ * Rules that only face lower-specificity desktop CSS (e.g. a single `.part.X`
+ * selector) do NOT need `!important` — the `.phone-layout` class on the
+ * workbench root already wins. When adding a new rule, omit `!important`
+ * first and only add it if DevTools shows an actual override.
+ */
+
 /* ---- Mobile Top Bar ---- */
 
 .mobile-top-bar {
@@ -51,6 +66,14 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+.mobile-top-bar .mobile-top-bar-center {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
 .mobile-top-bar .mobile-session-title {
 	flex: 1;
 	min-width: 0;
@@ -63,25 +86,64 @@
 	white-space: nowrap;
 	padding: 0 4px;
 	cursor: pointer;
+	border: none;
+	background: none;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.monaco-workbench .mobile-top-bar .mobile-session-title:focus {
+	outline: none !important;
+}
+
+.mobile-top-bar .mobile-session-title:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mobile-top-bar .mobile-session-title:active {
 	opacity: 0.7;
 }
 
+.mobile-top-bar .mobile-top-bar-actions {
+	display: none;
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	height: 100%;
+}
+
+/* When the welcome screen is visible and the center menu has contributed
+	items (e.g., the web host filter on the home screen) the title is
+	hidden and the toolbar takes its place. */
+.mobile-top-bar.show-actions .mobile-session-title {
+	display: none;
+}
+
+.mobile-top-bar.show-actions .mobile-top-bar-actions {
+	display: flex;
+	flex-direction: column;
+}
+
 /* ---- Phone Layout: Full-screen chat ---- */
 
 /* On phone, stack the mobile top bar and grid vertically */
 .agent-sessions-workbench.phone-layout {
-	display: flex !important;
-	flex-direction: column !important;
-	overflow: hidden !important;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
 }
 
-/* On phone, split-view-views that directly contain a Part fill the full
-	grid area. Uses :has(> .part) to target only part containers — NOT
-	nested split-views inside parts' own content. */
-.agent-sessions-workbench.phone-layout .split-view-view:has(> .part) {
+/* On phone, all split-view-view wrappers inside the grid — both those
+	wrapping parts AND those wrapping nested grid branch nodes — fill the
+	full grid area. This collapses the multi-axis grid into a single
+	full-screen viewport so parts overlap rather than share horizontal
+	space. The sidebar uses its own z-index + transform to slide over
+	the chat (see sidebarPart.css). The :has() conditions scope strictly
+	to grid wrappers so splitviews used inside individual parts' content
+	(e.g. a sidebar's view list) are not affected. */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part),
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .monaco-grid-branch-node) {
 	position: absolute !important;
 	top: 0 !important;
 	left: 0 !important;
@@ -89,79 +151,52 @@
 	height: 100% !important;
 }
 
-/* The grid's own branch nodes (NOT those inside parts) need full sizing.
-	Target only direct children of the grid root. */
-.agent-sessions-workbench.phone-layout > .monaco-grid-view > .monaco-grid-branch-node {
-	position: absolute !important;
-	top: 0 !important;
-	left: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
+/* All grid branch nodes fill their parent. `.monaco-grid-branch-node` is
+	specific to the grid widget, so this descendant selector won't hit
+	splitviews used inside individual parts' content. The grid widget
+	does not write inline geometry to branch nodes (only to the wrapping
+	`.split-view-view`), so plain CSS suffices here. */
+.agent-sessions-workbench.phone-layout .monaco-grid-branch-node {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
 }
 
-/* Split-view-views inside the grid root that contain branch nodes */
-.agent-sessions-workbench.phone-layout > .monaco-grid-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view:has(> .monaco-grid-branch-node) {
-	position: absolute !important;
-	top: 0 !important;
-	left: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
-}
-
-/* Second-level grid branch nodes */
-.agent-sessions-workbench.phone-layout > .monaco-grid-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view > .monaco-grid-branch-node {
-	position: absolute !important;
-	top: 0 !important;
-	left: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
-}
-
-/* Third-level (top-right section) */
-.agent-sessions-workbench.phone-layout > .monaco-grid-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view:has(> .monaco-grid-branch-node) {
-	position: absolute !important;
-	top: 0 !important;
-	left: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
-}
-
-.agent-sessions-workbench.phone-layout > .monaco-grid-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view > .monaco-grid-branch-node > .monaco-split-view2 > .split-view-container > .split-view-view > .monaco-grid-branch-node {
-	position: absolute !important;
-	top: 0 !important;
-	left: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
-}
-
-/* Remove card appearance from ALL parts on phone */
+/* Remove card appearance from ALL parts on phone.
+	Specificity wins over the desktop card rule in style.css without !important;
+	width/height match what the mobile Part.layout() already inlines. */
 .agent-sessions-workbench.phone-layout .part.chatbar,
 .agent-sessions-workbench.phone-layout .part.sidebar,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar,
 .agent-sessions-workbench.phone-layout .part.panel {
-	margin: 0 !important;
-	border: none !important;
-	border-radius: 0 !important;
-	box-shadow: none !important;
-	--part-border-color: transparent !important;
-	width: 100% !important;
-	height: 100% !important;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	--part-border-color: transparent;
+	width: 100%;
+	height: 100%;
 }
 
-/* Force content div inside parts to fill the part on phone.
-	Part.layoutContents() sets inline width/height via size(), which
-	may use the grid-allocated dimensions rather than the CSS-overridden
-	100% dimensions. Override with !important. */
+/* Pin Part content to the wrapper's full width on phone.
+	`!important` is required because `Part.layoutContents()` inlines the
+	width on `.part > .content` based on the splitview size (rule #2 in the
+	policy above). Without this, opening the sidebar — which makes the
+	splitview share space between sidebar and chatbar — would shrink the
+	chatbar's content during the drawer slide animation. */
 .agent-sessions-workbench.phone-layout .part.chatbar > .content,
 .agent-sessions-workbench.phone-layout .part.sidebar > .content,
 .agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
 .agent-sessions-workbench.phone-layout .part.panel > .content {
 	width: 100% !important;
+	height: 100% !important;
 }
 
 /* Hide the session composite bar (Copilot CLI / Approvals / Branch) on phone */
 .agent-sessions-workbench.phone-layout .session-composite-bar {
-	display: none !important;
+	display: none;
 }
 
 /* Ensure the grid view element doesn't overflow — flex child must shrink */
@@ -183,8 +218,8 @@
 }
 
 .agent-sessions-workbench.phone-layout .interactive-session .interactive-input-part {
-	max-width: none !important;
-	padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+	max-width: none !important; /* fights equal-specificity rule in style.css */
+	padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
 
 /* Chat input minimum font size to prevent iOS auto-zoom */
@@ -206,7 +241,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .part.sidebar > .composite.title {
-	display: none !important;
+	display: none;
 }
 
 .agent-sessions-workbench.phone-layout .part.sidebar > .content {
@@ -219,7 +254,7 @@
 
 /* Customization toolbar: hidden on phone (opens editors, not mobile-compatible) */
 .agent-sessions-workbench.phone-layout .part.sidebar .ai-customization-toolbar {
-	display: none !important;
+	display: none;
 }
 
 /* Make sidebar footer touch-friendly */
@@ -230,7 +265,7 @@
 
 /* Hide the "+ Session" button in the sidebar on phone — replaced by top bar + button */
 .agent-sessions-workbench.phone-layout .agent-sessions-new-button-container {
-	display: none !important;
+	display: none;
 }
 
 /* Hide sashes on phone */
@@ -250,7 +285,7 @@
 
 /* On phone, push the chat input to the bottom of the chat area */
 .agent-sessions-workbench.phone-layout .interactive-session .interactive-input-and-execute-toolbar {
-	margin-top: auto !important;
+	margin-top: auto;
 }
 
 /* ---- Phone Layout: Chat Welcome Page ---- */
@@ -310,7 +345,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .session-workspace-picker-label {
-	font-size: 18px !important;
+	font-size: 18px;
 	opacity: 0.6;
 }
 
@@ -329,12 +364,12 @@
 
 /* Hide the local mode bar (Copilot CLI / Default Approvals / Branch) on phone */
 .agent-sessions-workbench.phone-layout .new-chat-bottom-container {
-	display: none !important;
+	display: none;
 }
 
 /* Also hide the sessions-chat-widget's DnD overlay on phone */
 .agent-sessions-workbench.phone-layout .sessions-chat-dnd-overlay {
-	display: none !important;
+	display: none;
 }
 
 /* Chat widget fills full width on phone */

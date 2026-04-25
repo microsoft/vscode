@@ -7,11 +7,11 @@ import { promises as fs } from 'fs';
 import { isBinaryFile } from 'isbinaryfile';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
-import { TestLogService } from '../../../../platform/testing/common/testLogService';
-import { copyRipgrepShim } from '../../copilotcli/node/ripgrepShim';
+import { TestLogService } from '../../../../../platform/testing/common/testLogService';
+import { copyRipgrepShim } from '../../../copilotcli/node/ripgrepShim';
 
 describe('CopilotCLI SDK Upgrade', function () {
-	const extensionPath = path.join(__dirname, '..', '..', '..', '..', '..');
+	const extensionPath = path.join(__dirname, '..', '..', '..', '..', '..', '..');
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
 	beforeAll(async function () {
 		await copyBinaries(extensionPath);

@@ -95,18 +95,29 @@ export interface ISchema<D extends SchemaDefinition> {
 	 */
 	assertValid<K extends keyof D & string>(key: K, value: unknown): asserts value is SchemaValue<D[K]>;
 	/**
-	 * Returns a fully-typed values bag by validating each key of
-	 * `defaults` against `values` and falling back to the default when
+	 * Returns a fully-typed values bag by validating each key of the
+	 * schema against `values` and falling back to the default when
 	 * the incoming value is missing or fails validation.
 	 *
+	 * Semantics: for every key declared in the schema `definition`:
+	 * - if `values[key]` validates, it is kept;
+	 * - else if `key` is present in `defaults`, the default is used;
+	 * - else the key is omitted from the result.
+	 *
+	 * This means callers MAY supply defaults for only a subset of the
+	 * schema — keys not present in `defaults` are simply left unset
+	 * when the incoming value is missing or invalid. This is useful
+	 * when some properties (e.g. per-session `permissions`) should be
+	 * inherited from a higher scope rather than materialized on every
+	 * new session.
+	 *
 	 * Intended for sanitizing untrusted input at protocol boundaries
-	 * (e.g. `resolveSessionConfig`), where callers want a complete
-	 * type-safe object rather than a throw-on-first-error response.
-	 * Keys that fail validation are silently replaced with their
-	 * default; use {@link values} or {@link assertValid} when you want
-	 * a descriptive {@link ProtocolError} instead.
+	 * (e.g. `resolveSessionConfig`). Keys that fail validation are
+	 * silently replaced with their default or dropped; use
+	 * {@link values} or {@link assertValid} when you want a descriptive
+	 * {@link ProtocolError} instead.
 	 */
-	validateOrDefault<T extends { [K in keyof D]: SchemaValue<D[K]> }>(values: Record<string, unknown> | undefined, defaults: T): T;
+	validateOrDefault<T extends Partial<{ [K in keyof D]: SchemaValue<D[K]> }>>(values: { [K in keyof T]?: unknown } | undefined, defaults: T): T;
 }
 
 export function createSchema<D extends SchemaDefinition>(definition: D): ISchema<D> {
@@ -147,14 +158,19 @@ export function createSchema<D extends SchemaDefinition>(definition: D): ISchema
 			const narrowed: ISchemaProperty<unknown> = prop;
 			narrowed.assertValid(value, key);
 		},
-		validateOrDefault<T extends { [K in keyof D]: SchemaValue<D[K]> }>(values: Record<string, unknown> | undefined, defaults: T): T {
+		validateOrDefault<T extends Partial<{ [K in keyof D]: SchemaValue<D[K]> }>>(values: { [K in keyof T]?: unknown } | undefined, defaults: T): T {
 			const result: Record<string, unknown> = {};
-			for (const key of Object.keys(defaults)) {
-				const raw = values?.[key];
+			const raw: { [K in keyof T]?: unknown } = values ?? {};
+			for (const key of Object.keys(definition)) {
 				const prop = definition[key];
-				result[key] = prop && raw !== undefined && prop.validate(raw)
-					? raw
-					: (defaults as Record<string, unknown>)[key];
+				const candidate = raw[key];
+				if (candidate !== undefined && prop.validate(candidate)) {
+					result[key] = candidate;
+				} else if (Object.prototype.hasOwnProperty.call(defaults, key)) {
+					result[key] = (defaults as Record<string, unknown>)[key];
+				}
+				// else: key not in defaults and incoming value missing/invalid
+				// → leave unset so higher-scope defaults can fill in.
 			}
 			return result as T;
 		},
@@ -249,6 +265,32 @@ export interface IPermissionsValue {
 	readonly deny: readonly string[];
 }
 
+const permissionsProperty = schemaProperty<IPermissionsValue>({
+	type: 'object',
+	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
+	properties: {
+		allow: {
+			type: 'array',
+			title: localize('agentHost.sessionConfig.permissions.allow', "Allowed tools"),
+			items: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
+			},
+		},
+		deny: {
+			type: 'array',
+			title: localize('agentHost.sessionConfig.permissions.deny', "Denied tools"),
+			items: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
+			},
+		},
+	},
+	default: { allow: [], deny: [] },
+	sessionMutable: true,
+});
+
 /**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
@@ -276,29 +318,19 @@ export const platformSessionSchema = createSchema({
 		default: 'default',
 		sessionMutable: true,
 	}),
-	[SessionConfigKey.Permissions]: schemaProperty<IPermissionsValue>({
-		type: 'object',
-		title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-		description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
-		properties: {
-			allow: {
-				type: 'array',
-				title: localize('agentHost.sessionConfig.permissions.allow', "Allowed tools"),
-				items: {
-					type: 'string',
-					title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-				},
-			},
-			deny: {
-				type: 'array',
-				title: localize('agentHost.sessionConfig.permissions.deny', "Denied tools"),
-				items: {
-					type: 'string',
-					title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-				},
-			},
-		},
-		default: { allow: [], deny: [] },
-		sessionMutable: true,
-	}),
+	[SessionConfigKey.Permissions]: permissionsProperty,
+});
+
+/**
+ * Root (agent host) config properties owned by the platform itself.
+ *
+ * Root config acts as the baseline that applies to every session:
+ *
+ * - {@link SessionConfigKey.Permissions} — host-wide allow/deny lists
+ *   unioned with each session's own permissions when evaluating tool
+ *   auto-approval. See `SessionPermissionManager` for the evaluation
+ *   rules.
+ */
+export const platformRootSchema = createSchema({
+	[SessionConfigKey.Permissions]: permissionsProperty,
 });

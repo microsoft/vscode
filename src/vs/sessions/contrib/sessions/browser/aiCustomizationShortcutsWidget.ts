@@ -21,8 +21,10 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../browser/menus.js';
-import { getCustomizationTotalCount } from './customizationCounts.js';
+import { getCustomizationTotalCount, getActiveItemProvider } from './customizationCounts.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const $ = DOM.$;
 
@@ -46,6 +48,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -101,9 +105,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		}));
 
 		let updateCountRequestId = 0;
+
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService, getActiveItemProvider(this.sessionsManagementService, this.harnessService));
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
@@ -121,6 +126,15 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		}));
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
+			updateHeaderTotalCount();
+		}));
+		this._register(autorun(reader => {
+			this.sessionsManagementService.activeSession.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
+			const provider = getActiveItemProvider(this.sessionsManagementService, this.harnessService);
+			if (provider) {
+				reader.store.add(provider.onDidChange(() => updateHeaderTotalCount()));
+			}
 			updateHeaderTotalCount();
 		}));
 		updateHeaderTotalCount();

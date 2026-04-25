@@ -6,15 +6,15 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
-import { ILogService } from '../../../../platform/log/common/logService';
-import { MockCustomInstructionsService } from '../../../../platform/test/common/testCustomInstructionsService';
-import { mock } from '../../../../util/common/test/simpleMock';
-import { Emitter } from '../../../../util/vs/base/common/event';
-import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
-import { URI } from '../../../../util/vs/base/common/uri';
-import { CLIAgentInfo, ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
+import { ILogService } from '../../../../../platform/log/common/logService';
+import { MockCustomInstructionsService } from '../../../../../platform/test/common/testCustomInstructionsService';
+import { mock } from '../../../../../util/common/test/simpleMock';
+import { Emitter } from '../../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
+import { URI } from '../../../../../util/vs/base/common/uri';
+import { CLIAgentInfo, ICopilotCLIAgents } from '../../../copilotcli/node/copilotCli';
 import { CopilotCLICustomizationProvider } from '../copilotCLICustomizationProvider';
-import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
+import { MockPromptsService } from '../../../../../platform/promptFiles/test/common/mockPromptsService';
 
 class FakeChatSessionCustomizationType {
 	static readonly Agent = new FakeChatSessionCustomizationType('agent');

@@ -15,7 +15,9 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { parseHooksFromFile } from '../../../../workbench/contrib/chat/common/promptSyntax/hookCompatibility.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { parse as parseJSONC } from '../../../../base/common/jsonc.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export interface ISourceCounts {
 	readonly workspace: number;
@@ -136,19 +138,41 @@ export async function getSourceCounts(
 	};
 }
 
+const PROMPT_TYPES: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.hook];
+const PROMPT_TYPE_SET = new Set<string>(PROMPT_TYPES);
+
 export async function getCustomizationTotalCount(
 	promptsService: IPromptsService,
 	mcpService: IMcpService,
 	workspaceService: IAICustomizationWorkspaceService,
 	workspaceContextService: IWorkspaceContextService,
 	agentPluginService?: IAgentPluginService,
+	itemProvider?: ICustomizationItemProvider,
 ): Promise<number> {
-	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.hook];
-	const results = await Promise.all(types.map(type => {
-		const filter = workspaceService.getStorageSourceFilter(type);
-		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
-			.then(counts => getSourceCountsTotal(counts, filter));
-	}));
+	let promptTotal: number;
+	if (itemProvider) {
+		const allItems = await itemProvider.provideChatSessionCustomizations(CancellationToken.None);
+		promptTotal = allItems?.filter(item => PROMPT_TYPE_SET.has(item.type)).length ?? 0;
+	} else {
+		const results = await Promise.all(PROMPT_TYPES.map(type => {
+			const filter = workspaceService.getStorageSourceFilter(type);
+			return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
+				.then(counts => getSourceCountsTotal(counts, filter));
+		}));
+		promptTotal = results.reduce((sum, n) => sum + n, 0);
+	}
+
 	const pluginCount = agentPluginService?.plugins.get().length ?? 0;
-	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length + pluginCount;
+	return promptTotal + mcpService.servers.get().length + pluginCount;
+}
+
+export function getActiveItemProvider(
+	sessionsManagementService: ISessionsManagementService,
+	harnessService: ICustomizationHarnessService,
+): ICustomizationItemProvider | undefined {
+	const sessionType = sessionsManagementService.activeSession.get()?.sessionType;
+	if (sessionType) {
+		return harnessService.findHarnessById(sessionType)?.itemProvider;
+	}
+	return undefined;
 }

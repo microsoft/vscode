@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
-import { FileEdit, ModelSelection, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -44,7 +44,7 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sess
  */
 export interface IAgentHostAdapterOptions {
 	readonly icon: ThemeIcon;
-	readonly description: IMarkdownString;
+	readonly description: IMarkdownString | undefined;
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
@@ -249,6 +249,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessionConfig = this._register(new Emitter<string>());
 	readonly onDidChangeSessionConfig = this._onDidChangeSessionConfig.event;
 
+	protected readonly _onDidChangeRootConfig = this._register(new Emitter<void>());
+	readonly onDidChangeRootConfig = this._onDidChangeRootConfig.event;
+
+	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
+	protected _rootConfig: RootConfigState | undefined;
+
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
 
@@ -357,6 +363,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._sessionTypes = next;
 		this._onDidChangeSessionTypes.fire();
+	}
+
+	/**
+	 * Reconcile {@link _rootConfig} against {@link RootState.config}, firing
+	 * {@link onDidChangeRootConfig} only when schema or values actually change.
+	 */
+	protected _syncRootConfigFromRootState(rootState: RootState): void {
+		const next = rootState.config;
+		const prev = this._rootConfig;
+		if (prev === next) {
+			return;
+		}
+		if (!next) {
+			this._rootConfig = undefined;
+			this._onDidChangeRootConfig.fire();
+			return;
+		}
+		if (prev && prev.schema === next.schema && equals(prev.values, next.values)) {
+			return;
+		}
+		this._rootConfig = next;
+		this._onDidChangeRootConfig.fire();
 	}
 
 	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
@@ -575,7 +603,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			const editable = schema.sessionMutable === true && schema.readOnly !== true;
-			if (editable && Object.hasOwn(values, key)) {
+			if (editable) {
 				nextValues[key] = values[key];
 			} else if (Object.hasOwn(runningConfig.values, key)) {
 				nextValues[key] = runningConfig.values[key];
@@ -631,6 +659,67 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	clearSessionConfig(sessionId: string): void {
 		this._clearNewSessionConfig(sessionId);
+	}
+
+	// -- Root (agent host) Config --------------------------------------------
+
+	getRootConfig(): RootConfigState | undefined {
+		return this._rootConfig;
+	}
+
+	async setRootConfigValue(property: string, value: unknown): Promise<void> {
+		const current = this._rootConfig;
+		const connection = this.connection;
+		if (!current || !connection) {
+			return;
+		}
+		if (!current.schema.properties[property]) {
+			return;
+		}
+
+		// Optimistically update local cache.
+		this._rootConfig = {
+			...current,
+			values: { ...current.values, [property]: value },
+		};
+		this._onDidChangeRootConfig.fire();
+
+		const action = {
+			type: ActionType.RootConfigChanged as const,
+			config: { [property]: value },
+		};
+		connection.dispatch(action);
+	}
+
+	async replaceRootConfig(values: Record<string, unknown>): Promise<void> {
+		const current = this._rootConfig;
+		const connection = this.connection;
+		if (!current || !connection) {
+			return;
+		}
+
+		// Filter to known properties so we don't dispatch values for keys the
+		// host didn't publish a schema for.
+		const nextValues: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(values)) {
+			if (current.schema.properties[key]) {
+				nextValues[key] = value;
+			}
+		}
+
+		if (equals(nextValues, current.values)) {
+			return;
+		}
+
+		this._rootConfig = { ...current, values: nextValues };
+		this._onDidChangeRootConfig.fire();
+
+		const action = {
+			type: ActionType.RootConfigChanged as const,
+			config: nextValues,
+			replace: true,
+		};
+		connection.dispatch(action);
 	}
 
 	// -- Model selection ------------------------------------------------------

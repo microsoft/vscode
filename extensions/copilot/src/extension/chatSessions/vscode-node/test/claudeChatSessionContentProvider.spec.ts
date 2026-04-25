@@ -84,6 +84,7 @@ beforeAll(() => {
 						groups,
 						sessionResource: undefined,
 						onDidChange: emitter.event,
+						onDidDispose: Event.None,
 					};
 					// Proxy that fires onDidChange when groups are replaced
 					return new Proxy(state, {
@@ -325,7 +326,7 @@ async function runHandlerAndCapture(
 				resource: ClaudeSessionUri.forSessionId(sessionId),
 				label: 'Test Session',
 			},
-			inputState: { groups, sessionResource: undefined, onDidChange: Event.None },
+			inputState: { groups, sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 		},
 	} as vscode.ChatContext;
 
@@ -660,7 +661,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: buildInputStateGroups(options), sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(options), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -775,6 +776,7 @@ describe('ChatSessionContentProvider', () => {
 						}),
 						sessionResource: undefined,
 						onDidChange: Event.None,
+						onDidDispose: Event.None,
 					},
 				},
 			} as vscode.ChatContext;
@@ -845,7 +847,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -945,7 +947,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -1163,6 +1165,7 @@ describe('ChatSessionContentProvider', () => {
 				groups: lockedGroups,
 				sessionResource: undefined,
 				onDidChange: Event.None,
+				onDidDispose: Event.None,
 			};
 			// sanity check
 			expect(initialGroup.items.map(i => i.id)).toEqual([folderA.fsPath, folderB.fsPath]);

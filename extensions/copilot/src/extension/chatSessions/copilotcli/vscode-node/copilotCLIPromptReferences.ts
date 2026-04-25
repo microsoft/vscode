@@ -6,17 +6,17 @@
 import type { Attachment } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import type { ChatPromptReference } from 'vscode';
-import { isLocation } from '../../../util/common/types';
-import { coalesce } from '../../../util/vs/base/common/arrays';
-import { Codicon } from '../../../util/vs/base/common/codicons';
-import { ResourceSet } from '../../../util/vs/base/common/map';
-import { basename } from '../../../util/vs/base/common/resources';
-import { isNumber, isString } from '../../../util/vs/base/common/types';
-import { URI } from '../../../util/vs/base/common/uri';
-import { Range as InternalRange } from '../../../util/vs/editor/common/core/range';
-import { SymbolKind } from '../../../util/vs/workbench/api/common/extHostTypes/symbolInformation';
-import { ChatReferenceDiagnostic, Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Range, Uri } from '../../../vscodeTypes';
-import { PromptFileIdPrefix } from '../../prompt/common/chatVariablesCollection';
+import { isLocation } from '../../../../util/common/types';
+import { coalesce } from '../../../../util/vs/base/common/arrays';
+import { Codicon } from '../../../../util/vs/base/common/codicons';
+import { ResourceSet } from '../../../../util/vs/base/common/map';
+import { basename } from '../../../../util/vs/base/common/resources';
+import { isNumber, isString } from '../../../../util/vs/base/common/types';
+import { URI } from '../../../../util/vs/base/common/uri';
+import { Range as InternalRange } from '../../../../util/vs/editor/common/core/range';
+import { SymbolKind } from '../../../../util/vs/workbench/api/common/extHostTypes/symbolInformation';
+import { ChatReferenceDiagnostic, Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Range, Uri } from '../../../../vscodeTypes';
+import { PromptFileIdPrefix } from '../../../prompt/common/chatVariablesCollection';
 
 /**
  * Converts a ChatPromptReference into a PromptVariable entry that is used in VS code.

@@ -2533,11 +2533,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;
-					widget.onDidDispose(() => {
+					this._register(widget.onDidDispose(() => {
 						if (this.permissionWidget === widget) {
 							this.permissionWidget = undefined;
 						}
-					});
+					}));
 					return widget;
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
@@ -2991,6 +2991,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	navigateToNextQuestion(): boolean {
 		const carousel = this.questionCarousel;
 		return carousel?.navigateToNextQuestion() ?? false;
+	}
+
+	focusQuestionCarouselTerminal(): boolean {
+		const carousel = this.questionCarousel;
+		return carousel?.focusTerminal() ?? false;
 	}
 
 	// --- Plan Review ---
@@ -3506,8 +3511,57 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	layout(width: number) {
 		this.cachedWidth = width;
 		this._stableInputPartWidth.set(width, undefined);
+		this._updateWorkingProgressAnimationDuration(width);
 
 		return this._layout(width);
+	}
+
+	/**
+	 * Scale the working/progress border comet animation duration with
+	 * the input width so the comet's perceived linear travel speed (the
+	 * rate it sweeps along the perimeter in px/sec) stays roughly
+	 * constant. A fixed cycle time made wide inputs feel sluggish, but
+	 * an aggressive inverse curve made narrow inputs feel slow because
+	 * their cycle was clamped while the comet had little distance to
+	 * cover. Sub-linear scaling with width (`sqrt(width)`) plus tight
+	 * clamps keeps both extremes looking lively.
+	 */
+	private _lastAnimDurationS: number | undefined;
+	private _updateWorkingProgressAnimationDuration(width: number): void {
+		if (!this.inputContainer) {
+			return;
+		}
+		// Sub-linear scaling: cycle time grows with width but tapers off
+		// so wide inputs still feel snappy. Tuned so ~400px → ~1.7s and
+		// ~1000px → ~2.3s rather than ~4s.
+		const MIN_DURATION_S = 1.4;
+		const MAX_DURATION_S = 2.5;
+		const safeWidth = Math.max(50, width);
+		const raw = 0.55 + 0.075 * Math.sqrt(safeWidth);
+		const duration = Math.min(MAX_DURATION_S, Math.max(MIN_DURATION_S, raw));
+
+		// Skip no-op updates (e.g. repeated layout calls during steady state).
+		if (this._lastAnimDurationS !== undefined && Math.abs(this._lastAnimDurationS - duration) < 0.05) {
+			return;
+		}
+		this._lastAnimDurationS = duration;
+		this.inputContainer.style.setProperty('--chat-input-anim-duration', `${duration.toFixed(2)}s`);
+
+		// CSS animations capture animation-duration at start time and most
+		// browsers do not re-pick up values that come from a custom
+		// property mid-flight. If the comet is currently spinning, restart
+		// it on the next animation frame so style and layout changes can
+		// batch without forcing a synchronous reflow. Toggling the .working
+		// class would cancel the in-flight indicator state, so instead we
+		// briefly flip a marker class that the CSS uses to swap
+		// animation-name.
+		if (this.inputContainer.classList.contains('working')) {
+			const inputContainer = this.inputContainer;
+			inputContainer.classList.add('chat-input-anim-restart');
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(inputContainer), () => {
+				inputContainer.classList.remove('chat-input-anim-restart');
+			});
+		}
 	}
 
 	private get _effectiveInputEditorMaxHeight(): number {

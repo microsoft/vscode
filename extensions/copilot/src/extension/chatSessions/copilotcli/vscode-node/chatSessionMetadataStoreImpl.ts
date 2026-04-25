@@ -5,19 +5,19 @@
 
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
-import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { createDirectoryIfNotExists, IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
-import { ILogService } from '../../../platform/log/common/logService';
-import { findLast } from '../../../util/vs/base/common/arraysFind';
-import { SequencerByKey, ThrottledDelayer } from '../../../util/vs/base/common/async';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { dirname } from '../../../util/vs/base/common/resources';
-import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../common/chatSessionMetadataStore';
-import { ChatSessionWorktreeProperties } from '../common/chatSessionWorktreeService';
-import { isUntitledSessionId } from '../common/utils';
-import { IWorkspaceInfo } from '../common/workspaceInfo';
-import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { ICopilotCLIAgents } from '../copilotcli/node/copilotCli';
+import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
+import { createDirectoryIfNotExists, IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { findLast } from '../../../../util/vs/base/common/arraysFind';
+import { SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
+import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { dirname } from '../../../../util/vs/base/common/resources';
+import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
+import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
+import { isUntitledSessionId } from '../../common/utils';
+import { IWorkspaceInfo } from '../../common/workspaceInfo';
+import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
+import { ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
 
 // const WORKSPACE_FOLDER_MEMENTO_KEY = 'github.copilot.cli.sessionWorkspaceFolders';
 // const WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';

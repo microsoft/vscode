@@ -61,7 +61,11 @@ suite('AgentHostStateManager', () => {
 		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
 		assert.ok(snapshot);
 		assert.strictEqual(snapshot.resource.toString(), ROOT_STATE_URI.toString());
-		assert.deepStrictEqual(snapshot.state, { agents: [], activeSessions: 0 });
+		const root = snapshot.state as { agents: unknown[]; activeSessions: number; config?: { values?: Record<string, unknown> } };
+		assert.deepStrictEqual(root.agents, []);
+		assert.strictEqual(root.activeSessions, 0);
+		// Host config is seeded with the platform root schema and defaults.
+		assert.ok(root.config, 'root state should include a seeded config');
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {
@@ -180,7 +184,9 @@ suite('AgentHostStateManager', () => {
 	test('root state starts with activeSessions: 0', () => {
 		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
 		assert.ok(snapshot);
-		assert.deepStrictEqual(snapshot.state, { agents: [], activeSessions: 0 });
+		const root = snapshot.state as { agents: unknown[]; activeSessions: number };
+		assert.deepStrictEqual(root.agents, []);
+		assert.strictEqual(root.activeSessions, 0);
 	});
 
 	test('turnStarted dispatches root/activeSessionsChanged with correct count', () => {

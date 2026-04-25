@@ -13,7 +13,7 @@ Desktop Parts (`ChatBarPart`, `SidebarPart`, `PanelPart`, `AuxiliaryBarPart`) re
 Each mobile Part checks the current layout class (via `isPhoneLayout(layoutService)`) at every call. When the viewport is phone it applies mobile behavior (full-cell layout, no card chrome, no session-bar subtraction). When the viewport is tablet/desktop — which happens when a real phone rotates past the 640px breakpoint — it delegates to the desktop `super` implementation. This means a `Mobile*Part` instance is safe to keep through a viewport-class transition without producing wrong layout math.
 
 This means:
-- Desktop code has **zero** phone-layout checks — all mobile logic lives in mobile subclasses, `MobileTopBar`, and CSS.
+- Desktop code has **zero** phone-layout checks — all mobile logic lives in mobile subclasses, `MobileTitlebarPart`, and CSS.
 - Phone-instantiated parts adapt correctly to rotation across the 640px breakpoint by delegating to `super`.
 
 After a viewport-class transition the workbench calls `updateStyles()` on each pane composite part so card-chrome inline styles get re-applied (desktop) or cleared (phone) for the new class.
@@ -43,7 +43,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 | "Open in VS Code" action | ❌ Gated | `when: !sessionsIsPhoneLayout` on menu item |
 | Code review toolbar | ❌ Gated | `when: !sessionsIsPhoneLayout` on menu item |
 | Customizations toolbar | ❌ Hidden | CSS `display: none` on phone |
-| Titlebar | ❌ Hidden | Grid `visible: false` + CSS + MobileTopBar replacement |
+| Titlebar | ❌ Hidden | Grid `visible: false` + CSS + MobileTitlebarPart replacement |
 
 ### Phone Layout
 
@@ -51,7 +51,7 @@ On phone-sized viewports (`< 640px` width):
 
 ```
 ┌──────────────────────────────────┐
-│  [☰]  Session Title          [+] │  ← MobileTopBar (prepended before grid)
+│  [☰]  Session Title          [+] │  ← MobileTitlebarPart (prepended before grid)
 ├──────────────────────────────────┤
 │                                  │
 │     Chat (edge-to-edge)          │  ← Grid: ChatBarPart fills 100%
@@ -64,9 +64,9 @@ On phone-sized viewports (`< 640px` width):
 └──────────────────────────────────┘
 ```
 
-- **MobileTopBar** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and new session (+) button.
+- **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and new session (+) button.
 - **Sidebar** is hidden by default and opens as an **85% width drawer overlay** with a backdrop when the hamburger is tapped. CSS makes its `split-view-view` absolutely positioned with `z-index: 250`. The workbench manually calls `sidebarPart.layout()` with drawer dimensions after opening. Closing the drawer clears the navigation stack.
-- **Titlebar** is hidden in the grid (`visible: false`) and via CSS — replaced by MobileTopBar.
+- **Titlebar** is hidden in the grid (`visible: false`) and via CSS — replaced by MobileTitlebarPart.
 - **SessionCompositeBar** (chat tabs) is hidden via CSS.
 - The grid uses `display: flex; flex-direction: column` and all `split-view-view:has(> .part)` containers are positioned absolutely at `100% width/height`.
 
@@ -77,7 +77,7 @@ On phone-sized viewports (`< 640px` width):
 - **tablet**: `640px ≤ width < 1024px` (treated as desktop; no phone-specific chrome)
 - **desktop**: `width ≥ 1024px`
 
-The workbench toggles the `phone-layout` CSS class on `layout()` and creates/destroys mobile components when the viewport class changes at runtime (e.g., DevTools device emulation, or a real phone rotating across the 640px breakpoint). MobileTopBar lifecycle is managed via a `DisposableStore` that is cleared on viewport transitions to prevent leaks.
+The workbench toggles the `phone-layout` CSS class on `layout()` and creates/destroys mobile components when the viewport class changes at runtime (e.g., DevTools device emulation, or a real phone rotating across the 640px breakpoint). MobileTitlebarPart lifecycle is managed via a `DisposableStore` that is cleared on viewport transitions to prevent leaks.
 
 ### Context Keys
 
@@ -90,13 +90,13 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | Desktop Component | Mobile Equivalent | How Accessed |
 |---|---|---|
-| **Titlebar** (3-section toolbar) | **MobileTopBar** (☰ / title / +) | Always visible at top |
+| **Titlebar** (3-section toolbar) | **MobileTitlebarPart** (☰ / title / +) | Always visible at top |
 | **Sidebar** (sessions list) | Drawer overlay (85% width) | Hamburger button (☰) |
 | **ChatBar** (chat widget) | Same Part, edge-to-edge, no card chrome | Default view (always visible) |
 | **AuxiliaryBar** (files, changes) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **Panel** (terminal, output) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **SessionCompositeBar** (chat tabs) | Hidden on phone | — |
-| **New Session** (sidebar button) | + button in MobileTopBar | Always visible in top bar |
+| **New Session** (sidebar button) | + button in MobileTitlebarPart | Always visible in top bar |
 
 ## File Map
 
@@ -113,7 +113,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Purpose |
 |------|---------|
-| `browser/parts/mobile/mobileTopBar.ts` | Phone top bar: hamburger (☰), session title, new session (+). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. |
+| `browser/parts/mobile/mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, new session (+). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. |
 | `browser/parts/mobile/mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, mobile pickers. |
 
 ### Layout & Navigation
@@ -134,7 +134,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Key Changes |
 |------|-------------|
-| `browser/workbench.ts` | Layout policy integration, MobileTopBar creation/destruction (via `DisposableStore`), sidebar drawer open/close with backdrop, viewport-class-change detection, window resize listener, grid height calculation (subtracts MobileTopBar height), titlebar grid visibility toggle, `ISessionsManagementService` for new session button. |
+| `browser/workbench.ts` | Layout policy integration, MobileTitlebarPart creation/destruction (via `DisposableStore`), sidebar drawer open/close with backdrop, viewport-class-change detection, window resize listener, grid height calculation (subtracts MobileTitlebarPart height), titlebar grid visibility toggle, `ISessionsManagementService` for new session button. |
 | `browser/parts/chatBarPart.ts` | `_lastLayout` changed from `private` to `protected` for mobile subclass access. |
 
 ### Styling
@@ -147,7 +147,6 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 ## Remaining Work
 
-- **Session title sync**: MobileTopBar shows hardcoded "New Session" — needs to subscribe to `sessionsManagementService.activeSession` and update title when session changes.
 - **Files & Terminal access**: Should become phone-specific views gated with `when: IsPhoneLayoutContext`.
 - **iOS keyboard handling**: Adjust layout when virtual keyboard appears (context key exists, but no layout response yet).
 - **Session list inline actions**: Make always-visible on touch devices (no hover-to-reveal).

@@ -6,16 +6,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
-import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
-import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
-import { ILogService } from '../../../../platform/log/common/logService';
-import { mock } from '../../../../util/common/test/simpleMock';
-import { Emitter } from '../../../../util/vs/base/common/event';
-import { URI } from '../../../../util/vs/base/common/uri';
-import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
-import { IWorkspaceInfo } from '../../common/workspaceInfo';
-import { getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
-import { NullCopilotCLIAgents } from '../../copilotcli/node/test/testHelpers';
+import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
+import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
+import { ILogService } from '../../../../../platform/log/common/logService';
+import { mock } from '../../../../../util/common/test/simpleMock';
+import { Emitter } from '../../../../../util/vs/base/common/event';
+import { URI } from '../../../../../util/vs/base/common/uri';
+import { ChatSessionWorktreeProperties } from '../../../common/chatSessionWorktreeService';
+import { IWorkspaceInfo } from '../../../common/workspaceInfo';
+import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
+import { NullCopilotCLIAgents } from '../../../copilotcli/node/test/testHelpers';
 import { ChatSessionMetadataStore } from '../chatSessionMetadataStoreImpl';
 
 // Hoisted holder lets each test point the JSONL helper at its own mock path.
@@ -24,8 +24,8 @@ const jsonlPathHolder = vi.hoisted(() => {
 	return { get: () => p };
 });
 
-vi.mock('../../copilotcli/node/cliHelpers', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../copilotcli/node/cliHelpers')>();
+vi.mock('../../../copilotcli/node/cliHelpers', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../../copilotcli/node/cliHelpers')>();
 	return {
 		...actual,
 		getCopilotCLISessionDir: (sessionId: string) => `/mock/session-state/${sessionId}`,

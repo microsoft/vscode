@@ -5,6 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -16,6 +17,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { Menus } from '../../../browser/menus.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -468,9 +470,15 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.sessions.connectViaSSH',
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
+			shortTitle: localize2('connectViaSSHShort', "SSH..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
+			icon: Codicon.remote,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+			menu: {
+				id: Menus.SessionWorkspaceManage,
+				order: 20,
+			},
 		});
 	}
 
@@ -647,9 +655,15 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.sessions.connectViaTunnel',
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
+			shortTitle: localize2('connectViaTunnelShort', "Tunnels..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
+			icon: Codicon.cloud,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+			menu: {
+				id: Menus.SessionWorkspaceManage,
+				order: 10,
+			},
 		});
 	}
 
