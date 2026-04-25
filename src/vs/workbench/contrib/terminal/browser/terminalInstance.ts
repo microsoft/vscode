@@ -272,6 +272,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get maxRows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
 	get processId(): number | undefined { return this._processManager.shellProcessId; }
+	get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
+	get daemonId(): string | undefined { return this._processManager.daemonId; }
+	get shouldPersist(): boolean { return this._processManager.shouldPersist; }
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
