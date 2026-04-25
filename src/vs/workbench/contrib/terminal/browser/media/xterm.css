@@ -81,9 +81,9 @@
 }
 
 .xterm .composition-view {
-	/* Use terminal background color from theme instead of hardcoded black */
-	background: var(--vscode-terminal-background, #000);
-	color: #FFF;
+	/* Use terminal colors from the theme, avoiding a hardcoded black fallback */
+	background: var(--vscode-terminal-background, transparent);
+	color: var(--vscode-terminal-foreground, inherit);
 	display: none;
 	position: absolute;
 	white-space: nowrap;
