@@ -14,7 +14,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { compareMatchedCustomizationItems, extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -127,6 +127,66 @@ suite('aiCustomizationListWidget', () => {
 			assert.strictEqual(
 				extractExtensionIdFromPath('/workspace/extensions/my-extension/SKILL.md'),
 				undefined
+			);
+		});
+	});
+
+	suite('compareMatchedCustomizationItems', () => {
+		const nameMatch = [{ start: 0, end: 1 }];
+
+		test('ranks name-matched items above description-only matches when search is active', () => {
+			const titleMatch = { name: 'screenshot', nameMatches: nameMatch };
+			const descriptionOnly = { name: 'agent', nameMatches: undefined };
+
+			assert.ok(
+				compareMatchedCustomizationItems(titleMatch, descriptionOnly, true) < 0,
+				'expected title match to sort before description-only match'
+			);
+			assert.ok(
+				compareMatchedCustomizationItems(descriptionOnly, titleMatch, true) > 0,
+				'expected description-only match to sort after title match'
+			);
+		});
+
+		test('falls back to alphabetical order when both items match by name', () => {
+			const a = { name: 'apple', nameMatches: nameMatch };
+			const b = { name: 'banana', nameMatches: nameMatch };
+
+			assert.ok(compareMatchedCustomizationItems(a, b, true) < 0);
+			assert.ok(compareMatchedCustomizationItems(b, a, true) > 0);
+		});
+
+		test('falls back to alphabetical order when neither item matches by name', () => {
+			const a = { name: 'apple', nameMatches: undefined };
+			const b = { name: 'banana', nameMatches: undefined };
+
+			assert.ok(compareMatchedCustomizationItems(a, b, true) < 0);
+			assert.ok(compareMatchedCustomizationItems(b, a, true) > 0);
+		});
+
+		test('uses plain alphabetical order when search is inactive', () => {
+			const titleMatch = { name: 'zeta', nameMatches: nameMatch };
+			const noMatch = { name: 'alpha', nameMatches: undefined };
+
+			// Even though `titleMatch` has nameMatches, with search inactive
+			// we should ignore that signal and just sort alphabetically.
+			assert.ok(compareMatchedCustomizationItems(titleMatch, noMatch, false) > 0);
+			assert.ok(compareMatchedCustomizationItems(noMatch, titleMatch, false) < 0);
+		});
+
+		test('produces correct ordering when sorting a mixed list', () => {
+			const items = [
+				{ name: 'beta-desc', nameMatches: undefined },
+				{ name: 'zulu-name', nameMatches: nameMatch },
+				{ name: 'alpha-desc', nameMatches: undefined },
+				{ name: 'mike-name', nameMatches: nameMatch },
+			];
+
+			items.sort((a, b) => compareMatchedCustomizationItems(a, b, true));
+
+			assert.deepStrictEqual(
+				items.map(i => i.name),
+				['mike-name', 'zulu-name', 'alpha-desc', 'beta-desc']
 			);
 		});
 	});
