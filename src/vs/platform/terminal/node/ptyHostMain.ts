@@ -19,6 +19,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IReconnectConstants, TerminalIpcChannels } from '../common/terminal.js';
 import { HeartbeatService } from './heartbeatService.js';
 import { PtyService } from './ptyService.js';
+import { TerminalDaemonServiceClient } from './terminalDaemonService.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { timeout } from '../../../base/common/async.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -80,7 +81,8 @@ async function startPtyHost() {
 	server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService, disposables));
 
 	// Init pty service
-	const ptyService = new PtyService(logService, productService, reconnectConstants, simulatedLatency);
+	const terminalDaemonService = disposables.add(new TerminalDaemonServiceClient(logService));
+	const ptyService = new PtyService(logService, productService, reconnectConstants, simulatedLatency, terminalDaemonService);
 	const ptyServiceChannel = ProxyChannel.fromService(ptyService, disposables);
 	server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
 
