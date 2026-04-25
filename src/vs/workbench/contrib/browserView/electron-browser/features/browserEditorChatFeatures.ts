@@ -26,7 +26,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -42,7 +41,7 @@ import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Register tools
-import '../tools/browserTools.contribution.js';
+import { canShareBrowserWithAgentContext } from '../tools/browserTools.contribution.js';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -158,12 +157,6 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 const BrowserCategory = localize2('browserCategory', "Browser");
 
 const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
-
-const canShareBrowserWithAgentContext = ContextKeyExpr.and(
-	ChatContextKeys.enabled,
-	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
-	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
-)!;
 
 
 /**
