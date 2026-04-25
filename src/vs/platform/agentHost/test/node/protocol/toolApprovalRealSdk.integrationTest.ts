@@ -253,6 +253,149 @@ function terminalText(state: TerminalState): string {
 	return removeAnsiEscapeCodes(state.content.map(part => part.type === 'command' ? `${part.commandLine}\n${part.output}` : part.value).join(''));
 }
 
+/** Looks up the toolName for a toolCallReady by joining against the matching toolCallStart. */
+function findToolNameForCall(c: TestProtocolClient, toolCallId: string): string | undefined {
+	return c.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
+		.map(n => getActionEnvelope(n).action as SessionToolCallStartAction)
+		.find(a => a.toolCallId === toolCallId)?.toolName;
+}
+
+interface IApprovalRule {
+	/** Tool name this rule applies to (e.g. `'bash'`, `'write_bash'`). */
+	toolName: string;
+	/** Optional predicate over the tool input. If omitted, any input matches. */
+	matchInput?: (toolInput: string | undefined) => boolean;
+	/**
+	 * Optional inspector run for every matched call before approval.
+	 * Push assertion failure messages onto `errors` to fail the test.
+	 */
+	inspect?: (info: {
+		action: SessionToolCallReadyAction;
+		errors: string[];
+	}) => void;
+}
+
+interface IBackgroundApprovalLoopOptions {
+	/** Starting clientSeq for dispatched toolCallConfirmed actions. Avoids collisions with the test's own dispatches. */
+	approvalSeqStart: number;
+	/**
+	 * Allow-list of tool calls the loop is permitted to auto-approve. Each
+	 * pending confirmation must match exactly one rule (by `toolName` plus
+	 * optional `matchInput` predicate). Calls that don't match are recorded
+	 * as errors and denied — the loop refuses to rubber-stamp anything the
+	 * test didn't anticipate (e.g. an unexpected `rm` from the model).
+	 */
+	allow: readonly IApprovalRule[];
+}
+
+interface IBackgroundApprovalLoop {
+	/** Errors collected during the run (unmatched tool calls + inspector failures). */
+	readonly errors: readonly string[];
+	/** Tool names that were observed and approved at least once. */
+	readonly approvedToolNames: ReadonlySet<string>;
+	/**
+	 * Tool names for every permission request observed by the loop, regardless
+	 * of whether they matched the allow-list. Useful for asserting that a
+	 * tool with `skipPermission: true` never triggered a permission flow.
+	 */
+	readonly observedToolNames: ReadonlySet<string>;
+	/** Stops the loop and waits for it to drain. */
+	stop(): Promise<void>;
+}
+
+/**
+ * Starts a background loop that auto-approves pending tool call confirmations
+ * during a real-SDK turn, but only if they match the supplied allow-list.
+ * Anything outside the allow-list is denied and recorded as an error so the
+ * test fails loudly instead of silently approving model-chosen tool calls.
+ *
+ * Implementation note: `waitForNotification` does NOT consume notifications from
+ * the client's queue, so we dedupe by `serverSeq`.
+ */
+function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackgroundApprovalLoopOptions): IBackgroundApprovalLoop {
+	const errors: string[] = [];
+	const approvedToolNames = new Set<string>();
+	const observedToolNames = new Set<string>();
+	const processedSeqs = new Set<number>();
+	let active = true;
+	let approvalSeq = options.approvalSeqStart;
+
+	const loop = (async () => {
+		while (active) {
+			try {
+				const ready = await c.waitForNotification(n => {
+					if (!isActionNotification(n, 'session/toolCallReady')) {
+						return false;
+					}
+					return !processedSeqs.has(getActionEnvelope(n).serverSeq);
+				}, 2_000);
+				const envelope = getActionEnvelope(ready);
+				processedSeqs.add(envelope.serverSeq);
+				const action = envelope.action as SessionToolCallReadyAction & { session: string; turnId: string };
+				if (action.confirmed) {
+					continue;
+				}
+
+				const toolName = findToolNameForCall(c, action.toolCallId);
+				if (toolName) {
+					observedToolNames.add(toolName);
+				}
+				const matchingRule = options.allow.find(rule =>
+					rule.toolName === toolName
+					&& (rule.matchInput?.(action.toolInput) ?? true));
+
+				if (!matchingRule) {
+					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);
+					c.notify('dispatchAction', {
+						clientSeq: ++approvalSeq,
+						action: {
+							type: 'session/toolCallConfirmed',
+							session: action.session,
+							turnId: action.turnId,
+							toolCallId: action.toolCallId,
+							approved: false,
+						},
+					});
+					continue;
+				}
+
+				matchingRule.inspect?.({ action, errors });
+				approvedToolNames.add(matchingRule.toolName);
+
+				c.notify('dispatchAction', {
+					clientSeq: ++approvalSeq,
+					action: {
+						type: 'session/toolCallConfirmed',
+						session: action.session,
+						turnId: action.turnId,
+						toolCallId: action.toolCallId,
+						approved: true,
+					},
+				});
+			} catch (e) {
+				// Only ignore the expected 2-second poll timeout. Any other error
+				// (e.g. 'Client closed', exception from matchingRule.inspect) is a
+				// real failure — record it so the test fails deterministically.
+				const msg = e instanceof Error ? e.message : String(e);
+				if (!msg.includes('Timed out') && !msg.includes('timed out')) {
+					errors.push(`approval loop error: ${msg}`);
+					active = false;
+				}
+			}
+		}
+	})();
+
+	return {
+		errors,
+		approvedToolNames,
+		observedToolNames,
+		async stop(): Promise<void> {
+			active = false;
+			await loop;
+		},
+	};
+}
+
 (REAL_SDK_ENABLED ? suite : suite.skip)('Protocol WebSocket — Real Copilot SDK', function () {
 
 	let server: IServerHandle;
@@ -872,5 +1015,89 @@ function terminalText(state: TerminalState): string {
 				});
 			}
 		}
+	});
+
+	// ---- write_bash skipPermission regression test --------------------------
+
+	test('write_bash never triggers a permission request (skipPermission flag)', async function () {
+		this.timeout(180_000);
+
+		// What this test verifies:
+		//   `write_bash` (and `read_bash` / `bash_shutdown` / `list_bash`) are
+		//   registered as external tools with `skipPermission: true`, mirroring
+		//   the SDK's built-in shell helpers which never call `permissions.request`.
+		//   This regression test catches accidental removal of that flag — if it's
+		//   removed, the SDK will route write_bash through our permission flow and
+		//   the test will fail with `observedToolNames` containing 'write_bash'.
+		//
+		// How it works:
+		//   1. Allow-list permits ONLY `bash` (the interactive prompt). write_bash
+		//      is intentionally absent from the allow list.
+		//   2. The model is instructed to use `write_bash`. If any permission
+		//      request appears for write_bash, the loop records it in
+		//      `observedToolNames` and we fail the assertion.
+		//   3. We assert that bash actually ran AND that write_bash appeared in
+		//      toolCallStart notifications (so the test is non-vacuous — the model
+		//      actually tried to use the tool, not just piped input via bash).
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-write-bash-skip-perm-`);
+		tempDirs.push(tempDir);
+		const sessionUri = await createRealSession(client, 'real-sdk-write-bash-skip-perm', createdSessions, URI.file(tempDir).toString());
+
+		const approvalLoop = startBackgroundApprovalLoop(client, {
+			approvalSeqStart: 100,
+			allow: [
+				{
+					// Setup bash command — the interactive `read` prompt.
+					toolName: 'bash',
+					matchInput: input => !!input && input.includes('read') && input.includes('Got:'),
+				},
+				// Note: write_bash is intentionally NOT in the allow list. With
+				// skipPermission: true, the SDK won't ask us — so the test passes.
+				// Without it, the SDK would ask, the loop would deny + record an
+				// error, and the test would fail loudly.
+			],
+		});
+
+		dispatchTurn(client, sessionUri, 'turn-write-bash-skip-perm',
+			'You MUST demonstrate the `write_bash` tool. Steps, in order:\n' +
+			'1. Use the `bash` tool to run exactly: read -p "Enter: " v; echo "Got: $v"\n' +
+			'   This will block waiting for stdin.\n' +
+			'2. While that bash call is waiting, you MUST use the `write_bash` tool to send the input "hello\\n" to it.\n' +
+			'   Do NOT pipe the input via the original bash command. Do NOT use `echo hello | ...`.\n' +
+			'   You MUST go through the `write_bash` tool — that is the entire point of this task.\n' +
+			'3. After the shell prints "Got: hello", reply with the single word "done".',
+			1);
+
+		await client.waitForNotification(
+			n => isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+			150_000,
+		);
+		await approvalLoop.stop();
+
+		// Sanity check: the bash setup command actually ran. Otherwise the
+		// model ignored the prompt and the write_bash assertion below is vacuous.
+		assert.ok(approvalLoop.approvedToolNames.has('bash'),
+			`expected the model to invoke bash for setup; observed approved tools: ${[...approvalLoop.approvedToolNames].join(', ') || '<none>'}`);
+
+		// Non-vacuousness check: write_bash must have actually been invoked
+		// (seen in a toolCallStart notification). If the model piped input via
+		// the original bash command instead of using write_bash, this fails.
+		const writeBashStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as { toolName?: string })
+			.filter(a => a.toolName === 'write_bash');
+		assert.ok(writeBashStarts.length > 0,
+			`expected write_bash to be invoked at least once (toolCallStart), but it was never called. The model may have piped input via the original bash command instead.`);
+
+		// The actual regression check: write_bash must never reach our
+		// permission handler. If this fails, `skipPermission: true` was likely
+		// removed from copilotShellTools.ts.
+		assert.ok(!approvalLoop.observedToolNames.has('write_bash'),
+			`write_bash should be auto-approved by the SDK (skipPermission: true) and never trigger a permission request, but the test observed one. Observed permission requests: ${[...approvalLoop.observedToolNames].join(', ')}`);
+
+		// Any other unexpected permission requests (e.g. an unrelated tool the
+		// model decided to use) would also have been recorded as errors.
+		assert.deepStrictEqual(approvalLoop.errors, [],
+			`unexpected approval-loop errors: ${approvalLoop.errors.join('; ')}`);
 	});
 });

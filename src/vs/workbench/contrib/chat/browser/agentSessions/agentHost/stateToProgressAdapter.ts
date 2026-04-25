@@ -698,10 +698,16 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isFailure = (isCompleted && !tc.success) || isCancelled;
 	const errorMessage = isCompleted ? tc.error?.message : (isCancelled ? tc.reasonMessage : undefined);
 	const errorString = typeof errorMessage === 'string' ? errorMessage : errorMessage?.markdown;
+	const fileEdits = isCompleted ? fileEditsToExternalEdits(tc) : [];
+
+	// Hide the tool widget when file edits are shown separately via onFileEdits
+	if (fileEdits.length > 0 && !isFailure) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
+	}
+
 	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: errorString } : undefined);
 
-	// Extract file edits for the editing session pipeline
-	return isCompleted ? fileEditsToExternalEdits(tc) : [];
+	return fileEdits;
 }
 
 /**

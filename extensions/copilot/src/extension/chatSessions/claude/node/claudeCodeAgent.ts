@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
@@ -20,6 +20,7 @@ import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
+import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
@@ -214,6 +215,7 @@ export class ClaudeCodeSession extends Disposable {
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 	) {
@@ -429,6 +431,22 @@ export class ClaudeCodeSession extends Disposable {
 			const errorMessage = error instanceof Error ? (error.stack ?? error.message) : String(error);
 			this.logService.warn(`[ClaudeCodeSession] Failed to start MCP gateway: ${errorMessage}`);
 		}
+
+		// Build plugins from skill directories
+		const plugins: SdkPluginConfig[] = [];
+		try {
+			const pluginLocations = await this.claudePluginService.getPluginLocations(token);
+			for (const pluginLocation of pluginLocations) {
+				plugins.push({ type: 'local', path: pluginLocation.fsPath });
+			}
+			if (plugins.length > 0) {
+				this.logService.info(`[ClaudeCodeSession] Passing ${plugins.length} plugin(s) from skill locations`);
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? (error.stack ?? error.message) : String(error);
+			this.logService.warn(`[ClaudeCodeSession] Failed to resolve skill locations for plugins: ${errorMessage}`);
+		}
+
 		const options: Options = {
 			cwd,
 			additionalDirectories,
@@ -451,6 +469,7 @@ export class ClaudeCodeSession extends Disposable {
 			permissionMode: this._currentPermissionMode,
 			includeHookEvents: true,
 			mcpServers,
+			plugins,
 			settings: {
 				env: {
 					ANTHROPIC_BASE_URL: `http://localhost:${this.serverConfig.port}`,

@@ -278,6 +278,8 @@ export interface CLIAgentInfo {
 	readonly agent: Readonly<SweCustomAgent>;
 	/** File URI for prompt-file agents, synthetic `copilotcli:` URI for SDK-only agents. */
 	readonly sourceUri: URI;
+	readonly extensionId?: string;
+	readonly pluginUri?: URI;
 }
 
 export interface ICopilotCLIAgents {

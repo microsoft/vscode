@@ -168,10 +168,24 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+
+/**
+ * A set of well-known session types
+ */
+export namespace SessionType {
+	export const CopilotCLI = 'copilotcli';
+	export const CopilotCloud = 'copilot-cloud-agent';
+	export const Local = 'local';
+	export const ClaudeCode = 'claude-code';
+	export const Codex = 'openai-codex';
+	export const Growth = 'copilot-growth';
+	export const AgentHostCopilot = 'agent-host-copilot';
+}
+
 /**
  * The session type used for local agent chat sessions.
  */
-export const localChatSessionType = 'local';
+export const localChatSessionType = SessionType.Local;
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;

@@ -9,19 +9,20 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserEditorViewState } from './browserView.js';
+import { IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../common/browserView.js';
+import { IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -44,6 +45,14 @@ export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 }
 
+/**
+ * Fired before a {@link BrowserEditorInput} is disposed. Listeners may call
+ * {@link veto} to prevent disposal and keep the input and its model alive.
+ */
+export interface IBeforeDisposeBrowserEditorEvent {
+	veto(): void;
+}
+
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
 	static readonly EDITOR_ID = 'workbench.editor.browser';
@@ -51,32 +60,56 @@ export class BrowserEditorInput extends EditorInput {
 
 	private readonly _id: string;
 	private _initialData: IBrowserEditorInputData;
+
 	private _model: IBrowserViewModel | undefined;
 	private _modelPromise: Promise<IBrowserViewModel> | undefined;
+	private _modelStore = this._register(new DisposableStore());
+
+	private readonly _onBeforeDispose = this._register(new Emitter<IBeforeDisposeBrowserEditorEvent>());
+	readonly onBeforeDispose: Event<IBeforeDisposeBrowserEditorEvent> = this._onBeforeDispose.event;
 
 	constructor(
 		options: IBrowserEditorInputData,
+		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
-		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._id = options.id;
 		this._initialData = options;
+	}
 
-		this._register(this.lifecycleService.onWillShutdown((e) => {
-			if (this._model) {
-				// For reloads, we simply hide / re-show the view.
-				if (e.reason === ShutdownReason.RELOAD) {
-					void this._model.setVisible(false);
-				} else {
-					this._model.dispose();
-					this._model = undefined;
-				}
-			}
+	get model(): IBrowserViewModel | undefined {
+		return this._model;
+	}
+
+	set model(model: IBrowserViewModel) {
+		if (this._model === model) {
+			return;
+		}
+
+		this._modelStore.clear();
+		this._model = model;
+
+		// Set up cleanup when the model is disposed
+		this._modelStore.add(this._model.onWillDispose(() => {
+			this._modelStore.clear();
+			this._model = undefined;
 		}));
+
+		// Auto-close editor when webcontents closes
+		this._modelStore.add(this._model.onDidClose(() => {
+			this.dispose(true);
+		}));
+
+		// Listen for label-relevant changes to fire onDidChangeLabel
+		this._modelStore.add(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
+
+		this._onDidChangeLabel.fire();
 	}
 
 	get id() {
@@ -98,6 +131,14 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.favicon : this._initialData.favicon;
 	}
 
+	/**
+	 * Whether this editor was opened via a default localhost link open (setting
+	 * not explicitly configured by the user). Transient — not serialized.
+	 */
+	get isDefaultLinkOpen(): boolean {
+		return !!this._initialData.isDefaultLinkOpen;
+	}
+
 	navigate(url: string): void {
 		if (this._model) {
 			void this._model.loadURL(url);
@@ -114,31 +155,8 @@ export class BrowserEditorInput extends EditorInput {
 	override async resolve(): Promise<IBrowserViewModel> {
 		if (!this._model && !this._modelPromise) {
 			this._modelPromise = (async () => {
-				this._model = await this.browserViewWorkbenchService.getOrCreateBrowserViewModel(this._id);
+				this._model = await this._resolveModel();
 				this._modelPromise = undefined;
-
-				// Set up cleanup when the model is disposed
-				this._register(this._model.onWillDispose(() => {
-					this._model = undefined;
-				}));
-
-				// Auto-close editor when webcontents closes
-				this._register(this._model.onDidClose(() => {
-					this.dispose();
-				}));
-
-				// Listen for label-relevant changes to fire onDidChangeLabel
-				this._register(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
-				this._register(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
-				this._register(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
-				this._register(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
-
-				// Navigate to initial URL if provided
-				if (this._initialData.url) {
-					this._model.setInitialURL(this._initialData.url, this._initialData.title, this._initialData.favicon);
-				}
-
-				this._onDidChangeLabel.fire();
 
 				return this._model;
 			})();
@@ -263,11 +281,13 @@ export class BrowserEditorInput extends EditorInput {
 	override copy(): EditorInput {
 		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
 
-		return this.instantiationService.createInstance(BrowserEditorInput, {
-			id: generateUuid(),
-			url: this.url,
-			title: this.title,
-			favicon: this.favicon
+		return this.instantiationService.invokeFunction((accessor) => {
+			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+			return browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
+				url: this.url,
+				title: this.title,
+				favicon: this.favicon
+			});
 		});
 	}
 
@@ -286,7 +306,15 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
-	override dispose(): void {
+	override dispose(force?: boolean): void {
+		if (!force) {
+			let vetoed = false;
+			this._onBeforeDispose.fire({ veto: () => { vetoed = true; } });
+			if (vetoed) {
+				return;
+			}
+		}
+
 		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
 		if (this._model) {
 			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.
@@ -327,7 +355,10 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			const data: IBrowserEditorInputData = JSON.parse(serializedEditor);
-			return instantiationService.createInstance(BrowserEditorInput, data);
+			return instantiationService.invokeFunction((accessor) => {
+				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+				return browserViewWorkbenchService.getOrCreateLazy(data.id, data);
+			});
 		} catch {
 			return undefined;
 		}

@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -63,6 +64,66 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
+
+//  Open Session at Index (Ctrl/Cmd+1..9)
+
+const OPEN_SESSION_AT_INDEX_COMMAND_ID = 'sessionsViewPane.openSessionAtIndex';
+
+function digitToKeyCode(digit: number): KeyCode {
+	switch (digit) {
+		case 1: return KeyCode.Digit1;
+		case 2: return KeyCode.Digit2;
+		case 3: return KeyCode.Digit3;
+		case 4: return KeyCode.Digit4;
+		case 5: return KeyCode.Digit5;
+		case 6: return KeyCode.Digit6;
+		case 7: return KeyCode.Digit7;
+		case 8: return KeyCode.Digit8;
+		case 9: return KeyCode.Digit9;
+		default: return KeyCode.Unknown;
+	}
+}
+
+const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): void => {
+	if (typeof sessionIndex !== 'number') {
+		return;
+	}
+	const viewsService = accessor.get(IViewsService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
+	if (visible.length === 0) {
+		return;
+	}
+	// Index -1 means "last session"
+	const target = sessionIndex === -1
+		? visible[visible.length - 1]
+		: visible[sessionIndex];
+	if (!target) {
+		return;
+	}
+	sessionsManagementService.openSession(target.resource);
+};
+
+CommandsRegistry.registerCommand({
+	id: OPEN_SESSION_AT_INDEX_COMMAND_ID,
+	handler: openSessionAtIndex
+});
+
+// Ctrl/Cmd+1..8 open the Nth session, Ctrl/Cmd+9 opens the last session
+for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
+	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
+		// Higher than WorkbenchContrib to override `workbench.action.openEditorAtIndexN` (Ctrl+N on macOS)
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: IsSessionsWindowContext,
+		// Always use Ctrl (not Cmd on macOS) to avoid conflicting with Cmd+N view focus shortcuts
+		primary: KeyMod.CtrlCmd | digitToKeyCode(visibleIndex),
+		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
+		handler: accessor => openSessionAtIndex(accessor, sessionIndex)
+	});
+}
 
 //  View Title Menu
 

@@ -181,6 +181,22 @@ export async function trackIdleOnPrompt(
 		state = TerminalState.PromptAfterExecuting;
 		scheduler.schedule();
 	}, promptFallbackMs ?? 1000));
+	// Schedule an initial fallback with a longer timeout so we can detect idle
+	// even when no terminal data events arrive at all (e.g. shell integration
+	// is broken and the command finishes silently or hangs waiting for input).
+	// Without this, if no data events fire, neither scheduler is ever triggered
+	// and trackIdleOnPrompt blocks forever. We use a longer initial delay (10s)
+	// to avoid falsely reporting completion for commands that are slow to start
+	// producing output. Once any data arrives, the onData handler takes over
+	// with the shorter promptFallbackMs interval.
+	const initialFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			return;
+		}
+		state = TerminalState.PromptAfterExecuting;
+		scheduler.schedule();
+	}, 10_000));
+	initialFallbackScheduler.schedule();
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
@@ -194,6 +210,9 @@ export async function trackIdleOnPrompt(
 		PromptAfterExecuting,
 	}
 	store.add(onData(e => {
+		// Once any data arrives, cancel the initial fallback — the data-driven
+		// promptFallbackScheduler handles rescheduling from here.
+		initialFallbackScheduler.cancel();
 		// Update state
 		// p10k fires C as `133;C;`
 		const matches = e.matchAll(/(?:\x1b\]|\x9d)[16]33;(?<type>[ACD])(?:;.*)?(?:\x1b\\|\x07|\x9c)/g);

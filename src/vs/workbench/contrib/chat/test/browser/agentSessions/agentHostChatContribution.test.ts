@@ -15,8 +15,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type INotification, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isSessionAction, type ActionEnvelope, type INotification, type RootAction, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -50,6 +50,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -116,7 +117,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
-	public dispatchedActions: { action: SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: RootAction | SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
 	 *  (excludes lifecycle actions like activeClientChanged). */
@@ -156,7 +157,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	unsubscribe(_resource: URI): void { }
-	dispatchAction(action: SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 	private _nextSeq = 1;
@@ -249,7 +250,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: Event.None,
 		} satisfies IAgentSubscription<T>;
 	}
-	override dispatch(action: SessionAction | TerminalAction): void {
+	override dispatch(action: RootAction | SessionAction | TerminalAction): void {
 		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
@@ -637,6 +638,23 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 
 			assert.strictEqual(listController.items.length, 0);
+		});
+
+		test('refresh marks archived sessions as archived items', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'archived'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Archived session',
+				isArchived: true,
+			});
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.strictEqual(listController.items.length, 1);
+			assert.strictEqual(listController.items[0].archived, true);
 		});
 	});
 
@@ -1839,7 +1857,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [AgentHostSessionConfigBranchNameHintKey]: 'add-agent-host-session-configuration-flow' });
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [SessionConfigKey.BranchNameHint]: 'add-agent-host-session-configuration-flow' });
 		}));
 
 		test('handler derives deterministic branch name hints from first request text', () => {

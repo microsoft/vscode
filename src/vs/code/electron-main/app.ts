@@ -1143,7 +1143,7 @@ export class CodeApplication extends Disposable {
 
 		// Agent Host
 		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
-			const agentHostStarter = new ElectronAgentHostStarter(this.environmentMainService, this.lifecycleMainService, this.logService);
+			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}
 
@@ -1397,7 +1397,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Handle agents window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (!isLinux && args['agents'] && this.productService.quality !== 'stable')) {
+		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,

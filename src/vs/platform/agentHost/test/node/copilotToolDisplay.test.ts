@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -122,5 +122,174 @@ suite('view tool — view_range display', () => {
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: [10, 20, 30] }).includes(','));
 		// non-array
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: 'whatever' }).includes(','));
+	});
+});
+
+// ---- write_/read_ shell tool display ---------------------------------------
+//
+// Coverage for the secondary shell helpers (write_bash, read_bash, and their
+// powershell siblings). These never appear in a permission dialog (they're
+// registered with `skipPermission: true` — see copilotShellTools.ts), but they
+// still flow through the tool-execution display pipeline.
+
+suite('copilotToolDisplay — write_/read_ shell tools', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('getToolKind', () => {
+
+		test('returns terminal for bash', () => {
+			assert.strictEqual(getToolKind('bash'), 'terminal');
+		});
+
+		test('returns terminal for powershell', () => {
+			assert.strictEqual(getToolKind('powershell'), 'terminal');
+		});
+
+		test('returns undefined for write_bash (sending input to a running program, not launching a terminal)', () => {
+			assert.strictEqual(getToolKind('write_bash'), undefined);
+		});
+
+		test('returns undefined for write_powershell', () => {
+			assert.strictEqual(getToolKind('write_powershell'), undefined);
+		});
+
+		test('returns undefined for read_bash (reading output, not launching a terminal)', () => {
+			assert.strictEqual(getToolKind('read_bash'), undefined);
+		});
+
+		test('returns undefined for read_powershell', () => {
+			assert.strictEqual(getToolKind('read_powershell'), undefined);
+		});
+
+		test('returns subagent for task', () => {
+			assert.strictEqual(getToolKind('task'), 'subagent');
+		});
+
+		test('returns undefined for view', () => {
+			assert.strictEqual(getToolKind('view'), undefined);
+		});
+	});
+
+	suite('getShellLanguage', () => {
+
+		test('bash returns shellscript', () => {
+			assert.strictEqual(getShellLanguage('bash'), 'shellscript');
+		});
+
+		test('powershell returns powershell', () => {
+			assert.strictEqual(getShellLanguage('powershell'), 'powershell');
+		});
+
+		test('write_bash returns shellscript', () => {
+			assert.strictEqual(getShellLanguage('write_bash'), 'shellscript');
+		});
+
+		test('write_powershell returns powershell', () => {
+			assert.strictEqual(getShellLanguage('write_powershell'), 'powershell');
+		});
+
+		test('read_bash returns shellscript', () => {
+			assert.strictEqual(getShellLanguage('read_bash'), 'shellscript');
+		});
+
+		test('read_powershell returns powershell', () => {
+			assert.strictEqual(getShellLanguage('read_powershell'), 'powershell');
+		});
+	});
+
+	suite('getInvocationMessage', () => {
+
+		function getText(msg: ReturnType<typeof getInvocationMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		test('write_bash with command includes the command text', () => {
+			const msg = getInvocationMessage('write_bash', 'Write Shell Input', { command: 'echo hello' });
+			assert.ok(getText(msg).includes('echo hello'), `expected 'echo hello' in: ${getText(msg)}`);
+		});
+
+		test('write_bash without command returns a non-empty fallback message', () => {
+			const msg = getInvocationMessage('write_bash', 'Write Shell Input', undefined);
+			assert.ok(getText(msg).length > 0);
+			assert.ok(!getText(msg).includes('undefined'));
+		});
+
+		test('write_powershell with command includes the command text', () => {
+			const msg = getInvocationMessage('write_powershell', 'Write Shell Input', { command: 'Get-Date' });
+			assert.ok(getText(msg).includes('Get-Date'), `expected 'Get-Date' in: ${getText(msg)}`);
+		});
+
+		test('read_bash returns a non-empty message', () => {
+			const msg = getInvocationMessage('read_bash', 'Read Shell Output', undefined);
+			assert.ok(getText(msg).length > 0);
+		});
+
+		test('read_powershell returns a non-empty message', () => {
+			const msg = getInvocationMessage('read_powershell', 'Read Shell Output', undefined);
+			assert.ok(getText(msg).length > 0);
+		});
+
+		test('write_bash message differs from bash message (distinct wording)', () => {
+			const writeBashMsg = getText(getInvocationMessage('write_bash', 'Write Shell Input', { command: 'echo hi' }));
+			const bashMsg = getText(getInvocationMessage('bash', 'Bash', { command: 'echo hi' }));
+			// Both include the command, but the surrounding text should differ
+			assert.notStrictEqual(writeBashMsg, bashMsg);
+		});
+	});
+
+	suite('getPastTenseMessage', () => {
+
+		function getText(msg: ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		test('write_bash with command includes the command text', () => {
+			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, true);
+			assert.ok(getText(msg).includes('echo hello'), `expected 'echo hello' in: ${getText(msg)}`);
+		});
+
+		test('write_bash without command returns a non-empty fallback message', () => {
+			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', undefined, true);
+			assert.ok(getText(msg).length > 0);
+		});
+
+		test('write_powershell with command includes the command text', () => {
+			const msg = getPastTenseMessage('write_powershell', 'Write Shell Input', { command: 'Get-Date' }, true);
+			assert.ok(getText(msg).includes('Get-Date'), `expected 'Get-Date' in: ${getText(msg)}`);
+		});
+
+		test('read_bash success returns a non-empty message', () => {
+			const msg = getPastTenseMessage('read_bash', 'Read Shell Output', undefined, true);
+			assert.ok(getText(msg).length > 0);
+		});
+
+		test('write_bash failure returns a non-empty error message', () => {
+			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, false);
+			assert.ok(getText(msg).length > 0);
+		});
+	});
+
+	suite('getToolInputString', () => {
+
+		test('write_bash extracts command field', () => {
+			assert.strictEqual(getToolInputString('write_bash', { command: 'echo hello' }, undefined), 'echo hello');
+		});
+
+		test('write_powershell extracts command field', () => {
+			assert.strictEqual(getToolInputString('write_powershell', { command: 'Get-Date' }, undefined), 'Get-Date');
+		});
+
+		test('write_bash falls back to rawArguments when no command field', () => {
+			assert.strictEqual(getToolInputString('write_bash', {}, '{"command":"echo hello"}'), '{"command":"echo hello"}');
+		});
+
+		test('write_bash returns undefined when both parameters and rawArguments are absent', () => {
+			assert.strictEqual(getToolInputString('write_bash', undefined, undefined), undefined);
+		});
+
+		test('read_bash with no parameters returns undefined', () => {
+			assert.strictEqual(getToolInputString('read_bash', undefined, undefined), undefined);
+		});
 	});
 });

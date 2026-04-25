@@ -77,9 +77,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
+			order: McpCollectionSortOrder.Plugin,
 			presentation: {
 				origin: manifestURI,
-				order: McpCollectionSortOrder.Plugin,
 			},
 		});
 	}

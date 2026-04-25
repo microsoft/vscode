@@ -130,7 +130,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Cache Electron
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -139,7 +139,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Cache Playwright
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -220,7 +220,7 @@ jobs:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -229,7 +229,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -393,7 +393,7 @@ jobs:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -402,7 +402,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}

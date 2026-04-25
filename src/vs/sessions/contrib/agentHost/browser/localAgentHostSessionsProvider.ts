@@ -22,8 +22,8 @@ import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.j
 import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
-const LOCAL_PROVIDER_ID = 'local-agent-host';
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
 /**
@@ -36,7 +36,7 @@ const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
  */
 export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 
-	readonly id = LOCAL_PROVIDER_ID;
+	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -59,6 +59,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
+			description: this.label,
+			group: 'folders',
 			icon: Codicon.folderOpened,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -69,9 +71,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const rootStateValue = this._agentHostService.rootState.value;
 		if (rootStateValue && !(rootStateValue instanceof Error)) {
 			this._syncSessionTypesFromRootState(rootStateValue);
+			this._syncRootConfigFromRootState(rootStateValue);
 		}
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
 		}));
 
 		// Eagerly populate the session cache once authentication has settled.

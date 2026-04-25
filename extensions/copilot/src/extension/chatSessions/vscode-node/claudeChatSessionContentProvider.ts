@@ -8,7 +8,7 @@ import { ChatExtendedRequestHandler } from 'vscode';
 import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
-import { IGitService } from '../../../platform/git/common/gitService';
+import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -30,6 +30,7 @@ import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCo
 import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
+import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
@@ -37,6 +38,23 @@ import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 
 // Import the tool permission handlers
 import '../claude/vscode-node/toolPermissionHandlers/index';
+
+interface SessionMetadata {
+	readonly workingDirectoryPath: string;
+	readonly repositoryPath?: string;
+	readonly branchName?: string;
+	readonly upstreamBranchName?: string;
+	readonly hasGitHubRemote?: boolean;
+	readonly incomingChanges?: number;
+	readonly outgoingChanges?: number;
+	readonly uncommittedChanges?: number;
+}
+
+function getSessionResource(sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri): vscode.Uri | undefined {
+	return sessionItemOrResource instanceof vscode.Uri
+		? sessionItemOrResource
+		: sessionItemOrResource?.resource;
+}
 
 // Import the MCP server contributors to trigger self-registration
 import '../claude/vscode-node/mcpServers/index';
@@ -250,7 +268,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 			const selectedFolderUri = getSelectedFolderUri(context.inputState);
 			const folderInfo = await this.getFolderInfoForSession(newSessionId, selectedFolderUri);
 			if (folderInfo.cwd) {
-				item.metadata = { workingDirectoryPath: folderInfo.cwd };
+				item.metadata = await this._buildSessionMetadata(folderInfo.cwd);
 			}
 
 			this._inProgressItems.set(newSessionId, item);
@@ -293,7 +311,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 			newItem.timing = { created: Date.now() };
 			// FYI, dropping any other metadata fields here...
 			if (item?.metadata?.workingDirectoryPath) {
-				newItem.metadata = { workingDirectoryPath: item.metadata.workingDirectoryPath };
+				newItem.metadata = await this._buildSessionMetadata(item.metadata.workingDirectoryPath);
 			}
 
 			// Copy parent session state to the forked session
@@ -670,7 +688,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 					item.timing = { ...item.timing, lastRequestEnded: Date.now() };
 				}
 				const session = await this._claudeCodeSessionService.getSession(resource, CancellationToken.None);
-				if (session?.cwd) {
+				if (session?.cwd && await this._workspaceService.isResourceTrusted(URI.file(session.cwd))) {
 					item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
 						session.cwd,
 						session.gitBranch,
@@ -716,12 +734,21 @@ export class ClaudeChatSessionItemController extends Disposable {
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
 		if (session.cwd) {
-			item.metadata = { workingDirectoryPath: session.cwd };
-			item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
-				session.cwd,
-				session.gitBranch,
-				undefined,
-			);
+			const isTrusted = await this._workspaceService.isResourceTrusted(URI.file(session.cwd));
+			if (isTrusted) {
+				const [metadata, changes] = await Promise.all([
+					this._buildSessionMetadata(session.cwd, isTrusted),
+					this._claudeWorkspaceFolderService.getWorkspaceChanges(
+						session.cwd,
+						session.gitBranch,
+						undefined,
+					),
+				]);
+				item.metadata = metadata;
+				item.changes = changes;
+			} else {
+				item.metadata = await this._buildSessionMetadata(session.cwd, isTrusted);
+			}
 		}
 		return item;
 	}
@@ -739,6 +766,49 @@ export class ClaudeChatSessionItemController extends Disposable {
 		const repositories = this._gitService.repositories
 			.filter(repository => repository.kind !== 'worktree');
 		return repositories.length > 1;
+	}
+
+	private async _buildSessionMetadata(cwd: string, isTrusted?: boolean): Promise<SessionMetadata> {
+		const cwdUri = URI.file(cwd);
+		if (!(isTrusted ?? await this._workspaceService.isResourceTrusted(cwdUri))) {
+			return { workingDirectoryPath: cwd };
+		}
+
+		const repoContext = await this._gitService.getRepository(cwdUri);
+		if (!repoContext) {
+			return { workingDirectoryPath: cwd };
+		}
+
+		const changes = repoContext.changes;
+		const uncommittedChanges = changes
+			? changes.mergeChanges.length + changes.indexChanges.length + changes.workingTree.length + changes.untrackedChanges.length
+			: 0;
+
+		return {
+			workingDirectoryPath: cwd,
+			repositoryPath: repoContext.rootUri.fsPath,
+			branchName: repoContext.headBranchName,
+			upstreamBranchName: repoContext.upstreamRemote && repoContext.upstreamBranchName
+				? `${repoContext.upstreamRemote}/${repoContext.upstreamBranchName}`
+				: undefined,
+			hasGitHubRemote: getGitHubRepoInfoFromContext(repoContext) !== undefined,
+			incomingChanges: repoContext.headIncomingChanges ?? 0,
+			outgoingChanges: repoContext.headOutgoingChanges ?? 0,
+			uncommittedChanges,
+		};
+	}
+
+	private _registerPromptCommand(commandId: string, prompt: string): void {
+		this._register(vscode.commands.registerCommand(commandId, async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
+			const resource = getSessionResource(sessionItemOrResource);
+			if (!resource) {
+				return;
+			}
+			await vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.claude-code', {
+				resource,
+				prompt,
+			});
+		}));
 	}
 
 	private _registerCommands(): void {
@@ -770,6 +840,28 @@ export class ClaudeChatSessionItemController extends Disposable {
 					}
 				}
 			}
+		}));
+
+		this._registerPromptCommand('github.copilot.claude.sessions.commit', builtinSlashCommands.commit);
+		this._registerPromptCommand('github.copilot.claude.sessions.commitAndSync', `${builtinSlashCommands.commit} and ${builtinSlashCommands.sync}`);
+		this._registerPromptCommand('github.copilot.claude.sessions.sync', builtinSlashCommands.sync);
+
+		this._register(vscode.commands.registerCommand('github.copilot.claude.sessions.initializeRepository', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
+			const resource = getSessionResource(sessionItemOrResource);
+			if (!resource) {
+				return;
+			}
+
+			const sessionId = ClaudeSessionUri.getSessionId(resource);
+			const folderInfo = await this.getFolderInfoForSession(sessionId);
+			const workspaceFolder = URI.file(folderInfo.cwd);
+
+			const repository = await this._gitService.initRepository(workspaceFolder);
+			if (!repository) {
+				return;
+			}
+
+			void this._refreshItems(CancellationToken.None);
 		}));
 	}
 }

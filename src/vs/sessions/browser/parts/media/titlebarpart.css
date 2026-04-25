@@ -130,3 +130,37 @@
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;
 }
+
+/* ---- Phone Layout: Minimal Titlebar ---- */
+
+/* On phone, ensure the titlebar left is visible (it holds the hamburger area)
+	even when sidebar is hidden. Override the nosidebar rule. */
+.agent-sessions-workbench.phone-layout.nosidebar .part.titlebar > .sessions-titlebar-container > .titlebar-left {
+	display: flex !important;
+}
+
+/* But hide the toolbar content inside it — only structural element remains */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
+	display: none !important;
+}
+
+/* Hide the window controls spacer on phone (no native traffic lights on mobile) */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container {
+	display: none !important;
+}
+
+/* Keep the center (session title) visible and full-width on phone */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-center {
+	flex: 1;
+	min-width: 0;
+}
+
+/* On phone, hide ALL right-side action containers (session actions + layout actions) */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
+	display: none !important;
+}
+
+/* Ensure safe area padding on top for notch */
+.agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
+	padding-top: env(safe-area-inset-top);
+}
