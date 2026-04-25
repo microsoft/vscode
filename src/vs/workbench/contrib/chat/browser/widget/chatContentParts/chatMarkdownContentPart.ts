@@ -137,6 +137,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 
 		this.domNode = $('div.chat-markdown-part');
+		this.domNode.dir = 'auto';
 
 		if (this.rendererOptions.accessibilityOptions?.statusMessage) {
 			this.domNode.ariaLabel = this.rendererOptions.accessibilityOptions.statusMessage;
