@@ -196,7 +196,6 @@ export interface IPluginPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
-	readonly type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 } | {
@@ -595,7 +594,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
+	resolvePromptSlashCommand(command: string, sessionType: string | undefined, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
 
 	/**
 	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.

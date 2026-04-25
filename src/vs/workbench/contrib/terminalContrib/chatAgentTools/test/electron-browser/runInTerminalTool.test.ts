@@ -181,7 +181,7 @@ suite('RunInTerminalTool', () => {
 		terminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => ({
+			wrapCommand: async (command: string, requestUnsandboxedExecution?: boolean) => ({
 				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 				isSandboxWrapped: !requestUnsandboxedExecution,
 			}),
@@ -360,7 +360,7 @@ suite('RunInTerminalTool', () => {
 			// The tool should return confirmation messages for the user
 			ok(result, 'Expected prepared invocation to be defined');
 			ok(result?.confirmationMessages, 'Expected confirmationMessages when deps are missing');
-			ok(result?.confirmationMessages?.customButtons?.length === 2, 'Expected two custom buttons');
+			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});
@@ -399,7 +399,7 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
 				failedCheck: undefined,
 			};
-			terminalSandboxService.wrapCommand = (command: string) => ({
+			terminalSandboxService.wrapCommand = async (command: string) => ({
 				command: `sandbox-runtime ${command}`,
 				isSandboxWrapped: true,
 			});
@@ -422,7 +422,7 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
 				failedCheck: undefined,
 			};
-			terminalSandboxService.wrapCommand = (command: string) => ({
+			terminalSandboxService.wrapCommand = async (command: string) => ({
 				command: `sandbox-runtime ${command}`,
 				isSandboxWrapped: true,
 			});
@@ -812,7 +812,7 @@ suite('RunInTerminalTool', () => {
 				failedCheck: undefined,
 			};
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-			terminalSandboxService.wrapCommand = (command: string) => ({
+			terminalSandboxService.wrapCommand = async (command: string) => ({
 				command: `unsandboxed:${command}`,
 				isSandboxWrapped: false,
 				requiresUnsandboxConfirmation: true,
@@ -2401,7 +2401,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const terminalSandboxService: ITerminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string) => ({
+			wrapCommand: async (command: string) => ({
 				command: `sandbox:${command}`,
 				isSandboxWrapped: true,
 			}),

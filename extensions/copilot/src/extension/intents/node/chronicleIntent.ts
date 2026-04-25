@@ -34,11 +34,11 @@ import { PromptRenderer, RendererIntentInvocation } from '../../prompts/node/bas
 import { ChroniclePrompt } from '../../prompts/node/panel/chroniclePrompt';
 
 /** Cloud SQL dialect sessions query. */
-const SESSIONS_QUERY_CLOUD = `SELECT id, summary, branch, repository, cwd, created_at, updated_at
+const SESSIONS_QUERY_CLOUD = `SELECT *
 	FROM sessions
 	WHERE updated_at >= now() - INTERVAL '1 day'
 	ORDER BY updated_at DESC
-	LIMIT 50`;
+	LIMIT 100`;
 
 const SUBCOMMANDS = ['standup', 'tips', 'improve'] as const;
 type ChronicleSubcommand = typeof SUBCOMMANDS[number];
@@ -49,7 +49,7 @@ export class ChronicleIntent implements IIntent {
 	readonly id = ChronicleIntent.ID;
 	readonly description = l10n.t('Session history tools and insights (standup, tips, improve)');
 	get locations(): ChatLocation[] {
-		return this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService) ? [ChatLocation.Panel] : [];
+		return this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService) ? [ChatLocation.Panel] : [];
 	}
 
 	readonly commandInfo: IIntentSlashCommandInfo = {
@@ -86,7 +86,7 @@ export class ChronicleIntent implements IIntent {
 		location: ChatLocation,
 		chatTelemetry: ChatTelemetryBuilder,
 	): Promise<vscode.ChatResult> {
-		if (!this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService)) {
+		if (!this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService)) {
 			stream.markdown(l10n.t('Session search is not available yet.'));
 			return {};
 		}
@@ -301,7 +301,7 @@ Analysis dimensions to explore:
 
 Query guidelines:
 - Only one query per call — do not combine multiple statements with semicolons.
-- Always use LIMIT (max 50) in your queries and prefer aggregations (COUNT, GROUP BY) over raw row dumps.
+- Always use LIMIT (max 100) in your queries and prefer aggregations (COUNT, GROUP BY) over raw row dumps.
 - Use the turns table to understand conversation quality, not just session metadata.`;
 
 		if (extra) {
@@ -335,7 +335,7 @@ User's question: ${userQuery}
 Use the session_store_sql tool to run queries. Start with a broad query, then drill down as needed.
 - Only SELECT queries are allowed
 - Only one query per call — do not combine multiple statements with semicolons
-- Always use LIMIT (max 50) and prefer aggregations (COUNT, GROUP BY) over raw row dumps
+- Always use LIMIT (max 100) and prefer aggregations (COUNT, GROUP BY) over raw row dumps
 - Query the **turns** table for conversation content (user_message, assistant_response) — this gives the richest insight into what happened
 - Query **session_files** for file paths and tool usage patterns
 - Query **session_refs** for PR/issue/commit links
@@ -399,15 +399,15 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 	private _getSchemaDescription(hasCloud: boolean): string {
 		return hasCloud
 			? `Available tables (cloud SQL syntax):
-- **sessions**: id, repository, branch, summary, created_at, updated_at (TIMESTAMP). NOTE: cwd is always NULL in the cloud.
-- **turns**: session_id, turn_index, user_message, assistant_response, timestamp (TIMESTAMP). The richest source of what actually happened — contains the user's prompts and the assistant's replies.
+- **sessions**: id, repository, branch, summary, agent_name (who created the session, e.g. 'VS Code', 'cli', 'Copilot Coding Agent', 'Copilot Code Review'), agent_description, created_at, updated_at (TIMESTAMP). NOTE: cwd is always NULL in the cloud. IMPORTANT: Always filter on **updated_at** (not created_at) for time ranges — some session types have created_at set to epoch zero. NOTE: summary and repository/branch may be NULL — always JOIN with turns to get actual content.
+- **turns**: session_id, turn_index, user_message, assistant_response, timestamp (TIMESTAMP). The richest and most reliable source of what actually happened — the first turn (turn_index=0) user_message is effectively the session summary. Always JOIN sessions with turns for meaningful results.
 - **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made.
 
 Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search.
-Join sessions with turns/files/refs using session_id for complete analysis.`
+Always JOIN sessions with turns to get session content — do not rely on sessions.summary alone.`
 			: `Available tables (SQLite syntax — local):
-- **sessions**: id, cwd, repository, branch, summary, host_type, created_at, updated_at
+- **sessions**: id, cwd, repository, branch, summary, host_type, agent_name (who created the session, e.g. 'vscode', 'cli', 'CCA', 'CCR'), agent_description, created_at, updated_at
 - **turns**: session_id, turn_index, user_message, assistant_response, timestamp. The richest source of what actually happened — contains the user's prompts and the assistant's replies.
 - **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made.
@@ -460,6 +460,8 @@ Join sessions with turns/files/refs using session_id for complete analysis.`;
 				summary: r.summary as string | undefined,
 				branch: r.branch as string | undefined,
 				repository: r.repository as string | undefined,
+				agent_name: r.agent_name as string | undefined,
+				agent_description: r.agent_description as string | undefined,
 				created_at: r.created_at as string | undefined,
 				updated_at: r.updated_at as string | undefined,
 				source: 'cloud' as const,

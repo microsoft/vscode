@@ -7,6 +7,7 @@ import { autorun, derived, derivedOpts } from '../../../../base/common/observabl
 import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -64,14 +65,17 @@ export class LayoutController extends Disposable {
 			return activeSession?.workspace.read(reader)?.repositories?.[0]?.uri !== undefined;
 		});
 
-		// Switch between sessions — sync auxiliary bar
-		this._register(autorun(reader => {
-			const isUntitled = activeSessionIsUntitledObs.read(reader);
-			const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
-			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
+		// Switch between sessions — sync auxiliary bar (skip on mobile to avoid
+		// disruptive auto-expand on narrow viewports)
+		if (!(isWeb && isMobile)) {
+			this._register(autorun(reader => {
+				const isUntitled = activeSessionIsUntitledObs.read(reader);
+				const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
+				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 
-			this._syncAuxiliaryBarVisibility(activeSessionHasWorkspace, isUntitled, activeSessionHasChanges);
-		}));
+				this._syncAuxiliaryBarVisibility(activeSessionHasWorkspace, isUntitled, activeSessionHasChanges);
+			}));
+		}
 
 		// Switch between sessions — sync panel visibility
 		this._register(autorun(reader => {
@@ -82,37 +86,40 @@ export class LayoutController extends Disposable {
 		// When a turn is completed, check if there were changes before the turn and
 		// if there are changes after the turn. If there were no changes before the
 		// turn and there are changes after the turn, show the auxiliary bar.
-		this._register(autorun((reader) => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
-			if (!activeSession) {
-				return;
-			}
+		// Skip on mobile to avoid disruptive auto-expand on narrow viewports.
+		if (!(isWeb && isMobile)) {
+			this._register(autorun((reader) => {
+				const activeSession = this._sessionManagementService.activeSession.read(reader);
+				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
+				if (!activeSession) {
+					return;
+				}
 
-			const pendingTurnState = this._pendingTurnStateByResource.get(activeSession.resource);
-			if (!pendingTurnState) {
-				return;
-			}
+				const pendingTurnState = this._pendingTurnStateByResource.get(activeSession.resource);
+				if (!pendingTurnState) {
+					return;
+				}
 
-			const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
-			const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
-			if (!turnCompleted) {
-				return;
-			}
+				const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
+				const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
+				if (!turnCompleted) {
+					return;
+				}
 
-			if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
-				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			}
+				if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
+					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				}
 
-			this._pendingTurnStateByResource.delete(activeSession.resource);
-		}));
+				this._pendingTurnStateByResource.delete(activeSession.resource);
+			}));
 
-		this._register(this._chatService.onDidSubmitRequest(({ chatSessionResource }) => {
-			this._pendingTurnStateByResource.set(chatSessionResource, {
-				hadChangesBeforeSend: activeSessionHasChangesObs.get(),
-				submittedAt: Date.now(),
-			});
-		}));
+			this._register(this._chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+				this._pendingTurnStateByResource.set(chatSessionResource, {
+					hadChangesBeforeSend: activeSessionHasChangesObs.get(),
+					submittedAt: Date.now(),
+				});
+			}));
+		}
 
 		// Track panel visibility changes by the user
 		this._register(this._layoutService.onDidChangePartVisibility(e => {

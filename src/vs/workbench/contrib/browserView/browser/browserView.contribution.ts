@@ -7,16 +7,26 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel } from '../common/browserView.js';
 import { Event } from '../../../../base/common/event.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
+import { IBrowserViewState } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
-	async getOrCreateBrowserViewModel(_id: string): Promise<IBrowserViewModel> {
+	readonly onDidChangeBrowserViews = Event.None;
+
+	private readonly _known = new Map<string, BrowserEditorInput>();
+
+	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
+		return this._known;
+	}
+
+	getOrCreateLazy(_id: string, _state: IBrowserViewState): BrowserEditorInput {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 
-	async getBrowserViewModel(_id: string): Promise<IBrowserViewModel> {
-		throw new Error('Integrated Browser is not available in web.');
+	getBrowserViewModel(_id: string): IBrowserViewModel | undefined {
+		return undefined;
 	}
 
 	async clearGlobalStorage(): Promise<void> { }

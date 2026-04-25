@@ -33,7 +33,7 @@ import { Change } from '../../../git/vscode/git';
 import { logExecTime, LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';
 import { IAdoCodeSearchService } from '../../../remoteCodeSearch/common/adoCodeSearchService';
-import { CodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
+import { SemanticCodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
 import { ICodeSearchAuthenticationService } from '../../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { isGitHubRemoteRepository } from '../../../remoteRepositories/common/utils';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
@@ -168,10 +168,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the authentication state changes, update repos
-		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			this.updateRepoStatuses(undefined, new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
-		}));
+		// When the github authentication state changes, update repos only if the session actually changed
+		{
+			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
+			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			this._register(this._authenticationService.onDidAuthenticationChange(() => {
+				const anySessionId = this._authenticationService.anyGitHubSession?.id;
+				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
+				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+					return;
+				}
+				lastAnyGitHubSessionId = anySessionId;
+				lastPermissiveGitHubSessionId = permissiveSessionId;
+				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
+			}));
+		}
 
 		this._register(Event.any(
 			this._authenticationService.onDidAdoAuthenticationChange,
@@ -544,13 +555,13 @@ export class CodeSearchChunkSearch extends Disposable {
 					localSearchCts.cancel();
 					throw e;
 				})
-				: Promise.resolve({ chunks: [], outOfSync: false });
+				: Promise.resolve<SemanticCodeSearchResult>({ chunks: [], outOfSync: false });
 
 			const localSearchOperation = raceTimeout(this.searchLocalDiff(diffArray, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
 				localSearchCts.cancel();
 			});
 
-			let codeSearchResults: CodeSearchResult | undefined;
+			let codeSearchResults: SemanticCodeSearchResult | undefined;
 			let localResults: DiffSearchResult | undefined;
 			try {
 				codeSearchResults = await raceCancellationError(codeSearchOperation, token);
@@ -709,7 +720,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('codeSearchChunkSearch.perf.doCodeSearchWithRetry', { status }, { execTime });
 	})
-	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult | undefined> {
+	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult | undefined> {
 		const results = await Promise.all(repos.map(repo => {
 			return repo.searchRepo({ silent: true }, this._embeddingType, query.queryText, sizing.maxResultCountHint, options, telemetryInfo, token);
 		}));

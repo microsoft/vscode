@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ISessionAddedNotification, ISessionRemovedNotification } from '../../../common/state/sessionActions.js';
+import { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import type { SessionAddedNotification, SessionRemovedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
-import type { INotificationBroadcastParams, IReconnectResult } from '../../../common/state/sessionProtocol.js';
-import type { ISessionState } from '../../../common/state/sessionState.js';
+import type { INotificationBroadcastParams, ReconnectResult } from '../../../common/state/sessionProtocol.js';
+import type { SessionState } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -67,8 +67,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		assert.ok(n1, 'client 1 should receive sessionAdded');
 		assert.ok(n2, 'client 2 should receive sessionAdded');
 
-		const uri1 = ((n1.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
-		const uri2 = ((n2.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+		const uri1 = ((n1.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+		const uri2 = ((n2.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
 		assert.strictEqual(uri1, uri2, 'both clients should see the same session URI');
 
 		client2.close();
@@ -95,8 +95,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		assert.ok(n1, 'client 1 should receive sessionRemoved');
 		assert.ok(n2, 'client 2 should receive sessionRemoved even without subscribing');
 
-		const removed1 = (n1.params as INotificationBroadcastParams).notification as ISessionRemovedNotification;
-		const removed2 = (n2.params as INotificationBroadcastParams).notification as ISessionRemovedNotification;
+		const removed1 = (n1.params as INotificationBroadcastParams).notification as SessionRemovedNotification;
+		const removed2 = (n2.params as INotificationBroadcastParams).notification as SessionRemovedNotification;
 		assert.strictEqual(removed1.session.toString(), sessionUri.toString());
 		assert.strictEqual(removed2.session.toString(), sessionUri.toString());
 
@@ -245,8 +245,8 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-late-sub-2' });
 
-		const result = await client2.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const state = result.snapshot.state as ISessionState;
+		const result = await client2.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = result.snapshot.state as SessionState;
 		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-late');
 		assert.strictEqual(state.turns[0].state, 'complete');
@@ -311,7 +311,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		const result = await client2.call<IReconnectResult>('reconnect', {
+		const result = await client2.call<ReconnectResult>('reconnect', {
 			clientId: 'test-reconnect',
 			lastSeenServerSeq: missedFromSeq,
 			subscriptions: [sessionUri],

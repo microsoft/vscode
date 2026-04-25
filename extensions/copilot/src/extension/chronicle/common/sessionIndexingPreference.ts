@@ -16,14 +16,6 @@ export type SessionIndexingLevel = 'local' | 'user' | 'repo_and_user';
 
 /**
  * Manages user preferences for session indexing via VS Code settings.
- *
- * Two settings control behavior:
- * - `chat.sessionSearch.localIndex.enabled` (team-internal, ExP) — enables local
- *   SQLite tracking and /chronicle commands
- * - `chat.sessionSearch.cloudSync.enabled` — enables
- *   cloud upload to cloud
- * - `chat.sessionSearch.cloudSync.excludeRepositories` — repo patterns
- *   to exclude from cloud sync
  */
 export class SessionIndexingPreference {
 

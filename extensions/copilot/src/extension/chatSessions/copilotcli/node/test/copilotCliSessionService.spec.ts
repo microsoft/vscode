@@ -15,8 +15,6 @@ import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnvService';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
-import { IGithubRepositoryService } from '../../../../../platform/github/common/githubService';
-import { IFetcherService } from '../../../../../platform/networking/common/fetcherService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NullMcpService } from '../../../../../platform/mcp/common/mcpService';
@@ -43,11 +41,12 @@ import { ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession, ICopilotCLISession } from '../copilotcliSession';
 import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
 import { CopilotCLIMCPHandler } from '../mcpHandler';
+import { MissionControlApiClient } from '../missionControlApiClient';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullCopilotCLIModels, NullICopilotCLIImageSupport } from './testHelpers';
 
 // Re-export for backward compatibility with other spec files
-export { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullCopilotCLIModels, NullICopilotCLIImageSupport } from './testHelpers';
+export { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from './testHelpers';
 
 class MockLocalSession {
 	static async fromEvents(events: readonly { type: string }[]): Promise<{}> {
@@ -79,8 +78,11 @@ class NullChatSessionWorktreeService extends mock<IChatSessionWorktreeService>()
 
 class NullCustomSessionTitleService implements ICustomSessionTitleService {
 	declare _serviceBrand: undefined;
-	async getCustomSessionTitle(_sessionId: string): Promise<string | undefined> { return undefined; }
-	async setCustomSessionTitle(_sessionId: string, _title: string): Promise<void> { }
+	private readonly titles = new Map<string, string>();
+	async getCustomSessionTitle(sessionId: string): Promise<string | undefined> { return this.titles.get(sessionId); }
+	async setCustomSessionTitle(sessionId: string, title: string): Promise<void> {
+		this.titles.set(sessionId, title);
+	}
 	async generateSessionTitle(_sessionId: string, _request: { prompt?: string; command?: string }): Promise<string | undefined> { return undefined; }
 }
 
@@ -150,7 +152,15 @@ describe('CopilotCLISessionService', () => {
 						}
 					}();
 				}
-				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), authService, new class extends mock<IGithubRepositoryService>() { }(), new class extends mock<IFetcherService>() { }()));
+				if (ctor === MissionControlApiClient) {
+					return {
+						createSession: vi.fn(),
+						submitEvents: vi.fn(),
+						getPendingCommands: vi.fn(async () => []),
+						deleteSession: vi.fn(async () => { }),
+					};
+				}
+				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any));
 			}
 		} as unknown as IInstantiationService;
 		const configurationService = accessor.get(IConfigurationService);
@@ -172,6 +182,44 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	// --- Tests ----------------------------------------------------------------------------------
+
+	it('falls back to a compatibility auto-mode manager when the SDK export is not constructable', async () => {
+		const sdk = {
+			getPackage: vi.fn(async () => ({
+				internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } },
+				LocalSession: MockLocalSession,
+				createLocalFeatureFlagService: () => ({}),
+				AutoModeSessionManager: {} as never,
+				acquireAutoModeSession: vi.fn(async () => { throw new Error('unexpected auto-mode acquire'); }),
+				refreshAutoModeSession: vi.fn(async () => { throw new Error('unexpected auto-mode refresh'); }),
+				AutoModeUnavailableError: class extends Error { },
+				AutoModeUnsupportedError: class extends Error { },
+				isAutoModel: (model: string | undefined) => model === 'auto',
+				noopTelemetryBinder: {},
+			})),
+			getRequestId: vi.fn(() => undefined),
+		} as unknown as ICopilotCLISDK;
+
+		const services = disposables.add(createExtensionUnitTestingServices());
+		const accessor = services.createTestingAccessor();
+		const configurationService = accessor.get(IConfigurationService);
+		const authService = { getCopilotToken: vi.fn(async () => ({ token: 'test-token' })) } as unknown as IAuthenticationService;
+		const nullMcpServer = disposables.add(new NullMcpService());
+		const delegationService = new class extends mock<IChatDelegationSummaryService>() {
+			override extractPrompt(): { prompt: string; reference: never } | undefined { return undefined; }
+			override async summarize(): Promise<string | undefined> { return undefined; }
+		}();
+		const localService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), new NullCopilotCLIAgents(), new NullWorkspaceService(), new NullCustomSessionTitleService(), configurationService, new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), new NullCopilotCLIModels()));
+
+		const localManager = await localService.getSessionManager() as unknown as MockCliSdkSessionManager & { opts: { autoModeManager: Record<string, unknown> } };
+
+		expect(localManager.opts.autoModeManager).toEqual(expect.objectContaining({
+			resolve: expect.any(Function),
+			clear: expect.any(Function),
+			handleModelChange: expect.any(Function),
+			subscribe: expect.any(Function),
+		}));
+	});
 
 	describe('CopilotCLISessionService.createSession', () => {
 		it('get session will return the same session created using createSession', async () => {
@@ -332,6 +380,49 @@ describe('CopilotCLISessionService', () => {
 			const session = await service.getSession({ sessionId: 'does-not-exist', ...sessionOptionsFor() }, CancellationToken.None);
 			disposables.add(session!);
 			expect(session).toBeUndefined();
+		});
+	});
+
+	describe('CopilotCLISessionService.renameSession', () => {
+		it('renames an inactive session through copilot/sdk', async () => {
+			const sessionId = 'rename-inactive';
+			manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+
+			await service.renameSession(sessionId, 'Renamed From VS Code');
+
+			expect(manager.sessions.get(sessionId)?.title).toBe('Renamed From VS Code');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Renamed From VS Code');
+		});
+
+		it('renames an active wrapped session through copilot/sdk', async () => {
+			const session = await service.createSession({ sessionId: 'rename-active', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			await service.renameSession(session.object.sessionId, 'Wrapped Session Name');
+
+			expect(manager.sessions.get(session.object.sessionId)?.title).toBe('Wrapped Session Name');
+			expect(await service.getSessionTitle(session.object.sessionId, CancellationToken.None)).toBe('Wrapped Session Name');
+			session.dispose();
+		});
+
+		it('updates session summaries through copilot/sdk for untitled sessions', async () => {
+			const sessionId = 'summary-session';
+			manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+
+			await service.updateSessionSummary(sessionId, 'Generated Summary');
+
+			expect(manager.sessions.get(sessionId)?.summary).toBe('Generated Summary');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Generated Summary');
+		});
+
+		it('syncs staged titles for newly created vscode sessions into copilot/sdk', async () => {
+			const sessionId = service.createNewSessionId();
+			await (service as unknown as { customSessionTitleService: ICustomSessionTitleService }).customSessionTitleService.setCustomSessionTitle(sessionId, 'Staged Session Title');
+
+			const session = await service.createSession({ sessionId, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(manager.sessions.get(sessionId)?.summary).toBe('Staged Session Title');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Staged Session Title');
+			session.dispose();
 		});
 	});
 

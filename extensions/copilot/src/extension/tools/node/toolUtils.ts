@@ -199,6 +199,9 @@ export async function assertFileOkForTool(accessor: ServicesAccessor, uri: URI, 
 	if (sessionTranscriptService.isTranscriptUri(normalizedUri)) {
 		return;
 	}
+	if (normalizedUri.scheme === 'vscode-chat-response-resource') {
+		return;
+	}
 	if (await isExternalInstructionsFile(normalizedUri, customInstructionsService, buildPromptContext)) {
 		return;
 	}
