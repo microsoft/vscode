@@ -14,20 +14,38 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentSideEffects } from '../../node/agentSideEffects.js';
+import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
+
+/**
+ * Constructs an {@link AgentSideEffects} with a minimal local instantiation
+ * scope that satisfies its {@link IAgentConfigurationService} /
+ * {@link ILogService} dependencies.
+ */
+function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions): AgentSideEffects {
+	const logService = new NullLogService();
+	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		[ILogService, logService],
+		[IAgentConfigurationService, configService],
+	), /*strict*/ true));
+	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
+}
 
 suite('AgentSideEffects', () => {
 
@@ -75,11 +93,11 @@ suite('AgentSideEffects', () => {
 		disposables.add(toDisposable(() => agent.dispose()));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
-		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
+		sideEffects = createTestSideEffects(disposables, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
-		}, new NullLogService()));
+		});
 	});
 
 	teardown(() => {
@@ -110,11 +128,11 @@ suite('AgentSideEffects', () => {
 		test('dispatches session/error when no agent is found', async () => {
 			setupSession();
 			const emptyAgents = observableValue<readonly IAgent[]>('agents', []);
-			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
+			const noAgentSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
 				sessionDataService: {} as ISessionDataService,
-			}, new NullLogService()));
+			});
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -1166,11 +1184,11 @@ suite('AgentSideEffects', () => {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
-			}, new NullLogService()));
+			});
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -1247,11 +1265,11 @@ suite('AgentSideEffects', () => {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
-			}, new NullLogService()));
+			});
 
 			const session = localStateManager.createSession({
 				resource: sessionUri.toString(),

@@ -80,7 +80,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 		// Only set up span listener and flush timer when the feature is enabled.
 		// Uses autorun to react if the setting changes at runtime.
-		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService);
+		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.LocalIndexEnabled, this._expService);
 		const spanListenerStore = this._register(new DisposableStore());
 		this._register(autorun(reader => {
 			spanListenerStore.clear();

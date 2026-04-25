@@ -14,6 +14,8 @@ import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData, IChatS
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getChatSessionType } from '../model/chatUri.js';
+import { matchesSessionType } from '../promptSyntax/service/promptsService.js';
 
 //#region slash service, commands etc
 
@@ -63,16 +65,16 @@ export interface IChatSlashCommandService {
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken, options?: IChatSendRequestOptions): Promise<{ followUp: IChatFollowup[] } | void>;
 	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData>;
-	hasCommand(id: string): boolean;
+	hasCommand(id: string, sessionType: string): boolean;
 }
 
-type Tuple = { data: IChatSlashData; command?: IChatSlashCallback };
+type RegisteredSlashCommand = { data: IChatSlashData; command?: IChatSlashCallback };
 
 export class ChatSlashCommandService extends Disposable implements IChatSlashCommandService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _commands = new Map<string, Tuple>();
+	private readonly _commands = new Map<string, RegisteredSlashCommand[]>();
 
 	private readonly _onDidChangeCommands = this._register(new Emitter<void>());
 	readonly onDidChangeCommands: Event<void> = this._onDidChangeCommands.event;
@@ -86,35 +88,68 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 		this._commands.clear();
 	}
 
-	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable {
-		if (this._commands.has(data.command)) {
-			throw new Error(`Already registered a command with id ${data.command}}`);
+	private getSessionScopedCommands(id: string): RegisteredSlashCommand[] {
+		return this._commands.get(id) ?? [];
+	}
+
+	private commandsOverlap(dataA: IChatSlashData, dataB: IChatSlashData): boolean {
+		if (dataA.sessionTypes === undefined || dataB.sessionTypes === undefined) {
+			return true;
 		}
 
-		this._commands.set(data.command, { data, command });
+		return dataA.sessionTypes.some(sessionType => dataB.sessionTypes?.includes(sessionType));
+	}
+
+	private getCommand(id: string, sessionType: string | undefined): RegisteredSlashCommand | undefined {
+		return this.getSessionScopedCommands(id).find(candidate => matchesSessionType(candidate.data.sessionTypes, sessionType));
+	}
+
+	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable {
+		const commandsForId = this.getSessionScopedCommands(data.command);
+		if (commandsForId.some(candidate => this.commandsOverlap(candidate.data, data))) {
+			throw new Error(`Already registered a command with id ${data.command}`);
+		}
+
+		const entry = { data, command };
+		commandsForId.push(entry);
+		this._commands.set(data.command, commandsForId);
 		this._onDidChangeCommands.fire();
 
 		return toDisposable(() => {
-			if (this._commands.delete(data.command)) {
-				this._onDidChangeCommands.fire();
+			const commandsForId = this._commands.get(data.command);
+			if (!commandsForId) {
+				return;
 			}
+
+			const entryIndex = commandsForId.indexOf(entry);
+			if (entryIndex === -1) {
+				return;
+			}
+
+			commandsForId.splice(entryIndex, 1);
+			if (commandsForId.length === 0) {
+				this._commands.delete(data.command);
+			}
+
+			this._onDidChangeCommands.fire();
 		});
 	}
 
 	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData> {
 		return Array
-			.from(this._commands.values(), v => v.data)
+			.from(this._commands.values())
+			.flatMap(commands => commands.map(v => v.data))
 			.filter(c => c.locations.includes(location) && (!c.modes || c.modes.includes(mode)));
 	}
 
-	hasCommand(id: string): boolean {
-		return this._commands.has(id);
+	hasCommand(id: string, sessionType: string): boolean {
+		return !!this.getCommand(id, sessionType);
 	}
 
 	async executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken, options?: IChatSendRequestOptions): Promise<{ followUp: IChatFollowup[] } | void> {
-		const data = this._commands.get(id);
+		const data = this.getCommand(id, getChatSessionType(sessionResource));
 		if (!data) {
-			throw new Error('No command with id ${id} NOT registered');
+			throw new Error(`No command with id ${id} NOT registered`);
 		}
 		if (!data.command) {
 			await this._extensionService.activateByEvent(`onSlash:${id}`);

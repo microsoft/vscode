@@ -23,7 +23,9 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentHostSessionConfigBranchNameHintKey, AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { AutoApproveLevel, ISchemaProperty, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -31,7 +33,6 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { CustomizationStatus, CustomizationRef, SessionInputResponseKind, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { SessionPermissionManager } from '../sessionPermissions.js';
 import { CopilotAgentSession, SessionWrapperFactory, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
@@ -574,99 +575,60 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const gitInfo = params.workingDirectory ? await this._getGitInfo(params.workingDirectory) : undefined;
-		const isolationValue = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree'
-			? params.config.isolation
-			: gitInfo ? 'worktree' : 'folder';
 
-		const autoApproveValue = params.config?.autoApprove === 'default' || params.config?.autoApprove === 'autoApprove' || params.config?.autoApprove === 'autopilot'
-			? params.config.autoApprove
-			: 'default';
+		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
+			type: 'string',
+			title: localize('agentHost.sessionConfig.isolation', "Isolation"),
+			description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
+			enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
+			enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
+			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
+			default: gitInfo ? 'worktree' : 'folder',
+			readOnly: !gitInfo,
+		});
 
-		const values: Record<string, unknown> = {
-			isolation: isolationValue,
-			autoApprove: autoApproveValue,
-			[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]: params.config?.[SessionPermissionManager.PERMISSIONS_CONFIG_KEY] || { allow: [], deny: [] },
-		};
-		if (gitInfo) {
-			const branchForMode = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
-			values.branch = typeof params.config?.branch === 'string' && isolationValue === 'worktree'
-				? params.config.branch
-				: branchForMode;
-		}
+		// Resolve isolation first — downstream schema shapes (branch's
+		// read-only mode + enum restriction) depend on the effective value.
+		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
+		const isolationValue = isolationProperty.validate(params.config?.[SessionConfigKey.Isolation])
+			? params.config[SessionConfigKey.Isolation] as 'folder' | 'worktree'
+			: isolationDefault;
 
-		const properties: ResolveSessionConfigResult['schema']['properties'] = {
-			isolation: {
-				type: 'string',
-				title: localize('agentHost.sessionConfig.isolation', "Isolation"),
-				description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
-				enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
-				enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
-				enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
-				default: gitInfo ? 'worktree' : 'folder',
-				readOnly: !gitInfo,
-			},
-			autoApprove: {
-				type: 'string',
-				title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
-				description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-				enum: ['default', 'autoApprove', 'autopilot'],
-				enumLabels: [
-					localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
-					localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-					localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
-				],
-				enumDescriptions: [
-					localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
-					localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-					localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
-				],
-				default: 'default',
-				sessionMutable: true,
-			},
-			[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]: {
-				type: 'object',
-				title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-				description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
-				properties: {
-					allow: {
-						type: 'array',
-						title: localize('agentHost.sessionConfig.permissions.allow', "Allowed tools"),
-						items: {
-							type: 'string',
-							title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-						},
-					},
-					deny: {
-						type: 'array',
-						title: localize('agentHost.sessionConfig.permissions.deny', "Denied tools"),
-						items: {
-							type: 'string',
-							title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-						},
-					},
-				},
-				default: { allow: [], deny: [] },
-				sessionMutable: true,
-			},
-		};
-
+		let branchProperty: ISchemaProperty<string> | undefined;
+		let branchDefault: string | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
-			const branchForMode = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
-			properties.branch = {
+			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
+			branchProperty = schemaProperty<string>({
 				type: 'string',
 				title: localize('agentHost.sessionConfig.branch', "Branch"),
 				description: localize('agentHost.sessionConfig.branchDescription', "Base branch to work from"),
-				enum: [branchForMode],
-				enumLabels: [branchForMode],
-				default: branchForMode,
+				enum: [branchDefault],
+				enumLabels: [branchDefault],
+				default: branchDefault,
 				enumDynamic: !branchReadOnly,
 				readOnly: branchReadOnly,
-			};
+			});
 		}
 
+		const sessionSchema = createSchema({
+			[SessionConfigKey.Isolation]: isolationProperty,
+			...platformSessionSchema.definition,
+			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
+		});
+
+		const values = sessionSchema.validateOrDefault(params.config, {
+			[SessionConfigKey.Isolation]: isolationValue,
+			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
+			// Permissions intentionally omitted — leave unset so auto-approval
+			// falls through to the host-level `permissions` default, and only
+			// materializes on the session once the user hits "Allow in this
+			// Session".
+			...(branchDefault !== undefined ? { [SessionConfigKey.Branch]: branchDefault } : {}),
+		});
+
 		return {
-			schema: { type: 'object', properties },
+			schema: sessionSchema.toProtocol(),
 			values,
 		};
 	}
@@ -1046,12 +1008,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchNameHintRaw = config.config[AgentHostSessionConfigBranchNameHintKey];
+		const branchNameHintRaw = config.config[SessionConfigKey.BranchNameHint];
 		const branchNameHint = typeof branchNameHintRaw === 'string' ? branchNameHintRaw : undefined;
 		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-		const baseBranch = typeof config.config.branch === 'string' ? config.config.branch : undefined;
+		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
 		// `addWorktree`'s signature requires a startPoint, but historically the
 		// runtime accepted undefined when `branch` was not set in config. Preserve
 		// that behavior by passing through whatever value (or undefined) was set.

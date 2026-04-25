@@ -83,10 +83,11 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { AgentPluginEditor } from '../agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from '../agentPluginEditor/agentPluginEditorInput.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService, CustomizationHarness, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -499,7 +500,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		let hidden: Set<string>;
 		if (this.isHarnessSelectorEnabled) {
 			const activeId = this.harnessService.activeHarness.get();
-			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === activeId);
+			const descriptor = this.harnessService.findHarnessById(activeId);
 			hidden = new Set(descriptor?.hiddenSections ?? []);
 		} else {
 			hidden = new Set(); // Local harness has no hidden sections
@@ -605,12 +606,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
 		// remains active — filtering stays correct for that window.
 		if (!this.isHarnessSelectorEnabled) {
-			this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+			this.harnessService.setActiveHarness(SessionType.Local);
 		}
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
 				if (!this.isHarnessSelectorEnabled) {
-					this.harnessService.setActiveHarness(CustomizationHarness.VSCode);
+					this.harnessService.setActiveHarness(SessionType.Local);
 				}
 			}
 		}));
@@ -649,7 +650,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
 		this.harnessDropdownButton.setAttribute('aria-haspopup', 'listbox');
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.harnessDropdownButton, () => {
-			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === this.harnessService.activeHarness.get());
+			const descriptor = this.harnessService.findHarnessById(this.harnessService.activeHarness.get());
 			return descriptor?.label ?? '';
 		}));
 

@@ -282,6 +282,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getWorkspaceChanges() { return undefined; },
 		async hasCachedChanges() { return false; },
 		clearWorkspaceChanges() { return []; },
+		onDidChangeWorkspaceFolderChanges: () => ({ dispose() { } }),
 	} as IChatSessionWorkspaceFolderService);
 	testingServiceCollection.define(IChatSessionWorktreeService, {
 		_serviceBrand: undefined,
@@ -300,6 +301,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async cleanupWorktreeOnArchive() { return { cleaned: false }; },
 		async recreateWorktreeOnUnarchive() { return { recreated: false }; },
 		async hasCachedChanges() { return false; },
+		onDidChangeWorktreeChanges: () => ({ dispose() { } }),
 	} as IChatSessionWorktreeService);
 	testingServiceCollection.define(IPromptVariablesService, new SyncDescriptor(NullPromptVariablesService));
 	testingServiceCollection.define(IChatDebugFileLoggerService, new NullChatDebugFileLoggerService());

@@ -1366,14 +1366,17 @@ export class ActionListWidget<T> extends Disposable {
 				}
 				for (let ci = 0; ci < group.actions.length; ci++) {
 					const child = group.actions[ci];
+					const icon = (child as IAction & { icon?: ThemeIcon }).icon
+						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+					const hoverContent = (child as IAction & { hoverContent?: string }).hoverContent;
 					submenuItems.push({
 						item: child,
 						kind: ActionListItemKind.Action,
 						label: child.label,
 						description: child.tooltip || undefined,
-						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
+						group: { title: '', icon },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: hoverContent } : {},
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {
@@ -1470,10 +1473,14 @@ export class ActionListWidget<T> extends Disposable {
 		const hoverHeaderHeight = hoverHeader ? hoverHeader.offsetHeight : 0;
 		const totalPanelHeight = totalHeight + hoverHeaderHeight;
 		const viewportHeight = targetWindow.innerHeight;
-		let top = anchorRect.top - parentRect.top - 4;
+		const anchorHeight = anchorRect.height;
+		let top = anchorRect.top - parentRect.top + (anchorHeight - totalPanelHeight) / 2;
 		const panelBottom = parentRect.top + top + totalPanelHeight;
 		if (panelBottom > viewportHeight) {
 			top -= (panelBottom - viewportHeight + 8);
+		}
+		if (parentRect.top + top < 0) {
+			top = -parentRect.top;
 		}
 		this._submenuContainer.style.top = `${top}px`;
 	}
@@ -1710,7 +1717,6 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
-		const padding = 10;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1718,8 +1724,9 @@ export class ActionList<T> extends Disposable {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
-			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - padding;
-			const spaceAbove = anchorTopInViewport - padding;
+			const bottomGap = 30;
+			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - bottomGap;
+			const spaceAbove = anchorTopInViewport;
 
 			// Lock the direction on first layout based on whether the full
 			// unconstrained list fits below. Once decided, the dropdown stays
@@ -1730,6 +1737,7 @@ export class ActionList<T> extends Disposable {
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
 		} else {
+			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
 			const widgetTop = this.domNode.getBoundingClientRect().top;
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
@@ -1749,7 +1757,8 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this.computeHeight();
 		this._widget.layout(listHeight);
 
-		this._cachedMaxWidth = this._widget.computeMaxWidth(minWidth);
+		const computedWidth = this._widget.computeMaxWidth(minWidth);
+		this._cachedMaxWidth = computedWidth;
 		this._widget.layout(listHeight, this._cachedMaxWidth);
 
 		return this._cachedMaxWidth;

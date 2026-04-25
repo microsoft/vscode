@@ -27,6 +27,7 @@ import { IWorkspaceService } from '../../../../../platform/workspace/common/work
 import { createServiceIdentifier } from '../../../../../util/common/services';
 import { basename } from '../../../../../util/vs/base/common/resources';
 import { URI } from '../../../../../util/vs/base/common/uri';
+import { IAgentSessionsWorkspace } from '../../../../chatSessions/common/agentSessionsWorkspace';
 import { IFolderRepositoryManager } from '../../../../chatSessions/common/folderRepositoryManager';
 import { ClaudeSessionUri } from '../../common/claudeSessionUri';
 import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
@@ -76,6 +77,7 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceService private readonly _workspace: IWorkspaceService,
 		@IFolderRepositoryManager private readonly _folderRepositoryManager: IFolderRepositoryManager,
+		@IAgentSessionsWorkspace private readonly _agentSessionsWorkspace: IAgentSessionsWorkspace,
 	) { }
 
 	/**
@@ -83,6 +85,16 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 	 * Delegates to the SDK's `listSessions()` and converts results.
 	 */
 	async getAllSessions(token: CancellationToken): Promise<readonly IClaudeCodeSessionInfo[]> {
+		if (this._agentSessionsWorkspace.isAgentSessionsWorkspace) {
+			try {
+				const sdkSessions = await this._sdkService.listSessions();
+				return sdkSessions.map(sdkInfo => sdkSessionInfoToSessionInfo(sdkInfo));
+			} catch (e) {
+				this._logService.debug(`[ClaudeCodeSessionService] Failed to list all sessions: ${e}`);
+				return [];
+			}
+		}
+
 		const items: IClaudeCodeSessionInfo[] = [];
 		const projectFolders = await this._getProjectFolders();
 

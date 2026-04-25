@@ -52,9 +52,10 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
-import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
+import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
+import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
 
 const REPOSITORY_OPTION_ID = 'repository';
 
@@ -170,7 +171,14 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	private readonly _onDidCommitChatSessionItem = this._register(new Emitter<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }>());
 	public readonly onDidCommitChatSessionItem: Event<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }> = this._onDidCommitChatSessionItem.event;
-
+	/**
+	 * Session ids that were targeted by an explicit `refreshSession(...)` call and have not yet been
+	 * re-provided. The next `provideChatSessionItems` pass eagerly includes `changes` for these
+	 * sessions so the visible row reflects the latest diff info — VS Code uses the items returned
+	 * from `provideChatSessionItems` as source of truth and does not re-invoke `resolveChatSessionItem`
+	 * for already-visible rows. The set is cleared after each `provideChatSessionItems` call.
+	 */
+	private readonly pendingChangeIncludeIds = new Set<string>();
 
 	public resolveChatSessionItem?: (item: vscode.ChatSessionItem, token: vscode.CancellationToken) => Promise<vscode.ChatSessionItem | undefined>;
 
@@ -200,7 +208,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			this.resolveChatSessionItem = async (item: vscode.ChatSessionItem, token: vscode.CancellationToken): Promise<vscode.ChatSessionItem | undefined> => {
 				const sessionId = SessionIdForCLI.parse(item.resource);
 				const session = await this.copilotcliSessionService.getSessionItem(sessionId, token);
-				if (!session || token.isCancellationRequested || Array.isArray(item.changes)) {
+				if (!session || token.isCancellationRequested) {
 					return undefined;
 				}
 				return this.toChatSessionItem(session, { includeChanges: true }, token);
@@ -215,6 +223,10 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		this._register(this.copilotcliSessionService.onDidChangeSessions(() => {
 			this.notifySessionsChange();
 		}));
+	}
+
+	public getAssociatedSessions(folder: Uri): string[] {
+		return this.chatSessionMetadataStore.getSessionIdsForFolder(folder);
 	}
 
 	/**
@@ -234,6 +246,17 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		await this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
+		if (refreshOptions.reason === 'update') {
+			// Mark the targeted sessions so the next `provideChatSessionItems` pass includes
+			// fresh `changes` for them (push path equivalent — see `pendingChangeIncludeIds`).
+			if ('sessionIds' in refreshOptions) {
+				for (const id of refreshOptions.sessionIds) {
+					this.pendingChangeIncludeIds.add(id);
+				}
+			} else {
+				this.pendingChangeIncludeIds.add(refreshOptions.sessionId);
+			}
+		}
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -244,7 +267,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	public async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
 		const stopwatch = new StopWatch();
 		const sessions = await this.copilotcliSessionService.getAllSessions(token);
-		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
+		// Drain the pending set: sessions that were explicitly refreshed get `changes` populated
+		// eagerly so the visible row reflects the latest diff info on this re-provide pass.
+		const pendingIds = new Set(this.pendingChangeIncludeIds);
+		this.pendingChangeIncludeIds.clear();
+		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(
+			session,
+			pendingIds.has(session.id) ? { includeChanges: true } : undefined,
+			token,
+		)));
 
 		const count = diskSessions.length;
 		void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
@@ -297,9 +328,8 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
 		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
 		let changes: vscode.ChatSessionChangedFile[] | undefined;
-		if (!token.isCancellationRequested && (options?.includeChanges || (await this.canBuildChangesFast(session.id, worktreeProperties)))) {
+		if (!token.isCancellationRequested && (options?.includeChanges || (await this.hasCachedChanges(session.id, worktreeProperties)))) {
 			changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
-
 			// We need to get an updated version of worktree properties here because when the
 			// changes are being computed, the worktree properties are also updated with the
 			// repository state which we are passing along through the metadata
@@ -406,19 +436,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		} satisfies vscode.ChatSessionItem;
 	}
 
-	private async canBuildChangesFast(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
+	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
 		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			return true;
 		}
-		if (!worktreeProperties?.repositoryPath) {
-			return false;
-		}
-		const [trusted, hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath)),
+		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
 			this.worktreeManager.hasCachedChanges(sessionId),
 			this.workspaceFolderService.hasCachedChanges(sessionId)
 		]);
-		return trusted && (hasCachedWorktreeChanges || hasCachedWorkspaceChanges);
+		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
 	}
 
 
@@ -1365,6 +1391,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 						inputState: {
 							groups: [],
 							sessionResource: undefined,
+							onDidDispose: Event.None,
 							onDidChange: Event.None
 						}
 					};
@@ -1657,6 +1684,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				// is used if worktree isolation is enabled, and auto-commit is disabled or workspace
 				// isolation is enabled.
 				await this.copilotCLIWorktreeCheckpointService.handleRequestCompleted(session.sessionId, request.id);
+				if (workingDirectory) {
+					void clearChangesCacheForAffectedSessions(workingDirectory, [session.sessionId], this.logService, this.chatSessionMetadataStore, this.workspaceFolderService, this.copilotCLIWorktreeManagerService, this.sessionItemProvider).catch(ex => this.logService.error(ex, 'Failed to clear changes cache after request completion'));
+				}
 			}
 
 			void this.handlePullRequestCreated(session).catch(ex => this.logService.error(ex, 'Failed to handle pull request creation'));
@@ -2727,17 +2757,15 @@ export function registerCLIChatCommands(
 			logService.trace('[commitToWorktree] Commit successful');
 
 			// Clear the worktree changes cache so getWorktreeChanges() recomputes
-			const sessionId = await copilotCLIWorktreeManagerService.getSessionIdForWorktree(worktreeUri);
-			if (sessionId) {
+			const sessionIds = await copilotcliSessionItemProvider.getAssociatedSessions(worktreeUri);
+			await Promise.all(sessionIds.map(async sessionId => {
 				const props = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 				if (props) {
 					await copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, { ...props, changes: undefined });
 				} else {
 					logService.error('[commitToWorktree] No worktree properties found for session:', sessionId);
 				}
-			} else {
-				logService.error('[commitToWorktree] No session found for worktree:', worktreeUri.toString());
-			}
+			}));
 
 			logService.trace('[commitToWorktree] Notifying sessions change');
 			copilotcliSessionItemProvider.notifySessionsChange();

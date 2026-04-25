@@ -369,7 +369,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 					this.logService.warn(`[ChatSessionOptionSlashCommands] Skipping duplicate slash command '${name}' contributed by session type '${chatSessionType}'.`);
 					continue;
 				}
-				if (this.slashCommandService.hasCommand(name)) {
+				if (this.slashCommandService.hasCommand(name, chatSessionType)) {
 					this.logService.warn(`[ChatSessionOptionSlashCommands] Slash command '${name}' contributed by session type '${chatSessionType}' is already registered; skipping.`);
 					continue;
 				}

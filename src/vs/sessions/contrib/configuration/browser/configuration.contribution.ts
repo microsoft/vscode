@@ -73,13 +73,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.showExternalSessions': false,
 
 		'inlineChat.affordance': 'editor',
-		'inlineChat.renderMode': 'hover',
 
 		'search.quickOpen.includeHistory': false,
 
 		'task.notifyWindowOnTaskCompletion': -1,
 
 		'terminal.integrated.initialHint': false,
+
+		'workbench.browser.openLocalhostLinks': true,
+		'workbench.browser.enableChatTools': false,
 
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,

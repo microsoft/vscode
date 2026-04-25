@@ -92,11 +92,15 @@ class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
 	override getWorktreeChanges = vi.fn(async () => []);
+	override hasCachedChanges = vi.fn(async () => false);
+	override onDidChangeWorktreeChanges = Event.None;
 }
 
 class TestWorkspaceFolderService extends mock<IChatSessionWorkspaceFolderService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorkspaceChanges = vi.fn(async () => []);
+	override hasCachedChanges = vi.fn(async () => false);
+	override onDidChangeWorkspaceFolderChanges = Event.None;
 }
 
 class TestFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
@@ -206,6 +210,7 @@ function createProvider() {
 		workspaceFolderService,
 		metadataStore,
 		new NullWorkspaceService(),
+		worktreeService,
 	);
 
 	return {

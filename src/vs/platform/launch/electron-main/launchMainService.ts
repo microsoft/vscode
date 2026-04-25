@@ -6,7 +6,7 @@
 import { app } from 'electron';
 import { coalesce } from '../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IProcessEnvironment, isLinux, isMacintosh } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { whenDeleted } from '../../../base/node/pfs.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -164,7 +164,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Agents window
-		else if (!isLinux && args['agents'] && this.productService.quality !== 'stable') {
+		else if (args['agents'] && this.productService.quality !== 'stable') {
 			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
 		}
 

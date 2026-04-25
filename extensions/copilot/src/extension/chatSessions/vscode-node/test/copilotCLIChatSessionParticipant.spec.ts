@@ -414,7 +414,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			workspaceService,
 			logService,
 			tools,
-			fileSystem
+			fileSystem,
+			new MockChatSessionMetadataStore()
 		);
 
 		instantiationService = accessor.get(IInstantiationService);

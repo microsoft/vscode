@@ -92,6 +92,7 @@ function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
 ): IActionListItem<IActionWidgetDropdownAction> {
+	const hoverContent = model ? getModelHoverContent(model) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -100,8 +101,9 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: model ? { content: getModelHoverContent(model) } : undefined,
-		submenuActions: action.toolbarActions,
+		hover: hoverContent ? { content: hoverContent } : undefined,
+		tooltip: action.tooltip,
+		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
 }
 
@@ -793,27 +795,30 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString | undefined {
 	const isAuto = isAutoModel(model);
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	markdown.appendMarkdown(`**${model.metadata.name}**`);
+	let hasContent = false;
 
 	if (model.metadata.tooltip) {
-		markdown.appendMarkdown(`\n\n`);
 		if (model.metadata.statusIcon) {
 			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
 		markdown.appendMarkdown(`${model.metadata.tooltip}`);
+		hasContent = true;
 	}
 
 	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
-		markdown.appendMarkdown(`\n\n`);
+		if (hasContent) {
+			markdown.appendMarkdown(`\n\n`);
+		}
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
 		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+		hasContent = true;
 	}
 
-	return markdown;
+	return hasContent ? markdown : undefined;
 }
 
 
