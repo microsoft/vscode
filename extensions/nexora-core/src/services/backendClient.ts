@@ -209,6 +209,96 @@ export class BackendClient {
 		}
 	}
 
+	/**
+	 * Get available connector types.
+	 * 
+	 * @returns List of available connector type names (openai, anthropic, rest, mcp)
+	 */
+	async getConnectorTypes(): Promise<string[]> {
+		try {
+			const response = await this._get('/api/connectors/types');
+			return response?.types || [];
+		} catch {
+			return ['openai', 'anthropic', 'rest', 'mcp'];
+		}
+	}
+
+	/**
+	 * Execute an operation on a connector.
+	 * 
+	 * @param connectorType Type of connector (openai, anthropic, rest, mcp)
+	 * @param operation Operation to execute (generate, chat, etc.)
+	 * @param params Parameters for the operation
+	 * @param config Optional connector configuration
+	 * @returns Execution result with data, usage, and timing
+	 */
+	async executeConnector(
+		connectorType: string,
+		operation: string,
+		params: Record<string, any>,
+		config: Record<string, any> = {}
+	): Promise<any> {
+		try {
+			return await this._post('/api/connectors/execute', {
+				connector_type: connectorType,
+				config,
+				operation,
+				params
+			});
+		} catch (error) {
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : 'Connector execution failed',
+				data: null,
+				duration_ms: 0,
+				usage: { input_tokens: 0, output_tokens: 0, api_calls: 0, estimated_cost: 0 }
+			};
+		}
+	}
+
+	/**
+	 * Get usage metrics for all active connectors.
+	 * 
+	 * @returns Usage metrics per connector and total aggregated usage
+	 */
+	async getConnectorUsage(): Promise<any> {
+		try {
+			const response = await this._get('/api/connectors/usage');
+			return response || { connectors: {}, total: { input_tokens: 0, output_tokens: 0, api_calls: 0, estimated_cost: 0 } };
+		} catch {
+			return { connectors: {}, total: { input_tokens: 0, output_tokens: 0, api_calls: 0, estimated_cost: 0 } };
+		}
+	}
+
+	/**
+	 * Check health of a specific connector.
+	 * 
+	 * @param connectorType Type of connector to check
+	 * @param config Configuration for the connector
+	 * @returns Health status
+	 */
+	async checkConnectorHealth(connectorType: string, config: Record<string, any> = {}): Promise<any> {
+		try {
+			return await this._post(`/api/connectors/health/${connectorType}`, { config });
+		} catch {
+			return { healthy: false, status: 'FAILED_TO_CONNECT' };
+		}
+	}
+
+	/**
+	 * Get list of active connectors.
+	 * 
+	 * @returns List of active connector instances
+	 */
+	async getActiveConnectors(): Promise<any[]> {
+		try {
+			const response = await this._get('/api/connectors/active');
+			return response?.connectors || [];
+		} catch {
+			return [];
+		}
+	}
+
 	private async _get(endpoint: string): Promise<any> {
 		const url = `${this.config.baseUrl}${endpoint}`;
 

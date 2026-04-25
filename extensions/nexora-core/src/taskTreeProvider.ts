@@ -50,29 +50,31 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 	}
 
 	getChildren(element?: TaskItem): TaskItem[] {
-		if (!element) {
-			// Root level - show tasks with no dependencies first (in execution order)
-			const rootTasks = this.tasks.filter(t => t.depends_on.length === 0);
-			return this.sortByExecutionOrder(rootTasks).map(t => this.createTaskItem(t));
+		if (element) {
+			// Flat execution plan: no nested children (DAG is not a tree)
+			return [];
 		}
 
-		// Show tasks that depend on this task
-		const dependentTasks = this.tasks.filter(t =>
-			t.depends_on.includes(element.taskId)
-		);
-		return this.sortByExecutionOrder(dependentTasks).map(t => this.createTaskItem(t));
+		// Root: one row per task in backend execution_order (matches chat panel)
+		const ordered = this.sortByExecutionOrder([...this.tasks]);
+		const total = ordered.length;
+		return ordered.map((t, i) => this.createTaskItem(t, i + 1, total));
 	}
 
 	private sortByExecutionOrder(tasks: DecomposedTask[]): DecomposedTask[] {
 		return tasks.sort((a, b) => {
 			const indexA = this.executionOrder.indexOf(a.id);
 			const indexB = this.executionOrder.indexOf(b.id);
-			return indexA - indexB;
+			const rankA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+			const rankB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+			return rankA - rankB;
 		});
 	}
 
-	private createTaskItem(task: DecomposedTask): TaskItem {
-		const hasDependents = this.tasks.some(t => t.depends_on.includes(task.id));
+	private createTaskItem(task: DecomposedTask, step: number, total: number): TaskItem {
+		const depHint =
+			task.depends_on.length > 0 ? `after ${task.depends_on.join(', ')}` : 'no deps';
+		const platform = task.selected_platform || task.type;
 
 		return new TaskItem(
 			task.id,
@@ -82,9 +84,10 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 			task.selected_platform,
 			task.estimated_duration,
 			task.estimated_cost,
-			hasDependents
-				? vscode.TreeItemCollapsibleState.Collapsed
-				: vscode.TreeItemCollapsibleState.None
+			step,
+			total,
+			depHint,
+			vscode.TreeItemCollapsibleState.None
 		);
 	}
 
@@ -102,11 +105,15 @@ class TaskItem extends vscode.TreeItem {
 		public readonly platform: string | null,
 		public readonly duration: string | null,
 		public readonly cost: number,
+		public readonly step: number,
+		public readonly total: number,
+		public readonly depHint: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState
 	) {
-		super(name, collapsibleState);
+		super(`${taskId}: ${name}`, collapsibleState);
 
-		this.description = platform || taskType;
+		const platformLabel = platform || taskType;
+		this.description = `${step}/${total} · ${platformLabel} · ${depHint}`;
 		this.tooltip = this.buildTooltip();
 		this.iconPath = this.getIconForTaskType(taskType);
 		this.contextValue = 'nexoraTask';
@@ -114,10 +121,12 @@ class TaskItem extends vscode.TreeItem {
 
 	private buildTooltip(): string {
 		const lines = [
+			`Execution step: ${this.step} of ${this.total}`,
 			`Task: ${this.name}`,
 			`ID: ${this.taskId}`,
 			`Type: ${this.taskType}`,
-			`Platform: ${this.platform || 'Not selected'}`
+			`Platform: ${this.platform || 'Not selected'}`,
+			`Dependencies: ${this.depHint}`
 		];
 
 		if (this.taskDescription) {
