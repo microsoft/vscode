@@ -8,9 +8,20 @@ import { ChatPanelProvider } from './chatPanel';
 import { PlatformBrowserProvider } from './platformPanel';
 import { TaskTreeProvider } from './taskTreeProvider';
 import { getBackendClient } from './services/backendClient';
+import { getOrchestrationWebSocket, disposeWebSocket } from './services/websocketClient';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Nexora Core extension is now active!');
+
+	// Initialize WebSocket connection for real-time updates
+	const wsClient = getOrchestrationWebSocket('default');
+	wsClient.connect().then(connected => {
+		if (connected) {
+			console.log('[Nexora] WebSocket connected for real-time updates');
+		} else {
+			console.log('[Nexora] WebSocket connection failed - will retry on plan execution');
+		}
+	});
 
 	const chatProvider = new ChatPanelProvider(context.extensionUri);
 	context.subscriptions.push(
@@ -105,4 +116,5 @@ async function checkBackendOnStartup(): Promise<void> {
 
 export function deactivate() {
 	console.log('Nexora Core extension deactivated');
+	disposeWebSocket();
 }

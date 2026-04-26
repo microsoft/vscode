@@ -7,10 +7,13 @@ import * as vscode from 'vscode';
 import { getBackendClient } from './services/backendClient';
 import { getChatWebviewHtml } from './webview/chat';
 import type { ChatInitialState, WebviewInboundMessage } from './webview/chat/types';
+import { getOrchestrationWebSocket, type WebSocketMessage } from './services/websocketClient';
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'nexora.chatPanel';
 	private _view?: vscode.WebviewView;
+	private _wsUnsubscribe?: () => void;
+	private _currentPlanId?: string;
 
 	constructor(private readonly _extensionUri: vscode.Uri) { }
 
@@ -39,7 +42,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.onDidReceiveMessage(async (data: WebviewInboundMessage) => {
 			if (data.type === 'sendMessage') {
-				await this._handleUserMessage(data.message);
+				await this._handleUserMessage(data.message, data.model);
 			} else if (data.type === 'checkBackend') {
 				await this._checkBackendStatus();
 			} else if (data.type === 'generateCode') {
@@ -52,11 +55,87 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				await this._handleDeployment(data.prompt, data.repoName, data.projectName);
 			} else if (data.type === 'checkAuthStatus') {
 				await this._checkAuthStatus();
+			} else if (data.type === 'generatePlan') {
+				await this._handlePlanGeneration(data.request);
+			} else if (data.type === 'approvePlan') {
+				await this._handleApprovePlan(data.planId);
+			} else if (data.type === 'cancelPlan') {
+				await this._handleCancelPlan(data.planId);
+			} else if (data.type === 'modifyPlan') {
+				await this._handleModifyPlan(data.planId, data.modification);
+			} else if (data.type === 'getHistory') {
+				await this._handleGetHistory();
+			} else if (data.type === 'getRollbackable') {
+				await this._handleGetRollbackable();
+			} else if (data.type === 'rollback') {
+				await this._handleRollback(data.historyId);
+			} else if (data.type === 'browsePlatforms') {
+				await this._handleBrowsePlatforms();
+			} else if (data.type === 'indexWorkspace') {
+				await this._handleIndexWorkspace();
+			} else if (data.type === 'executeRequest') {
+				await this._handleExecuteRequest(data.request);
+			} else if (data.type === 'runAgent') {
+				await this._handleRunAgent(data.request);
 			}
 		});
 
 		this._checkBackendStatus();
 		this._checkAuthStatus();
+		this._setupWebSocketListener();
+	}
+
+	private _setupWebSocketListener(): void {
+		const wsClient = getOrchestrationWebSocket('default');
+
+		// Ensure connected
+		if (!wsClient.isConnected()) {
+			wsClient.connect();
+		}
+
+		// Subscribe to WebSocket messages and forward to webview
+		this._wsUnsubscribe = wsClient.onMessage((message: WebSocketMessage) => {
+			if (!this._view) {
+				return;
+			}
+
+			// Forward task updates to webview
+			if (message.type === 'task_running' || message.type === 'task_success' || message.type === 'task_failed' || message.type === 'task_skipped') {
+				this._view.webview.postMessage({
+					type: 'taskUpdate',
+					planId: message.plan_id,
+					taskId: message.task_id,
+					taskName: message.task_name,
+					status: message.type.replace('task_', ''),
+					result: message.result,
+					error: message.error,
+					cost: message.cost
+				});
+			}
+
+			// Forward plan completion to webview
+			if (message.type === 'plan_completed') {
+				this._view.webview.postMessage({
+					type: 'planCompleted',
+					planId: message.plan_id,
+					status: message.status,
+					actualCost: message.actual_cost || 0
+				});
+			}
+
+			// Forward retry notifications to webview
+			if (message.type === 'task_retry') {
+				this._view.webview.postMessage({
+					type: 'taskRetry',
+					planId: message.plan_id,
+					taskId: message.task_id,
+					taskName: message.task_name,
+					attempt: message.attempt,
+					maxAttempts: message.max_attempts,
+					platform: message.platform
+				});
+			}
+		});
 	}
 
 	// Webview HTML is now provided by `src/webview/chat/*`.
@@ -74,7 +153,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleUserMessage(message: string): Promise<void> {
+	private async _handleUserMessage(message: string, model?: string): Promise<void> {
 		if (!this._view) {
 			return;
 		}
@@ -82,7 +161,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
-			content: 'Processing...',
+			content: 'Thinking...',
 			isLoading: true
 		});
 
@@ -94,7 +173,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				this._view.webview.postMessage({
 					type: 'addMessage',
 					role: 'assistant',
-					content: `Backend is offline. Your message: "${message}"\n\nPlease start the backend server and try again.\nBackend should be available at http://localhost:8000`,
+					content: `Backend is offline. Your message: "${message}"\n\nPlease start the backend server and try again.`,
 					isLoading: false
 				});
 				return;
@@ -106,50 +185,22 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				? workspaceFolders[0].uri.fsPath
 				: undefined;
 
-			// Step 1: Classify the intent
-			const classification = await client.classifyIntent(message, workspacePath);
+			// Map UI model selection to LiteLLM model names
+			const modelMap: Record<string, string> = {
+				'claude-haiku': 'anthropic/claude-3-haiku-20240307',
+				'claude-sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+				'gpt-4o-mini': 'openai/gpt-4o-mini',
+				'gpt-4o': 'openai/gpt-4o'
+			};
+			const llmModel = model ? modelMap[model] || model : undefined;
 
-			// Step 2: Decompose into tasks (Week 6)
-			const decomposition = await client.decomposeRequest(message, workspacePath);
-
-			// Step 3: Update Task Tree panel
-			if (decomposition && decomposition.tasks && decomposition.tasks.length > 0) {
-				vscode.commands.executeCommand('nexora.updateTaskTree', decomposition);
-			}
-
-			// Format the response
-			let response = `**Intent:** ${classification.intent} | **Confidence:** ${Math.round(classification.confidence * 100)}% | **Complexity:** ${classification.complexity}\n`;
-
-			if (classification.sub_intents && classification.sub_intents.length > 0) {
-				response += `**Sub-intents:** ${classification.sub_intents.join(', ')}\n`;
-			}
-
-			// Show decomposed tasks
-			if (decomposition && decomposition.tasks && decomposition.tasks.length > 0) {
-				response += `\n**Task Plan (${decomposition.tasks.length} tasks):**\n`;
-				for (const task of decomposition.tasks) {
-					const platform = task.selected_platform || 'TBD';
-					const deps = task.depends_on && task.depends_on.length > 0
-						? ` [after: ${task.depends_on.join(', ')}]`
-						: '';
-					response += `  ${task.id}: ${task.name} (${platform})${deps}\n`;
-				}
-
-				if (decomposition.execution_order && decomposition.execution_order.length > 0) {
-					response += `\n**Execution Order:** ${decomposition.execution_order.join(' -> ')}\n`;
-				}
-
-				response += `\n*Tasks shown in Task Plan panel.*`;
-			} else if (decomposition && decomposition.error) {
-				response += `\n*Task decomposition error: ${decomposition.error}*`;
-			} else {
-				response += `\n*No tasks generated for this request.*`;
-			}
+			// Simple chat - no task decomposition
+			const chatResponse = await client.chat(message, workspacePath, llmModel);
 
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: response,
+				content: chatResponse.response,
 				isLoading: false
 			});
 
@@ -157,7 +208,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error processing request: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check that the backend is running and try again.`,
+				content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
 				isLoading: false
 			});
 		}
@@ -434,6 +485,513 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				type: 'addMessage',
 				role: 'assistant',
 				content: errorMsg,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handlePlanGeneration(request: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: 'Generating execution plan...',
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			const workspacePath = workspaceFolders && workspaceFolders.length > 0
+				? workspaceFolders[0].uri.fsPath
+				: undefined;
+
+			const plan = await client.generatePlan(request, 'default', workspacePath);
+
+			// Store current plan ID and subscribe to WebSocket updates
+			this._currentPlanId = plan.plan_id;
+			const wsClient = getOrchestrationWebSocket('default');
+			if (wsClient.isConnected()) {
+				wsClient.subscribeToPlan(plan.plan_id);
+			}
+
+			// Send plan to webview with approval UI
+			this._view.webview.postMessage({
+				type: 'showPlanApproval',
+				plan: plan
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error generating plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleApprovePlan(planId: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		// Subscribe to WebSocket for real-time updates
+		const wsClient = getOrchestrationWebSocket('default');
+		if (!wsClient.isConnected()) {
+			await wsClient.connect();
+		}
+		wsClient.subscribeToPlan(planId);
+
+		// Notify webview that execution is starting
+		this._view.webview.postMessage({
+			type: 'planExecutionStarted',
+			planId: planId
+		});
+
+		try {
+			const client = getBackendClient();
+			// This will trigger execution - WebSocket will send real-time updates
+			const result = await client.approvePlan(planId);
+
+			// Final result (WebSocket may have already sent updates, but this is the definitive result)
+			this._view.webview.postMessage({
+				type: 'planExecutionComplete',
+				planId: planId,
+				status: result.status,
+				tasks: result.tasks,
+				actualCost: result.actual_cost
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error executing plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleCancelPlan(planId: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		try {
+			const client = getBackendClient();
+			const result = await client.cancelPlan(planId);
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Plan ${planId} cancelled.`,
+				isLoading: false
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error cancelling plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleModifyPlan(planId: string, modification: any): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		try {
+			const client = getBackendClient();
+			const result = await client.modifyPlan(planId, modification);
+
+			// Show updated plan
+			let response = `**Plan Modified** (ID: ${result.plan_id})\n\n`;
+			response += `**New Estimated Cost:** $${result.estimated_cost.toFixed(4)}\n\n`;
+			response += `**Updated Tasks (${result.tasks.length}):**\n`;
+
+			for (const task of result.tasks) {
+				response += `  - ${task.task_id}: ${task.name} (${task.platform})\n`;
+			}
+
+			this._view.webview.postMessage({
+				type: 'showPlanApproval',
+				plan: result,
+				message: response
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error modifying plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleGetHistory(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		try {
+			const client = getBackendClient();
+			const history = await client.getUserHistory('default', 20);
+			const stats = await client.getHistoryStats('default');
+
+			let response = `**Execution History**\n\n`;
+			response += `**Stats:** ${stats.total_executions} total | ${stats.success_rate}% success | $${stats.total_cost_usd.toFixed(4)} spent\n\n`;
+
+			if (history.length === 0) {
+				response += `No executions recorded yet.`;
+			} else {
+				response += `**Recent Executions:**\n`;
+				for (const item of history) {
+					const icon = item.status === 'success' ? '[ok]' : '[fail]';
+					const rollback = item.can_rollback ? ' [rollbackable]' : '';
+					response += `${icon} ${item.platform}/${item.operation} - $${item.cost_usd.toFixed(4)}${rollback}\n`;
+				}
+			}
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: response,
+				isLoading: false
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error getting history: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleGetRollbackable(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		try {
+			const client = getBackendClient();
+			const items = await client.getRollbackable('default');
+
+			let response = `**Rollbackable Actions**\n\n`;
+
+			if (items.length === 0) {
+				response += `No rollbackable actions available.`;
+			} else {
+				response += `The following actions can be undone:\n\n`;
+				for (const item of items) {
+					response += `- **ID ${item.id}**: ${item.platform}/${item.operation} → can ${item.rollback_operation}\n`;
+				}
+				response += `\nTo rollback, use the rollback command with the ID.`;
+			}
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: response,
+				isLoading: false
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error getting rollbackable items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleRollback(historyId: number): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: `Rolling back action ${historyId}...`,
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+
+			// Get rollback info first
+			const info = await client.getRollbackInfo(historyId);
+
+			if (info.warning) {
+				// Show warning but proceed
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: `**Warning:** ${info.warning}`,
+					isLoading: false
+				});
+			}
+
+			// Execute rollback
+			const result = await client.rollback(historyId, 'default');
+
+			if (result.success) {
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: `**Rollback Successful**\n\n${result.message}`,
+					isLoading: false
+				});
+			} else {
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: `**Rollback Failed**\n\n${result.message}`,
+					isLoading: false
+				});
+			}
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error during rollback: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleBrowsePlatforms(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: 'Fetching available platforms...',
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+			const platforms = await client.getPlatforms();
+
+			let response = `**Available Platforms** (${platforms.length})\n\n`;
+
+			// Group by category
+			const byCategory: Record<string, any[]> = {};
+			for (const p of platforms) {
+				const cat = p.category || 'Other';
+				if (!byCategory[cat]) {
+					byCategory[cat] = [];
+				}
+				byCategory[cat].push(p);
+			}
+
+			for (const [category, items] of Object.entries(byCategory)) {
+				response += `**${category}**\n`;
+				for (const p of items) {
+					response += `  - ${p.name} (${p.id})\n`;
+				}
+				response += '\n';
+			}
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: response,
+				isLoading: false
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error fetching platforms: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleIndexWorkspace(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: 'No workspace folder open. Please open a folder first.',
+				isLoading: false
+			});
+			return;
+		}
+
+		const workspacePath = workspaceFolders[0].uri.fsPath;
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: `Indexing workspace: ${workspacePath}...`,
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+			const result = await client.indexWorkspace(workspacePath);
+
+			let response = `**Workspace Indexed**\n\n`;
+			response += `- **Workspace ID:** ${result.workspace_id}\n`;
+			response += `- **Files indexed:** ${result.files_indexed || 'N/A'}\n`;
+			response += `- **Status:** ${result.status || 'completed'}\n`;
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: response,
+				isLoading: false
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error indexing workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleExecuteRequest(request: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: 'Generating and executing plan immediately...',
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			const workspacePath = workspaceFolders && workspaceFolders.length > 0
+				? workspaceFolders[0].uri.fsPath
+				: undefined;
+
+			// Generate plan
+			const plan = await client.generatePlan(request, 'default', workspacePath);
+
+			// Subscribe to WebSocket
+			const wsClient = getOrchestrationWebSocket('default');
+			if (!wsClient.isConnected()) {
+				await wsClient.connect();
+			}
+			wsClient.subscribeToPlan(plan.plan_id);
+
+			// Show plan card
+			this._view.webview.postMessage({
+				type: 'showPlanApproval',
+				plan: plan
+			});
+
+			// Immediately approve and execute
+			this._view.webview.postMessage({
+				type: 'planExecutionStarted',
+				planId: plan.plan_id
+			});
+
+			const result = await client.approvePlan(plan.plan_id);
+
+			this._view.webview.postMessage({
+				type: 'planExecutionComplete',
+				planId: plan.plan_id,
+				status: result.status,
+				tasks: result.tasks,
+				actualCost: result.actual_cost
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Error executing request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleRunAgent(request: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: `**Agent Mode**\n\nAnalyzing request and planning autonomous execution...\n\n*"${request}"*`,
+			isLoading: true
+		});
+
+		// For now, agent mode uses the same flow as execute but with different messaging
+		// In future, this could use a more autonomous agent loop
+		try {
+			const client = getBackendClient();
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			const workspacePath = workspaceFolders && workspaceFolders.length > 0
+				? workspaceFolders[0].uri.fsPath
+				: undefined;
+
+			const plan = await client.generatePlan(request, 'default', workspacePath);
+
+			const wsClient = getOrchestrationWebSocket('default');
+			if (!wsClient.isConnected()) {
+				await wsClient.connect();
+			}
+			wsClient.subscribeToPlan(plan.plan_id);
+
+			this._view.webview.postMessage({
+				type: 'showPlanApproval',
+				plan: plan
+			});
+
+			// In agent mode, auto-approve
+			this._view.webview.postMessage({
+				type: 'planExecutionStarted',
+				planId: plan.plan_id
+			});
+
+			const result = await client.approvePlan(plan.plan_id);
+
+			this._view.webview.postMessage({
+				type: 'planExecutionComplete',
+				planId: plan.plan_id,
+				status: result.status,
+				tasks: result.tasks,
+				actualCost: result.actual_cost
+			});
+
+		} catch (error) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Agent error: ${error instanceof Error ? error.message : 'Unknown error'}`,
 				isLoading: false
 			});
 		}
