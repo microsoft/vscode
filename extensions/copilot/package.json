@@ -4507,7 +4507,7 @@
 					},
 					"github.copilot.chat.agentHistorySummarizationInline": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
 						"tags": [
 							"advanced",

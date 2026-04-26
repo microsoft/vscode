@@ -397,15 +397,14 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
  * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
  * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
  * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
- * - OpenAI gpt-5.4 (gpt-5.4-*), but only when the `ResponsesApiToolSearchEnabled` setting is enabled
+ * - OpenAI gpt-5.4/gpt-5.5, but only when the `ResponsesApiToolSearchEnabled` setting is enabled
  */
 export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
-	const lower = modelId.toLowerCase();
-	if (isGpt54(lower)) {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	if (isResponsesApiToolSearchModelId(normalized)) {
 		return !!configurationService && !!experimentationService && isResponsesApiToolSearchEnabled(modelId, configurationService, experimentationService);
 	}
 
-	const normalized = lower.replace(/\./g, '-');
 	return normalized.startsWith('claude-sonnet-4-5') ||
 		normalized.startsWith('claude-sonnet-4-6') ||
 		normalized.startsWith('claude-opus-4-5') ||
@@ -414,12 +413,18 @@ export function modelSupportsToolSearch(modelId: string, configurationService?: 
 		isHiddenModelG(modelId);
 }
 
+function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
+	return normalizedModelId.startsWith('gpt-5-4') || normalizedModelId.startsWith('gpt-5-5') || normalizedModelId.startsWith('gpt5-5');
+}
+
 export function isResponsesApiToolSearchEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
 ): boolean {
-	return isGpt54(endpoint) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
+	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	return isResponsesApiToolSearchModelId(normalized) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
 }
 
 /**
