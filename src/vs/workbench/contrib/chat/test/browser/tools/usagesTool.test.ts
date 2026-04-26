@@ -17,6 +17,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { FileMatch, ISearchComplete, ISearchService, ITextQuery, OneLineRange, TextSearchMatch } from '../../../../../services/search/common/search.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { UsagesTool } from '../../../browser/tools/usagesTool.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -97,7 +98,7 @@ suite('UsagesTool', () => {
 	}
 
 	function createTool(textModelService: ITextModelService, workspaceService: IWorkspaceContextService, options?: { modelService?: IModelService; searchService?: ISearchService }): UsagesTool {
-		return new UsagesTool(langFeatures, createMockLanguageService(), options?.modelService ?? createMockModelService(), options?.searchService ?? createMockSearchService(), textModelService, workspaceService);
+		return new UsagesTool(langFeatures, createMockLanguageService(), options?.modelService ?? createMockModelService(), options?.searchService ?? createMockSearchService(), textModelService, workspaceService, new TestConfigurationService());
 	}
 
 	setup(() => {

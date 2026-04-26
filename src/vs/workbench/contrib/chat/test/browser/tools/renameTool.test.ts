@@ -16,6 +16,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { RenameTool } from '../../../browser/tools/renameTool.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
@@ -113,6 +114,7 @@ suite('RenameTool', () => {
 			createMockWorkspaceService(),
 			createMockChatService(),
 			options?.bulkEditService ?? createMockBulkEditService(),
+			new TestConfigurationService(),
 		);
 	}
 
