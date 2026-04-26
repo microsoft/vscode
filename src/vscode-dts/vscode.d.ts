@@ -3935,12 +3935,17 @@ declare module 'vscode' {
 		needsConfirmation: boolean;
 
 		/**
-		 * A human-readable string which is rendered prominent.
+		 * A human-readable string which is rendered prominently when entries are
+		 * grouped (see {@link WorkspaceEditEntryMetadata}). In the refactor preview,
+		 * this label appears as the group's tree node header — entries sharing a
+		 * label are collected under that node. Note that the preview lists entries
+		 * flat by default; users see the label after enabling "Group change by type".
 		 */
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent on the same line.
+		 * A human-readable string which is rendered less prominent on the same line
+		 * as {@link label} when entries are grouped.
 		 */
 		description?: string;
 
