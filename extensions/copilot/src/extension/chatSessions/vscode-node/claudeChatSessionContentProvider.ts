@@ -115,11 +115,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const existingSession = await this.sessionService.getSession(sessionUri, token);
 			const isNewSession = !existingSession;
 
-			// Lock the folder group when starting a new session (permission mode stays editable)
-			if (isNewSession) {
-				this._controller.markSessionStarted(chatSessionContext.inputState);
-			}
-
 			const modelId = parseClaudeModelId(request.model.id);
 			const selectedPermissionId = chatSessionContext.inputState.groups.find(group => group.id === PERMISSION_MODE_OPTION_ID)?.selected?.id;
 			if (!selectedPermissionId || !isPermissionMode(selectedPermissionId)) {
@@ -207,13 +202,6 @@ export class ClaudeChatSessionItemController extends Disposable {
 	/** Current workspace folders — controls folder group items and visibility. */
 	private readonly _workspaceFolders: IObservable<URI[]>;
 
-	/** Disposes per-state autoruns when the state object is garbage collected. */
-	private readonly _stateAutorunRegistry = new FinalizationRegistry<DisposableStore>(
-		store => store.dispose()
-	);
-
-	/** Maps input state objects to their reactive pipelines for external updates. */
-	private readonly _statePipelines = new WeakMap<vscode.ChatSessionInputState, InputStateReactivePipeline>();
 
 	// #endregion
 
@@ -357,9 +345,8 @@ export class ClaudeChatSessionItemController extends Disposable {
 	 * into derived group computations. An autorun reads the derived groups and pushes
 	 * the result to `state.groups`, which is the "UI".
 	 *
-	 * The `state` is only held weakly by the autoruns so it can be garbage-collected
-	 * while the shared observables still reference the pipeline's observers. When the
-	 * state is collected, the finalization registry disposes the store and unsubscribes.
+	 * The returned `DisposableStore` owns the autorun lifecycle and is disposed via
+	 * `state.onDidDispose` in the caller.
 	 *
 	 * Returns the per-state observables so callers can drive external updates, plus a
 	 * `DisposableStore` that owns the autorun lifecycle.
@@ -439,18 +426,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 			return groups;
 		});
 
-		// Hold `state` via a WeakRef so the autorun's closure does not retain it.
-		// Shared observables (`_workspaceFolders`, `_bypassPermissionsEnabled`) hold
-		// strong references to autoruns; without the WeakRef, `state` would transitively
-		// stay reachable forever and `_stateAutorunRegistry` could never fire.
-		const stateRef = new WeakRef(state);
 		store.add(autorun(reader => {
 			/** @description syncInputStateGroups */
-			const groups = allGroups.read(reader);
-			const currentState = stateRef.deref();
-			if (currentState) {
-				currentState.groups = groups;
-			}
+			state.groups = allGroups.read(reader);
 		}));
 
 		return { permissionMode, folderUri, folderItems, isSessionStarted, store };
@@ -471,16 +449,14 @@ export class ClaudeChatSessionItemController extends Disposable {
 					: await this._optionBuilder.buildNewSessionGroups();
 				state = this._controller.createChatSessionInputState(initialGroups);
 				pipeline = this._createInputStateReactivePipeline(state);
-
-				if (isExistingSession) {
-					pipeline.isSessionStarted.set(true, undefined);
-				}
 			}
 
-			// React to external permission mode changes for this session.
-			// Runs for both previousInputState and new-state paths so that
-			// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
 			if (sessionResource) {
+				pipeline.isSessionStarted.set(true, undefined);
+
+				// React to external permission mode changes for this session.
+				// Runs for both previousInputState and new-state paths so that
+				// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
 				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 				const externalPermissionMode = observableFromEvent(
 					this,
@@ -494,8 +470,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 				}));
 			}
 
-			this._statePipelines.set(state, pipeline);
-			this._stateAutorunRegistry.register(state, pipeline.store);
+			pipeline.store.add(state.onDidDispose(() => pipeline.store.dispose()));
 			return state;
 		};
 	}
@@ -540,17 +515,6 @@ export class ClaudeChatSessionItemController extends Disposable {
 		}
 
 		return { permissionMode, folderUri, folderItems, isSessionStarted };
-	}
-
-	/**
-	 * Marks the input state as "started", which locks the folder group.
-	 * Called by the content provider when a new session begins.
-	 */
-	markSessionStarted(inputState: vscode.ChatSessionInputState): void {
-		const pipeline = this._statePipelines.get(inputState);
-		if (pipeline) {
-			pipeline.isSessionStarted.set(true, undefined);
-		}
 	}
 
 	private async _buildExistingSessionGroups(sessionResource: vscode.Uri): Promise<vscode.ChatSessionProviderOptionGroup[]> {

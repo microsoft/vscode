@@ -19,7 +19,7 @@ import { ResolveSessionConfigResult } from '../../../../platform/agentHost/commo
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionGitState, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -48,7 +48,7 @@ export interface IAgentHostAdapterOptions {
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
-	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => ISessionWorkspace | undefined;
+	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
 }
@@ -87,6 +87,13 @@ export class AgentHostSessionAdapter implements ISession {
 
 	readonly agentProvider: string;
 
+	// Retained so we can rebuild `workspace` when only `_meta` changes via
+	// a `SessionMetaChanged` action dispatched on session open (without a full
+	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
+	private _project: IAgentSessionMetadata['project'];
+	private _workingDirectory: URI | undefined;
+	private _meta: IAgentSessionMetadata['_meta'];
+
 	constructor(
 		metadata: IAgentSessionMetadata,
 		providerId: string,
@@ -113,7 +120,12 @@ export class AgentHostSessionAdapter implements ISession {
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model.id}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', _options.description);
-		this.workspace = observableValue('workspace', _options.buildWorkspace(metadata.project, metadata.workingDirectory));
+		this._project = metadata.project;
+		this._workingDirectory = metadata.workingDirectory;
+		this._meta = metadata._meta;
+		const initialGitState = readSessionGitState(this._meta);
+		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, initialGitState);
+		this.workspace = observableValue('workspace', initialWorkspace);
 		this.loading = _options.loading;
 
 		if (metadata.isRead === false) {
@@ -177,7 +189,17 @@ export class AgentHostSessionAdapter implements ISession {
 			didChange = true;
 		}
 
-		const workspace = this._options.buildWorkspace(metadata.project, metadata.workingDirectory);
+		this._project = metadata.project;
+		this._workingDirectory = metadata.workingDirectory;
+		// Only update `_meta` when the source actually provides one. `update()`
+		// is fed from SessionSummary (via `listSessions`/`sessionAdded` paths)
+		// which has no `_meta` field, so an undefined value here means "not
+		// included" rather than "cleared". `_meta` (e.g. git state) flows in
+		// exclusively via `setMeta` from `SessionState` subscription updates.
+		if (metadata._meta !== undefined) {
+			this._meta = metadata._meta;
+		}
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
 		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 			this.workspace.set(workspace, undefined);
 			didChange = true;
@@ -206,6 +228,22 @@ export class AgentHostSessionAdapter implements ISession {
 		}
 
 		return didChange;
+	}
+
+	/**
+	 * Apply a `SessionState._meta` delta (fed from `_applySessionMetaFromState`)
+	 * and rebuild the workspace if the git state changed. Returns `true` iff
+	 * the workspace actually changed.
+	 */
+	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
+		this._meta = meta;
+		const gitState = readSessionGitState(this._meta);
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, gitState);
+		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
+			return false;
+		}
+		this.workspace.set(workspace, undefined);
+		return true;
 	}
 }
 
@@ -425,6 +463,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._ensureSessionCache();
 		for (const cached of this._sessionCache.values()) {
 			if (cached.resource.toString() === resource.toString()) {
+				// Opening a session: subscribe to its AHP state so that
+				// `_meta` (e.g. lazy git state computed by the agent host)
+				// flows into the cached adapter.
+				this._ensureSessionStateSubscription(cached.sessionId);
 				return cached;
 			}
 		}
@@ -1027,12 +1069,38 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri);
 		const store = new DisposableStore();
 		store.add(ref);
-		store.add(ref.object.onDidChange(state => this._seedRunningConfigFromState(sessionId, state)));
+		store.add(ref.object.onDidChange(state => {
+			this._applySessionStateUpdate(sessionId, state);
+		}));
 		this._sessionStateSubscriptions.set(sessionId, store);
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
-			this._seedRunningConfigFromState(sessionId, value);
+			this._applySessionStateUpdate(sessionId, value);
+		}
+	}
+
+	/**
+	 * Fan-out for AHP `SessionState` snapshots: keeps both the running
+	 * session config and the cached adapter's `_meta` (e.g. git state) in
+	 * sync.
+	 */
+	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
+		this._seedRunningConfigFromState(sessionId, state);
+		this._applySessionMetaFromState(sessionId, state);
+	}
+
+	private _applySessionMetaFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		if (cached.setMeta(state._meta)) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
 

@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, SessionAction, RootAction, StateAction, isRootAction, isSessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
@@ -213,6 +213,21 @@ export class AgentHostStateManager extends Disposable {
 			type: NotificationType.SessionRemoved,
 			session,
 		});
+	}
+
+	// ---- Session meta -------------------------------------------------------
+
+	/**
+	 * Replaces `state._meta` on a session by dispatching a
+	 * {@link ActionType.SessionMetaChanged} action so the change flows
+	 * through the action envelope (and thus to all live subscribers).
+	 *
+	 * The full `_meta` object is replaced (not merged) so callers stay in
+	 * control of the convention for their own keys; use the `withSessionXxx`
+	 * helpers in `sessionState.ts` to combine slots.
+	 */
+	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
+		this.dispatchServerAction({ type: ActionType.SessionMetaChanged, session, _meta: meta });
 	}
 
 	// ---- Turn tracking ------------------------------------------------------

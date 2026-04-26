@@ -11,17 +11,9 @@
  * - Listing sessions via `listSessions()`
  * - Loading full session content via `getSessionInfo()` + `getSessionMessages()`
  * - Subagent loading via `listSubagents()` + `getSubagentMessages()`
- *
- * ## Directory Structure
- * Sessions are stored in:
- * - ~/.claude/projects/{workspace-slug}/{session-id}.jsonl
- * Subagent transcripts are stored in:
- * - ~/.claude/projects/{workspace-slug}/{session-id}/subagents/agent-{id}.jsonl
  */
 
 import type { CancellationToken } from 'vscode';
-import { INativeEnvService } from '../../../../../platform/env/common/envService';
-import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../../util/common/services';
@@ -37,7 +29,7 @@ import {
 	IClaudeCodeSessionInfo,
 	ISubagentSession,
 } from './claudeSessionSchema';
-import { buildClaudeCodeSession, sdkSessionInfoToSessionInfo, sdkSubagentMessagesToSubagentSession, SubagentCorrelationMap } from './sdkSessionAdapter';
+import { buildClaudeCodeSession, sdkSessionInfoToSessionInfo, sdkSubagentMessagesToSubagentSession } from './sdkSessionAdapter';
 import { toErrorMessage } from '../../../../../util/common/errorMessage';
 
 // #region Service Interface
@@ -72,8 +64,6 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 
 	constructor(
 		@IClaudeCodeSdkService private readonly _sdkService: IClaudeCodeSdkService,
-		@INativeEnvService private readonly _envService: INativeEnvService,
-		@IFileSystemService private readonly _fileSystem: IFileSystemService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceService private readonly _workspace: IWorkspaceService,
 		@IFolderRepositoryManager private readonly _folderRepositoryManager: IFolderRepositoryManager,
@@ -124,6 +114,27 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 	 */
 	async getSession(resource: URI, token: CancellationToken): Promise<IClaudeCodeSession | undefined> {
 		const sessionId = ClaudeSessionUri.getSessionId(resource);
+
+		if (this._agentSessionsWorkspace.isAgentSessionsWorkspace) {
+			try {
+				const info = await this._sdkService.getSessionInfo(sessionId);
+				if (!info) {
+					return undefined;
+				}
+
+				const messages = await this._sdkService.getSessionMessages(sessionId, info.cwd);
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				const subagents = await this._loadSubagents(sessionId, info.cwd, token);
+				return buildClaudeCodeSession(info, messages, subagents);
+			} catch (e) {
+				this._logService.debug(`[ClaudeCodeSessionService] Failed to load session ${sessionId}: ${e}`);
+				return undefined;
+			}
+		}
+
 		const projectFolders = await this._getProjectFolders();
 
 		for (const { slug, folderUri } of projectFolders) {
@@ -139,16 +150,16 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 					continue;
 				}
 
-				const messages = await this._sdkService.getSessionMessages(sessionId, dir);
+				const sessionDir = info.cwd ?? dir;
+				const messages = await this._sdkService.getSessionMessages(sessionId, sessionDir);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
 
-				// Load subagents via SDK
-				const { subagents, correlationMap } = await this._loadSubagents(sessionId, slug, dir, token);
+				const subagents = await this._loadSubagents(sessionId, sessionDir, token);
 
 				const folderName = basename(folderUri);
-				return buildClaudeCodeSession(info, messages, subagents, correlationMap, folderName);
+				return buildClaudeCodeSession(info, messages, subagents, folderName);
 			} catch (e) {
 				this._logService.debug(`[ClaudeCodeSessionService] Failed to load session ${sessionId} from slug ${slug}: ${e}`);
 			}
@@ -171,43 +182,29 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 
 	// #region Subagent Loading
 
-	/**
-	 * Load subagents for a session using the SDK and extract the UUID→agentId
-	 * correlation map from the parent JSONL file (needed because the SDK strips
-	 * `toolUseResult.agentId`).
-	 */
 	private async _loadSubagents(
 		sessionId: string,
-		slug: string,
-		dir: string,
+		cwd: string | undefined,
 		token: CancellationToken,
-	): Promise<{ subagents: readonly ISubagentSession[]; correlationMap: SubagentCorrelationMap }> {
+	): Promise<readonly ISubagentSession[]> {
 		let agentIds: string[];
 		try {
-			agentIds = await this._sdkService.listSubagents(sessionId, { dir });
+			agentIds = await this._sdkService.listSubagents(sessionId, cwd ? { dir: cwd } : undefined);
 		} catch (error) {
 			this._logService.warn(`[ClaudeCodeSessionService] listSubagents failed: ${toErrorMessage(error)}`);
-			return { subagents: [], correlationMap: new Map() };
+			return [];
 		}
 
 		if (agentIds.length === 0 || token.isCancellationRequested) {
-			return { subagents: [], correlationMap: new Map() };
+			return [];
 		}
 
-		const subagentTasks = agentIds.map(agentId =>
-			this._loadSubagentFromSdk(sessionId, agentId, dir)
+		const results = await Promise.allSettled(
+			agentIds.map(agentId => this._loadSubagentFromSdk(sessionId, agentId, cwd))
 		);
 
-		const [results, correlationMap] = await Promise.all([
-			Promise.allSettled(subagentTasks),
-			this._extractSubagentCorrelation(
-				URI.joinPath(this._envService.userHome, '.claude', 'projects', slug),
-				sessionId,
-			),
-		]);
-
 		if (token.isCancellationRequested) {
-			return { subagents: [], correlationMap: new Map() };
+			return [];
 		}
 
 		const subagents: ISubagentSession[] = [];
@@ -217,74 +214,23 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 			}
 		}
 
-		// Sort by timestamp
 		subagents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-		return { subagents, correlationMap };
+		return subagents;
 	}
 
-	/**
-	 * Load a single subagent's messages via the SDK.
-	 */
 	private async _loadSubagentFromSdk(
 		sessionId: string,
 		agentId: string,
-		dir: string,
+		cwd: string | undefined,
 	): Promise<ISubagentSession | null> {
 		try {
-			const messages = await this._sdkService.getSubagentMessages(sessionId, agentId, { dir });
+			const messages = await this._sdkService.getSubagentMessages(sessionId, agentId, cwd ? { dir: cwd } : undefined);
 			return sdkSubagentMessagesToSubagentSession(agentId, messages);
 		} catch (error) {
 			this._logService.warn(`[ClaudeCodeSessionService] Failed to load subagent ${agentId} for session ${sessionId}: ${toErrorMessage(error)}`);
 			return null;
 		}
-	}
-
-	/**
-	 * Extracts a map from user message UUID → subagent agentId by scanning the
-	 * parent session JSONL for entries with `toolUseResult.agentId`.
-	 *
-	 * This is a targeted scan — we only parse the `toolUseResult` field from entries
-	 * that have one, avoiding full message validation overhead.
-	 *
-	 * When the SDK exposes native subagent correlation, this can be removed.
-	 */
-	private async _extractSubagentCorrelation(
-		projectDirUri: URI,
-		sessionId: string,
-	): Promise<SubagentCorrelationMap> {
-		const sessionFileUri = URI.joinPath(projectDirUri, `${sessionId}.jsonl`);
-		const map = new Map<string, string>();
-
-		try {
-			const content = await this._fileSystem.readFile(sessionFileUri, true);
-			const text = Buffer.from(content).toString('utf8');
-
-			for (const line of text.split('\n')) {
-				// Fast-reject lines that don't have toolUseResult
-				if (!line.includes('"toolUseResult"')) {
-					continue;
-				}
-				try {
-					const entry: unknown = JSON.parse(line);
-					if (
-						entry !== null &&
-						typeof entry === 'object' &&
-						'uuid' in entry && typeof entry.uuid === 'string' &&
-						'toolUseResult' in entry && entry.toolUseResult !== null && typeof entry.toolUseResult === 'object' &&
-						'agentId' in entry.toolUseResult && typeof entry.toolUseResult.agentId === 'string'
-					) {
-						map.set(entry.uuid, entry.toolUseResult.agentId);
-					}
-				} catch {
-					// Skip malformed lines
-				}
-			}
-		} catch {
-			// File not found or read error — acceptable, correlation is best-effort
-		}
-
-		return map;
 	}
 
 	// #endregion

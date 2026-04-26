@@ -474,8 +474,6 @@ export interface StoredMessage {
 	readonly gitBranch?: string;
 	readonly slug?: string;
 	readonly agentId?: string;
-	/** The agentId of the subagent spawned by a Task tool_use, extracted from toolUseResult. */
-	readonly toolUseResultAgentId?: string;
 }
 
 /**
@@ -484,6 +482,7 @@ export interface StoredMessage {
  */
 export interface ISubagentSession {
 	readonly agentId: string;
+	readonly parentToolUseId?: string;
 	readonly messages: readonly StoredMessage[];
 	readonly timestamp: Date;
 }

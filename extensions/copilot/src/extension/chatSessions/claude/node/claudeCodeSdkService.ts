@@ -32,7 +32,7 @@ export interface IClaudeCodeSdkService {
 	 * @param dir Workspace/project directory path (the SDK resolves this to the session storage location internally)
 	 * @returns Session info object, or undefined if not found
 	 */
-	getSessionInfo(sessionId: string, dir: string): Promise<SDKSessionInfo | undefined>;
+	getSessionInfo(sessionId: string, dir?: string): Promise<SDKSessionInfo | undefined>;
 
 	/**
 	 * Gets all messages for a specific session
@@ -40,7 +40,7 @@ export interface IClaudeCodeSdkService {
 	 * @param dir Workspace/project directory path (the SDK resolves this to the session storage location internally)
 	 * @returns Array of session messages
 	 */
-	getSessionMessages(sessionId: string, dir: string): Promise<SessionMessage[]>;
+	getSessionMessages(sessionId: string, dir?: string): Promise<SessionMessage[]>;
 
 	/**
 	 * Renames a session by setting a custom title
@@ -100,17 +100,17 @@ export class ClaudeCodeSdkService implements IClaudeCodeSdkService {
 
 	public async listSessions(dir?: string): Promise<SDKSessionInfo[]> {
 		const { listSessions } = await this._loadSdk();
-		return listSessions({ dir });
+		return listSessions(dir !== undefined ? { dir } : undefined);
 	}
 
-	public async getSessionInfo(sessionId: string, dir: string): Promise<SDKSessionInfo | undefined> {
+	public async getSessionInfo(sessionId: string, dir?: string): Promise<SDKSessionInfo | undefined> {
 		const { getSessionInfo } = await this._loadSdk();
-		return getSessionInfo(sessionId, { dir });
+		return getSessionInfo(sessionId, dir !== undefined ? { dir } : undefined);
 	}
 
-	public async getSessionMessages(sessionId: string, dir: string): Promise<SessionMessage[]> {
+	public async getSessionMessages(sessionId: string, dir?: string): Promise<SessionMessage[]> {
 		const { getSessionMessages } = await this._loadSdk();
-		return getSessionMessages(sessionId, { dir });
+		return getSessionMessages(sessionId, dir !== undefined ? { dir } : undefined);
 	}
 
 	public async renameSession(sessionId: string, title: string): Promise<void> {

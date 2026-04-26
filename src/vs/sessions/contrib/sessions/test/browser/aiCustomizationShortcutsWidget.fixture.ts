@@ -6,22 +6,16 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
@@ -30,7 +24,6 @@ import { Menus } from '../../../../browser/menus.js';
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ============================================================================
 // One-time menu item registration (module-level).
@@ -49,8 +42,6 @@ for (const [index, config] of CUSTOMIZATION_ITEMS.entries()) {
 
 // ============================================================================
 // FixtureMenuService — reads from MenuRegistry without context-key filtering
-// (MockContextKeyService.contextMatchesRules always returns false, which hides
-// every item when using the real MenuService.)
 // ============================================================================
 
 class FixtureMenuService implements IMenuService {
@@ -101,51 +92,39 @@ class FixtureActionViewItemService implements IActionViewItemService {
 }
 
 // ============================================================================
-// Mock helpers
+// Mock IAICustomizationItemsModel — controllable per-section observables.
+// This is the single source of truth for counts in both the editor and
+// sidebar, so the fixture only needs to mock this one service.
 // ============================================================================
-
-const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension],
-};
-
-function createMockPromptsService(): IPromptsService {
-	return createMockPromptsServiceWithCounts();
-}
 
 interface ICustomizationCounts {
 	readonly agents?: number;
 	readonly skills?: number;
 	readonly instructions?: number;
+	readonly prompts?: number;
 	readonly hooks?: number;
 }
 
-function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPromptsService {
-	const fakeUri = (prefix: string, i: number) => URI.parse(`file:///mock/${prefix}-${i}.md`);
-	const fakeItem = (prefix: string, i: number) => ({ uri: fakeUri(prefix, i), storage: PromptsStorage.local });
+function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationItemsModel {
+	const fakeItems = (n: number): readonly IAICustomizationListItem[] =>
+		Array.from({ length: n }, (): IAICustomizationListItem => Object.create(null));
 
-	const agents = Array.from({ length: counts?.agents ?? 0 }, (_, i) => ({
-		uri: fakeUri('agent', i),
-		source: { storage: PromptsStorage.local },
-	}));
-	const skills = Array.from({ length: counts?.skills ?? 0 }, (_, i) => fakeItem('skill', i));
-	const instructions = Array.from({ length: counts?.instructions ?? 0 }, (_, i) => fakeItem('instructions', i));
-	const hooks = Array.from({ length: counts?.hooks ?? 0 }, (_, i) => fakeItem('hook', i));
+	const sectionItems = new Map<ItemsModelSection, IObservable<readonly IAICustomizationListItem[]>>([
+		[AICustomizationManagementSection.Agents, observableValue('agentsItems', fakeItems(counts?.agents ?? 0))],
+		[AICustomizationManagementSection.Skills, observableValue('skillsItems', fakeItems(counts?.skills ?? 0))],
+		[AICustomizationManagementSection.Instructions, observableValue('instructionsItems', fakeItems(counts?.instructions ?? 0))],
+		[AICustomizationManagementSection.Prompts, observableValue('promptsItems', fakeItems(counts?.prompts ?? 0))],
+		[AICustomizationManagementSection.Hooks, observableValue('hooksItems', fakeItems(counts?.hooks ?? 0))],
+	]);
 
-	return new class extends mock<IPromptsService>() {
-		override readonly onDidChangeCustomAgents = Event.None;
-		override readonly onDidChangeSlashCommands = Event.None;
-		override readonly onDidChangeSkills = Event.None;
-		override readonly onDidChangeInstructions = Event.None;
-		override readonly onDidChangeHooks = Event.None;
-		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
-		override async getInstructionFiles() { return instructions as never[]; }
-		override getPromptLocationLabel() { return ''; }
-		override async getCustomAgents() { return agents as never[]; }
-		override async findAgentSkills() { return skills as never[]; }
-		override async listPromptFiles(type: PromptsType) {
-			return (type === PromptsType.hook ? hooks : instructions) as never[];
+	return new class extends mock<IAICustomizationItemsModel>() {
+		override getItems(section: ItemsModelSection) {
+			return sectionItems.get(section)!;
 		}
-		override async listAgentInstructions() { return [] as never[]; }
+		override getCount(section: ItemsModelSection): IObservable<number> {
+			const items = sectionItems.get(section)!;
+			return observableValue(`${section}-count`, items.get().length);
+		}
 	}();
 }
 
@@ -154,22 +133,6 @@ function createMockMcpService(serverCount: number = 0): IMcpService {
 	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new MockServer()));
 	return new class extends mock<IMcpService>() {
 		override readonly servers = servers;
-	}();
-}
-
-function createMockWorkspaceService(): IAICustomizationWorkspaceService {
-	const activeProjectRoot = observableValue<URI | undefined>('mockActiveProjectRoot', undefined);
-	return new class extends mock<IAICustomizationWorkspaceService>() {
-		override readonly activeProjectRoot = activeProjectRoot;
-		override getActiveProjectRoot() { return undefined; }
-		override getStorageSourceFilter() { return defaultFilter; }
-	}();
-}
-
-function createMockWorkspaceContextService(): IWorkspaceContextService {
-	return new class extends mock<IWorkspaceContextService>() {
-		override readonly onDidChangeWorkspaceFolders = Event.None;
-		override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 	}();
 }
 
@@ -190,32 +153,15 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			// Register overrides AFTER registerWorkbenchServices so they take priority
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
-			// Services needed by AICustomizationShortcutsWidget
-			reg.defineInstance(IPromptsService, options?.counts ? createMockPromptsServiceWithCounts(options.counts) : createMockPromptsService());
+			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
-			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
-			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
-			}());
-			// Additional services needed by CustomizationLinkViewItem
-			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
-				override readonly onDidChangeLanguageModels = Event.None;
-			}());
-			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-			}());
-			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly availableHarnesses = observableValue<readonly never[]>('availableHarnesses', []);
-				override findHarnessById() { return undefined; }
-			}());
-			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
-				override readonly onDidFilesChange = Event.None;
 			}());
 		},
 	});
 
-	// Register view item factories from the real CustomizationLinkViewItem (per-render, instance-scoped)
+	// Register view item factories from the real CustomizationLinkViewItem
 	for (const config of CUSTOMIZATION_ITEMS) {
 		ctx.disposableStore.add(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
@@ -236,7 +182,6 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 		}());
 	}
 
-	// Create the widget (uses FixtureMenuService → reads MenuRegistry items registered above)
 	ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined)
 	);

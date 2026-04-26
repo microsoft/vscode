@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentMessageEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { SessionHistoryEvent } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type ToolResultContent } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolEvents } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from './fileEditTracker.js';
 
 function tryStringify(value: unknown): string | undefined {
@@ -58,11 +58,45 @@ export interface ISessionEventMessage {
 		reasoningText?: string;
 		encryptedContent?: string;
 		parentToolCallId?: string;
+		/**
+		 * Origin of this message. The SDK sets this to a non-`'user'` value
+		 * (e.g. `'skill-pdf'`) for messages it injects on behalf of a skill or
+		 * other internal mechanism. We filter those out so they don't render
+		 * as user turns.
+		 */
+		source?: string;
 	};
 }
 
+/** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
+export interface ISessionEventSkillInvoked {
+	type: 'skill.invoked';
+	id?: string;
+	data: {
+		name: string;
+		path?: string;
+		description?: string;
+	};
+}
+
+/**
+ * Returns true if the event is a SDK-injected `user.message` that should not
+ * be shown to the user (e.g. skill-content injection).
+ *
+ * The SDK marks these via a non-`'user'` `source` field. Older sessions
+ * persisted before `source` existed will not be filtered; that is accepted
+ * leakage rather than guessed-at content sniffing.
+ */
+export function isSyntheticUserMessage(event: ISessionEvent): boolean {
+	if (event.type !== 'user.message') {
+		return false;
+	}
+	const source = (event as ISessionEventMessage).data?.source;
+	return !!source && source.toLowerCase() !== 'user';
+}
+
 /** Minimal event shape for session history mapping. */
-export type ISessionEvent = ISessionEventToolStart | ISessionEventToolComplete | ISessionEventMessage | ISessionEventSubagentStarted | { type: string; data?: unknown };
+export type ISessionEvent = ISessionEventToolStart | ISessionEventToolComplete | ISessionEventMessage | ISessionEventSubagentStarted | ISessionEventSkillInvoked | { type: string; data?: unknown };
 
 export interface ISessionEventSubagentStarted {
 	type: 'subagent.started';
@@ -90,8 +124,8 @@ export async function mapSessionEvents(
 	db: ISessionDatabase | undefined,
 	events: readonly ISessionEvent[],
 	workingDirectory?: URI,
-): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
-	const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
+): Promise<SessionHistoryEvent[]> {
+	const result: SessionHistoryEvent[] = [];
 	const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined; rewrittenArgs?: string }>();
 
 	// Collect all tool call IDs for edit tools so we can batch-query the database
@@ -143,6 +177,9 @@ export async function mapSessionEvents(
 	// Second pass: build result events
 	for (const e of events) {
 		if (e.type === 'assistant.message' || e.type === 'user.message') {
+			if (isSyntheticUserMessage(e)) {
+				continue;
+			}
 			const d = (e as ISessionEventMessage).data;
 			result.push({
 				session,
@@ -253,6 +290,10 @@ export async function mapSessionEvents(
 				agentDisplayName: d.agentDisplayName,
 				agentDescription: d.agentDescription,
 			});
+		} else if (e.type === 'skill.invoked') {
+			const skillEvent = e as ISessionEventSkillInvoked;
+			const { start, complete } = synthesizeSkillToolEvents(session, skillEvent.data, skillEvent.id);
+			result.push(start, complete);
 		}
 	}
 	return result;

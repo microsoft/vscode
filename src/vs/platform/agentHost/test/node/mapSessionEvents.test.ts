@@ -254,6 +254,68 @@ suite('mapSessionEvents', () => {
 		});
 	});
 
+	// ---- Skill events ---------------------------------------------------
+
+	suite('skill events', () => {
+
+		test('synthesizes tool start/complete from skill.invoked and filters synthetic skill-injected user messages', async () => {
+			const events: ISessionEvent[] = [
+				{
+					type: 'tool.execution_start',
+					data: { toolCallId: 'tc-skill', toolName: 'skill', arguments: { skill: 'plan' } },
+				},
+				{
+					type: 'tool.execution_complete',
+					data: { toolCallId: 'tc-skill', success: true },
+				},
+				{
+					type: 'skill.invoked',
+					id: 'evt-42',
+					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+				},
+				{
+					type: 'user.message',
+					data: { messageId: 'msg-skill', content: '<skill content body>', source: 'skill-plan' },
+				},
+				{
+					type: 'assistant.message',
+					data: { messageId: 'msg-1', content: 'ok' },
+				},
+			];
+
+			const result = await mapSessionEvents(session, undefined, events);
+
+			assert.deepStrictEqual({
+				count: result.length,
+				types: result.map(r => r.type),
+				skillStart: result[0],
+				skillComplete: result[1],
+				assistantRole: (result[2] as { role: string }).role,
+			}, {
+				count: 3,
+				types: ['tool_start', 'tool_complete', 'message'],
+				skillStart: {
+					session,
+					type: 'tool_start',
+					toolCallId: 'synth-skill-evt-42',
+					toolName: 'skill',
+					displayName: 'Read Skill',
+					invocationMessage: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+				},
+				skillComplete: {
+					session,
+					type: 'tool_complete',
+					toolCallId: 'synth-skill-evt-42',
+					result: {
+						success: true,
+						pastTenseMessage: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+					},
+				},
+				assistantRole: 'assistant',
+			});
+		});
+	});
+
 	// ---- cd-prefix rewriting --------------------------------------------
 
 	suite('cd-prefix rewriting', () => {

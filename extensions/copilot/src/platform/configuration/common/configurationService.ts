@@ -647,7 +647,7 @@ export namespace ConfigKey {
 
 		export const InstantApplyShortModelName = defineAndMigrateExpSetting<string>('chat.advanced.instantApply.shortContextModelName', 'chat.instantApply.shortContextModelName', CHAT_MODEL.SHORT_INSTANT_APPLY);
 		export const InstantApplyShortContextLimit = defineAndMigrateExpSetting<number>('chat.advanced.instantApply.shortContextLimit', 'chat.instantApply.shortContextLimit', 8000);
-		export const AgentHistorySummarizationInline = defineAndMigrateExpSetting<boolean>('chat.advanced.agentHistorySummarizationInline', 'chat.agentHistorySummarizationInline', false);
+		export const AgentHistorySummarizationInline = defineAndMigrateExpSetting<boolean>('chat.advanced.agentHistorySummarizationInline', 'chat.agentHistorySummarizationInline', true);
 		export const PromptFileContext = defineAndMigrateExpSetting<boolean>('chat.advanced.promptFileContextProvider.enabled', 'chat.promptFileContextProvider.enabled', true);
 		export const DefaultToolsGrouped = defineAndMigrateExpSetting<boolean>('chat.advanced.tools.defaultToolsGrouped', 'chat.tools.defaultToolsGrouped', false);
 		export const Gpt5AlternativePatch = defineAndMigrateExpSetting<boolean>('chat.advanced.gpt5AlternativePatch', 'chat.gpt5AlternativePatch', false);

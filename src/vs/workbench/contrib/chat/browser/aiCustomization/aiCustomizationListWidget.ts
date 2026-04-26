@@ -8,7 +8,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -35,7 +34,6 @@ import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/butto
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
@@ -43,15 +41,13 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ProviderCustomizationItemSource } from './aiCustomizationItemSource.js';
-import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -489,6 +485,24 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 }
 
 /**
+ * Maps a UI section to the items-model section, or `undefined` if the
+ * section isn't sourced from the customization harness pipeline (e.g.
+ * MCP Servers, Plugins, Models — those have their own services).
+ */
+function toItemsModelSection(section: AICustomizationManagementSection): ItemsModelSection | undefined {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+		case AICustomizationManagementSection.Skills:
+		case AICustomizationManagementSection.Instructions:
+		case AICustomizationManagementSection.Prompts:
+		case AICustomizationManagementSection.Hooks:
+			return section;
+		default:
+			return undefined;
+	}
+}
+
+/**
  * An ordered create action for the add button.
  */
 interface ICreateAction {
@@ -522,18 +536,17 @@ export class AICustomizationListWidget extends Disposable {
 	private emptyStateSubtext!: HTMLElement;
 
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
-	private allItems: IAICustomizationListItem[] = [];
+	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
-	private _loadItemsSeq = 0;
 
 	private readonly delayedFilter = new Delayer<void>(200);
-	private readonly itemNormalizer: AICustomizationItemNormalizer;
-	private readonly promptsServiceItemProvider: PromptsServiceCustomizationItemProvider;
-	private cachedItemSource: { descriptorId: string; source: IAICustomizationItemSource } | undefined;
+
+	/** Subscription to the items model for the current section; refreshed on setSection. */
+	private readonly currentSectionSubscription = this._register(new MutableDisposable());
 
 	private readonly _onDidSelectItem = this._register(new Emitter<IAICustomizationListItem>());
 	readonly onDidSelectItem: Event<IAICustomizationListItem> = this._onDidSelectItem.event;
@@ -555,70 +568,32 @@ export class AICustomizationListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
-		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IProductService private readonly productService: IProductService,
+		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 	) {
 		super();
-		this.itemNormalizer = new AICustomizationItemNormalizer(
-			this.workspaceContextService,
-			this.workspaceService,
-			this.labelService,
-			this.agentPluginService,
-			this.productService,
-		);
-		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
-			() => this.harnessService.getActiveDescriptor(),
-			this.promptsService,
-			this.workspaceService,
-			this.productService,
-		);
 		this.element = $('.ai-customization-list-widget');
 		this.create();
 
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.refresh()));
+		// Re-render the add button when the active project root or harness changes.
+		// Item discovery itself is owned by the items model; we just rebind the
+		// per-section subscription so the UI follows whichever harness is active.
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.updateAddButton();
-			this.refresh();
 		}));
-
-		// Re-filter when the active harness changes
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			this.updateAddButton();
-			this.refresh();
 		}));
-
-		// Refresh when available harnesses change (external provider registered/unregistered)
-		this._register(autorun(reader => {
-			this.harnessService.availableHarnesses.read(reader);
-			this.refresh();
-		}));
-
-		// Subscribe to the active item source's onDidChange event.
-		// Read both activeHarness and availableHarnesses so that the
-		// subscription is re-established when a new provider harness
-		// registers (availableHarnesses changes) even if activeHarness
-		// was already set to the harness id from persisted state.
-		const itemSourceChangeDisposable = this._register(new MutableDisposable());
-		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			this.cachedItemSource = undefined;
-			const activeDescriptor = this.harnessService.getActiveDescriptor();
-			itemSourceChangeDisposable.value = this.getItemSource(activeDescriptor).onDidChange(() => this.refresh());
-		}));
-
 	}
 
 	private create(): void {
@@ -826,16 +801,34 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Sets the current section and loads items for that section.
+	 * Sets the current section and binds the list to the model's per-section
+	 * observable. Returns once the initial fetch for the section has resolved
+	 * so that callers (e.g. tests/fixtures) can rely on rendered output
+	 * reflecting at least one fetch.
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		this.currentSection = section;
 		this.updateSectionHeader();
-		await this.loadItems();
-		if (this._store.isDisposed) {
+
+		const modelSection = toItemsModelSection(section);
+		if (!modelSection) {
+			this.currentSectionSubscription.clear();
+			this.allItems = [];
+			this.filterItems();
+			this._onDidChangeItemCount.fire(0);
+			this.updateAddButton();
 			return;
 		}
+
+		const observable = this.itemsModel.getItems(modelSection);
+		this.currentSectionSubscription.value = autorun(reader => {
+			const items = observable.read(reader);
+			this.allItems = items;
+			this.filterItems();
+			this._onDidChangeItemCount.fire(items.length);
+		});
 		this.updateAddButton();
+		await this.itemsModel.whenSectionLoaded(modelSection);
 	}
 
 	/**
@@ -1113,79 +1106,36 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Refreshes the current section's items.
+	 *
+	 * Item discovery is owned by `IAICustomizationItemsModel`. This method
+	 * pulls the current value from the model and re-renders. Callers do not
+	 * need to invoke this in response to data change events — the per-section
+	 * autorun bound in `setSection` already does that.
 	 */
-	async refresh(): Promise<void> {
-		await this.loadItems();
+	refresh(): void {
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.applyItemsFromModel();
 		this.updateAddButton();
 	}
 
-	/**
-	 * Loads items for the current section.
-	 * Uses a sequence counter so that stale results from concurrent
-	 * calls (e.g. overlapping autorun refreshes) are discarded.
-	 */
-	private async loadItems(): Promise<void> {
-		const section = this.currentSection;
-		const seq = ++this._loadItemsSeq;
-		let items: IAICustomizationListItem[];
-		try {
-			items = await this.fetchItemsForSection(section);
-		} catch (err) {
-			onUnexpectedError(err);
-			items = [];
-		}
-
-		if (this._store.isDisposed || this.currentSection !== section || this._loadItemsSeq !== seq) {
-			return; // disposed, section changed, or a newer load started while loading
-		}
-
-		this.allItems = items;
+	private applyItemsFromModel(): void {
+		const section = toItemsModelSection(this.currentSection);
+		this.allItems = section ? this.itemsModel.getItems(section).get() : [];
 		this.filterItems();
-		this._onDidChangeItemCount.fire(items.length);
+		this._onDidChangeItemCount.fire(this.allItems.length);
 	}
 
 	/**
 	 * Computes the item count for a given section without updating the display.
-	 * Uses the same loading and filtering logic as `loadItems` for consistency.
+	 * Reads from the items model so the count is consistent with what the
+	 * editor and sidebar render. Returns 0 for sections not modeled here
+	 * (McpServers / Plugins / Models — those have their own services).
 	 */
-	async computeItemCountForSection(section: AICustomizationManagementSection): Promise<number> {
-		const items = await this.fetchItemsForSection(section);
-		return items.length;
-	}
-
-	/**
-	 * Fetches and filters items for a given section.
-	 * Delegates to the item source selected by the active harness.
-	 */
-	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
-		const promptType = sectionToPromptType(section);
-		return this.getItemSource(this.harnessService.getActiveDescriptor()).fetchItems(promptType);
-	}
-
-	/**
-	 * Returns the rich, browser-internal item source for a harness descriptor.
-	 * The source is cached per descriptor id and reused across fetch and
-	 * subscription calls to avoid redundant event composition.
-	 */
-	private getItemSource(descriptor: ReturnType<ICustomizationHarnessService['getActiveDescriptor']>): IAICustomizationItemSource {
-		if (this.cachedItemSource && this.cachedItemSource.descriptorId === descriptor.id) {
-			return this.cachedItemSource.source;
-		}
-		const itemProvider = descriptor.itemProvider ?? (descriptor.syncProvider ? undefined : this.promptsServiceItemProvider);
-		const source = new ProviderCustomizationItemSource(
-			itemProvider,
-			descriptor.syncProvider,
-			this.promptsService,
-			this.workspaceService,
-			this.fileService,
-			this.pathService,
-			this.itemNormalizer,
-		);
-		this.cachedItemSource = { descriptorId: descriptor.id, source };
-		return source;
+	computeItemCountForSection(section: AICustomizationManagementSection): number {
+		const modelSection = toItemsModelSection(section);
+		return modelSection ? this.itemsModel.getCount(modelSection).get() : 0;
 	}
 
 	/**
@@ -1194,7 +1144,7 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Applies the search query to items, returning matched items with highlight info.
 	 */
-	private applySearchFilter(items: IAICustomizationListItem[]): IAICustomizationListItem[] {
+	private applySearchFilter(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
 		if (!this.searchQuery.trim()) {
 			return items.map(item => ({ ...item, nameMatches: undefined, descriptionMatches: undefined }));
 		}
@@ -1531,8 +1481,6 @@ export class AICustomizationListWidget extends Disposable {
 	 * Generates a debug report for the current section.
 	 */
 	async generateDebugReport(): Promise<string> {
-		// Ensure items are loaded before capturing the snapshot
-		await this.loadItems();
 		if (this._store.isDisposed) {
 			return '';
 		}
@@ -1541,9 +1489,9 @@ export class AICustomizationListWidget extends Disposable {
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
-			{ allItems: this.allItems, displayEntries: this.displayEntries },
+			{ allItems: this.allItems as IAICustomizationListItem[], displayEntries: this.displayEntries },
 			activeDescriptor,
-			this.promptsServiceItemProvider,
+			this.itemsModel.getPromptsServiceItemProvider(),
 		);
 	}
 }

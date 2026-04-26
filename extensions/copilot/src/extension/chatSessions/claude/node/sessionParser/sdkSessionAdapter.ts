@@ -99,13 +99,6 @@ export function sdkSessionInfoToSessionInfo(
 // #region SessionMessage → StoredMessage
 
 /**
- * A map from user message UUID to the agentId of the subagent spawned by
- * a Task tool result in that message. Extracted from raw JSONL `toolUseResult.agentId`
- * during subagent discovery (since the SDK's `getSessionMessages` strips this field).
- */
-export type SubagentCorrelationMap = ReadonlyMap<string, string>;
-
-/**
  * Converts an array of `SessionMessage` (from `getSessionMessages`) into
  * `StoredMessage[]` compatible with `chatHistoryBuilder.ts`.
  *
@@ -114,19 +107,14 @@ export type SubagentCorrelationMap = ReadonlyMap<string, string>;
  *
  * Messages that fail validation are silently skipped — this matches the parser
  * behavior of ignoring malformed JSONL entries.
- *
- * @param messages SDK session messages
- * @param subagentCorrelation Optional map from user message UUID → subagent agentId,
- *   used to set `toolUseResultAgentId` for subagent tool nesting in the chat UI.
  */
 export function sdkSessionMessagesToStoredMessages(
 	messages: readonly SessionMessage[],
-	subagentCorrelation?: SubagentCorrelationMap,
 ): StoredMessage[] {
 	const result: StoredMessage[] = [];
 
 	for (const msg of messages) {
-		const stored = sdkSessionMessageToStoredMessage(msg, subagentCorrelation);
+		const stored = sdkSessionMessageToStoredMessage(msg);
 		if (stored) {
 			result.push(stored);
 		}
@@ -137,7 +125,6 @@ export function sdkSessionMessagesToStoredMessages(
 
 function sdkSessionMessageToStoredMessage(
 	msg: SessionMessage,
-	subagentCorrelation?: SubagentCorrelationMap,
 ): StoredMessage | undefined {
 	if (msg.type === 'user') {
 		const validated = vUserMessageContent.validate(msg.message);
@@ -151,7 +138,6 @@ function sdkSessionMessageToStoredMessage(
 			parentUuid: null,
 			type: 'user',
 			message: validated.content as UserMessageContent,
-			toolUseResultAgentId: subagentCorrelation?.get(msg.uuid),
 		};
 	}
 
@@ -177,13 +163,28 @@ function sdkSessionMessageToStoredMessage(
 
 // #region Subagent Session Building
 
+function extractParentToolUseId(messages: readonly SessionMessage[]): string | undefined {
+	for (const msg of messages) {
+		if (msg.type !== 'assistant' || msg.message === null || typeof msg.message !== 'object') {
+			continue;
+		}
+		if ('parent_tool_use_id' in msg.message) {
+			const id = msg.message.parent_tool_use_id;
+			if (typeof id === 'string') {
+				return id;
+			}
+		}
+	}
+	return undefined;
+}
+
 /**
  * Converts SDK `SessionMessage[]` (from `getSubagentMessages`) into an
  * `ISubagentSession` for display in the chat history.
  *
- * @param agentId The subagent identifier
- * @param messages SDK subagent messages
- * @returns A subagent session, or null if no valid messages
+ * Extracts `parent_tool_use_id` from the first assistant message that
+ * contains one, to link the subagent back to its spawning Agent tool_use
+ * in the parent session.
  */
 export function sdkSubagentMessagesToSubagentSession(
 	agentId: string,
@@ -196,6 +197,7 @@ export function sdkSubagentMessagesToSubagentSession(
 
 	return {
 		agentId,
+		parentToolUseId: extractParentToolUseId(messages),
 		messages: storedMessages,
 		timestamp: storedMessages[storedMessages.length - 1].timestamp,
 	};
@@ -207,22 +209,15 @@ export function sdkSubagentMessagesToSubagentSession(
 
 /**
  * Assembles a full `IClaudeCodeSession` from SDK data and separately-loaded subagents.
- *
- * @param info Session metadata from the SDK
- * @param messages Session transcript from the SDK
- * @param subagents Subagent sessions loaded from raw JSONL (SDK doesn't expose these)
- * @param subagentCorrelation Map from user message UUID → subagent agentId for nesting
- * @param folderName Optional workspace folder name for badge display
  */
 export function buildClaudeCodeSession(
 	info: SDKSessionInfo,
 	messages: readonly SessionMessage[],
 	subagents: readonly ISubagentSession[],
-	subagentCorrelation?: SubagentCorrelationMap,
 	folderName?: string,
 ): IClaudeCodeSession {
 	const sessionInfo = sdkSessionInfoToSessionInfo(info, folderName);
-	const storedMessages = sdkSessionMessagesToStoredMessages(messages, subagentCorrelation);
+	const storedMessages = sdkSessionMessagesToStoredMessages(messages);
 
 	return {
 		...sessionInfo,

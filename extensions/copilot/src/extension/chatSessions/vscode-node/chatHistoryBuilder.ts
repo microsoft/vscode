@@ -287,31 +287,16 @@ function extractAssistantParts(messages: readonly AssistantMessageContent[], too
 // #region Subagent Tool Extraction
 
 /**
- * Builds a map from agentId to ISubagentSession for quick lookup.
+ * Builds a map from parentToolUseId to ISubagentSession for quick lookup.
  */
 function buildSubagentMap(subagents: readonly ISubagentSession[]): Map<string, ISubagentSession> {
 	const map = new Map<string, ISubagentSession>();
 	for (const subagent of subagents) {
-		map.set(subagent.agentId, subagent);
-	}
-	return map;
-}
-
-/**
- * Extracts the tool_use_id from the first tool_result block in a user message's content.
- * Used to identify the Task tool_use that spawned a subagent — when `toolUseResultAgentId`
- * is set on a StoredMessage, the corresponding tool_result block carries the Task's tool_use_id.
- */
-function extractToolResultToolUseId(content: string | ContentBlock[]): string | undefined {
-	if (typeof content === 'string') {
-		return undefined;
-	}
-	for (const block of content) {
-		if (isToolResultBlock(block)) {
-			return block.tool_use_id;
+		if (subagent.parentToolUseId) {
+			map.set(subagent.parentToolUseId, subagent);
 		}
 	}
-	return undefined;
+	return map;
 }
 
 /**
@@ -407,7 +392,7 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 	const messages = session.messages;
 	let pendingResponseParts: (vscode.ChatResponseMarkdownPart | vscode.ChatResponseThinkingProgressPart | vscode.ChatToolInvocationPart)[] = [];
 
-	// Build a map from agentId to subagent for quick lookup
+	// Build a map from parentToolUseId to subagent for quick lookup
 	const subagentMap = buildSubagentMap(session.subagents);
 
 	while (i < messages.length) {
@@ -428,17 +413,18 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 				processToolResults(content, toolContext);
 			}
 
-			// After processing tool results, inject subagent tool calls for completed Task tools.
-			// Each StoredMessage with toolUseResultAgentId represents a Task tool result linked to a
-			// subagent. The tool_use_id is extracted directly from the message's tool_result block,
-			// ensuring a 1:1 correlation even when multiple Task results appear consecutively.
-			for (const msg of userMessages) {
-				if (msg.toolUseResultAgentId) {
-					const subagent = subagentMap.get(msg.toolUseResultAgentId);
-					if (subagent) {
-						const taskToolUseId = extractToolResultToolUseId(msg.message.content);
-						if (taskToolUseId) {
-							const subagentParts = extractSubagentToolParts(subagent, taskToolUseId);
+			// After processing tool results, inject subagent tool calls for subagents correlated via parentToolUseId.
+			// Each subagent's parentToolUseId links it to the Agent or legacy Task tool_use that spawned it.
+			// We match tool_result blocks in user messages to those subagents via tool_use_id.
+			for (const content of userContents) {
+				if (typeof content === 'string') {
+					continue;
+				}
+				for (const block of content) {
+					if (isToolResultBlock(block)) {
+						const subagent = subagentMap.get(block.tool_use_id);
+						if (subagent) {
+							const subagentParts = extractSubagentToolParts(subagent, block.tool_use_id);
 							pendingResponseParts.push(...subagentParts);
 						}
 					}
