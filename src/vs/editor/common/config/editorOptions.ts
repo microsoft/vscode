@@ -4342,19 +4342,19 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 					type: ['boolean', 'string'],
 					enum: [true, false, inUntrustedWorkspace],
 					default: defaults.nonBasicASCII,
-					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.")
+					description: nls.localize('unicodeHighlight.nonBasicASCII', "Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII. Surfacing these characters helps reviewers notice uncommon code points that could be used to obscure intent (a security concern, especially in untrusted code). Zero-width and other invisible characters are covered separately by `#editor.unicodeHighlight.invisibleCharacters#`.")
 				},
 				[unicodeHighlightConfigKeys.invisibleCharacters]: {
 					restricted: true,
 					type: 'boolean',
 					default: defaults.invisibleCharacters,
-					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted.")
+					description: nls.localize('unicodeHighlight.invisibleCharacters', "Controls whether characters that just reserve space or have no width at all are highlighted. Invisible characters can hide code from review and are flagged for security reasons.")
 				},
 				[unicodeHighlightConfigKeys.ambiguousCharacters]: {
 					restricted: true,
 					type: 'boolean',
 					default: defaults.ambiguousCharacters,
-					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.")
+					description: nls.localize('unicodeHighlight.ambiguousCharacters', "Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale. Confusable characters (homoglyphs) are flagged for security reasons because they can be used to make malicious code look benign.")
 				},
 				[unicodeHighlightConfigKeys.includeComments]: {
 					restricted: true,
