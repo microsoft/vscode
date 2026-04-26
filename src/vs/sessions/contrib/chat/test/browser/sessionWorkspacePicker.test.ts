@@ -50,7 +50,7 @@ function createMockProvider(id: string, opts?: {
 		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
 			label: uri.path.substring(1) || uri.path,
 			icon: Codicon.folder,
-			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: false,
 		}),
 		onDidChangeSessions: Event.None,

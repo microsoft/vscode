@@ -1128,41 +1128,26 @@ describe('ChatSessionContentProvider', () => {
 			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('acceptEdits');
 		});
 
-		it('markSessionStarted locks the folder group mid-session', async () => {
+		it('sessionResource locks the folder group for existing sessions', async () => {
 			const mocks = createDefaultMocks();
 			createProviderWithServices(store, [folderA, folderB], mocks);
 
-			const state = await getInputState();
-			let folderGroup = getGroup(state, 'folder')!;
+			// New session (no sessionResource) — folder is unlocked
+			const newState = await getInputState();
+			let folderGroup = getGroup(newState, 'folder')!;
 			expect(folderGroup.items.every(i => !i.locked)).toBe(true);
 			expect(folderGroup.selected?.locked).toBeUndefined();
 
-			// Simulate a new session starting by invoking the handler (which calls markSessionStarted)
-			// The handler is owned by the content provider — we go through it via createHandler.
-			// Easier: reach through via the exported accessor pattern — call markSessionStarted through the controller.
-			// The content provider does not export the controller, but the handler path covers it.
-			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(undefined);
-			seedSessionItem('new-session');
+			// Existing session (sessionResource provided) — folder is locked
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue({
+				id: 'started-session',
+				messages: [{ type: 'user', message: { role: 'user', content: 'Hello' } }],
+				subagents: [],
+			} as any);
+			const sessionUri = createClaudeSessionUri('started-session');
+			const startedState = await getInputState(sessionUri);
 
-			const { provider: handlerProvider } = createProviderWithServices(store, [folderA, folderB], mocks);
-			const handler = handlerProvider.createHandler();
-			// The state we want to observe must be the one passed into the handler
-			const newState = await getInputState();
-			const context: vscode.ChatContext = {
-				history: [],
-				yieldRequested: false,
-				chatSessionContext: {
-					isUntitled: false,
-					chatSessionItem: {
-						resource: ClaudeSessionUri.forSessionId('new-session'),
-						label: 'New',
-					},
-					inputState: newState,
-				},
-			} as vscode.ChatContext;
-			await handler(createTestRequest('hello'), context, new MockChatResponseStream(), CancellationToken.None);
-
-			folderGroup = getGroup(newState, 'folder')!;
+			folderGroup = getGroup(startedState, 'folder')!;
 			expect(folderGroup.items.every(i => i.locked === true)).toBe(true);
 			expect(folderGroup.selected?.locked).toBe(true);
 		});

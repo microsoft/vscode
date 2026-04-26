@@ -47,6 +47,12 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+	/**
+	 * Called after each top-level session turn completes so git state can be
+	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
+	 * excluded — only the parent session URI is passed.
+	 */
+	readonly onTurnComplete: (session: ProtocolURI) => void;
 }
 
 /** A progress event that was deferred because its subagent session does not exist yet. */
@@ -296,11 +302,13 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// After a turn completes (idle event), flush any pending debounced
-		// diff computation and compute final diffs immediately.
+		// diff computation and compute final diffs immediately, then refresh
+		// git state so the toolbar buttons reflect post-turn repository state.
 		if (e.type === 'idle') {
 			this._cancelDebouncedDiffComputation(sessionKey);
 			this._computeSessionDiffs(sessionKey, turnId);
 			this._tryConsumeNextQueuedMessage(sessionKey);
+			this._options.onTurnComplete(sessionKey as ProtocolURI);
 		}
 
 		// Steering message was consumed by the agent — remove from protocol state
@@ -610,7 +618,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.userMessage.attachments?.map((a): IAgentAttachment => ({
 					type: a.type,
-					path: a.path,
+					uri: URI.parse(a.uri),
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
@@ -864,7 +872,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
 			type: a.type,
-			path: a.path,
+			uri: URI.parse(a.uri),
 			displayName: a.displayName,
 		}));
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {

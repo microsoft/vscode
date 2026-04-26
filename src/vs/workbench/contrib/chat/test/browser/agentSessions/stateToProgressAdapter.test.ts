@@ -293,6 +293,43 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('preserves label and tags vscodeLinkType=skill for SKILL.md links', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-skill',
+					content: 'Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value,
+				'Loaded [plan](vscode-agent-host://my-host/file/-/abs/repo/skills/plan/SKILL.md?vscodeLinkType%3Dskill) ' +
+				'and [](vscode-agent-host://my-host/file/-/abs/repo/foo.ts).'
+			);
+		});
+
+		test('preserves alt text for image tokens', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-image',
+					content: 'See ![diagram](file:///a/b.png).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/file/-/a/b.png).');
+		});
+
 		test('error turn produces error message in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,

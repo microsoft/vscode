@@ -15,7 +15,7 @@ import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCom
 import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionMeta, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -87,6 +87,14 @@ export interface IAgentSessionMetadata {
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
 	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
+	 * to clients via per-session state subscriptions.
+	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
+	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
+	 * `readSessionGitState`) for well-known slots.
+	 */
+	readonly _meta?: SessionMeta;
 }
 
 export interface IAgentSessionProjectInfo {
@@ -178,7 +186,7 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
 	readonly type: AttachmentType;
-	readonly path: string;
+	readonly uri: URI;
 	readonly displayName?: string;
 	/** For selections: the selected text. */
 	readonly text?: string;
@@ -340,6 +348,17 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/**
+ * The set of events returned by {@link IAgent.getSessionMessages} when
+ * reconstructing a session's history. Reasoning is carried inline on
+ * {@link IAgentMessageEvent.reasoningText} rather than as a separate event.
+ */
+export type SessionHistoryEvent =
+	| IAgentMessageEvent
+	| IAgentToolStartEvent
+	| IAgentToolCompleteEvent
+	| IAgentSubagentStartedEvent;
+
 /** A steering message was consumed (sent to the model). */
 export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
 	readonly type: 'steering_consumed';
@@ -452,7 +471,7 @@ export interface IAgent {
 	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]>;
+	getSessionMessages(session: URI): Promise<SessionHistoryEvent[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
