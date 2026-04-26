@@ -19216,12 +19216,15 @@ declare module 'vscode' {
 	 */
 	export class TabInputWebview {
 		/**
-		 * The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 * The type of webview. Corresponds to {@linkcode WebviewPanel.viewType WebviewPanel's viewType},
+		 * but prefixed with `mainThreadWebview-`. For example, a `WebviewPanel` created with
+		 * viewType `markdown.preview` is exposed here as `mainThreadWebview-markdown.preview`.
 		 */
 		readonly viewType: string;
 		/**
 		 * Constructs a webview tab input with the given view type.
-		 * @param viewType The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 * @param viewType The type of webview, including the `mainThreadWebview-` prefix
+		 * (see {@linkcode TabInputWebview.viewType}).
 		 */
 		constructor(viewType: string);
 	}
