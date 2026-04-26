@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../platform/agentHost/common/transportConstants.js';
 import {
 	ITunnelAgentHostService,
@@ -141,7 +141,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${address}`);
 
-			await this._remoteAgentHostService.addSSHConnection({
+			await this._remoteAgentHostService.addManagedConnection({
 				name: tunnel.name,
 				connectionToken,
 				connection: {
@@ -228,7 +228,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
  * so there is no `connect()` method — the protocol client skips that step.
  */
 class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -242,9 +242,9 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 	) {
 		super();
 		this._register(_connection.onMessage((data: string) => {
-			let message: IProtocolMessage;
+			let message: ProtocolMessage;
 			try {
-				message = JSON.parse(data) as IProtocolMessage;
+				message = JSON.parse(data) as ProtocolMessage;
 			} catch (err) {
 				this._malformedFrames++;
 				if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
@@ -269,7 +269,7 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 		}));
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		this._connection.send(JSON.stringify(message));
 	}
 

@@ -7,12 +7,12 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { StateComponents, type ComponentToState, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { StateComponents, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -43,8 +43,8 @@ class LoggingAgentSubscription<T> extends Disposable implements IAgentSubscripti
 	private readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
 
-	readonly onWillApplyAction: Event<IActionEnvelope>;
-	readonly onDidApplyAction: Event<IActionEnvelope>;
+	readonly onWillApplyAction: Event<ActionEnvelope>;
+	readonly onDidApplyAction: Event<ActionEnvelope>;
 
 	constructor(
 		private readonly _label: string,
@@ -109,9 +109,9 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	private readonly _enabled: boolean;
 
 	readonly clientId: string;
-	readonly onDidAction: Event<IActionEnvelope>;
+	readonly onDidAction: Event<ActionEnvelope>;
 	readonly onDidNotification: Event<INotification>;
-	private readonly _rootState: IAgentSubscription<IRootState>;
+	private readonly _rootState: IAgentSubscription<RootState>;
 
 	constructor(
 		private readonly _inner: IAgentConnection,
@@ -172,7 +172,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	// ---- IAgentConnection method proxies with logging -----------------------
 
-	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._logCall('authenticate', params, () => this._inner.authenticate(params));
 	}
 
@@ -184,11 +184,11 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('createSession', config, () => this._inner.createSession(config));
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._logCall('resolveSessionConfig', params, () => this._inner.resolveSessionConfig(params));
 	}
 
-	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return this._logCall('sessionConfigCompletions', params, () => this._inner.sessionConfigCompletions(params));
 	}
 
@@ -196,7 +196,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('disposeSession', session, () => this._inner.disposeSession(session));
 	}
 
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._logCall('createTerminal', params, () => this._inner.createTerminal(params));
 	}
 
@@ -204,7 +204,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('disposeTerminal', terminal, () => this._inner.disposeTerminal(terminal));
 	}
 
-	get rootState(): IAgentSubscription<IRootState> {
+	get rootState(): IAgentSubscription<RootState> {
 		return this._rootState;
 	}
 
@@ -216,32 +216,32 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._inner.getSubscriptionUnmanaged(kind, resource);
 	}
 
-	dispatch(action: ISessionAction | ITerminalAction): void {
+	dispatch(action: RootAction | SessionAction | TerminalAction): void {
 		this._log('>>', 'dispatch', action);
 		this._inner.dispatch(action);
 	}
 
-	async resourceList(uri: URI): Promise<IResourceListResult> {
+	async resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._logCall('resourceList', uri, () => this._inner.resourceList(uri));
 	}
 
-	async resourceRead(uri: URI): Promise<IResourceReadResult> {
+	async resourceRead(uri: URI): Promise<ResourceReadResult> {
 		return this._logCall('resourceRead', uri, () => this._inner.resourceRead(uri));
 	}
 
-	async resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult> {
+	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
 		return this._logCall('resourceWrite', params, () => this._inner.resourceWrite(params));
 	}
 
-	async resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult> {
+	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
 		return this._logCall('resourceCopy', params, () => this._inner.resourceCopy(params));
 	}
 
-	async resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult> {
+	async resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
 		return this._logCall('resourceDelete', params, () => this._inner.resourceDelete(params));
 	}
 
-	async resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult> {
+	async resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._logCall('resourceMove', params, () => this._inner.resourceMove(params));
 	}
 

@@ -7,6 +7,46 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+export function getErrorCode(e: unknown): string | undefined {
+	if (!isObject(e)) {
+		return undefined;
+	}
+
+	if (e.status !== undefined) {
+		return String(e.status);
+	}
+
+	const networkError = e.networkError;
+	if (isObject(networkError) && networkError.statusCode !== undefined) {
+		return String(networkError.statusCode);
+	}
+
+	const graphQLErrors = e.graphQLErrors;
+	if (Array.isArray(graphQLErrors)) {
+		const firstGraphQLError = graphQLErrors[0];
+		if (isObject(firstGraphQLError)) {
+			const extensions = firstGraphQLError.extensions;
+			if (isObject(extensions) && extensions.code !== undefined) {
+				return String(extensions.code);
+			}
+		}
+	}
+
+	if (e.code !== undefined) {
+		return String(e.code);
+	}
+
+	if (typeof e.name === 'string' && e.name) {
+		return e.name;
+	}
+
+	return undefined;
+}
+
 export interface PullRequestSearchItem {
 	id: string;
 	number: number;
@@ -133,6 +173,8 @@ export interface GitHubAPIRequestOptions {
 	version?: string;
 	type?: 'json' | 'text';
 	userAgent?: string;
+	accept?: string;
+	additionalHeaders?: { [key: string]: string };
 	returnStatusCodeOnError?: boolean;
 	silent404?: boolean;
 	callSite?: string;
@@ -147,9 +189,10 @@ export async function makeGitHubAPIRequest(
 	method: 'GET' | 'POST',
 	token: string | undefined,
 	options?: GitHubAPIRequestOptions) {
-	const { body, version, type = 'json', userAgent, returnStatusCodeOnError = false, silent404 = false, callSite = 'github-api-rest' } = options ?? {};
+	const { body, version, type = 'json', userAgent, accept, additionalHeaders, returnStatusCodeOnError = false, silent404 = false, callSite = 'github-api-rest' } = options ?? {};
 	const headers: { [key: string]: string } = {
-		'Accept': 'application/vnd.github+json',
+		'Accept': accept ?? 'application/vnd.github+json',
+		...additionalHeaders,
 	};
 	if (token) {
 		headers['Authorization'] = `Bearer ${token}`;
@@ -363,6 +406,24 @@ export async function getPullRequestFromGlobalId(
 
 	const node = result?.data?.node;
 	logService.debug(`[GitHubAPI] GetPullRequestGlobal: host=${host}, globalId=${globalId}, found=${!!node}, prNumber=${node?.number}, errors=${JSON.stringify(result?.errors)}`);
+
+	if (!node) {
+		const properties: { errorCode?: string; requestFailed: string } = {
+			requestFailed: String(result === undefined),
+		};
+		const errorCode = getErrorCode(result?.errors?.[0]);
+		if (errorCode) {
+			properties.errorCode = errorCode;
+		}
+		/* __GDPR__
+			"pr.getPullRequestFromGlobalIdFailed" : {
+				"errorCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"requestFailed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		telemetry.sendMSFTTelemetryErrorEvent('pr.getPullRequestFromGlobalIdFailed', properties);
+	}
+
 	return node;
 }
 

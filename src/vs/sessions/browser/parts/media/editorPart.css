@@ -63,3 +63,9 @@
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
 }
+
+/* Modal Editor Part */
+
+.agent-sessions-workbench .part.editor.modal-editor-part .modal-editor-action-container .action-label.codicon.codicon-open-in-window {
+	transform: rotate(180deg);
+}

@@ -28,6 +28,7 @@ export default {
 	context: repoRoot,
 	mode: 'development',
 	target: 'web',
+	devtool: 'source-map',
 	entry: {
 		workbench: path.join(repoRoot, 'out', 'vs', 'code', 'browser', 'workbench', 'workbench.js'),
 	},
@@ -38,12 +39,30 @@ export default {
 		assetModuleFilename: 'bundled/assets/[name][ext][query]',
 		publicPath: '/',
 		clean: true,
+		devtoolModuleFilenameTemplate: (info: { absoluteResourcePath: string }) => {
+			return `file:///${info.absoluteResourcePath.replace(/\\/g, '/')}`;
+		},
+	},
+	resolve: {
+		fallback: {
+			path: path.resolve(repoRoot, 'node_modules', 'path-browserify'),
+			fs: false,
+			module: false,
+		},
+	},
+	resolveLoader: {
+		modules: [path.join(__dirname, 'node_modules'), 'node_modules'],
 	},
 	experiments: {
 		css: true,
 	},
 	module: {
 		rules: [
+			{
+				test: /\.js$/,
+				enforce: 'pre',
+				use: ['source-map-loader'],
+			},
 			{
 				test: /\.css$/,
 				type: 'css',

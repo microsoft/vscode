@@ -56,6 +56,8 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
@@ -73,7 +75,6 @@ import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const $ = dom.$;
 
@@ -164,6 +165,7 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
+			action.id === 'github.copilot.claude.sessions.sync' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
 		) {
 			const customLabel = outgoingChanges > 0
@@ -196,6 +198,9 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
 			action.id === 'github.copilot.sessions.commit' ||
+			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
+			action.id === 'github.copilot.claude.sessions.commit' ||
+			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.markAsDone'
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
@@ -268,7 +273,6 @@ export class ChangesViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -279,6 +283,10 @@ export class ChangesViewPane extends ViewPane {
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
+
+		// Multi-diff editor source resolver
+		const changesMultiDiffSourceResolver = this.instantiationService.createInstance(ChangesMultiDiffSourceResolver, this.viewModel);
+		this._register(changesMultiDiffSourceResolver);
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
@@ -631,6 +639,9 @@ export class ChangesViewPane extends ViewPane {
 			const changes = changesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
+			// Read session state so this autorun re-runs when git state (e.g. branch name)
+			// arrives asynchronously, since the tree root label depends on it.
+			this.viewModel.activeSessionStateObs.read(reader);
 
 			if (!this.tree || isLoading) {
 				return;
@@ -942,7 +953,7 @@ export class ChangesViewPane extends ViewPane {
 		));
 	}
 
-	async openChanges(): Promise<void> {
+	async openChanges(resource?: URI): Promise<void> {
 		const items = this.viewModel.activeSessionChangesObs.get();
 		if (items.length === 0) {
 			return;
@@ -951,12 +962,13 @@ export class ChangesViewPane extends ViewPane {
 		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
 		if (modalEditorMode === 'all') {
 			const changes = toIChangesFileItem(items);
-			await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
+			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
 			return;
 		}
 
 		// Open multi-file diff editor
-		await this._openMultiFileDiffEditor();
+		await this._openMultiFileDiffEditor(resource);
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
@@ -1013,17 +1025,32 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		// Open multi-file diff editor
-		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
-			multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-session-changes' }),
-			title: localize('sessions.changes.title', 'Session Changes'),
-			resources: changes.map(d => ({
-				originalUri: d.originalUri,
-				modifiedUri: d.modifiedUri
-			})),
-			reveal: reveal
-				? { modifiedUri: reveal }
-				: undefined
+		// Determine the reveal target (original/modified URI pair) from the
+		// current change list, so the multi-diff editor can navigate to it.
+		let options: IMultiDiffEditorOptions | undefined;
+		if (reveal) {
+			const target = changes.find(c => isEqual(c.modifiedUri, reveal));
+			if (target) {
+				options = {
+					viewState: {
+						revealData: {
+							resource: {
+								original: target.originalUri,
+								modified: target.modifiedUri,
+							},
+						},
+					},
+				} satisfies IMultiDiffEditorOptions;
+			}
+		}
+
+		// Open the multi-diff editor using the sessions source URI. The resource
+		// list is resolved via `SessionsMultiDiffSourceResolver` and updates
+		// reactively as `activeSessionChangesObs` changes.
+		await this.editorService.openEditor({
+			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
+			label: localize('sessions.changes.title', 'Session Changes'),
+			options,
 		});
 	}
 
@@ -1232,7 +1259,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
 						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
-						description: branchName && baseBranchName
+						detail: branchName && baseBranchName
 							? `${branchName} → ${baseBranchName}`
 							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
@@ -1252,7 +1279,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsUncommittedChanges',
 						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
-						description: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
+						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
@@ -1268,7 +1295,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
+						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
@@ -1286,7 +1313,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsLastTurnChanges',
 						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
-						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
+						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 4, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
@@ -1306,7 +1333,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			},
 		};
 
-		super(action, { actionProvider, listOptions: { descriptionBelow: true } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		super(action, { actionProvider, listOptions: {} }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);

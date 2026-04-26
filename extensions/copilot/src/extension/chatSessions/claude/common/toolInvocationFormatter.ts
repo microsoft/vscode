@@ -64,6 +64,7 @@ export function completeToolInvocation(
 		case ClaudeToolNames.TodoWrite:
 			// These tools have their own UI handling (edit diffs, todo list)
 			break;
+		case ClaudeToolNames.Agent:
 		case ClaudeToolNames.Task:
 			completeTaskInvocation(invocation, resultContent);
 			break;
@@ -226,6 +227,7 @@ export function createFormattedToolInvocation(
 		case ClaudeToolNames.ExitPlanMode:
 			formatExitPlanModeInvocation(invocation, toolUse);
 			break;
+		case ClaudeToolNames.Agent:
 		case ClaudeToolNames.Task:
 			formatTaskInvocation(invocation, toolUse);
 			break;

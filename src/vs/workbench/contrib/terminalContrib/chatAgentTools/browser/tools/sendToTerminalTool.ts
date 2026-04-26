@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../../../base/common/async.js';
-import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { appendEscapedMarkdownInlineCode, createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -16,9 +16,9 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../../../chat/common/chatService/chatService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITerminalChatService, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../outputHelpers.js';
-import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, isMultilineCommand, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { isSessionAutoApproveLevel } from './terminalToolAutoApprove.js';
 import { TerminalToolId } from './toolIds.js';
@@ -27,7 +27,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send input text to a terminal session. This can target either a persistent terminal started with ${TerminalToolId.RunInTerminal} in async mode (using 'id') or any foreground terminal visible in the terminal panel (using 'terminalId'). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). The result includes the last few lines of terminal output captured shortly after sending.`,
+	modelDescription: `Send input text to an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). By default, returns the last 20 lines of terminal output captured shortly after sending. Set 'waitForOutput' to true for interactive programs (games, REPLs, etc.) to wait until the terminal becomes idle before returning output — this gives you the program's response to your input.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -35,28 +35,29 @@ export const SendToTerminalToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of a persistent terminal session to send a command to (returned by ${TerminalToolId.RunInTerminal} in async mode). Provide either 'id' or 'terminalId', not both.`,
+				description: `The ID of an active terminal execution to send a command to (returned by ${TerminalToolId.RunInTerminal} for async executions, or for sync executions that timed out and were moved to the background).`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
-			},
-			terminalId: {
-				type: 'number',
-				description: 'The numeric instanceId of a terminal. Use this to send input to terminals not started by the agent (e.g., user-created terminals or terminals that need interactive input). Provide either \'id\' or \'terminalId\', not both.'
 			},
 			command: {
 				type: 'string',
 				description: 'The input text to send to the terminal. The text is sent followed by Enter. Provide an empty or whitespace string to send just Enter (for interactive prompts).'
 			},
+			waitForOutput: {
+				type: 'boolean',
+				description: 'When true, waits for the terminal to become idle (no new output for a short period) before returning, instead of returning immediately. Use this for interactive programs where you need to see the full response to your input. Defaults to false.'
+			},
 		},
 		required: [
+			'id',
 			'command',
 		]
 	}
 };
 
 export interface ISendToTerminalInputParams {
-	id?: string;
-	terminalId?: number;
+	id: string;
 	command: string;
+	waitForOutput?: boolean;
 }
 
 const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
@@ -88,7 +89,6 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 	}
@@ -180,13 +180,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 				return execution.instance.title;
 			}
 		}
-		if (args.terminalId !== undefined) {
-			const instance = this._terminalService.getInstanceFromId(args.terminalId);
-			if (instance) {
-				return instance.title;
-			}
-		}
-		return args.id ?? String(args.terminalId ?? '');
+		return args.id ?? '';
 	}
 
 	/**
@@ -194,9 +188,6 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 	 * to build command URIs for the "Focus Terminal" link.
 	 */
 	private _getTerminalInstanceId(args: ISendToTerminalInputParams): number | undefined {
-		if (args.terminalId !== undefined) {
-			return args.terminalId;
-		}
 		if (args.id) {
 			const execution = RunInTerminalTool.getExecution(args.id);
 			if (execution) {
@@ -229,7 +220,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Resolve the terminal ID that will match the carousel's terminalId
-		if (!args.id && args.terminalId === undefined) {
+		if (!args.id) {
 			return undefined;
 		}
 
@@ -254,10 +245,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 					if (!candidate.terminalId || candidate.questions.length === 0) {
 						continue;
 					}
-					const matchesById = !!args.id && candidate.terminalId === args.id;
-					const matchesByInstanceId = args.terminalId !== undefined &&
-						RunInTerminalTool.getExecution(candidate.terminalId)?.instance.instanceId === args.terminalId;
-					if (matchesById || matchesByInstanceId) {
+					if (candidate.terminalId === args.id) {
 						carouselIndex = j;
 						carousel = candidate;
 						break;
@@ -306,10 +294,12 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 	/**
 	 * Checks whether a carousel answer value matches the command text being sent.
+	 * An empty/unprovided answer matches an empty command (i.e. pressing Enter to
+	 * accept the default), since that is the expected way to skip a question.
 	 */
 	private _answerMatchesCommand(answer: IChatQuestionAnswerValue | undefined, commandText: string): boolean {
 		if (answer === undefined) {
-			return false;
+			return commandText === '';
 		}
 		if (typeof answer === 'string') {
 			return answer.trim() === commandText;
@@ -320,54 +310,34 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			if (multi.selectedValues.some(v => v.trim() === commandText)) {
 				return true;
 			}
-			return multi.freeformValue?.trim() === commandText;
+			if (multi.freeformValue?.trim() === commandText) {
+				return true;
+			}
+			return commandText === '' && multi.selectedValues.length === 0 && !multi.freeformValue?.trim();
 		}
 		if (hasKey(answer, { selectedValue: true })) {
 			const single = answer as IChatSingleSelectAnswer;
-			return single.selectedValue?.trim() === commandText || single.freeformValue?.trim() === commandText;
+			if (single.selectedValue?.trim() === commandText || single.freeformValue?.trim() === commandText) {
+				return true;
+			}
+			return commandText === '' && !single.selectedValue?.trim() && !single.freeformValue?.trim();
 		}
 		return false;
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as ISendToTerminalInputParams;
 
-		if (!args.id && args.terminalId === undefined) {
+		if (!args.id) {
 			return {
 				content: [{
 					kind: 'text',
-					value: 'Error: Either \'id\' (persistent terminal UUID) or \'terminalId\' (foreground terminal instanceId) must be provided.'
+					value: `Error: 'id' (the active terminal execution UUID returned by ${TerminalToolId.RunInTerminal}) must be provided.`
 				}]
 			};
 		}
 
-		// Foreground terminal path — only when no persistent id is provided
-		if (args.terminalId !== undefined && !args.id) {
-			const instance = this._terminalService.getInstanceFromId(args.terminalId);
-			if (!instance) {
-				return {
-					content: [{
-						kind: 'text',
-						value: `Error: No terminal found with instanceId ${args.terminalId}. The terminal may have been closed.`
-					}]
-				};
-			}
-
-			await instance.sendText(normalizeCommandForExecution(args.command), true);
-
-			await timeout(100);
-			const recentOutput = getOutput(instance, undefined, { lastNLines: 5 });
-
-			return {
-				content: [{
-					kind: 'text',
-					value: `Successfully sent command to foreground terminal ${args.terminalId}.${recentOutput ? `\n\nTerminal output (last 5 lines):\n${recentOutput}` : ''}`
-				}]
-			};
-		}
-
-		// Persistent (background) terminal path
-		const execution = RunInTerminalTool.getExecution(args.id!);
+		const execution = RunInTerminalTool.getExecution(args.id);
 		if (!execution) {
 			return {
 				content: [{
@@ -377,16 +347,74 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		// Register a marker before sending so we can scope output to just the response
+		const startMarker = execution.instance.registerMarker?.();
 
-		await timeout(100);
-		const recentOutput = getOutput(execution.instance, undefined, { lastNLines: 5 });
+		if (isMultilineCommand(args.command)) {
+			// Multiline commands (e.g. heredocs) must preserve newlines and use
+			// bracketed paste mode so the shell treats the input as a single paste
+			// rather than executing each line independently. Intentionally skip
+			// normalizeCommandForExecution here so neither newlines nor the
+			// trailing/leading whitespace `.trim()` it performs are stripped.
+			await execution.instance.sendText(args.command, true, true);
+		} else {
+			await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		}
+
+		let recentOutput: string;
+		if (args.waitForOutput) {
+			// Wait for the terminal to become idle (no new data) before returning.
+			// This is critical for interactive programs (games, REPLs, etc.) where
+			// the response arrives asynchronously after the input.
+			recentOutput = await this._waitForIdleOutput(execution, startMarker, token);
+		} else {
+			await timeout(2000, token);
+			recentOutput = getOutput(execution.instance, startMarker ?? undefined, { lastNLines: 20 });
+		}
 
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output (last 5 lines):\n${recentOutput}` : ''}`
+				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output:\n${recentOutput}` : ''}`
 			}]
 		};
+	}
+
+	/**
+	 * Waits for the terminal to become idle (no new output for a sustained period)
+	 * and returns the output produced since the given marker.
+	 */
+	private async _waitForIdleOutput(
+		execution: ReturnType<typeof RunInTerminalTool.getExecution> & {},
+		startMarker: ReturnType<ITerminalInstance['registerMarker']> | undefined,
+		token: CancellationToken,
+	): Promise<string> {
+		const maxWaitMs = 30_000; // 30 seconds maximum wait
+		const idleThresholdMs = 2_000; // Consider idle after 2s of no data
+		const pollIntervalMs = 500;
+		let waited = 0;
+		let lastDataTime = Date.now();
+
+		const cts = new CancellationTokenSource(token);
+		const dataListener = execution.instance.onData(() => {
+			lastDataTime = Date.now();
+		});
+
+		try {
+			while (!cts.token.isCancellationRequested && waited < maxWaitMs) {
+				await timeout(pollIntervalMs, cts.token);
+				waited += pollIntervalMs;
+
+				const timeSinceLastData = Date.now() - lastDataTime;
+				if (timeSinceLastData >= idleThresholdMs) {
+					break;
+				}
+			}
+		} finally {
+			dataListener.dispose();
+			cts.dispose();
+		}
+
+		return getOutput(execution.instance, startMarker ?? undefined);
 	}
 }
