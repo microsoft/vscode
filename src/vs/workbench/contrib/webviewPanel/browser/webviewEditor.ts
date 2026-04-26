@@ -183,7 +183,7 @@ export class WebviewEditor extends EditorPane {
 		// Check if this editor is inside a modal editor
 		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
-		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+		this._clippingContainer = isModal ? undefined : this._element?.parentElement ?? undefined;
 
 		// When shown in a modal editor, the webview overlay must sit above the modal layer
 		input.webview.container.style.zIndex = isModal ? '2541' : ''; // One over the modal z-index
