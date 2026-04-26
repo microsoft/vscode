@@ -56,7 +56,6 @@ function makeAgentSession(opts: {
 		workingDirectory: opts.worktree,
 		detail: undefined,
 		baseBranchName: undefined,
-		baseBranchProtected: undefined,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
@@ -106,7 +105,6 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		workingDirectory: opts.worktree,
 		detail: undefined,
 		baseBranchName: undefined,
-		baseBranchProtected: undefined,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),

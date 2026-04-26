@@ -276,11 +276,6 @@ function validateAndReviveNode(node: ChainNode): StoredMessage | null {
  * Convert a validated user message entry into a StoredMessage.
  */
 function reviveUserMessage(entry: UserMessageEntry): StoredMessage {
-	let toolUseResultAgentId: string | undefined;
-	if (entry.toolUseResult && typeof entry.toolUseResult === 'object' && 'agentId' in entry.toolUseResult && typeof entry.toolUseResult.agentId === 'string') {
-		toolUseResultAgentId = entry.toolUseResult.agentId;
-	}
-
 	return {
 		uuid: entry.uuid,
 		sessionId: entry.sessionId,
@@ -295,7 +290,6 @@ function reviveUserMessage(entry: UserMessageEntry): StoredMessage {
 		gitBranch: entry.gitBranch,
 		slug: entry.slug,
 		agentId: entry.agentId,
-		toolUseResultAgentId,
 	};
 }
 

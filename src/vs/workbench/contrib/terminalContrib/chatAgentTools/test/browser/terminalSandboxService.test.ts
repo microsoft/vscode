@@ -39,13 +39,16 @@ suite('TerminalSandboxService - network domains', () => {
 	let workspaceContextService: MockWorkspaceContextService;
 	let productService: IProductService;
 	let sandboxHelperService: MockSandboxHelperService;
+	let remoteAgentService: MockRemoteAgentService;
 	let createdFiles: Map<string, string>;
+	let createFileCount: number;
 	let createdFolders: string[];
 	let deletedFolders: string[];
 	const windowId = 7;
 
 	class MockFileService {
 		async createFile(uri: URI, content: VSBuffer): Promise<any> {
+			createFileCount++;
 			const contentString = content.toString();
 			createdFiles.set(uri.path, contentString);
 			return {};
@@ -62,37 +65,39 @@ suite('TerminalSandboxService - network domains', () => {
 	}
 
 	class MockRemoteAgentService {
+		remoteEnvironment: IRemoteAgentEnvironment | null = {
+			os: OperatingSystem.Linux,
+			tmpDir: URI.file('/tmp'),
+			appRoot: URI.file('/app'),
+			execPath: '/app/node',
+			pid: 1234,
+			connectionToken: 'test-token',
+			settingsPath: URI.file('/settings'),
+			mcpResource: URI.file('/mcp'),
+			logsPath: URI.file('/logs'),
+			extensionHostLogsPath: URI.file('/ext-logs'),
+			globalStorageHome: URI.file('/global'),
+			workspaceStorageHome: URI.file('/workspace'),
+			localHistoryHome: URI.file('/history'),
+			userHome: URI.file('/home/user'),
+			arch: 'x64',
+			marks: [],
+			useHostProxy: false,
+			profiles: {
+				all: [],
+				home: URI.file('/profiles')
+			},
+			isUnsupportedGlibc: false
+		};
+
 		getConnection() {
 			return null;
 		}
 
-		async getEnvironment(): Promise<IRemoteAgentEnvironment> {
+		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 			// Return a Linux environment to ensure tests pass on Windows
 			// (sandbox is not supported on Windows)
-			return {
-				os: OperatingSystem.Linux,
-				tmpDir: URI.file('/tmp'),
-				appRoot: URI.file('/app'),
-				execPath: '/app/node',
-				pid: 1234,
-				connectionToken: 'test-token',
-				settingsPath: URI.file('/settings'),
-				mcpResource: URI.file('/mcp'),
-				logsPath: URI.file('/logs'),
-				extensionHostLogsPath: URI.file('/ext-logs'),
-				globalStorageHome: URI.file('/global'),
-				workspaceStorageHome: URI.file('/workspace'),
-				localHistoryHome: URI.file('/history'),
-				userHome: URI.file('/home/user'),
-				arch: 'x64',
-				marks: [],
-				useHostProxy: false,
-				profiles: {
-					all: [],
-					home: URI.file('/profiles')
-				},
-				isUnsupportedGlibc: false
-			};
+			return this.remoteEnvironment;
 		}
 	}
 
@@ -160,6 +165,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 	setup(() => {
 		createdFiles = new Map();
+		createFileCount = 0;
 		createdFolders = [];
 		deletedFolders = [];
 		instantiationService = workbenchInstantiationService({}, store);
@@ -168,6 +174,7 @@ suite('TerminalSandboxService - network domains', () => {
 		lifecycleService = store.add(new TestLifecycleService());
 		workspaceContextService = new MockWorkspaceContextService();
 		sandboxHelperService = new MockSandboxHelperService();
+		remoteAgentService = new MockRemoteAgentService();
 		productService = {
 			...TestProductService,
 			dataFolderName: '.test-data',
@@ -182,15 +189,17 @@ suite('TerminalSandboxService - network domains', () => {
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number } }>{
+		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string }>{
 			_serviceBrand: undefined,
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
+			userHome: URI.file('/home/local-user'),
+			userDataPath: '/custom/local-user-data',
 			window: { id: windowId }
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IProductService, productService);
-		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
 		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
@@ -336,6 +345,7 @@ suite('TerminalSandboxService - network domains', () => {
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
 			allowWrite: ['/configured/path'],
 			denyRead: [],
+			allowRead: ['/configured/readable/path'],
 			denyWrite: []
 		});
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
@@ -345,6 +355,7 @@ suite('TerminalSandboxService - network domains', () => {
 			},
 			filesystem: {
 				allowWrite: ['/should-not-win'],
+				allowRead: ['/should-not-win-readable'],
 				unixSockets: {
 					enabled: true,
 				}
@@ -367,10 +378,173 @@ suite('TerminalSandboxService - network domains', () => {
 		});
 		ok(config.filesystem.allowWrite.includes('/configured/path'), 'Configured filesystem values should be preserved');
 		ok(!config.filesystem.allowWrite.includes('/should-not-win'), 'Runtime filesystem values should not override schema-defined filesystem config');
+		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Configured allowRead values should be preserved');
+		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Generated allowRead should include workspace folders');
+		ok(config.filesystem.allowRead.includes('/configured/path'), 'Generated allowRead should include configured allowWrite paths');
+		ok(!config.filesystem.allowRead.includes('/should-not-win-readable'), 'Runtime filesystem allowRead should not override schema-defined filesystem config');
 		deepStrictEqual(config.filesystem.unixSockets, {
 			enabled: true,
 		}, 'Additional nested runtime filesystem properties should be merged in');
 		strictEqual(config.allowUnixSockets, true, 'Non-conflicting runtime properties should still be added');
+	});
+
+	test('should deny home reads while reallowing writable paths for reads', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/path'],
+			denyRead: ['/secret/path'],
+			allowRead: ['/configured/readable/path'],
+			denyWrite: []
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
+		ok(config.filesystem.denyRead.includes('/secret/path'), 'Sandbox config should preserve configured denyRead paths');
+		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders');
+		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths');
+		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
+		ok(config.filesystem.allowRead.includes('/home/user/.npm'), 'Sandbox config should re-allow reads from default write paths');
+		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
+		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
+		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
+		ok(config.filesystem.allowRead.includes('/app'), 'Sandbox config should include the VS Code app root');
+		ok(!config.filesystem.allowRead.includes('/app/node'), 'Sandbox config should not redundantly include app root child paths');
+		ok(!config.filesystem.allowRead.includes('/app/node_modules'), 'Sandbox config should not redundantly include app root child paths');
+		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
+	});
+
+	test('should only add command-specific allowRead paths for the current command keywords', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('node --version', false, 'bash', ['node']);
+		const nodeConfigContent = createdFiles.get(configPath);
+		ok(nodeConfigContent, 'Config file should be rewritten for node commands');
+
+		const nodeConfig = JSON.parse(nodeConfigContent);
+		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
+		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
+
+		await sandboxService.wrapCommand('git status', false, 'bash', ['git']);
+		const gitConfigContent = createdFiles.get(configPath);
+		ok(gitConfigContent, 'Config file should be rewritten for git commands');
+
+		const gitConfig = JSON.parse(gitConfigContent);
+		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
+		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command keywords');
+	});
+
+	test('should not rewrite sandbox config when the parsed command keywords are unchanged', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const initialCreateFileCount = createFileCount;
+
+		await sandboxService.wrapCommand('node --version', false, 'bash', ['node']);
+		const afterFirstNodeCommandCount = createFileCount;
+		strictEqual(afterFirstNodeCommandCount, initialCreateFileCount + 1, 'First node command should rewrite the config once');
+
+		await sandboxService.wrapCommand('node app.js', false, 'bash', ['node']);
+		strictEqual(createFileCount, afterFirstNodeCommandCount, 'Second node command should not rewrite the config when keywords are unchanged');
+	});
+
+	test('should expand home paths in linux filesystem sandbox config paths', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['~/.custom-write', '/glob/**/*.ts'],
+			denyRead: ['~/.secret', '/secret/*'],
+			allowRead: ['~/.custom-readable', '/readable/{a,b}'],
+			denyWrite: ['~/.custom-write/file.txt', '/configured/path/file?.txt']
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowWrite.includes('/home/user/.custom-write'), 'allowWrite should expand home paths on Linux');
+		ok(config.filesystem.allowWrite.includes('/glob/**/*.ts'), 'Non-home allowWrite paths should be preserved');
+		ok(!config.filesystem.allowWrite.includes('~/.custom-write'), 'allowWrite should not include unexpanded home paths on Linux');
+		ok(config.filesystem.denyRead.includes('/home/user/.secret'), 'denyRead should expand home paths on Linux');
+		ok(config.filesystem.denyRead.includes('/secret/*'), 'Non-home denyRead paths should be preserved');
+		ok(!config.filesystem.denyRead.includes('~/.secret'), 'denyRead should not include unexpanded home paths on Linux');
+		ok(config.filesystem.allowRead.includes('/home/user/.custom-readable'), 'allowRead should expand home paths on Linux');
+		ok(config.filesystem.allowRead.includes('/readable/{a,b}'), 'Non-home allowRead paths should be preserved');
+		ok(!config.filesystem.allowRead.includes('~/.custom-readable'), 'allowRead should not include unexpanded home paths on Linux');
+		ok(config.filesystem.denyWrite.includes('/home/user/.custom-write/file.txt'), 'denyWrite should expand home paths on Linux');
+		ok(config.filesystem.denyWrite.includes('/configured/path/file?.txt'), 'Non-home denyWrite paths should be preserved');
+		ok(!config.filesystem.denyWrite.includes('~/.custom-write/file.txt'), 'denyWrite should not include unexpanded home paths on Linux');
+	});
+
+	test('should deny home reads while reallowing writable paths for reads on macOS', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Macintosh
+		};
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem, {
+			allowWrite: ['/configured/path'],
+			denyRead: ['/secret/path'],
+			allowRead: ['/configured/readable/path'],
+			denyWrite: []
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home on macOS');
+		ok(config.filesystem.denyRead.includes('/secret/path'), 'Sandbox config should preserve configured denyRead paths on macOS');
+		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders on macOS');
+		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths on macOS');
+		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths on macOS');
+	});
+
+	test('should not expand home paths in macOS filesystem sandbox config paths', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Macintosh
+		};
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem, {
+			allowWrite: ['~/.custom-write', '/glob/**/*.ts'],
+			denyRead: ['~/.secret', '/secret/*'],
+			allowRead: ['~/.custom-readable', '/readable/{a,b}'],
+			denyWrite: ['~/.custom-write/file.txt', '/configured/path/file?.txt']
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowWrite.includes('~/.custom-write'), 'allowWrite should preserve unexpanded home paths on macOS');
+		ok(config.filesystem.allowWrite.includes('/glob/**/*.ts'), 'Non-home allowWrite paths should be preserved on macOS');
+		ok(!config.filesystem.allowWrite.includes('/home/user/.custom-write'), 'allowWrite should not expand ~ on macOS');
+		ok(config.filesystem.denyRead.includes('~/.secret'), 'denyRead should preserve unexpanded home paths on macOS');
+		ok(config.filesystem.denyRead.includes('/secret/*'), 'Non-home denyRead paths should be preserved on macOS');
+		ok(!config.filesystem.denyRead.includes('/home/user/.secret'), 'denyRead should not expand ~ on macOS');
+		ok(config.filesystem.allowRead.includes('~/.custom-readable'), 'allowRead should preserve unexpanded home paths on macOS');
+		ok(config.filesystem.allowRead.includes('/readable/{a,b}'), 'Non-home allowRead paths should be preserved on macOS');
+		ok(!config.filesystem.allowRead.includes('/home/user/.custom-readable'), 'allowRead should not expand ~ on macOS');
+		ok(config.filesystem.denyWrite.includes('~/.custom-write/file.txt'), 'denyWrite should preserve unexpanded home paths on macOS');
+		ok(config.filesystem.denyWrite.includes('/configured/path/file?.txt'), 'Non-home denyWrite paths should be preserved on macOS');
+		ok(!config.filesystem.denyWrite.includes('/home/user/.custom-write/file.txt'), 'denyWrite should not expand ~ on macOS');
 	});
 
 	test('should refresh allowWrite paths when workspace folders change', async () => {
@@ -390,6 +564,9 @@ suite('TerminalSandboxService - network domains', () => {
 		const initialConfig = JSON.parse(initialConfigContent);
 		ok(initialConfig.filesystem.allowWrite.includes('/workspace-one'), 'Initial config should include the original workspace folder');
 		ok(initialConfig.filesystem.allowWrite.includes('/configured/path'), 'Initial config should include configured allowWrite paths');
+		ok(initialConfig.filesystem.denyRead.includes('/home/user'), 'Initial config should deny arbitrary reads from home');
+		ok(initialConfig.filesystem.allowRead.includes('/workspace-one'), 'Initial config should re-allow reading the original workspace folder');
+		ok(initialConfig.filesystem.allowRead.includes('/configured/path'), 'Initial config should re-allow reading configured allowWrite paths');
 
 		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-two')]);
 
@@ -403,6 +580,10 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(refreshedConfig.filesystem.allowWrite.includes('/workspace-two'), 'Refreshed config should include the updated workspace folder');
 		ok(!refreshedConfig.filesystem.allowWrite.includes('/workspace-one'), 'Refreshed config should remove the old workspace folder');
 		ok(refreshedConfig.filesystem.allowWrite.includes('/configured/path'), 'Refreshed config should preserve configured allowWrite paths');
+		ok(refreshedConfig.filesystem.denyRead.includes('/home/user'), 'Refreshed config should continue to deny arbitrary reads from home');
+		ok(refreshedConfig.filesystem.allowRead.includes('/workspace-two'), 'Refreshed config should re-allow reading the updated workspace folder');
+		ok(!refreshedConfig.filesystem.allowRead.includes('/workspace-one'), 'Refreshed config should remove the old workspace folder from allowRead');
+		ok(refreshedConfig.filesystem.allowRead.includes('/configured/path'), 'Refreshed config should preserve configured allowWrite paths in allowRead');
 	});
 
 	test('should create sandbox temp dir under the server data folder', async () => {
@@ -431,7 +612,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrappedCommand = sandboxService.wrapCommand('echo test');
+		const wrappedCommand = await sandboxService.wrapCommand('echo test');
 
 		ok(
 			wrappedCommand.command.includes('PATH') && wrappedCommand.command.includes('ripgrep'),
@@ -440,39 +621,51 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrappedCommand.isSandboxWrapped, true, 'Command should stay sandbox wrapped when no domain is detected');
 	});
 
+	test('should launch Linux sandbox runtime from temp dir while preserving the command cwd', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', undefined, URI.file('/workspace-one'));
+		const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
+
+		ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; `), 'Sandbox runtime should start from the sandbox temp dir on Linux');
+		ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
+	});
+
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
+		strictEqual((await sandboxService.wrapCommand('echo test', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
 	});
 
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test | cat', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test | cat'`);
+		strictEqual((await sandboxService.wrapCommand('echo test | cat', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test | cat'`);
 	});
 
 	test('should preserve trailing backslashes for unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test \\', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test \\'`);
+		strictEqual((await sandboxService.wrapCommand('echo test \\', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test \\'`);
 	});
 
 	test('should use fish-compatible wrapping for unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test', true, 'fish').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'fish' -c 'echo test'`);
+		strictEqual((await sandboxService.wrapCommand('echo test', true, 'fish')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'fish' -c 'echo test'`);
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Blocked domains should prevent sandbox wrapping');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains should require unsandbox confirmation');
@@ -485,7 +678,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.com');
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com');
 
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Exact allowlisted domains should stay sandboxed');
 		strictEqual(wrapResult.blockedDomains, undefined, 'Allowed domains should not be reported as blocked');
@@ -496,7 +689,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl "https://api.github.com/repos/microsoft/vscode"');
+		const wrapResult = await sandboxService.wrapCommand('curl "https://api.github.com/repos/microsoft/vscode"');
 
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Wildcard allowlisted domains should stay sandboxed');
 		strictEqual(wrapResult.blockedDomains, undefined, 'Wildcard allowlisted domains should not be reported as blocked');
@@ -508,7 +701,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
@@ -520,7 +713,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://API.GITHUB.COM/repos/microsoft/vscode');
+		const wrapResult = await sandboxService.wrapCommand('curl https://API.GITHUB.COM/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Uppercase hostnames should still match allowlisted domains');
 		strictEqual(wrapResult.blockedDomains, undefined, 'Uppercase allowlisted domains should not be reported as blocked');
@@ -530,7 +723,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.com]/path');
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com]/path');
 
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Malformed URL authorities should not trigger blocked-domain prompts');
 		strictEqual(wrapResult.blockedDomains, undefined, 'Malformed URL authorities should be ignored');
@@ -540,11 +733,11 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const javascriptResult = sandboxService.wrapCommand('cat bundle.js', false, 'bash');
+		const javascriptResult = await sandboxService.wrapCommand('cat bundle.js', false, 'bash');
 		strictEqual(javascriptResult.isSandboxWrapped, true, 'File extensions such as .js should not trigger blocked-domain prompts');
 		strictEqual(javascriptResult.blockedDomains, undefined, 'File extensions such as .js should not be reported as domains');
 
-		const jsonResult = sandboxService.wrapCommand('cat package.json', false, 'bash');
+		const jsonResult = await sandboxService.wrapCommand('cat package.json', false, 'bash');
 		strictEqual(jsonResult.isSandboxWrapped, true, 'File extensions such as .json should not trigger blocked-domain prompts');
 		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
 	});
@@ -560,7 +753,7 @@ suite('TerminalSandboxService - network domains', () => {
 		];
 
 		for (const command of commands) {
-			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
 			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
 		}
@@ -570,11 +763,11 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const testComResult = sandboxService.wrapCommand('curl test.com', false, 'bash');
+		const testComResult = await sandboxService.wrapCommand('curl test.com', false, 'bash');
 		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
 		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
 
-		const testOrgComResult = sandboxService.wrapCommand('curl test.org.com', false, 'bash');
+		const testOrgComResult = await sandboxService.wrapCommand('curl test.org.com', false, 'bash');
 		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
 		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
 	});
@@ -583,7 +776,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
@@ -593,7 +786,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
@@ -603,7 +796,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
+		const wrapResult = await sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
@@ -623,7 +816,7 @@ suite('TerminalSandboxService - network domains', () => {
 		];
 
 		for (const command of commands) {
-			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
 			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
 		}
@@ -707,7 +900,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('git clone git@github.com:microsoft/vscode.git');
+		const wrapResult = await sandboxService.wrapCommand('git clone git@github.com:microsoft/vscode.git');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH-style remotes should trigger domain checks');
 		deepStrictEqual(wrapResult.blockedDomains, ['github.com']);
@@ -718,7 +911,7 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = '";echo SANDBOX_ESCAPE_REPRO; # $(uname) `id`';
-		const wrappedCommand = sandboxService.wrapCommand(command).command;
+		const wrappedCommand = (await sandboxService.wrapCommand(command)).command;
 
 		ok(
 			wrappedCommand.includes(`-c '";echo SANDBOX_ESCAPE_REPRO; # $(uname) \`id\`'`),
@@ -735,7 +928,7 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = 'echo $HOME $(printf literal) `id`';
-		const wrappedCommand = sandboxService.wrapCommand(command).command;
+		const wrappedCommand = (await sandboxService.wrapCommand(command)).command;
 
 		ok(
 			wrappedCommand.includes(`-c 'echo $HOME $(printf literal) \`id\`'`),
@@ -752,7 +945,7 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = 'echo $HOME $(curl eth0.me) `id`';
-		const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+		const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
@@ -765,7 +958,7 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = `';printf breakout; #'`;
-		const wrappedCommand = sandboxService.wrapCommand(command).command;
+		const wrappedCommand = (await sandboxService.wrapCommand(command)).command;
 
 		ok(
 			wrappedCommand.includes(`-c '`),
@@ -786,7 +979,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrappedCommand = sandboxService.wrapCommand(`echo 'hello'`).command;
+		const wrappedCommand = (await sandboxService.wrapCommand(`echo 'hello'`)).command;
 		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
 	});
 });

@@ -115,7 +115,7 @@ export class BrowserView extends Disposable {
 		});
 
 		// Use a default size of 1024x768.
-		this._view.setBounds({ x: 0, y: 0, width: 1024, height: 768 });
+		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
@@ -125,7 +125,7 @@ export class BrowserView extends Disposable {
 		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
 
 		this._view.setVisible(false);
-		this._ownerWindow.win?.contentView.addChildView(this._view, 0);
+		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {

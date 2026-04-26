@@ -1391,6 +1391,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 						inputState: {
 							groups: [],
 							sessionResource: undefined,
+							onDidDispose: Event.None,
 							onDidChange: Event.None
 						}
 					};

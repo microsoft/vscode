@@ -163,7 +163,8 @@ async function main(): Promise<void> {
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService);
+	const gitService = new AgentHostGitService();
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService);
 	disposables.add(agentService);
 
 	// Register agents
@@ -179,8 +180,8 @@ async function main(): Promise<void> {
 		diServices.set(IAgentPluginManager, pluginManager);
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
+		diServices.set(IAgentHostGitService, gitService);
 		const instantiationService = new InstantiationService(diServices);
-		diServices.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');

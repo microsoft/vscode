@@ -19,7 +19,6 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
@@ -41,7 +40,6 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IClipboardService clipboardService: IClipboardService,
@@ -59,7 +57,6 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
-			sessionsManagementService,
 			remoteAgentHostService,
 			quickInputService,
 			clipboardService,

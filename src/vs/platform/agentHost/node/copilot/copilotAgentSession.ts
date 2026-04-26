@@ -17,14 +17,14 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { IAgentAttachment, IAgentProgressEvent, SessionHistoryEvent } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolEvents, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -300,10 +300,11 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		const sdkAttachments = attachments?.map(a => {
+			const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
 			if (a.type === 'selection') {
-				return { type: 'selection' as const, filePath: a.path, displayName: a.displayName ?? a.path, text: a.text, selection: a.selection };
+				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: a.text, selection: a.selection };
 			}
-			return { type: a.type, path: a.path, displayName: a.displayName };
+			return { type: a.type, path, displayName: a.displayName };
 		});
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
@@ -330,7 +331,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async getMessages(): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
+	async getMessages(): Promise<SessionHistoryEvent[]> {
 		const events = await this._wrapper.session.getMessages();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -791,6 +792,17 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			this._onDidSessionProgress.fire({ session, type: 'idle' });
+		}));
+
+		// The SDK emits a `skill` tool call (which we hide) and a richer
+		// `skill.invoked` event with the resolved SKILL.md path. Synthesize a
+		// tool-start/complete pair from the latter so the UI can render a
+		// clickable file link, matching the `view`-tool display style.
+		this._register(wrapper.onSkillInvoked(e => {
+			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			const { start, complete } = synthesizeSkillToolEvents(session, e.data, e.id);
+			this._onDidSessionProgress.fire(start);
+			this._onDidSessionProgress.fire(complete);
 		}));
 
 		this._register(wrapper.onSubagentStarted(e => {

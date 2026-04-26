@@ -45,6 +45,9 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4-5-20251101')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4-6')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4.6')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4.7')).toBe(true);
+		expect(modelSupportsToolSearch('claude-opus-4-7@1.0.0')).toBe(true);
+		expect(modelSupportsToolSearch('claude-sonnet-4-6@1.0.0')).toBe(true);
 	});
 
 	test('rejects pre-4.5 models, including date-suffixed ones', () => {
@@ -63,7 +66,7 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
 
-	test('supports OpenAI gpt-5.4 models when the setting is enabled', () => {
+	test('supports OpenAI gpt-5.4 and gpt-5.5 models when the setting is enabled', () => {
 		const configurationService = {
 			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
 		} as unknown as IConfigurationService;
@@ -71,7 +74,11 @@ describe('modelSupportsToolSearch', () => {
 
 		expect(modelSupportsToolSearch('gpt-5.4', configurationService, experimentationService)).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.5', configurationService, experimentationService)).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.5-preview', configurationService, experimentationService)).toBe(true);
+		expect(modelSupportsToolSearch('gpt5.5-preview', configurationService, experimentationService)).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.4')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.5')).toBe(false);
 	});
 
 	test('rejects other non-Claude models', () => {

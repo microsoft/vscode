@@ -981,6 +981,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: visible;
 }
 
+.monaco-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor,
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent;
+}
+
 .monaco-workbench .interactive-session .chat-input-container.working::before {
 	opacity: 1;
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
@@ -1513,7 +1522,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	across every view-line on each typed character. */
 .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
 	display: inline-block;
-	max-width: 100%; /* fallback for environments without container query units */
+	max-width: 100%;
+	/* fallback for environments without container query units */
 	max-width: 100cqi;
 	overflow: hidden;
 	text-overflow: ellipsis;

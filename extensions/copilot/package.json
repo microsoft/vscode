@@ -236,6 +236,27 @@
 				}
 			},
 			{
+				"name": "skill",
+				"toolReferenceName": "skill",
+				"displayName": "%copilot.tools.skill.name%",
+				"icon": "$(book)",
+				"userDescription": "%copilot.tools.skill.description%",
+				"modelDescription": "Invoke a skill to handle a user's request with specialized instructions and workflows.\n\nSkills are domain-specific capabilities discovered from SKILL.md files. When a user's task matches an available skill, call this tool to load and apply it. If the user types a slash command (e.g. \"/deploy\", \"/test\"), treat it as a skill invocation.\n\nUsage:\n- Pass the skill name only (no arguments).\n- Examples: skill: \"docx\", skill: \"deploy\", skill: \"fix-ci-failures\"\n\nRules:\n- Available skills appear in system-reminder messages earlier in the conversation.\n- BLOCKING: When a matching skill exists, you MUST call this tool before producing any other output about the task.\n- Never reference a skill without calling this tool.\n- Do not call this tool for a skill that is already active in the current turn (indicated by a <command-name> tag).\n- Do not use this tool for built-in commands such as /help or /clear.",
+				"when": "config.github.copilot.chat.skillTool.enabled",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"skill": {
+							"type": "string",
+							"description": "The skill name. E.g., \"commit\", \"review-pr\", or \"pdf\""
+						}
+					},
+					"required": [
+						"skill"
+					]
+				}
+			},
+			{
 				"name": "copilot_searchWorkspaceSymbols",
 				"toolReferenceName": "symbols",
 				"displayName": "%copilot.tools.searchWorkspaceSymbols.name%",
@@ -1265,7 +1286,8 @@
 					"problems",
 					"readFile",
 					"viewImage",
-					"readNotebookCellOutput"
+					"readNotebookCellOutput",
+					"skill"
 				]
 			},
 			{
@@ -1294,6 +1316,7 @@
 					"resolveMemoryFileUri",
 					"runCommand",
 					"switchAgent",
+					"toolSearch",
 					"vscodeAPI"
 				]
 			},
@@ -4018,6 +4041,15 @@
 						"tags": [
 							"experimental"
 						]
+					},
+					"github.copilot.chat.localIndex.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.localIndex.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
 					}
 				}
 			},
@@ -4402,6 +4434,15 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.skillTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.skill.enabled%",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
+					},
 					"github.copilot.chat.executionSubagent.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4466,7 +4507,7 @@
 					},
 					"github.copilot.chat.agentHistorySummarizationInline": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
 						"tags": [
 							"advanced",

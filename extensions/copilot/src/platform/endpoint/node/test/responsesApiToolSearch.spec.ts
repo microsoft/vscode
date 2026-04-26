@@ -57,6 +57,7 @@ function createMockOptions(overrides: Partial<ICreateEndpointBodyOptions> = {}):
 				{ type: 'function', function: { name: 'grep_search', description: 'Search for text', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
 				{ type: 'function', function: { name: 'some_mcp_tool', description: 'An MCP tool', parameters: { type: 'object', properties: { input: { type: 'string' } }, required: ['input'] } } },
 				{ type: 'function', function: { name: 'another_deferred_tool', description: 'Another tool', parameters: { type: 'object', properties: {} } } },
+				{ type: 'function', function: { name: 'tool_search', description: 'Search tools', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
 			]
 		},
 		...overrides,
@@ -147,6 +148,35 @@ describe('createResponsesRequestBody tools', () => {
 		const tools = body.tools as any[];
 		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
+	});
+
+	it('does not defer tools when tool_search is not in the request tool list', () => {
+		// Repro for https://github.com/microsoft/vscode/issues/311946: a custom agent with
+		// `tools: ['my-mcp-server/*']` filters out tool_search. Without this gate, every
+		// MCP tool would be marked deferred and stripped from the request, leaving the
+		// agent with nothing to call.
+		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+
+		const options = createMockOptions({
+			requestOptions: {
+				tools: [
+					{ type: 'function', function: { name: 'some_mcp_tool', description: 'An MCP tool', parameters: { type: 'object', properties: {} } } },
+					{ type: 'function', function: { name: 'another_mcp_tool', description: 'Another MCP tool', parameters: { type: 'object', properties: {} } } },
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		// No client tool_search should be added.
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		// All user-listed tools should be sent to the model, not stripped.
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
+		expect(tools.find(t => t.name === 'another_mcp_tool')).toBeDefined();
 	});
 
 	it('always filters tool_search function tool from tools array', () => {

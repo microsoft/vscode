@@ -78,6 +78,17 @@ export enum ChatConfiguration {
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
+
+	/**
+	 * When enabled, `vscode_renameSymbol` and `vscode_listCodeUsages` are always
+	 * registered with a static, language-list-free description. This makes the
+	 * tools array byte-stable across rounds even as language extensions activate
+	 * mid-turn, which significantly improves prompt-cache hit rates on agent
+	 * conversations. Behavior is unchanged: the tools still error on
+	 * unsupported languages at invocation time. Behind an A/B flag for
+	 * controlled rollout.
+	 */
+	SymbolToolsCacheStable = 'chat.experimental.symbolTools.cacheStable',
 }
 
 /**
