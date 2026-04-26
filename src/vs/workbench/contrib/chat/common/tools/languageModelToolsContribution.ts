@@ -97,7 +97,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					$ref: toolsParametersSchemaSchemaId
 				},
 				canBeReferencedInPrompt: {
-					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
+					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request (using `#` followed by the tool's `toolReferenceName`), and the tool also becomes available for use in agent mode."),
 					type: 'boolean'
 				},
 				icon: {
