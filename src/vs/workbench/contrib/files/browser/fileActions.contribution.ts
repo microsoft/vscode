@@ -10,7 +10,7 @@ import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/acti
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { openWindowCommand, newWindowCommand } from './fileCommands.js';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, SAVE_ALL_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from './fileConstants.js';
+import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, COPY_FILENAME_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, SAVE_ALL_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from './fileConstants.js';
 import { CommandsRegistry, ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -154,12 +154,18 @@ const copyRelativePathCommand = {
 	title: nls.localize('copyRelativePath', "Copy Relative Path")
 };
 
+const copyFilenameCommand = {
+	id: COPY_FILENAME_COMMAND_ID,
+	title: nls.localize('copyFilename', "Copy Filename")
+};
+
 export const revealInSideBarCommand = {
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 // Editor Title Context Menu
+appendEditorTitleContextMenuItem(COPY_FILENAME_COMMAND_ID, copyFilenameCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
@@ -216,6 +222,12 @@ appendToCommandPalette({
 appendToCommandPalette({
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
 	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: COPY_FILENAME_COMMAND_ID,
+	title: nls.localize2('copyFilenameOfActive', "Copy Filename of Active File"),
 	category: Categories.File
 });
 
@@ -324,6 +336,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_cutcopypaste',
 	order: 20,
 	command: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: '1_cutcopypaste',
+	order: 5,
+	command: copyFilenameCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
@@ -613,6 +632,13 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '6_copypath',
+	order: 5,
+	command: copyFilenameCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '2_workspace',
 	order: 10,
 	command: {
@@ -791,6 +817,13 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	when: ResourceContextKey.IsFileSystemResource
 });
 
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: '1_cutcopypaste',
+	order: 5,
+	command: copyFilenameCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
 // Chat resource anchor attachments/anchors context menu
 
 for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputResourceAttachmentContext]) {
@@ -819,6 +852,13 @@ for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputRe
 		group: '1_cutcopypaste',
 		order: 20,
 		command: copyRelativePathCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 5,
+		command: copyFilenameCommand,
 		when: ResourceContextKey.IsFileSystemResource
 	});
 }
