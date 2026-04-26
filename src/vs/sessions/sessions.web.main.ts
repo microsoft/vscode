@@ -155,6 +155,8 @@ import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.j
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
+import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSettings.contribution.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/remoteAgentHost/browser/hostFilter.contribution.js';

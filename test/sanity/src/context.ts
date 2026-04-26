@@ -1003,9 +1003,10 @@ export class TestContext {
 				let agentsAppName: string;
 				switch (this.options.quality) {
 					case 'stable':
-						appName = 'Visual Studio Code.app';
-						agentsAppName = 'Visual Studio Code Agents.app';
-						break;
+						// Agents app is not included in stable yet.
+						// appName = 'Visual Studio Code.app';
+						// agentsAppName = 'Visual Studio Code Agents.app';
+						return;
 					case 'insider':
 						appName = 'Visual Studio Code - Insiders.app';
 						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
@@ -1022,8 +1023,9 @@ export class TestContext {
 				let exeName: string;
 				switch (this.options.quality) {
 					case 'stable':
-						exeName = 'Agents.exe';
-						break;
+						// Agents app is not included in stable yet.
+						// exeName = 'Agents.exe';
+						return;
 					case 'insider':
 						exeName = 'Agents - Insiders.exe';
 						break;

@@ -114,7 +114,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		const render = () => {
 			partStore.clear();
 
-			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
+			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden || (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
 				dom.hide(this.domNode);
 				return;
 			}

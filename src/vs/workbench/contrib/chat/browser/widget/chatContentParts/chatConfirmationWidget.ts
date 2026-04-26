@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, Separator } from '../../../../../../base/common/actions.js';
@@ -36,6 +37,16 @@ export interface IChatConfirmationButton<T> {
 	disabled?: boolean;
 	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
+}
+
+export interface IChatConfirmationButtonClickEvent<T> {
+	readonly button: IChatConfirmationButton<T>;
+	/**
+	 * True when the click originated from a touch tap (vs. mouse/keyboard/programmatic).
+	 * Callers that restore focus after confirmation (e.g. to the chat input) should
+	 * skip that behavior when this is true to avoid popping the on-screen keyboard on mobile.
+	 */
+	readonly isTouchClick: boolean;
 }
 
 export interface IChatConfirmationWidgetOptions<T> {
@@ -107,8 +118,8 @@ export class ChatQueryTitlePart extends Disposable {
 }
 
 abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
-	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButtonClickEvent<T>>());
+	get onDidClick(): Event<IChatConfirmationButtonClickEvent<T>> { return this._onDidClick.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -191,7 +202,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 							undefined,
 							!action.disabled,
 							() => {
-								this._onDidClick.fire(action);
+								this._onDidClick.fire({ button: action, isTouchClick: false });
 								return Promise.resolve();
 							},
 						));
@@ -203,7 +214,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 			this._register(button);
 			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
@@ -277,8 +288,8 @@ export interface IChatConfirmationWidget2Options<T> {
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
-	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButtonClickEvent<T>>());
+	get onDidClick(): Event<IChatConfirmationButtonClickEvent<T>> { return this._onDidClick.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -403,7 +414,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 							undefined,
 							!action.disabled,
 							() => {
-								this._onDidClick.fire(action);
+								this._onDidClick.fire({ button: action, isTouchClick: false });
 								return Promise.resolve();
 							},
 						));
@@ -415,7 +426,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 			this._register(button);
 			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}

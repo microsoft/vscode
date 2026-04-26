@@ -21,7 +21,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, type IAgentDeltaEvent, type IAgentMessageEvent, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ISessionCustomization, ICustomizationRef } from '../../common/state/sessionState.js';
+import { SessionCustomization, CustomizationRef } from '../../common/state/sessionState.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot, type ICopilotClient } from '../../node/copilot/copilotAgent.js';
@@ -34,7 +34,7 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 
-	async syncCustomizations(_clientId: string, _customizations: ICustomizationRef[], _progress?: (status: ISessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async syncCustomizations(_clientId: string, _customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
 		return [];
 	}
 }
@@ -55,6 +55,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		this.addedWorktrees.push({ repositoryRoot, worktree, branchName, startPoint });
 	}
 	async removeWorktree(): Promise<void> { }
+	async getSessionGitState(): Promise<undefined> { return undefined; }
 }
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
@@ -390,9 +391,9 @@ suite('CopilotAgent', () => {
 	suite('createSession activeClient eager-claim', () => {
 
 		class SpyingPluginManager extends TestAgentPluginManager {
-			public readonly calls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
+			public readonly calls: { clientId: string; customizations: CustomizationRef[] }[] = [];
 
-			override async syncCustomizations(clientId: string, customizations: ICustomizationRef[], _progress?: (status: ISessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
+			override async syncCustomizations(clientId: string, customizations: CustomizationRef[], _progress?: (status: SessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
 				this.calls.push({ clientId, customizations: [...customizations] });
 				return [];
 			}
@@ -411,7 +412,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				const customizations: ICustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
+				const customizations: CustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
 				await assert.rejects(
 					agent.createSession({
 						session: AgentSession.uri('copilotcli', 'test-session'),

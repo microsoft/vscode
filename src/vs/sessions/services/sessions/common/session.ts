@@ -50,6 +50,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/**
+ * Returns whether the given session type represents a workspace-backed
+ * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
+ * repository — regardless of whether the agent runs locally or remotely.
+ * TODO: Somehow make this contributable so we don't have to hardcode session types here.
+ */
+export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
+	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
+}
+
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
@@ -78,10 +88,22 @@ export interface ISessionRepository {
 	readonly workingDirectory: URI | undefined;
 	/** Provider-chosen display detail (e.g., branch name, host name). */
 	readonly detail: string | undefined;
+	/** Current branch name. */
+	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
-	readonly baseBranchProtected: boolean | undefined;
+	readonly baseBranchProtected?: boolean;
+	/** Whether the repository has a github.com remote. */
+	readonly hasGitHubRemote?: boolean;
+	/** Upstream tracking branch name (e.g. `origin/feature`). */
+	readonly upstreamBranchName?: string;
+	/** Number of commits the upstream branch is ahead of the local branch. */
+	readonly incomingChanges?: number;
+	/** Number of commits the local branch is ahead of the upstream branch. */
+	readonly outgoingChanges?: number;
+	/** Number of files with uncommitted changes. */
+	readonly uncommittedChanges?: number;
 }
 
 /**
@@ -90,6 +112,10 @@ export interface ISessionRepository {
 export interface ISessionWorkspace {
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
+	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
+	readonly description?: string;
+	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
@@ -207,6 +233,21 @@ export interface ISession {
 }
 
 /**
+ * Build the canonical {@link ISession.sessionId} from a provider id and
+ * session resource URI.
+ *
+ * This is the single source of truth for the `providerId:resourceUri`
+ * string format used by every sessions provider (agent-host and
+ * Copilot chat sessions). Consumers that only have a provider id and a
+ * resource URI (e.g. a filesystem provider reconstructing a sessionId
+ * from a synthetic URI) should call this rather than rebuilding the
+ * string inline.
+ */
+export function toSessionId(providerId: string, resource: URI): string {
+	return `${providerId}:${resource.toString()}`;
+}
+
+/**
  * Capabilities declared per session.
  * Consumers check these before surfacing session-specific features in the UI.
  */
@@ -218,6 +259,15 @@ export interface ISessionCapabilities {
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
+	/** Optional description shown alongside the label in the workspace picker. */
+	readonly description?: string;
+	/**
+	 * Optional non-localized group key used to merge actions in the workspace picker.
+	 * Actions sharing the same group key are combined into a single picker entry
+	 * with a submenu. The first action's label is used as the display text for
+	 * the merged entry (e.g. "Folders").
+	 */
+	readonly group?: string;
 	/** Icon for the browse action. */
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */

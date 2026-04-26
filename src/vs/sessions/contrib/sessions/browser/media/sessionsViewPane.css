@@ -168,6 +168,10 @@
 		white-space: nowrap;
 	}
 
+	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+		cursor: pointer;
+	}
+
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
 		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 	}

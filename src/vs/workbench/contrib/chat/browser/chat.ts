@@ -424,6 +424,11 @@ export interface IChatWidget {
 	 */
 	navigateToNextQuestion(): boolean;
 	/**
+	 * Focuses the terminal associated with the active question carousel.
+	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
+	 */
+	focusQuestionCarouselTerminal(): boolean;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
