@@ -1,0 +1,420 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root
+{
+	--nx-space-1: 4px;
+	--nx-space-2: 8px;
+	--nx-space-3: 12px;
+	--nx-space-4: 16px;
+	--nx-space-5: 24px;
+	--nx-space-6: 32px;
+	--nx-radius-1: 6px;
+	--nx-radius-2: 10px;
+	--nx-font-ui: var(--vscode-font-family);
+	--nx-font-mono: var(--vscode-editor-font-family);
+	--nx-border: var(--vscode-panel-border);
+	--nx-fg: var(--vscode-foreground);
+	--nx-muted: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+	--nx-bg: var(--vscode-sideBar-background);
+	--nx-surface: var(--vscode-editor-background);
+	--nx-surface-2: color-mix(in srgb, var(--vscode-editor-background) 85%, var(--vscode-sideBar-background));
+	--nx-focus: var(--vscode-focusBorder);
+	--nx-primary: var(--vscode-button-background);
+	--nx-primaryFg: var(--vscode-button-foreground);
+	--nx-primaryHover: var(--vscode-button-hoverBackground);
+	--nx-secondary: var(--vscode-button-secondaryBackground);
+	--nx-secondaryFg: var(--vscode-button-secondaryForeground);
+	--nx-secondaryHover: var(--vscode-button-secondaryHoverBackground);
+	--nx-inputBg: var(--vscode-input-background);
+	--nx-inputFg: var(--vscode-input-foreground);
+	--nx-inputBorder: var(--vscode-input-border);
+	--nx-codeBg: var(--vscode-textCodeBlock-background);
+}
+
+*
+{
+	box-sizing: border-box;
+}
+
+html,
+body
+{
+	height: 100%;
+}
+
+body
+{
+	margin: 0;
+	padding: 0;
+	font-family: var(--nx-font-ui);
+	color: var(--nx-fg);
+	background: var(--nx-bg);
+}
+
+.nx-root
+{
+	height: 100vh;
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+}
+
+.nx-header
+{
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: var(--nx-space-3);
+	padding: var(--nx-space-3) var(--nx-space-4);
+	border-bottom: 1px solid var(--nx-border);
+	background: var(--nx-surface-2);
+}
+
+.nx-status
+{
+	display: flex;
+	align-items: center;
+	gap: var(--nx-space-2);
+	min-width: 0;
+}
+
+.nx-dot
+{
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--nx-muted) 50%, transparent);
+	border: 1px solid color-mix(in srgb, var(--nx-fg) 25%, transparent);
+}
+
+.nx-dot.nx-dotOk
+{
+	background: var(--vscode-charts-green);
+	border-color: transparent;
+}
+
+.nx-dot.nx-dotBad
+{
+	background: var(--vscode-charts-red);
+	border-color: transparent;
+}
+
+.nx-statusText
+{
+	font-size: 12px;
+	letter-spacing: 0.01em;
+	color: var(--nx-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.nx-auth
+{
+	display: flex;
+	align-items: center;
+	gap: var(--nx-space-2);
+}
+
+.nx-badge
+{
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	border: 1px solid var(--nx-border);
+	background: transparent;
+	color: var(--nx-fg);
+	cursor: pointer;
+	font-size: 11px;
+	letter-spacing: 0.03em;
+}
+
+.nx-badge:focus
+{
+	outline: 2px solid var(--nx-focus);
+	outline-offset: 2px;
+}
+
+.nx-badgeLabel
+{
+	opacity: 0.9;
+}
+
+.nx-badgeDot
+{
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--nx-muted) 50%, transparent);
+}
+
+.nx-badge.nx-connected .nx-badgeDot
+{
+	background: var(--vscode-charts-green);
+}
+
+.nx-main
+{
+	min-height: 0;
+}
+
+.nx-messages
+{
+	height: 100%;
+	padding: var(--nx-space-4);
+	overflow: auto;
+}
+
+.nx-welcome
+{
+	border: 1px solid var(--nx-border);
+	background: var(--nx-surface);
+	border-radius: var(--nx-radius-2);
+	padding: var(--nx-space-5);
+	max-width: 680px;
+	margin: 0 auto;
+}
+
+.nx-welcomeTitle
+{
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.nx-welcomeSub
+{
+	margin-top: var(--nx-space-2);
+	color: var(--nx-muted);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.nx-welcomeHint
+{
+	margin-top: var(--nx-space-4);
+	display: inline-flex;
+	gap: var(--nx-space-1);
+	align-items: center;
+	color: var(--nx-muted);
+	font-size: 11px;
+}
+
+.nx-kbd
+{
+	font-family: var(--nx-font-mono);
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 6px;
+	border: 1px solid var(--nx-border);
+	background: color-mix(in srgb, var(--nx-surface) 90%, black);
+}
+
+.nx-msg
+{
+	max-width: 760px;
+	margin: 0 auto var(--nx-space-3) auto;
+	border: 1px solid var(--nx-border);
+	border-radius: var(--nx-radius-2);
+	background: var(--nx-surface);
+}
+
+.nx-msg.nx-user
+{
+	background: color-mix(in srgb, var(--nx-surface) 88%, var(--nx-primary));
+}
+
+.nx-msgHeader
+{
+	padding: var(--nx-space-3) var(--nx-space-4) 0 var(--nx-space-4);
+	display: flex;
+	gap: var(--nx-space-2);
+	align-items: center;
+	color: var(--nx-muted);
+	font-size: 10px;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.nx-msgBody
+{
+	padding: var(--nx-space-2) var(--nx-space-4) var(--nx-space-3) var(--nx-space-4);
+	font-size: 12px;
+	line-height: 1.6;
+}
+
+.nx-msgLoading
+{
+	opacity: 0.75;
+}
+
+.nx-inlineCode
+{
+	font-family: var(--nx-font-mono);
+	font-size: 11px;
+	padding: 2px 6px;
+	border-radius: 6px;
+	background: var(--nx-codeBg);
+}
+
+.nx-codeHeader
+{
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: var(--nx-space-2);
+	padding: 8px 10px;
+	border: 1px solid var(--nx-border);
+	border-bottom: none;
+	border-radius: var(--nx-radius-2) var(--nx-radius-2) 0 0;
+	background: var(--nx-surface-2);
+}
+
+.nx-codeTitle
+{
+	font-size: 11px;
+	color: var(--nx-muted);
+}
+
+.nx-copyBtn
+{
+	padding: 4px 8px;
+	font-size: 11px;
+	border-radius: 8px;
+	border: 1px solid var(--nx-border);
+	background: transparent;
+	color: var(--nx-fg);
+	cursor: pointer;
+}
+
+.nx-copyBtn:hover
+{
+	background: color-mix(in srgb, var(--nx-surface) 85%, white);
+}
+
+.nx-codeBlock
+{
+	margin: 0 0 var(--nx-space-2) 0;
+	padding: var(--nx-space-3);
+	border: 1px solid var(--nx-border);
+	border-radius: 0 0 var(--nx-radius-2) var(--nx-radius-2);
+	background: var(--nx-codeBg);
+	overflow-x: auto;
+	font-family: var(--nx-font-mono);
+	font-size: 11px;
+	line-height: 1.45;
+}
+
+.nx-footer
+{
+	border-top: 1px solid var(--nx-border);
+	background: var(--nx-surface-2);
+	padding: var(--nx-space-3) var(--nx-space-4);
+	display: grid;
+	gap: var(--nx-space-3);
+}
+
+.nx-composer
+{
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: var(--nx-space-2);
+}
+
+.nx-input
+{
+	width: 100%;
+	padding: 10px 12px;
+	border-radius: var(--nx-radius-1);
+	border: 1px solid var(--nx-inputBorder);
+	background: var(--nx-inputBg);
+	color: var(--nx-inputFg);
+	font-size: 12px;
+}
+
+.nx-input:focus
+{
+	outline: 2px solid var(--nx-focus);
+	outline-offset: 2px;
+}
+
+.nx-actions
+{
+	display: flex;
+	align-items: center;
+	gap: var(--nx-space-2);
+	flex-wrap: wrap;
+}
+
+.nx-label
+{
+	font-size: 11px;
+	color: var(--nx-muted);
+	letter-spacing: 0.03em;
+}
+
+.nx-select
+{
+	padding: 8px 10px;
+	border-radius: var(--nx-radius-1);
+	border: 1px solid var(--nx-inputBorder);
+	background: var(--nx-inputBg);
+	color: var(--nx-inputFg);
+	font-size: 12px;
+}
+
+.nx-select:focus
+{
+	outline: 2px solid var(--nx-focus);
+	outline-offset: 2px;
+}
+
+.nx-btn
+{
+	padding: 9px 12px;
+	border: 1px solid transparent;
+	border-radius: var(--nx-radius-1);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	background: var(--nx-secondary);
+	color: var(--nx-secondaryFg);
+}
+
+.nx-btn:hover
+{
+	background: var(--nx-secondaryHover);
+}
+
+.nx-btn:focus
+{
+	outline: 2px solid var(--nx-focus);
+	outline-offset: 2px;
+}
+
+.nx-btnPrimary
+{
+	background: var(--nx-primary);
+	color: var(--nx-primaryFg);
+}
+
+.nx-btnPrimary:hover
+{
+	background: var(--nx-primaryHover);
+}
+
+.nx-btnSecondary
+{
+	background: transparent;
+	border-color: var(--nx-border);
+	color: var(--nx-fg);
+}
+
+.nx-btnSecondary:hover
+{
+	background: color-mix(in srgb, var(--nx-surface) 85%, white);
+}

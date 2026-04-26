@@ -8,8 +8,16 @@ export interface BackendConfig {
 	timeout: number;
 }
 
+import { createTransport } from './backend/transport';
+import { createPlatformsApi } from './backend/platforms';
+import { createMemoryApi } from './backend/memory';
+import { createCognitiveApi } from './backend/cognitive';
+import { createAuthApi } from './backend/auth';
+import { createOrchestrateApi } from './backend/orchestrate';
+
 export class BackendClient {
 	private config: BackendConfig;
+	private transport: ReturnType<typeof createTransport>;
 
 	constructor(config?: Partial<BackendConfig>) {
 		this.config = {
@@ -17,11 +25,13 @@ export class BackendClient {
 			baseUrl: config?.baseUrl || 'http://127.0.0.1:8000',
 			timeout: config?.timeout || 30000
 		};
+
+		this.transport = createTransport(this.config, (endpoint) => this._getMockResponse(endpoint));
 	}
 
 	async checkHealth(): Promise<boolean> {
 		try {
-			const response = await this._get('/api/health');
+			const response = await this.transport.get('/api/health');
 			return response?.status === 'ok';
 		} catch {
 			return false;
@@ -29,21 +39,11 @@ export class BackendClient {
 	}
 
 	async getPlatforms(): Promise<any[]> {
-		try {
-			const response = await this._get('/api/platforms');
-			return response?.platforms || [];
-		} catch {
-			return this._getMockPlatforms();
-		}
+		return createPlatformsApi(this.transport, () => this._getMockPlatforms()).getPlatforms();
 	}
 
 	async searchPlatforms(query: string): Promise<any[]> {
-		try {
-			const response = await this._get(`/api/platforms/search?q=${encodeURIComponent(query)}`);
-			return response?.results || [];
-		} catch {
-			return [];
-		}
+		return createPlatformsApi(this.transport, () => this._getMockPlatforms()).searchPlatforms(query);
 	}
 
 	/**
@@ -55,14 +55,7 @@ export class BackendClient {
 	 * @returns Array of matching platforms with relevance scores
 	 */
 	async semanticSearchPlatforms(query: string, limit: number = 5): Promise<any[]> {
-		try {
-			const response = await this._get(
-				`/api/platforms/semantic-search?q=${encodeURIComponent(query)}&limit=${limit}`
-			);
-			return response?.results || [];
-		} catch {
-			return [];
-		}
+		return createPlatformsApi(this.transport, () => this._getMockPlatforms()).semanticSearchPlatforms(query, limit);
 	}
 
 	/**
@@ -72,12 +65,7 @@ export class BackendClient {
 	 * @returns Indexing result with workspace_id and statistics
 	 */
 	async indexWorkspace(workspacePath: string): Promise<any> {
-		try {
-			return await this._post('/api/memory/index', { workspace_path: workspacePath });
-		} catch (error) {
-			console.error('Failed to index workspace:', error);
-			throw error;
-		}
+		return createMemoryApi(this.transport).indexWorkspace(workspacePath);
 	}
 
 	/**
@@ -89,14 +77,7 @@ export class BackendClient {
 	 * @returns Memory query results with relevant entries
 	 */
 	async queryMemory(workspaceId: string, query: string, limit: number = 5): Promise<any> {
-		try {
-			const response = await this._get(
-				`/api/memory/query?workspace_id=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(query)}&limit=${limit}`
-			);
-			return response;
-		} catch {
-			return { entries: [], total: 0 };
-		}
+		return createMemoryApi(this.transport).queryMemory(workspaceId, query, limit);
 	}
 
 	/**
@@ -108,14 +89,7 @@ export class BackendClient {
 	 * @returns Task context with relevant files and snippets
 	 */
 	async getTaskContext(workspaceId: string, task: string): Promise<any> {
-		try {
-			const response = await this._get(
-				`/api/memory/context?workspace_id=${encodeURIComponent(workspaceId)}&task=${encodeURIComponent(task)}`
-			);
-			return response;
-		} catch {
-			return { relevant_files: [], code_snippets: [], languages_involved: [], total_matches: 0 };
-		}
+		return createMemoryApi(this.transport).getTaskContext(workspaceId, task);
 	}
 
 	/**
@@ -124,20 +98,12 @@ export class BackendClient {
 	 * @returns List of indexed workspace IDs
 	 */
 	async listIndexedWorkspaces(): Promise<any[]> {
-		try {
-			const response = await this._get('/api/memory/workspaces');
-			return response?.workspaces || [];
-		} catch {
-			return [];
-		}
+		return createMemoryApi(this.transport).listIndexedWorkspaces();
 	}
 
 	async sendMessage(message: string): Promise<any> {
-		try {
-			return await this._post('/api/cognitive/classify', { message });
-		} catch (error) {
-			throw error;
-		}
+		// preserve behavior: throws on errors (transport.post throws)
+		return createCognitiveApi(this.transport).sendMessage(message);
 	}
 
 	/**
@@ -148,22 +114,7 @@ export class BackendClient {
 	 * @returns Classification result with intent, confidence, sub-intents, etc.
 	 */
 	async classifyIntent(userRequest: string, workspacePath?: string): Promise<any> {
-		try {
-			const response = await this._post('/api/cognitive/classify', {
-				user_request: userRequest,
-				workspace_path: workspacePath
-			});
-			return response;
-		} catch (error) {
-			return {
-				intent: 'UNKNOWN',
-				confidence: 0,
-				sub_intents: [],
-				entities: {},
-				complexity: 'MEDIUM',
-				error: 'Classification failed'
-			};
-		}
+		return createCognitiveApi(this.transport).classifyIntent(userRequest, workspacePath);
 	}
 
 	/**
@@ -174,21 +125,7 @@ export class BackendClient {
 	 * @returns Decomposition result with tasks, DAG, parallel groups, etc.
 	 */
 	async decomposeRequest(userRequest: string, workspacePath?: string): Promise<any> {
-		try {
-			const response = await this._post('/api/cognitive/decompose', {
-				user_request: userRequest,
-				workspace_path: workspacePath
-			});
-			return response;
-		} catch (error) {
-			return {
-				tasks: [],
-				dag: {},
-				parallel_groups: [],
-				execution_order: [],
-				error: 'Decomposition failed'
-			};
-		}
+		return createCognitiveApi(this.transport).decomposeRequest(userRequest, workspacePath);
 	}
 
 	/**
@@ -199,14 +136,7 @@ export class BackendClient {
 	 * @returns List of similar past decisions
 	 */
 	async getSimilarDecisions(request: string, limit: number = 3): Promise<any[]> {
-		try {
-			const response = await this._get(
-				`/api/cognitive/similar-decisions?request=${encodeURIComponent(request)}&limit=${limit}`
-			);
-			return response || [];
-		} catch {
-			return [];
-		}
+		return createCognitiveApi(this.transport).getSimilarDecisions(request, limit);
 	}
 
 	/**
@@ -216,7 +146,7 @@ export class BackendClient {
 	 */
 	async getConnectorTypes(): Promise<string[]> {
 		try {
-			const response = await this._get('/api/connectors/types');
+			const response = await this.transport.get('/api/connectors/types');
 			return response?.types || [];
 		} catch {
 			return ['openai', 'anthropic', 'rest', 'mcp'];
@@ -239,7 +169,7 @@ export class BackendClient {
 		config: Record<string, any> = {}
 	): Promise<any> {
 		try {
-			return await this._post('/api/connectors/execute', {
+			return await this.transport.post('/api/connectors/execute', {
 				connector_type: connectorType,
 				config,
 				operation,
@@ -263,7 +193,7 @@ export class BackendClient {
 	 */
 	async getConnectorUsage(): Promise<any> {
 		try {
-			const response = await this._get('/api/connectors/usage');
+			const response = await this.transport.get('/api/connectors/usage');
 			return response || { connectors: {}, total: { input_tokens: 0, output_tokens: 0, api_calls: 0, estimated_cost: 0 } };
 		} catch {
 			return { connectors: {}, total: { input_tokens: 0, output_tokens: 0, api_calls: 0, estimated_cost: 0 } };
@@ -279,7 +209,7 @@ export class BackendClient {
 	 */
 	async checkConnectorHealth(connectorType: string, config: Record<string, any> = {}): Promise<any> {
 		try {
-			return await this._post(`/api/connectors/health/${connectorType}`, { config });
+			return await this.transport.post(`/api/connectors/health/${connectorType}`, { config });
 		} catch {
 			return { healthy: false, status: 'FAILED_TO_CONNECT' };
 		}
@@ -292,46 +222,86 @@ export class BackendClient {
 	 */
 	async getActiveConnectors(): Promise<any[]> {
 		try {
-			const response = await this._get('/api/connectors/active');
+			const response = await this.transport.get('/api/connectors/active');
 			return response?.connectors || [];
 		} catch {
 			return [];
 		}
 	}
 
-	private async _get(endpoint: string): Promise<any> {
-		const url = `${this.config.baseUrl}${endpoint}`;
-
-		try {
-			const response = await fetch(url, {
-				method: 'GET',
-				headers: { 'Content-Type': 'application/json' }
-			});
-
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
-
-			return await response.json();
-		} catch {
-			return this._getMockResponse(endpoint);
-		}
+	/**
+	 * Get OAuth authentication status for all providers.
+	 * 
+	 * @param userId User identifier
+	 * @returns Status of GitHub and Vercel connections
+	 */
+	async getAuthStatus(userId: string = 'default'): Promise<{
+		github_connected: boolean;
+		vercel_connected: boolean;
+	}> {
+		return createAuthApi(this.transport).getAuthStatus(userId);
 	}
 
-	private async _post(endpoint: string, data: any): Promise<any> {
-		const url = `${this.config.baseUrl}${endpoint}`;
+	/**
+	 * Get GitHub OAuth authorization URL.
+	 * 
+	 * @param userId User identifier
+	 * @returns Authorization URL to redirect user to
+	 */
+	async getGitHubAuthUrl(userId: string = 'default'): Promise<{ authorization_url: string } | null> {
+		return createAuthApi(this.transport).getGitHubAuthUrl(userId);
+	}
 
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(data)
-		});
+	/**
+	 * Get Vercel OAuth authorization URL.
+	 * 
+	 * @param userId User identifier
+	 * @returns Authorization URL to redirect user to
+	 */
+	async getVercelAuthUrl(userId: string = 'default'): Promise<{ authorization_url: string } | null> {
+		return createAuthApi(this.transport).getVercelAuthUrl(userId);
+	}
 
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`);
-		}
+	/**
+	 * Disconnect GitHub for a user.
+	 * 
+	 * @param userId User identifier
+	 * @returns Disconnection status
+	 */
+	async disconnectGitHub(userId: string = 'default'): Promise<{ status: string }> {
+		return createAuthApi(this.transport).disconnectGitHub(userId);
+	}
 
-		return await response.json();
+	/**
+	 * Disconnect Vercel for a user.
+	 * 
+	 * @param userId User identifier
+	 * @returns Disconnection status
+	 */
+	async disconnectVercel(userId: string = 'default'): Promise<{ status: string }> {
+		return createAuthApi(this.transport).disconnectVercel(userId);
+	}
+
+	/**
+	 * Execute full deployment pipeline: Generate → Push → Deploy
+	 * 
+	 * @param prompt What to generate
+	 * @param repoName GitHub repository name
+	 * @param projectName Vercel project name
+	 * @param userId User identifier
+	 * @returns Deployment result with steps and URL
+	 */
+	async deployGeneratedCode(
+		prompt: string,
+		repoName: string,
+		projectName: string,
+		userId: string = 'default'
+	): Promise<{
+		success: boolean;
+		steps: Array<{ step: string; success: boolean; error?: string; data?: any }>;
+		deployment_url?: string;
+	}> {
+		return createOrchestrateApi(this.transport).deployGeneratedCode(prompt, repoName, projectName, userId);
 	}
 
 	private _getMockResponse(endpoint: string): any {

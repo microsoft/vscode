@@ -94,7 +94,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && node scripts/copyWebviewAssets.js",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

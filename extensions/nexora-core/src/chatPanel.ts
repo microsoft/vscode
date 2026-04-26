@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import { getBackendClient } from './services/backendClient';
+import { getChatWebviewHtml } from './webview/chat';
+import type { ChatInitialState, WebviewInboundMessage } from './webview/chat/types';
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'nexora.chatPanel';
@@ -24,20 +26,41 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			localResourceRoots: [this._extensionUri]
 		};
 
-		webviewView.webview.html = this._getHtmlContent();
+		const initialState: ChatInitialState = {
+			connected: false,
+			auth: { github: false, vercel: false }
+		};
 
-		webviewView.webview.onDidReceiveMessage(async data => {
+		webviewView.webview.html = getChatWebviewHtml(
+			webviewView.webview,
+			this._extensionUri,
+			initialState
+		);
+
+		webviewView.webview.onDidReceiveMessage(async (data: WebviewInboundMessage) => {
 			if (data.type === 'sendMessage') {
 				await this._handleUserMessage(data.message);
 			} else if (data.type === 'checkBackend') {
 				await this._checkBackendStatus();
 			} else if (data.type === 'generateCode') {
 				await this._handleCodeGeneration(data.prompt, data.connector);
+			} else if (data.type === 'connectGitHub') {
+				await this._handleGitHubConnect();
+			} else if (data.type === 'connectVercel') {
+				await this._handleVercelConnect();
+			} else if (data.type === 'deployProject') {
+				await this._handleDeployment(data.prompt, data.repoName, data.projectName);
+			} else if (data.type === 'checkAuthStatus') {
+				await this._checkAuthStatus();
 			}
 		});
 
 		this._checkBackendStatus();
+		this._checkAuthStatus();
 	}
+
+	// Webview HTML is now provided by `src/webview/chat/*`.
+	// (legacy `_getHtmlContent()` remains but is no longer used.)
 
 	private async _checkBackendStatus(): Promise<void> {
 		const client = getBackendClient();
@@ -220,7 +243,204 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	private async _checkAuthStatus(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		const client = getBackendClient();
+		const status = await client.getAuthStatus();
+
+		this._view.webview.postMessage({
+			type: 'authStatus',
+			github: status.github_connected,
+			vercel: status.vercel_connected
+		});
+	}
+
+	private async _handleGitHubConnect(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		const client = getBackendClient();
+		const result = await client.getGitHubAuthUrl();
+
+		if (result && result.authorization_url) {
+			vscode.env.openExternal(vscode.Uri.parse(result.authorization_url));
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: 'Opening GitHub authorization page in your browser. Please authorize Nexora and then come back here.',
+				isLoading: false
+			});
+
+			// Check status after a delay
+			setTimeout(() => this._checkAuthStatus(), 5000);
+		} else {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: 'Failed to get GitHub authorization URL. Please check backend configuration.',
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleVercelConnect(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		const client = getBackendClient();
+		const result = await client.getVercelAuthUrl();
+
+		if (result && result.authorization_url) {
+			vscode.env.openExternal(vscode.Uri.parse(result.authorization_url));
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: 'Opening Vercel authorization page in your browser. Please authorize Nexora and then come back here.',
+				isLoading: false
+			});
+
+			// Check status after a delay
+			setTimeout(() => this._checkAuthStatus(), 5000);
+		} else {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: 'Failed to get Vercel authorization URL. Please check backend configuration.',
+				isLoading: false
+			});
+		}
+	}
+
+	private async _handleDeployment(prompt: string, repoName: string, projectName: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: '**Starting Deployment Pipeline**\n\nStep 1/3: Generating code with LLM...',
+			isLoading: true
+		});
+
+		try {
+			const client = getBackendClient();
+
+			// Check OAuth status first
+			const authStatus = await client.getAuthStatus();
+
+			if (!authStatus.github_connected || !authStatus.vercel_connected) {
+				let errorMsg = '**Deployment Failed**\n\n';
+				errorMsg += 'OAuth connections required:\n';
+				if (!authStatus.github_connected) {
+					errorMsg += '- [ ] GitHub (click GH badge to connect)\n';
+				} else {
+					errorMsg += '- [x] GitHub connected\n';
+				}
+				if (!authStatus.vercel_connected) {
+					errorMsg += '- [ ] Vercel (click Vc badge to connect)\n';
+				} else {
+					errorMsg += '- [x] Vercel connected\n';
+				}
+
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: errorMsg,
+					isLoading: false
+				});
+				return;
+			}
+
+			// Execute deployment pipeline
+			const result = await client.deployGeneratedCode(prompt, repoName, projectName);
+
+			let response = '**Deployment Pipeline Result**\n\n';
+
+			// Show each step with details
+			for (const step of result.steps) {
+				const icon = step.success ? '[ok]' : '[fail]';
+				const stepName = step.step === 'generate' ? 'Generate Code' :
+					step.step === 'github' ? 'Push to GitHub' :
+						step.step === 'vercel' ? 'Deploy to Vercel' :
+							step.step;
+
+				response += `${icon} **${stepName}**: ${step.success ? 'Success' : 'Failed'}\n`;
+
+				if (step.success && step.data) {
+					// Show step-specific details
+					if (step.step === 'generate' && step.data.length) {
+						response += `   Generated ${step.data.length} characters of code\n`;
+						if (step.data.cost) {
+							response += `   Cost: $${step.data.cost.toFixed(6)}\n`;
+						}
+					} else if (step.step === 'github' && step.data.repo_url) {
+						response += `   Repo: ${step.data.repo_url}\n`;
+						if (step.data.commit_sha) {
+							response += `   Commit: ${step.data.commit_sha.substring(0, 7)}\n`;
+						}
+					} else if (step.step === 'vercel' && step.data.url) {
+						response += `   URL: https://${step.data.url}\n`;
+					}
+				}
+
+				if (step.error) {
+					response += `   **Error:** ${step.error}\n`;
+				}
+				response += '\n';
+			}
+
+			if (result.success && result.deployment_url) {
+				response += `**Deployment successful**\n\n`;
+				response += `**Live URL:** ${result.deployment_url}\n\n`;
+				response += `Your application is now live. Click the URL to open it.`;
+			} else {
+				response += `**Deployment Failed**\n\n`;
+				response += `Please check the errors above and try again.`;
+			}
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: response,
+				isLoading: false
+			});
+		} catch (error) {
+			let errorMsg = `**Deployment Error**\n\n`;
+
+			if (error instanceof Error) {
+				if (error.message.includes('401')) {
+					errorMsg += 'OAuth authentication required. Please connect GitHub and Vercel.\n\n';
+					errorMsg += 'Click the GH and Vc badges in the status bar to connect.';
+				} else if (error.message.includes('400')) {
+					errorMsg += 'Invalid request. Check repo name and project name format.\n\n';
+					errorMsg += 'Use only alphanumeric characters, hyphens, and underscores.';
+				} else {
+					errorMsg += `Error: ${error.message}\n\n`;
+					errorMsg += 'Make sure the backend is running and try again.';
+				}
+			} else {
+				errorMsg += 'Unknown error occurred during deployment.';
+			}
+
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: errorMsg,
+				isLoading: false
+			});
+		}
+	}
+
 	private _getHtmlContent(): string {
+		// Legacy: kept only for reference. Not used anymore.
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,6 +478,31 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		.status-dot.connected {
 			background: var(--vscode-charts-green);
 			animation: none;
+		}
+		.auth-status {
+			margin-left: auto;
+			display: flex;
+			gap: 8px;
+			align-items: center;
+		}
+		.auth-badge {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			padding: 2px 6px;
+			border-radius: 3px;
+			background: var(--vscode-badge-background);
+			font-size: 10px;
+			cursor: pointer;
+		}
+		.auth-badge .auth-dot {
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: var(--vscode-charts-red);
+		}
+		.auth-badge.connected .auth-dot {
+			background: var(--vscode-charts-green);
 		}
 		@keyframes pulse {
 			0%, 100% { opacity: 1; }
@@ -451,6 +696,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		button.generate:hover {
 			background: linear-gradient(135deg, #4f46e5, #7c3aed);
 		}
+		button.deploy {
+			background: linear-gradient(135deg, #10b981, #059669);
+			color: white;
+		}
+		button.deploy:hover {
+			background: linear-gradient(135deg, #059669, #047857);
+		}
 		.connector-label {
 			font-size: 11px;
 			opacity: 0.7;
@@ -497,6 +749,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	<div class="status-bar">
 		<span class="status-dot" id="statusDot"></span>
 		<span id="statusText">Checking backend...</span>
+		<div class="auth-status">
+			<span class="auth-badge" id="githubBadge" title="Click to connect GitHub">
+				<span>GH</span>
+				<span class="auth-dot"></span>
+			</span>
+			<span class="auth-badge" id="vercelBadge" title="Click to connect Vercel">
+				<span>Vc</span>
+				<span class="auth-dot"></span>
+			</span>
+		</div>
 	</div>
 	<div class="messages" id="messages">
 		<div class="welcome">
@@ -521,6 +783,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				<option value="anthropic">Claude-3-Haiku</option>
 			</select>
 			<button id="generate" class="generate">Generate Code</button>
+			<button id="deploy" class="deploy" title="Generate, push to GitHub, deploy to Vercel">Deploy</button>
 		</div>
 	</div>
 	<script>
@@ -529,9 +792,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		const input = document.getElementById('input');
 		const send = document.getElementById('send');
 		const generate = document.getElementById('generate');
+		const deploy = document.getElementById('deploy');
 		const connector = document.getElementById('connector');
 		const statusDot = document.getElementById('statusDot');
 		const statusText = document.getElementById('statusText');
+		const githubBadge = document.getElementById('githubBadge');
+		const vercelBadge = document.getElementById('vercelBadge');
 		let lastLoadingMessage = null;
 
 		function updateStatus(connected) {
@@ -541,6 +807,24 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			} else {
 				statusDot.classList.remove('connected');
 				statusText.textContent = 'Backend offline';
+			}
+		}
+
+		function updateAuthStatus(github, vercel) {
+			if (github) {
+				githubBadge.classList.add('connected');
+				githubBadge.title = 'GitHub connected';
+			} else {
+				githubBadge.classList.remove('connected');
+				githubBadge.title = 'Click to connect GitHub';
+			}
+
+			if (vercel) {
+				vercelBadge.classList.add('connected');
+				vercelBadge.title = 'Vercel connected';
+			} else {
+				vercelBadge.classList.remove('connected');
+				vercelBadge.title = 'Click to connect Vercel';
 			}
 		}
 
@@ -631,8 +915,37 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			input.value = '';
 		}
 
+		function deployProject() {
+			const text = input.value.trim();
+			if (!text) return;
+			
+			// Simple repo/project name generation from prompt
+			const baseName = text.toLowerCase().replace(/[^a-z0-9-]/g, '-').substring(0, 30);
+			const timestamp = Date.now().toString().slice(-4);
+			const repoName = 'nexora-' + baseName + '-' + timestamp;
+			const projectName = repoName;
+
+			addMessage('user', '[Deploy] ' + text, false);
+			vscode.postMessage({ 
+				type: 'deployProject', 
+				prompt: text, 
+				repoName: repoName,
+				projectName: projectName
+			});
+			input.value = '';
+		}
+
 		send.onclick = sendMessage;
 		generate.onclick = generateCode;
+		deploy.onclick = deployProject;
+
+		githubBadge.onclick = () => {
+			vscode.postMessage({ type: 'connectGitHub' });
+		};
+
+		vercelBadge.onclick = () => {
+			vscode.postMessage({ type: 'connectVercel' });
+		};
 		input.onkeypress = (e) => {
 			if (e.key === 'Enter') {
 				if (e.shiftKey) {
@@ -648,10 +961,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				addMessage(e.data.role, e.data.content, e.data.isLoading);
 			} else if (e.data.type === 'backendStatus') {
 				updateStatus(e.data.connected);
+			} else if (e.data.type === 'authStatus') {
+				updateAuthStatus(e.data.github, e.data.vercel);
 			}
 		});
 
 		vscode.postMessage({ type: 'checkBackend' });
+		vscode.postMessage({ type: 'checkAuthStatus' });
 	</script>
 </body>
 </html>`;
