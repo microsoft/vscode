@@ -394,6 +394,29 @@
 	outline-offset: 2px;
 }
 
+.sessions-walkthrough-loading-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	min-height: 200px;
+}
+
+.sessions-walkthrough-loading-icon {
+	animation: sessions-walkthrough-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sessions-walkthrough-pulse {
+	0%, 100% { opacity: 0.4; transform: scale(0.95); }
+	50%      { opacity: 1;   transform: scale(1.05); }
+}
+
+.monaco-reduce-motion .sessions-walkthrough-loading-icon,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-loading-icon {
+	animation: none;
+	opacity: 0.7;
+}
+
 .sessions-walkthrough-tagline {
 	font-style: italic;
 	opacity: 0.85;
