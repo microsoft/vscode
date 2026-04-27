@@ -448,8 +448,11 @@ suite('XtermTerminal', () => {
 				colors.background = { css: '#ff0000', rgba: 0xFF0000FF };
 			});
 
+			// xterm SpecialColorIndex.BACKGROUND, kept local to avoid an unexplained magic number.
+			const backgroundSpecialColorIndex = 257;
+
 			// Restore color (simulates OSC 111)
-			core._themeService.restoreColor(257); // SpecialColorIndex.BACKGROUND
+			core._themeService.restoreColor(backgroundSpecialColorIndex);
 
 			// Trigger theme update
 			xterm.refresh();
