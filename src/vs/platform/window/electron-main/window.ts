@@ -136,6 +136,11 @@ export interface IWindowState {
 	mode?: WindowMode;
 	zoomLevel?: number;
 	readonly display?: number;
+	/**
+	 * macOS only: opaque AppKit restorable state data (base64-encoded)
+	 * that includes Space (virtual desktop) information.
+	 */
+	macOSRestorableState?: string;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {

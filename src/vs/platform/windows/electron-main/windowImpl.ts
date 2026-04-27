@@ -48,6 +48,9 @@ import { errorHandler } from '../../../base/common/errors.js';
 import { FocusMode } from '../../native/common/native.js';
 import { Color } from '../../../base/common/color.js';
 
+// macOS Spaces (virtual desktop) restoration support
+const osxSpaces = isMacintosh ? await import('electron-osx-spaces').then(m => m.default, () => undefined) : undefined;
+
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
 	readonly extensionDevelopmentPath?: string[];
@@ -724,6 +727,17 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// Apply some state after window creation
 			this.applyState(this.windowState, hasMultipleDisplays);
 
+			// macOS: restore Space (virtual desktop) from saved AppKit state
+			if (osxSpaces && this.windowState.macOSRestorableState) {
+				try {
+					const data = Buffer.from(this.windowState.macOSRestorableState, 'base64');
+					osxSpaces.restoreState(this._win, data, { restoreSpace: true });
+					this.logService.trace('window#ctor: restored macOS Space');
+				} catch (error) {
+					this.logService.warn('Failed to restore macOS Space:', error);
+				}
+			}
+
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
 		//#endregion
@@ -1367,6 +1381,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			return defaultWindowState();
 		}
 
+		// macOS: encode AppKit restorable state (includes Space information)
+		let macOSRestorableState: string | undefined;
+		if (osxSpaces) {
+			try {
+				const data = osxSpaces.encodeState(this._win);
+				if (data) {
+					macOSRestorableState = data.toString('base64');
+				}
+			} catch (error) {
+				this.logService.warn('Failed to encode macOS restorable state:', error);
+			}
+		}
+
 		// fullscreen gets special treatment
 		if (this.isFullScreen) {
 			let display: electron.Display | undefined;
@@ -1393,7 +1420,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				height: this.windowState.height || defaultState.height,
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0,
-				zoomLevel: this.customZoomLevel
+				zoomLevel: this.customZoomLevel,
+				macOSRestorableState
 			};
 		}
 
@@ -1430,6 +1458,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		state.zoomLevel = this.customZoomLevel;
+		state.macOSRestorableState = macOSRestorableState;
 
 		return state;
 	}

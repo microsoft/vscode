@@ -126,6 +126,7 @@
     "@xterm/addon-webgl": "^0.20.0-beta.196",
     "@xterm/headless": "^6.1.0-beta.197",
     "@xterm/xterm": "^6.1.0-beta.197",
+    "electron-osx-spaces": "0.1.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
