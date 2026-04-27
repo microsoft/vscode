@@ -77,7 +77,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// --- Dropdown panel anchored below trigger ---
 		const panel = targetDocument.createElement('div');
 		panel.className = 'host-picker-dropdown';
-		panel.setAttribute('role', 'listbox');
+		panel.setAttribute('role', 'menu');
 		panel.setAttribute('aria-label', localize('agentHostFilter.dropdown.aria', "Select Agent Host"));
 
 		// Prevent taps on the panel from dismissing
@@ -96,8 +96,8 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		for (const host of hosts) {
 			const item = targetDocument.createElement('button');
 			item.className = 'host-picker-dropdown-item';
-			item.setAttribute('role', 'option');
-			item.setAttribute('aria-selected', String(selectedId === host.providerId));
+			item.setAttribute('role', 'menuitemradio');
+			item.setAttribute('aria-checked', String(selectedId === host.providerId));
 			if (selectedId === host.providerId) {
 				item.classList.add('selected');
 			}
@@ -154,10 +154,13 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			isDismissing = true;
 			panel.classList.add('dismissing');
 			const onEnd = () => {
-				this._dropdown.clear();
+				if (this._dropdown.value === disposables) {
+					this._dropdown.clear();
+				}
 			};
 			panel.addEventListener('animationend', onEnd, { once: true });
-			setTimeout(onEnd, 200);
+			const dismissTimeout = setTimeout(onEnd, 200);
+			disposables.add({ dispose: () => clearTimeout(dismissTimeout) });
 		};
 	}
 }
