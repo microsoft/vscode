@@ -215,6 +215,7 @@ export class ChatMLFetcherTelemetrySender {
 				parentToolCallId: baseTelemetry?.properties.parentToolCallId,
 				parentHeaderRequestId: baseTelemetry?.properties.parentHeaderRequestId,
 				parentModelCallId: baseTelemetry?.properties.parentModelCallId,
+				turnIndex: baseTelemetry?.properties.turnIndex,
 				...(fetcher ? { fetcher } : {}),
 				transport,
 				...(baseTelemetry?.properties.retryAfterError ? { retryAfterError: baseTelemetry.properties.retryAfterError } : {}),
