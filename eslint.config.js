@@ -88,10 +88,12 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-accessor-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
 			'local/code-no-localization-template-literals': 'error',
+			'local/code-no-icons-in-localized-strings': 'warn',
 			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
@@ -157,21 +159,7 @@ export default tseslint.config(
 				}
 			],
 			'jsdoc/no-types': 'warn',
-			'local/code-no-static-self-ref': 'warn'
-		}
-	},
-	// vscode TS
-	{
-		files: [
-			'src/**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
-		rules: {
+			'local/code-no-static-self-ref': 'warn',
 			'@typescript-eslint/naming-convention': [
 				'warn',
 				{
@@ -181,6 +169,18 @@ export default tseslint.config(
 					]
 				}
 			]
+		}
+	},
+	// Disallow common telemetry properties in event data
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
 	// Disallow 'in' operator except in type predicates
@@ -322,6 +322,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
+			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -680,6 +681,7 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/search/browser/replace.ts',
 			'src/vs/workbench/contrib/search/browser/replaceService.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsCopy.ts',
+			'src/vs/workbench/contrib/search/browser/searchActionsBase.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsFind.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsNav.ts',
 			'src/vs/workbench/contrib/search/browser/searchActionsRemoveReplace.ts',
@@ -1039,6 +1041,33 @@ export default tseslint.config(
 				'__dirname',
 				'__filename',
 				'require'
+			]
+		}
+	},
+	// electron-main layer: prevent static imports of heavy node_modules
+	// that would be synchronously loaded on startup
+	{
+		files: [
+			'src/vs/code/electron-main/**/*.ts',
+			'src/vs/code/node/**/*.ts',
+			'src/vs/platform/*/electron-main/**/*.ts',
+			'src/vs/platform/*/node/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-static-node-module-import': [
+				'error',
+				// Files that run in separate processes, not on the electron-main startup path
+				'src/vs/platform/agentHost/node/copilot/**/*.ts',
+				'src/vs/platform/files/node/watcher/**/*.ts',
+				'src/vs/platform/terminal/node/**/*.ts',
+				// Files that use small, safe modules
+				'src/vs/platform/environment/node/argv.ts',
 			]
 		}
 	},
@@ -1456,6 +1485,9 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
+						'@github/copilot-sdk',
+						'@microsoft/dev-tunnels-contracts',
+						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1477,6 +1509,7 @@ export default tseslint.config(
 						'fs/promises',
 						'http',
 						'https',
+						'inspector',
 						'minimist',
 						'node:module',
 						'native-keymap',
@@ -1486,6 +1519,7 @@ export default tseslint.config(
 						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
+						'ssh2',
 						'stream',
 						'string_decoder',
 						'tas-client',
@@ -1498,6 +1532,7 @@ export default tseslint.config(
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
+						'ws',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
 						'@xterm/addon-ligatures',
@@ -1572,6 +1607,16 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1580,7 +1625,8 @@ export default tseslint.config(
 						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless' // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{
@@ -1853,7 +1899,8 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
+						'vs/sessions/common/theme.js' // side-effect import for color registry
 					]
 				},
 				{
@@ -1947,11 +1994,14 @@ export default tseslint.config(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
 					]
 				},
 				{
@@ -1965,12 +2015,82 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
 						'vs/sessions/~',
+						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~'
 					]
 				},
 				{
@@ -1983,7 +2103,6 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
-						'vs/workbench/contrib/**',
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
@@ -2002,7 +2121,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2015,7 +2135,9 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
+						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
@@ -2104,6 +2226,14 @@ export default tseslint.config(
 						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/componentFixtures/playwright/**',
+					'restrictions': [
+						'test/componentFixtures/playwright/**',
+						'@playwright/*',
 						'*' // node modules
 					]
 				}
@@ -2203,21 +2333,13 @@ export default tseslint.config(
 			'@typescript-eslint': tseslint.plugin,
 		},
 		rules: {
-			'@typescript-eslint/naming-convention': [
+			'no-restricted-syntax': [
 				'warn',
 				{
-					'selector': 'default',
-					'modifiers': ['private'],
-					'format': null,
-					'leadingUnderscore': 'require'
+					selector: ':matches(PropertyDefinition, TSParameterProperty, MethodDefinition[key.name!="constructor"])[accessibility="private"]',
+					message: 'Use #private instead',
 				},
-				{
-					'selector': 'default',
-					'modifiers': ['public'],
-					'format': null,
-					'leadingUnderscore': 'forbid'
-				}
-			]
+			],
 		}
 	},
 	// Additional extension strictness rules
@@ -2281,7 +2403,10 @@ export default tseslint.config(
 					'selector': `NewExpression[callee.object.name='Intl']`,
 					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
 				},
+				{
+					'selector': 'TSAsExpression[typeAnnotation.type="TSTypeReference"][typeAnnotation.typeName.type="TSQualifiedName"][typeAnnotation.typeName.left.type="Identifier"][typeAnnotation.typeName.left.name="sinon"][typeAnnotation.typeName.right.name="SinonStub"]',
+					'message': `Avoid casting with 'as sinon.SinonStub'. Prefer typed stubs from 'sinon.stub(...)' or capture the stub in a typed variable.`
+				},
 			],
 		}
-	},
-);
+	});

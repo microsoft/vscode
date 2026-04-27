@@ -99,18 +99,45 @@ function truncateLabel(text: string, maxLength: number): string {
 export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	// Before filtering, extract description metadata from subagent events
 	// that will be filtered out, so we can enrich the surviving sibling events.
-	const subagentToolNames = new Set(['runSubagent', 'search_subagent']);
+	const subagentToolNames = ['runSubagent', 'search_subagent'];
 
-	// The extension emits two subagentInvocation events per subagent:
+	/**
+	 * Check whether a name matches a known subagent tool name.
+	 * Handles exact matches and names with suffixes (e.g.
+	 * "runSubagent-default", "runSubagent (agent)", "runSubagent: desc").
+	 * Callers must strip any emoji prefix before calling.
+	 */
+	function isSubagentName(name: string): boolean {
+		for (const toolName of subagentToolNames) {
+			if (name === toolName) {
+				return true;
+			}
+			if (name.startsWith(toolName)) {
+				const nextChar = name[toolName.length];
+				if (nextChar === '-' || nextChar === ' ' || nextChar === '(' || nextChar === ':') {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Strip the leading tool emoji prefix if present. */
+	const emojiPrefixRe = /^\u{1F6E0}\uFE0F?\s*/u;
+	function stripToolEmoji(name: string): string {
+		return name.replace(emojiPrefixRe, '');
+	}
+
+	// The extension may emit two subagentInvocation events per subagent:
 	// 1. "started" marker (agentName = descriptive name, status = running) — survives filtering
-	// 2. completion event (agentName = "runSubagent", status = completed) — filtered out
+	// 2. completion event (agentName = "runSubagent" / "runSubagent-*", status = completed) — filtered out
 	// The completion event carries the real description. When multiple subagents
 	// run under the same parent, they share a parentEventId, so we match them
 	// by order: the N-th started marker gets the N-th completion's description.
 	const completionDescsByParent = new Map<string, string[]>();
 	const startedCountByParent = new Map<string, number>();
 	for (const e of events) {
-		if (e.kind === 'subagentInvocation' && subagentToolNames.has(e.agentName) && e.description && e.parentEventId) {
+		if (e.kind === 'subagentInvocation' && isSubagentName(e.agentName) && e.description && e.parentEventId) {
 			let descs = completionDescsByParent.get(e.parentEventId);
 			if (!descs) {
 				descs = [];
@@ -133,15 +160,12 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		return descs[idx] ?? descs[0];
 	}
 
-	// Filter out redundant events:
-	// - toolCall with subagent tool names: the subagentInvocation event has richer metadata
-	// - subagentInvocation with agentName matching a tool name: these are completion
-	//   duplicates of the "SubAgent started" marker which has the proper descriptive name
+	// Filter out subagent invocation completion duplicates (events whose
+	// agentName matches a known tool name). Subagent tool calls are kept
+	// in the tree for correct parent-child linkage; they are collapsed
+	// into their subagent child in a post-processing step.
 	const filtered = events.filter(e => {
-		if (e.kind === 'toolCall' && subagentToolNames.has(e.toolName.replace(/^\u{1F6E0}\uFE0F?\s*/u, ''))) {
-			return false;
-		}
-		if (e.kind === 'subagentInvocation' && subagentToolNames.has(e.agentName)) {
+		if (e.kind === 'subagentInvocation' && isSubagentName(e.agentName)) {
 			return false;
 		}
 		return true;
@@ -179,13 +203,21 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 		// For subagent invocations, enrich with description from the
 		// filtered-out completion sibling, or fall back to the event's own field.
-		let sublabel = getEventSublabel(event, effectiveKind);
+		let label = getEventLabel(event, effectiveKind);
+		const sublabel = getEventSublabel(event, effectiveKind);
 		let tooltip = getEventTooltip(event);
 		let description: string | undefined;
 		if (effectiveKind === 'subagentInvocation') {
 			description = getSubagentDescription(event);
+			// Strip any existing "Subagent:" prefix from the description to
+			// avoid double-prefixing (e.g. "Subagent: Subagent: name").
+			const cleanDesc = description?.replace(/^Subagent:\s*/i, '');
+			// Show "Subagent: <description>" as the label so users can identify
+			// these nodes and see what task they perform.
+			label = cleanDesc
+				? localize('subagentWithDesc', "Subagent: {0}", truncateLabel(cleanDesc, 30))
+				: localize('subagentLabel', "Subagent");
 			if (description) {
-				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
 				// Ensure description appears in tooltip if not already present
 				if (tooltip && !tooltip.includes(description)) {
 					const lines = tooltip.split('\n');
@@ -199,7 +231,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 			id: event.id ?? `event-${events.indexOf(event)}`,
 			kind: effectiveKind,
 			category: event.kind === 'generic' ? event.category : undefined,
-			label: getEventLabel(event, effectiveKind),
+			label,
 			sublabel,
 			description,
 			tooltip,
@@ -209,7 +241,80 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		};
 	}
 
-	return roots.map(toFlowNode);
+	const rawNodes = roots.map(toFlowNode);
+
+	// Post-process: collapse subagent tool call nodes into their
+	// subagent child, and flatten child_session_ref placeholder nodes.
+	// This preserves the correct parent-child hierarchy that would
+	// otherwise break when filtering events before tree construction.
+	return collapseSubagentToolCalls(rawNodes);
+
+	function collapseSubagentToolCalls(nodeList: FlowNode[]): FlowNode[] {
+		let changed = false;
+		const result: FlowNode[] = [];
+		for (const node of nodeList) {
+			if (node.kind === 'toolCall' && isSubagentName(stripToolEmoji(node.label))) {
+				changed = true;
+				// Flatten any child_session_ref intermediaries first so
+				// the subagentInvocation becomes a direct child.
+				const flatChildren = flattenChildSessionRefs(node.children);
+				const subagentChildren = flatChildren.filter(c => c.kind === 'subagentInvocation');
+				if (subagentChildren.length > 0) {
+					const otherChildren = flatChildren.filter(c => c.kind !== 'subagentInvocation');
+					// Each subagent child gets its own children; non-subagent
+					// siblings (which are rare) are added to the first subagent.
+					for (let i = 0; i < subagentChildren.length; i++) {
+						const extra = i === 0 ? otherChildren : [];
+						result.push({
+							...subagentChildren[i],
+							children: collapseSubagentToolCalls(
+								[...subagentChildren[i].children, ...extra]
+							),
+						});
+					}
+				} else {
+					// No subagent child — promote children directly
+					result.push(...collapseSubagentToolCalls(flatChildren));
+				}
+			} else {
+				const newChildren = collapseSubagentToolCalls(node.children);
+				if (newChildren !== node.children) {
+					changed = true;
+					result.push({ ...node, children: newChildren });
+				} else {
+					result.push(node);
+				}
+			}
+		}
+		return changed ? result : nodeList;
+	}
+
+	function flattenChildSessionRefs(nodeList: FlowNode[]): FlowNode[] {
+		if (!nodeList.some(n => n.kind === 'generic' && n.category === 'subagent')) {
+			return nodeList; // fast path: nothing to flatten
+		}
+		const result: FlowNode[] = [];
+		for (const node of nodeList) {
+			if (node.kind === 'generic' && node.category === 'subagent') {
+				// child_session_ref placeholder — find the subagentInvocation
+				// and move all siblings into it as children.
+				const subagentChild = node.children.find(c => c.kind === 'subagentInvocation');
+				if (subagentChild) {
+					const siblings = node.children.filter(c => c !== subagentChild);
+					result.push({
+						...subagentChild,
+						children: [...subagentChild.children, ...siblings],
+					});
+				} else {
+					// No subagent child — promote all children
+					result.push(...node.children);
+				}
+			} else {
+				result.push(node);
+			}
+		}
+		return result;
+	}
 }
 
 // ---- Flow node filtering ----
@@ -524,29 +629,17 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 	const kind = effectiveKind ?? event.kind;
 	switch (kind) {
 		case 'userMessage':
-			return localize('userLabel', "User");
+			return localize('userLabel', "User Message");
 		case 'modelTurn':
 			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
-			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
+			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : localize('toolCallLabel', "Tool Call");
 		case 'subagentInvocation':
-			return event.kind === 'subagentInvocation' ? event.agentName : '';
-		case 'agentResponse': {
-			if (event.kind === 'agentResponse') {
-				return event.message || localize('responseLabel', "Response");
-			}
-			// Remapped generic event — extract model name from parenthesized suffix
-			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
-			if (event.kind === 'generic') {
-				const match = /\(([^)]+)\)\s*$/.exec(event.name);
-				if (match) {
-					return match[1];
-				}
-			}
-			return localize('responseLabel', "Response");
-		}
+			return event.kind === 'subagentInvocation' ? event.agentName : localize('subagentFallback', "Subagent");
+		case 'agentResponse':
+			return localize('agentResponseLabel', "Agent Response");
 		case 'generic':
-			return event.kind === 'generic' ? event.name : '';
+			return event.kind === 'generic' ? event.name : localize('genericLabel', "Event");
 	}
 }
 
@@ -588,29 +681,31 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 		}
 		case 'userMessage':
 		case 'agentResponse': {
-			// For proper typed events, prefer the first section's content
-			// (which has the actual message text) over the `message` field
-			// (which is a short summary/name). Fall back to `message` when
-			// no sections are available. For remapped generic events, use
-			// the details property.
+			// Use the message summary as the sublabel. For remapped generic
+			// events, use the details property.
 			let text: string | undefined;
 			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
-				text = event.sections[0]?.content || event.message;
+				text = event.message;
 			} else if (event.kind === 'generic') {
 				text = event.details;
 			}
 			if (!text) {
 				return undefined;
 			}
-			// Find the first non-empty line (content may start with newlines)
+			// Find the first meaningful line, skipping trivial lines like
+			// lone brackets/braces that appear when the message is JSON.
 			const lines = text.split('\n');
 			let firstLine = '';
 			for (const line of lines) {
 				const trimmed = line.trim();
-				if (trimmed) {
+				if (trimmed && trimmed.length > 2) {
 					firstLine = trimmed;
 					break;
 				}
+			}
+			if (!firstLine) {
+				// Fall back to the full text collapsed to a single line
+				firstLine = text.replace(/\s+/g, ' ').trim();
 			}
 			if (!firstLine) {
 				return undefined;

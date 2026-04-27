@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Changes titlebar action spacing ---- */
+
+/* Remove leftover spacing between local-session actions (Run, VS Code) and fixed toggles (Terminal, Changes).
+ * Targets the action following the VS Code icon (any Codicon.vscode variant). */
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon[class*="codicon-vscode"]) + .action-item {
+	margin-left: 0;
+}

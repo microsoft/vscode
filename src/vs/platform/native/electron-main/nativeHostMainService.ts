@@ -18,6 +18,7 @@ import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
+import { launchSiblingApp } from '../node/siblingApp.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
@@ -304,11 +305,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openSessionsWindow(windowId: number | undefined): Promise<void> {
-		await this.windowsMainService.openSessionsWindow({
+	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
+		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+			forceNewWindow: options?.forceNewWindow,
 		});
+	}
+
+	async launchSiblingApp(_windowId: number | undefined, args?: string[]): Promise<void> {
+		const result = launchSiblingApp(this.productService, args, err => {
+			this.logService.error('[launchSiblingApp] Failed to spawn sibling app:', err.message);
+		});
+		if (!result) {
+			this.logService.warn('[launchSiblingApp] Could not resolve sibling app on this platform');
+		}
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -1158,10 +1170,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async stopTracing(windowId: number | undefined): Promise<void> {
-		if (!this.environmentMainService.args.trace) {
-			return; // requires tracing to be on
+	private _isTracing = false;
+
+	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
+		await contentTracing.startRecording({
+			categoryFilter: categories,
+			traceOptions: traceOptions.join(',')
+		});
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
 
 		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 

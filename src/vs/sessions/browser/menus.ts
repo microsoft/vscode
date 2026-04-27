@@ -17,11 +17,17 @@ export const Menus = {
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
+	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
+	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
-	AuxiliaryBarTitleLeft: new MenuId('SessionsAuxiliaryBarTitleLeft'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
+
+	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
+	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
+	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 } as const;

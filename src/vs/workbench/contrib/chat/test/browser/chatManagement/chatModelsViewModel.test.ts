@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -123,7 +124,21 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		throw new Error('Method not implemented.');
 	}
 
+	getModelConfiguration(_modelId: string): IStringDictionary<unknown> | undefined {
+		return undefined;
+	}
+
+	async setModelConfiguration(_modelId: string, _values: IStringDictionary<unknown>): Promise<void> {
+	}
+
+	getModelConfigurationActions(_modelId: string): IAction[] {
+		return [];
+	}
+
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
+	}
+
+	async configureModel(_modelId: string): Promise<void> {
 	}
 
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {

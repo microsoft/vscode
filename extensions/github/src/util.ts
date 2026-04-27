@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Repository } from './typings/git.js';
+import type { Repository } from './typings/git.d.ts';
 
 export class DisposableStore {
 

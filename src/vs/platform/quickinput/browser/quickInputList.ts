@@ -321,14 +321,26 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 }
 
-abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
+abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> extends Disposable implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
 	abstract templateId: string;
+
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
 		private readonly toggleStyles: IToggleStyles,
 		private readonly contextMenuService: IContextMenuService
-	) { }
+	) {
+		super();
+	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
 	renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
@@ -392,6 +404,9 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 	}
 
 	disposeElement(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
+		if (dom.isAncestorOfActiveElement(data.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		data.toDisposeElement.clear();
 		data.toolBar.setActions([]);
 	}
@@ -746,8 +761,8 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
+		this._separatorRenderer = this._register(instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle));
+		this._itemRenderer = this._register(instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle));
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
@@ -786,6 +801,8 @@ export class QuickInputList extends Disposable {
 			}
 		));
 		this._tree.getHTMLElement().id = id;
+		this._register(this._itemRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
+		this._register(this._separatorRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
 		this._registerListeners();
 	}
 

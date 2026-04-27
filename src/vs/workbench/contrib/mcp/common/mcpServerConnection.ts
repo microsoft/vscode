@@ -162,7 +162,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			};
 		}
 
-		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|\bnot accessible\b|read only)/i.test(message)) {
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible|read[- ]only)/i.test(message)) {
 			return {
 				kind: 'filesystem',
 				message,
@@ -179,7 +179,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			return bracketedPath[1].trim();
 		}
 
-		const quotedPath = line.match(/["'](\/[^"']+)["']/);
+		const quotedPath = line.match(/["'`](\/[^"'`]+)["'`]/);
 		if (quotedPath?.[1]) {
 			return quotedPath[1];
 		}

@@ -23,6 +23,7 @@ import { mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagem
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { isContributionEnabled } from '../../chat/common/enablement.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/model/chatModel.js';
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/tools/languageModelToolsService.js';
@@ -59,6 +60,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 			const toDelete = new Set(previous.keys());
 			for (const server of servers) {
+				// Skip disabled servers — don't register their tools.
+				if (!isContributionEnabled(server.enablement.read(reader))) {
+					continue;
+				}
+
 				const previousRec = previous.get(server);
 				if (previousRec) {
 					toDelete.delete(server);

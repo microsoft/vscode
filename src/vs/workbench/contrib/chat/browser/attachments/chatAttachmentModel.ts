@@ -69,12 +69,13 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	addFolder(uri: URI) {
-		this.addContext({
+		const entry: IChatRequestVariableEntry = {
 			kind: 'directory',
 			value: uri,
 			id: uri.toString(),
 			name: basename(uri),
-		});
+		};
+		this.addContext(entry);
 	}
 
 	clear(clearStickyAttachments: boolean = false): void {
@@ -131,17 +132,34 @@ export class ChatAttachmentModel extends Disposable {
 				this._attachments.set(item.id, item);
 				added.push(item);
 				this._watchAttachment(item);
+				this._maybeResolveDirectoryImageCount(item);
 			} else if (!equals(oldItem, item)) {
 				this._fileWatchers.deleteAndDispose(item.id);
 				this._attachments.set(item.id, item);
 				updated.push(item);
 				this._watchAttachment(item);
+				this._maybeResolveDirectoryImageCount(item);
 			}
 		}
 
 		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
 			this._onDidChange.fire({ deleted, added, updated });
 		}
+	}
+
+	private _maybeResolveDirectoryImageCount(attachment: IChatRequestVariableEntry): void {
+		// Resolve the folder's image count asynchronously so the UI can warn when
+		// it exceeds the model's per-request image limit. Skip if already resolved.
+		if (attachment.kind !== 'directory' || typeof attachment.imageCount === 'number' || !URI.isUri(attachment.value)) {
+			return;
+		}
+		const uri = attachment.value;
+		this.chatAttachmentResolveService.resolveDirectoryImages(uri).then(images => {
+			const current = this._attachments.get(attachment.id);
+			if (current && current.kind === 'directory' && current.value?.toString() === uri.toString()) {
+				this.updateContext(Iterable.empty(), [{ ...current, imageCount: images.length }]);
+			}
+		}, () => { /* ignore */ });
 	}
 
 	private _watchAttachment(attachment: IChatRequestVariableEntry): void {

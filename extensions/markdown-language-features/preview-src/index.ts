@@ -14,6 +14,7 @@ import type { ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
@@ -26,12 +27,14 @@ const vscode = acquireVsCodeApi();
 interface State {
 	scrollProgress?: number;
 	resource?: string;
+	line?: number;
+	fragment?: string;
 }
 
 const originalState: State = vscode.getState() ?? {};
-const state = {
+const state: State = {
 	...originalState,
-	...getData<any>('data-state')
+	...getData<Partial<State>>('data-state')
 };
 
 if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
@@ -129,7 +132,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -335,10 +344,10 @@ document.addEventListener('click', event => {
 		return;
 	}
 
-	let node: any = event.target;
+	let node = event.target as Element | null;
 	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
+		if (node.tagName && node.tagName === 'A' && (node as HTMLAnchorElement).href) {
+			if (node.getAttribute('href')?.startsWith('#')) {
 				return;
 			}
 
@@ -346,13 +355,13 @@ document.addEventListener('click', event => {
 			if (!hrefText) {
 				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
+				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;
 				}
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
+			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
@@ -361,7 +370,7 @@ document.addEventListener('click', event => {
 
 			return;
 		}
-		node = node.parentNode;
+		node = node.parentElement;
 	}
 }, true);
 
@@ -369,12 +378,12 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		messaging.postMessage('revealLine', { line });
 	}
 }, 50));
 

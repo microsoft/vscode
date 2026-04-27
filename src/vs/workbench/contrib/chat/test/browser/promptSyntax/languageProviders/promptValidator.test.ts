@@ -14,7 +14,7 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
+import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../../platform/markers/common/markers.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../../common/chatModes.js';
@@ -33,15 +33,15 @@ suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
+	let testConfigService: TestConfigurationService;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
 
 	setup(async () => {
 
-		const testConfigService = new TestConfigurationService();
+		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -205,11 +205,11 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
-				markers.map(m => ({ severity: m.severity, message: m.message })),
+				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
-					{ severity: MarkerSeverity.Warning, message: `Unknown tool 'tool4'.` },
-					{ severity: MarkerSeverity.Warning, message: `Unknown model 'MAE 4.2'.` },
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.`, tags: undefined },
+					{ severity: MarkerSeverity.Hint, message: `Unknown tool 'tool4' will be ignored.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Unknown model 'MAE 4.2' will be ignored.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -236,7 +236,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('model as string array - unknown model', async () => {
+		test('model as string array - unknown model is ignored', async () => {
 			const content = [
 				'---',
 				'description: "Test with model array"',
@@ -245,8 +245,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown model 'Unknown Model'.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown model 'Unknown Model' will be ignored.`);
 		});
 
 		test('model as string array - unsuitable model', async () => {
@@ -550,9 +551,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
-				markers.map(m => ({ severity: m.severity, message: m.message })),
+				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -631,6 +632,60 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for handoffs attribute');
 		});
 
+		test('duplicate handoff labels are reported', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement again',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'Start Implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('duplicate handoff labels are case-insensitive', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Go implement',
+				'  - label: start implementation',
+				'    agent: edit',
+				'    prompt: Different prompt',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'Duplicate handoff label \'start implementation\'. Each handoff must have a unique label.',
+			]);
+		});
+
+		test('handoff label must contain alphanumeric character', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`handoffs:`,
+				'  - label: "!!!"',
+				'    agent: agent',
+				'    prompt: Go',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [
+				'The \'label\' property in a handoff must contain at least one alphanumeric character.',
+			]);
+		});
+
 		test('github-copilot agent with supported attributes', async () => {
 			const content = [
 				'---',
@@ -697,8 +752,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected hint about unsupported attribute');
 		});
 
 		test('github-copilot agent with valid permissions', async () => {
@@ -868,7 +924,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
 		});
 
-		test('vscode target agent warns about unknown tools', async () => {
+		test('vscode target agent marks unknown tools as unnecessary hints', async () => {
 			const content = [
 				'---',
 				'description: "VS Code agent"',
@@ -879,8 +935,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool' will be ignored.`);
 		});
 
 		test('vscode target agent with mcp-servers and github-tools', async () => {
@@ -897,7 +954,7 @@ suite('PromptValidator', () => {
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
 				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
-				'Unknown tool \'edit\'.',
+				'Unknown tool \'edit\' will be ignored.',
 			]);
 		});
 
@@ -1074,70 +1131,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'all' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: all',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: all should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'user' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: user',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: user should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'agent' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: agent',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: agent should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Valid infer: 'hidden' - shows deprecation warning
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: hidden',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: hidden should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
 			// Invalid infer: unknown string value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
@@ -1150,22 +1143,6 @@ suite('PromptValidator', () => {
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1, 'infer: "yes" should produce deprecation warning');
-				assert.strictEqual(markers[0].message, deprecationMessage);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			}
-
-			// Invalid infer: number value - shows deprecation warning (validation removed for deprecated attribute)
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'infer: 1',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1, 'infer: 1 should produce deprecation warning');
 				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
@@ -1183,6 +1160,7 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Missing infer attribute should be allowed');
 			}
 		});
+
 
 		test('agents attribute must be an array', async () => {
 			const content = [
@@ -1207,7 +1185,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
-		test('unknown agent in agents attribute shows warning', async () => {
+		test('unknown agent in agents attribute shows unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1217,8 +1195,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent'. Available agents: Plan, agent.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent' will be ignored. Available agents: Plan, agent.`);
 		});
 
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
@@ -1341,7 +1320,7 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('deprecated user-invokable attribute shows warning', async () => {
+		test('removed user-invokable attribute is reported as unknown', async () => {
 			const content = [
 				'---',
 				'name: "TestAgent"',
@@ -1351,9 +1330,11 @@ suite('PromptValidator', () => {
 				'Body',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'user-invokable' attribute is deprecated. Use 'user-invocable' instead.`);
+			assert.strictEqual(markers.length, 1, 'user-invokable should produce exactly one diagnostic');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes('user-invokable'), 'hint should mention the attribute name');
+			assert.ok(markers[0].message.includes('not supported'), 'hint should say attribute is not supported');
 		});
 
 		test('disable-model-invocation attribute validation', async () => {
@@ -1806,8 +1787,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 2);
-			// Order: unknown attribute warnings first (attribute iteration) then applyTo validation
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			// Order: unknown attribute hints first (attribute iteration) then applyTo validation
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.ok(markers[0].message.startsWith(`Attribute 'model' is not supported in instructions files.`));
 			assert.strictEqual(markers[1].message, `The 'applyTo' attribute must be a valid glob pattern.`);
 		});
@@ -2049,7 +2031,7 @@ suite('PromptValidator', () => {
 			]);
 		});
 
-		test('body with unknown tool variable reference warns', async () => {
+		test('body with unknown tool variable reference is an unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Unknown tool var"',
@@ -2057,8 +2039,9 @@ suite('PromptValidator', () => {
 				'This line references known #tool:tool1 and unknown #tool:toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers.length, 1, 'Expected one diagnostic for unknown tool variable');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.strictEqual(markers[0].message, `Unknown tool or toolset 'toolX'.`);
 		});
 
@@ -2111,7 +2094,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute does not error', async () => {
+		test('skill without name attribute should warn', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -2119,10 +2102,18 @@ suite('PromptValidator', () => {
 				'This is a skill without a name.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name is missing');
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a name.');
 		});
 
-		test('skill with empty name does not validate folder match', async () => {
+		test('skill without frontmatter should not warn about missing name or description', async () => {
+			const content = 'This is a skill without any frontmatter.';
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('skill with empty name should error', async () => {
 			const content = [
 				'---',
 				'name: ""',
@@ -2131,9 +2122,81 @@ suite('PromptValidator', () => {
 				'This is a skill.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
-			// Should get error for empty name, but no folder mismatch warning since name is empty
-			assert.ok(markers.some(m => m.message.includes('must not be empty')), 'Expected error for empty name');
-			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for empty name');
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+		});
+
+		test('skill without description attribute should warn', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'---',
+				'This is a skill without a description.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+		});
+
+		test('skill without description but with user-invocable false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'user-invocable: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when user-invocable is false'));
+		});
+
+		test('skill without description but with disable-model-invocation false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'disable-model-invocation: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when model invocation is enabled'));
+		});
+
+		test('skill with empty description should error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: ""',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'description' attribute should not be empty.`);
+		});
+
+
+		test('skill name with invalid characters should error', async () => {
+			const content = [
+				'---',
+				'name: My Skill',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'));
 		});
 
 		test('skill name with whitespace trimmed matches folder name', async () => {
@@ -2186,7 +2249,7 @@ suite('PromptValidator', () => {
 				'This is a skill.'
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my_special-skill.v2/SKILL.md'));
-			assert.deepStrictEqual(markers, [], 'Expected no issues when name with special chars matches folder');
+			assert.ok(markers.some(m => m.severity === MarkerSeverity.Error && m.message === 'Skill name may only contain lowercase letters, numbers, and hyphens.'), 'Expected error for invalid characters in skill name');
 		});
 
 		test('skill with non-string name type does not validate folder match', async () => {
@@ -2217,7 +2280,7 @@ suite('PromptValidator', () => {
 			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not validate folder names for agents');
 		});
 
-		test('skill with unknown attributes shows warning', async () => {
+		test('skill with unknown attributes shows unnecessary hints', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2229,7 +2292,8 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 2);
-			assert.ok(markers.every(m => m.severity === MarkerSeverity.Warning));
+			assert.ok(markers.every(m => m.severity === MarkerSeverity.Hint));
+			assert.ok(markers.every(m => JSON.stringify(m.tags) === JSON.stringify([MarkerTag.Unnecessary])));
 			assert.ok(markers.some(m => m.message.includes('unknownAttr')));
 			assert.ok(markers.some(m => m.message.includes('anotherUnknown')));
 			assert.ok(markers.every(m => m.message.includes('Supported: ')));
@@ -2368,7 +2432,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'argument-hint should be valid for skills');
 		});
 
-		test('skill with empty argument-hint shows error', async () => {
+		test('skill with empty argument-hint shows warning', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2379,7 +2443,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute should not be empty.`);
 		});
 
@@ -2456,7 +2520,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'paths' attribute must be an array of glob patterns.`);
 		});
 
-		test('claude rules with unknown attribute shows warning', async () => {
+		test('claude rules with unknown attribute shows unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Rules"',
@@ -2465,8 +2529,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files.`));
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files by VS Code agents.`));
 		});
 
 		test('claude rules with multiple validation errors', async () => {

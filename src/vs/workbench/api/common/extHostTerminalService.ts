@@ -25,6 +25,7 @@ import { Promises } from '../../../base/common/async.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
 import { IExtHostCommands } from './extHostCommands.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -1268,19 +1269,33 @@ class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollect
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+
+	private readonly _hasRemoteAuthority: boolean;
+
 	constructor(
 		@IExtHostCommands extHostCommands: IExtHostCommands,
-		@IExtHostRpcService extHostRpc: IExtHostRpcService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService
 	) {
 		super(false, extHostCommands, extHostRpc);
+		this._hasRemoteAuthority = !!initData.remote.authority;
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		throw new NotSupportedError();
+		if (!this._hasRemoteAuthority) {
+			throw new NotSupportedError();
+		}
+		return this.createTerminalFromOptions({ name, shellPath, shellArgs });
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
-		throw new NotSupportedError();
+		if (!this._hasRemoteAuthority) {
+			throw new NotSupportedError();
+		}
+		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
+		this._terminals.push(terminal);
+		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
+		return terminal.value;
 	}
 }
 

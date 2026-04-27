@@ -42,7 +42,7 @@
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.1",
-    "@vscode/ripgrep": "^1.15.13",
+    "@vscode/ripgrep": "^1.17.1",
     "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
@@ -69,7 +69,7 @@
     "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
     "watch": "npm run typecheck -- --watch",
-    "test": "mocha --ui tdd '{lib,next}/**/*.test.ts'"
+    "test": "node --test '{lib,next}/**/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

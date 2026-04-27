@@ -21,22 +21,121 @@ jobs:
             echo "engineering_systems_modified=false" >> $GITHUB_OUTPUT
             echo "No engineering systems were modified in this PR"
           fi
+      - name: Allow automated distro or version field updates
+        id: bot_field_exception
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'vs-code-engineering[bot]' }}
+        run: |
+          # Allow the vs-code-engineering bot ONLY when:
+          # 1. package.json is the sole changed file and the diff exclusively
+          #    touches the "distro" or "version" field, OR
+          # 2. package.json + package-lock.json are the only changed files and
+          #    the package.json diff exclusively touches the "version" field
+          #    (lock file updates are expected from npm install after version bump), OR
+          # 3. Same as (2) but also including extensions/copilot/package.json
+          #    and extensions/copilot/package-lock.json, where the copilot
+          #    package.json diff only touches "version" and "vscode" fields.
+
+          SORTED_FILES=$(jq -e '. | sort' "$HOME/files.json")
+
+          ONLY_PKG=$(echo "$SORTED_FILES" | jq -e '. == ["package.json"]' > /dev/null 2>&1 && echo true || echo false)
+          PKG_AND_LOCK=$(echo "$SORTED_FILES" | jq -e '. == ["package-lock.json", "package.json"]' > /dev/null 2>&1 && echo true || echo false)
+          PKG_LOCK_AND_COPILOT=$(echo "$SORTED_FILES" | jq -e '. == ["extensions/copilot/package-lock.json", "extensions/copilot/package.json", "package-lock.json", "package.json"]' > /dev/null 2>&1 && echo true || echo false)
+
+          if [[ "$ONLY_PKG" != "true" && "$PKG_AND_LOCK" != "true" && "$PKG_LOCK_AND_COPILOT" != "true" ]]; then
+            echo "Bot modified files beyond package.json (+ package-lock.json + extensions/copilot) — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}) || {
+            echo "Failed to fetch PR diff — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          # Extract only the root package.json diff section (ignore lock file changes)
+          PKG_DIFF=$(echo "$DIFF" | awk '/^diff --git a\/package\.json b\/package\.json/{p=1} p && /^diff --git / && !/^diff --git a\/package\.json/{exit} p{print}')
+
+          CHANGED_LINES=$(echo "$PKG_DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
+          DISTRO_LINES=$(echo "$PKG_DIFF" | grep -cE '^[+-][[:space:]]*"distro"[[:space:]]*:' || true)
+          VERSION_LINES=$(echo "$PKG_DIFF" | grep -cE '^[+-][[:space:]]*"version"[[:space:]]*:' || true)
+
+          if [[ "$ONLY_PKG" == "true" && "$CHANGED_LINES" -eq 2 && ("$DISTRO_LINES" -eq 2 || "$VERSION_LINES" -eq 2) ]]; then
+            echo "Distro-only or version-only update by bot — allowing"
+            echo "allowed=true" >> $GITHUB_OUTPUT
+          elif [[ ("$PKG_AND_LOCK" == "true" || "$PKG_LOCK_AND_COPILOT" == "true") && "$CHANGED_LINES" -eq 2 && "$VERSION_LINES" -eq 2 ]]; then
+            # Validate extensions/copilot/package.json when present
+            if [[ "$PKG_LOCK_AND_COPILOT" == "true" ]]; then
+              COPILOT_PKG_DIFF=$(echo "$DIFF" | awk '/^diff --git a\/extensions\/copilot\/package\.json b\/extensions\/copilot\/package\.json/{p=1} p && /^diff --git / && !/^diff --git a\/extensions\/copilot\/package\.json/{exit} p{print}')
+              COPILOT_CHANGED=$(echo "$COPILOT_PKG_DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
+              COPILOT_VERSION=$(echo "$COPILOT_PKG_DIFF" | grep -cE '^[+-][[:space:]]*"version"[[:space:]]*:' || true)
+              COPILOT_VSCODE=$(echo "$COPILOT_PKG_DIFF" | grep -cE '^[+-][[:space:]]*"vscode"[[:space:]]*:' || true)
+
+              if [[ "$COPILOT_CHANGED" -eq 4 && "$COPILOT_VERSION" -eq 2 && "$COPILOT_VSCODE" -eq 2 ]]; then
+                echo "Version bump with lock file and copilot extension update by bot — allowing"
+                echo "allowed=true" >> $GITHUB_OUTPUT
+              else
+                echo "Copilot package.json changed more than version + vscode fields — not allowed"
+                echo "allowed=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "Version bump with lock file update by bot — allowing"
+              echo "allowed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Bot changed more than a single allowed field (distro or version) — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Allow cherry-pick bot PRs
+        id: cherry_pick_exception
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.bot_field_exception.outputs.allowed != 'true' && github.event.pull_request.user.login == 'vs-code-engineering[bot]' && startsWith(github.event.pull_request.title, '[cherry-pick]') }}
+        run: |
+          # The label is applied ~2s after PR creation, so the webhook payload
+          # may not include it yet. Fetch current labels from the API with retries.
+          for attempt in 1 2 3; do
+            if gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels --jq '.[].name' | grep -qx 'cherry-pick-artifact'; then
+              echo "Cherry-pick PR by vs-code-engineering bot with cherry-pick-artifact label — allowing"
+              echo "allowed=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "cherry-pick-artifact label not present yet (attempt $attempt/3); retrying in 2s"
+              sleep 2
+            fi
+          done
+          echo "Cherry-pick PR by bot but missing cherry-pick-artifact label after retries — not allowed"
+          echo "allowed=false" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Determine if engineering system changes are allowed
+        id: allowed
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' }}
+        run: |
+          if [[ "${{ steps.bot_field_exception.outputs.allowed }}" == "true" || "${{ steps.cherry_pick_exception.outputs.allowed }}" == "true" ]]; then
+            echo "Engineering system changes are allowed by an exception"
+            echo "blocked=false" >> $GITHUB_OUTPUT
+          else
+            echo "No exception applies — enforcing restrictions"
+            echo "blocked=true" >> $GITHUB_OUTPUT
+          fi
       - name: Prevent Copilot from modifying engineering systems
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'Copilot' }}
+        if: ${{ steps.allowed.outputs.blocked == 'true' && github.event.pull_request.user.login == 'Copilot' }}
         run: |
           echo "Copilot is not allowed to modify .github/workflows, build folder files, or package.json files."
           echo "If you need to update engineering systems, please do so manually or through authorized means."
           exit 1
-      - uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
+      - uses: octokit/request-action@b91aabaa861c777dcdb14e2387e30eddf04619ae # v3.0.0
         id: get_permissions
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login != 'Copilot' }}
+        if: ${{ steps.allowed.outputs.blocked == 'true' && github.event.pull_request.user.login != 'Copilot' }}
         with:
           route: GET /repos/microsoft/vscode/collaborators/${{ github.event.pull_request.user.login }}/permission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
         id: control
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login != 'Copilot' }}
+        if: ${{ steps.allowed.outputs.blocked == 'true' && github.event.pull_request.user.login != 'Copilot' }}
         run: |
           echo "user: ${{ github.event.pull_request.user.login }}"
           echo "role: ${{ fromJson(steps.get_permissions.outputs.data).permission }}"
@@ -44,7 +143,7 @@ jobs:
           echo "should_run: ${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
           echo "should_run=${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}" >> $GITHUB_OUTPUT
       - name: Check for engineering system changes
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.control.outputs.should_run == 'true' }}
+        if: ${{ steps.allowed.outputs.blocked == 'true' && steps.control.outputs.should_run == 'true' }}
         run: |
           echo "Changes to .github/workflows/, build/ folder files, or package.json files aren't allowed in PRs."
           exit 1

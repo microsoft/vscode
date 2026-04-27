@@ -15,6 +15,7 @@ import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
 import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
+import { recommendedDeps as rpmRecommendedDependencies } from './linux/rpm/dep-lists.ts';
 import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
@@ -202,6 +203,7 @@ function prepareRpmPackage(arch: string) {
 			.pipe(replace('@@QUALITY@@', (product as typeof product & { quality?: string }).quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', (product as typeof product & { updateUrl?: string }).updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
+			.pipe(replace('@@RECOMMENDS@@', rpmRecommendedDependencies.join(', ')))
 			.pipe(replace('@@STRIP@@', stripBinary))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 

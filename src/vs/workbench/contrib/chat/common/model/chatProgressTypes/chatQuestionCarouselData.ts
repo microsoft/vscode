@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { IChatQuestion, IChatQuestionCarousel } from '../../chatService/chatService.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
+import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 /**
  * Runtime representation of a question carousel with a {@link DeferredPromise}
@@ -13,16 +15,25 @@ import { IChatQuestion, IChatQuestionCarousel } from '../../chatService/chatServ
  */
 export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public readonly kind = 'questionCarousel' as const;
-	public readonly completion = new DeferredPromise<{ answers: Record<string, unknown> | undefined }>();
-	public draftAnswers: Record<string, unknown> | undefined;
+	public readonly completion = new DeferredPromise<{ answers: IChatQuestionAnswers | undefined }>();
+	public draftAnswers: IChatQuestionAnswers | undefined;
 	public draftCurrentIndex: number | undefined;
+	public draftCollapsed: boolean | undefined;
+	/**
+	 * Set to `true` when the carousel was dismissed because the user typed
+	 * directly in the associated terminal instead of using the carousel UI.
+	 */
+	public dismissedByTerminalInput?: boolean;
 
 	constructor(
 		public questions: IChatQuestion[],
 		public allowSkip: boolean,
 		public resolveId?: string,
-		public data?: Record<string, unknown>,
+		public data?: IChatQuestionAnswers,
 		public isUsed?: boolean,
+		public message?: string | IMarkdownString,
+		public source?: ToolDataSource,
+		public terminalId?: string,
 	) { }
 
 	toJSON(): IChatQuestionCarousel {
@@ -33,6 +44,9 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 			resolveId: this.resolveId,
 			data: this.data,
 			isUsed: this.isUsed,
+			message: this.message,
+			source: this.source,
+			terminalId: this.terminalId,
 		};
 	}
 }

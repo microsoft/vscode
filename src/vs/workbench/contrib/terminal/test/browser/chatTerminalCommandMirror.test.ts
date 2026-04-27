@@ -202,6 +202,17 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(mirrorText.includes('before'), false);
 		});
 
+		test('disposed start marker does not throw in VT serialization', async () => {
+			const source = await createXterm();
+			await write(source, 'line 1\r\nline 2');
+
+			const startMarker = source.raw.registerMarker(0)!;
+			startMarker.dispose();
+
+			const vt = await source.getRangeAsVT(startMarker, undefined, true);
+			strictEqual(typeof vt, 'string');
+		});
+
 		test('incremental mirroring appends correctly', async () => {
 			const source = await createXterm();
 			const marker = source.raw.registerMarker(0)!;
