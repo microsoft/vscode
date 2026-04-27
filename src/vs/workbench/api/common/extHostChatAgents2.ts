@@ -830,8 +830,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				description: item.description,
 				groupKey: item.groupKey,
 				badge: item.badge,
-				badgeTooltip: item.badgeTooltip,
-			}));
+				badgeTooltip: item.badgeTooltip
+			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;
 		}

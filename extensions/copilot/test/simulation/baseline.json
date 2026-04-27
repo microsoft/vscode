@@ -1,131 +1,5 @@
 [
   {
-    "name": "/doc [inline] [cpp] - doc comment for C++",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "/doc [inline] [cpp] - doc comment for macro",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "/doc [inline] [cpp] - doc comment for template",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "/doc [inline] [java] - class",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [java] - method",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [ruby] - long method",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [ruby] - method",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - able to document whole class, which is larger than context length",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "/doc [inline] [typescript] - class",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - doc explain ts code",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "/doc [inline] [typescript] - does not include types in the documentation comment - function",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - interface",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - issue #3692: add jsdoc comment - colors.ts",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - issue #3692: add jsdoc comment using /doc - colors.ts",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - issue #3763: doc everywhere",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - issue #6406",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - large function",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "/doc [inline] [typescript] - supports chat variables",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
     "name": "/review [inline] [javascript] - Binary search with correct stop condition - (gpt-4.1-2025-04-14)",
     "contentFilterCount": 0,
     "passCount": 10,
@@ -3828,16 +3702,16 @@
   {
     "name": "intent [inline] -  add documentation for this api",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] -  generate documentation for this wrapper class. wherever possible, leverage the existing docs for se…",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] -  how will this effect the position?",
@@ -3898,9 +3772,9 @@
   {
     "name": "intent [inline] - add a docstring",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add a setisnearbycardopen function",
@@ -3910,60 +3784,53 @@
     "score": 1
   },
   {
-    "name": "intent [inline] - add comment",
+    "name": "intent [inline] - add comment, describe function",
     "contentFilterCount": 0,
     "passCount": 0,
     "failCount": 10,
     "score": 0
   },
   {
-    "name": "intent [inline] - add comment, describe function",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
     "name": "intent [inline] - add docs",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add docs to isscrolling prop",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add docstring",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add docstring for its properties",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add docstrings for the ifloatingmarkerdistancebasedcollisionhandlerprops",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add documentation",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - add headers here for access-control-allow-origin to *",
@@ -4059,9 +3926,9 @@
   {
     "name": "intent [inline] - can i just use inheritdoc here instead of a full comment?",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - can you explain this code",
@@ -4101,9 +3968,9 @@
   {
     "name": "intent [inline] - can you write unit test case constructor in xunit",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "intent [inline] - change mappedrequest to any",
@@ -4283,44 +4150,44 @@
   {
     "name": "intent [inline] - docstring",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - docstrings",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - document everything following docc format",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - document this function",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - document with docc format",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - documentation",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - does && take precedence over ||",
@@ -4353,9 +4220,9 @@
   {
     "name": "intent [inline] - embed a variable in an array",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - exaplain this",
@@ -4444,9 +4311,9 @@
   {
     "name": "intent [inline] - filter the supportedentities where isasset is true",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "intent [inline] - fix all the errors",
@@ -4500,9 +4367,9 @@
   {
     "name": "intent [inline] - fix this to use full image",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "intent [inline] - fix to log the real error too",
@@ -4556,30 +4423,30 @@
   {
     "name": "intent [inline] - generate comment based off the behavior of the function: returns false if the getter failed else set…",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - generate documentation",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - generate documentation for these functions",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - generate dosctring",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - generate test cases",
@@ -4738,9 +4605,9 @@
   {
     "name": "intent [inline] - issue #1126: change to GDPR",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "intent [inline] - issue #1126: expand comments",
@@ -4801,9 +4668,9 @@
   {
     "name": "intent [inline] - metadata_df will always contain just 1 row, is there a more efficient way to create new_row?",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "intent [inline] - mock getflights in tests",
@@ -4906,9 +4773,9 @@
   {
     "name": "intent [inline] - show me all the cases created by caseorigin=ava over the months",
     "contentFilterCount": 0,
-    "passCount": 6,
-    "failCount": 4,
-    "score": 0.6
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "intent [inline] - suggest code that specifies two required input parameters, a yaml file and a yaml schema",
@@ -4941,9 +4808,9 @@
   {
     "name": "intent [inline] - to create oxygen style documentation for entire file.",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - translate to spanish",
@@ -5165,9 +5032,9 @@
   {
     "name": "intent [inline] - write a documentation for this section.",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - write a function check role and count of role by each employee",
@@ -5186,16 +5053,9 @@
   {
     "name": "intent [inline] - write documentation",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "intent [inline] - write jsdoc",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - write me a test case for fp_attribution get() function",
@@ -5207,9 +5067,9 @@
   {
     "name": "intent [inline] - write the documentation for this file",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "intent [inline] - write unit tests for the getissuetypesbyprojectids function",

@@ -7,8 +7,9 @@ import * as fs from 'fs';
 import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { dirname } from '../../../base/common/path.js';
+import { dirname, parse as pathParse } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
+import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -184,7 +185,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
 
-		const shell = options?.shell ?? this._getDefaultShell();
+		const shell = options?.shell ?? await this._getDefaultShell();
 		const name = platform.isWindows ? 'cmd' : 'xterm-256color';
 
 		this._logService.info(`[TerminalManager] Creating terminal ${uri}: shell=${shell}, cwd=${cwd}, cols=${cols}, rows=${rows}`);
@@ -212,9 +213,15 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			env['DEBIAN_FRONTEND'] = 'noninteractive';
 		}
 		let shellArgs: string[] = [];
+		if (platform.isMacintosh) {
+			const shellName = pathParse(shell).name;
+			if (shellName.match(/(zsh|bash)/)) {
+				shellArgs = ['--login'];
+			}
+		}
 
 		const injection = await getShellIntegrationInjection(
-			{ executable: shell, args: [], forceShellIntegration: true },
+			{ executable: shell, args: shellArgs, forceShellIntegration: true },
 			{
 				shellIntegration: { enabled: true, suggestEnabled: false, nonce },
 				windowsUseConptyDll: false,
@@ -659,11 +666,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
-	private _getDefaultShell(): string {
-		if (platform.isWindows) {
-			return process.env['COMSPEC'] || 'cmd.exe';
-		}
-		return process.env['SHELL'] || '/bin/sh';
+	private _getDefaultShell(): Promise<string> {
+		return getSystemShell(platform.OS, process.env);
 	}
 
 	/**

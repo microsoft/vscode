@@ -11,9 +11,10 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, SessionAction } from '../common/state/sessionActions.js';
 import {
@@ -28,10 +29,12 @@ import {
 	type SessionCustomization,
 	type SessionState,
 	type ToolResultContent,
+	type ISessionFileDiff,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -46,6 +49,12 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+	/**
+	 * Called after each top-level session turn completes so git state can be
+	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
+	 * excluded — only the parent session URI is passed.
+	 */
+	readonly onTurnComplete: (session: ProtocolURI) => void;
 }
 
 /** A progress event that was deferred because its subagent session does not exist yet. */
@@ -104,11 +113,13 @@ export class AgentSideEffects extends Disposable {
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
-		private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
-		this._permissionManager = this._register(new SessionPermissionManager(this._stateManager, this._logService));
+		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -294,11 +305,13 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// After a turn completes (idle event), flush any pending debounced
-		// diff computation and compute final diffs immediately.
+		// diff computation and compute final diffs immediately, then refresh
+		// git state so the toolbar buttons reflect post-turn repository state.
 		if (e.type === 'idle') {
 			this._cancelDebouncedDiffComputation(sessionKey);
 			this._computeSessionDiffs(sessionKey, turnId);
 			this._tryConsumeNextQueuedMessage(sessionKey);
+			this._options.onTurnComplete(sessionKey as ProtocolURI);
 		}
 
 		// Steering message was consumed by the agent — remove from protocol state
@@ -608,11 +621,12 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.userMessage.attachments?.map((a): IAgentAttachment => ({
 					type: a.type,
-					path: a.path,
+					uri: URI.parse(a.uri),
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
-					this._logService.error('[AgentSideEffects] sendMessage failed', err);
+					const errCode = (err as { code?: number })?.code;
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
 						session: action.session,
@@ -749,8 +763,8 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
 				break;
 			}
-			case ActionType.SessionIsDoneChanged: {
-				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+			case ActionType.SessionIsArchivedChanged: {
+				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
 				break;
 			}
 			case ActionType.SessionConfigChanged: {
@@ -861,7 +875,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
 			type: a.type,
-			path: a.path,
+			uri: URI.parse(a.uri),
 			displayName: a.displayName,
 		}));
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
@@ -920,20 +934,29 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		try {
-			// Build incremental options when a specific turn triggered the recomputation
-			let incremental: IIncrementalDiffOptions | undefined;
-			if (changedTurnId) {
-				const previousDiffs = this._stateManager.getSessionState(session)?.summary.diffs;
-				if (previousDiffs) {
-					incremental = { changedTurnId, previousDiffs };
+			// Prefer a git-driven diff so terminal-driven file changes show up
+			// alongside SDK-tracked tool edits. The git path is the source of
+			// truth whenever the working directory is a real work tree; we
+			// only fall back to the edit-tracker aggregator when it isn't
+			// (e.g. agents running in non-git scratch directories or under
+			// test harnesses without git).
+			let diffs = await this._tryComputeGitDiffs(session, ref.object);
+			if (!diffs) {
+				// Build incremental options when a specific turn triggered the recomputation
+				let incremental: IIncrementalDiffOptions | undefined;
+				if (changedTurnId) {
+					const previousDiffs = this._stateManager.getSessionState(session)?.summary.diffs;
+					if (previousDiffs) {
+						incremental = { changedTurnId, previousDiffs };
+					}
 				}
+				diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			}
 
-			const diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionDiffsChanged,
 				session,
-				diffs,
+				diffs: [...diffs],
 			});
 			// Persist diffs to the session database so they survive restarts
 			ref.object.setMetadata('diffs', JSON.stringify(diffs)).catch(err => {
@@ -943,6 +966,35 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn('[AgentSideEffects] Failed to compute session diffs', err);
 		} finally {
 			ref.dispose();
+		}
+	}
+
+	/**
+	 * Computes session diffs by shelling out to git. Returns the diff list
+	 * when the session has a working directory and that directory is a git
+	 * work tree; returns `undefined` otherwise so the caller can fall back
+	 * to the edit-tracker aggregator. The base branch (anchor for the
+	 * `merge-base` baseline) is read from the provider-agnostic
+	 * {@link META_DIFF_BASE_BRANCH} metadata key — agents that create
+	 * worktrees write it at session-creation time.
+	 */
+	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase): Promise<readonly ISessionFileDiff[] | undefined> {
+		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		if (!workingDirectory) {
+			return undefined;
+		}
+		let workingDirectoryUri: URI;
+		try {
+			workingDirectoryUri = URI.parse(workingDirectory);
+		} catch {
+			return undefined;
+		}
+		const baseBranch = (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? undefined;
+		try {
+			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+		} catch (err) {
+			this._logService.warn('[AgentSideEffects] git-driven diff computation failed; falling back to edit-tracker', err);
+			return undefined;
 		}
 	}
 

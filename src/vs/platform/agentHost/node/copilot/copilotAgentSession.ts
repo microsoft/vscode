@@ -17,20 +17,27 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { IAgentAttachment, IAgentProgressEvent, SessionHistoryEvent } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolEvents, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
+
+type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
+type UserInputRequest = Parameters<UserInputHandler>[0];
+type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type SessionHooks = NonNullable<SessionConfig['hooks']>;
+type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 
 function getCopilotCLISessionStateDir(userHome: string): string {
 	const xdgHome = process.env['XDG_STATE_HOME'];
@@ -58,27 +65,14 @@ export interface IActiveClientSnapshot {
  */
 export type SessionWrapperFactory = (callbacks: {
 	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
-	readonly onUserInputRequest: (request: IUserInputRequest, invocation: { sessionId: string }) => Promise<IUserInputResponse>;
+	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
 	readonly hooks: {
-		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
-		readonly onPostToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 	};
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly clientTools: Tool<any>[];
 }) => Promise<CopilotSessionWrapper>;
-
-/** Matches the SDK's `UserInputRequest` which is not re-exported from the package entry point. */
-interface IUserInputRequest {
-	question: string;
-	choices?: string[];
-	allowFreeform?: boolean;
-}
-
-/** Matches the SDK's `UserInputResponse` which is not re-exported from the package entry point. */
-interface IUserInputResponse {
-	answer: string;
-	wasFreeform: boolean;
-}
 
 /**
  * Options for constructing a {@link CopilotAgentSession}.
@@ -245,15 +239,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		const textContent = result.content
-			?.filter(c => c.type === 'text')
-			.map(c => (c as { text: string }).text)
+			?.filter(c => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
 			.join('\n') ?? '';
 
 		const binaryResults = result.content
-			?.filter(c => c.type === 'embeddedResource')
+			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
 			.map(c => {
-				const embedded = c as { data: string; contentType: string };
-				return { data: embedded.data, mimeType: embedded.contentType, type: embedded.contentType };
+				return { data: c.data, mimeType: c.contentType, type: c.contentType };
 			});
 
 		if (result.success) {
@@ -300,10 +293,11 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		const sdkAttachments = attachments?.map(a => {
+			const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
 			if (a.type === 'selection') {
-				return { type: 'selection' as const, filePath: a.path, displayName: a.displayName ?? a.path, text: a.text, selection: a.selection };
+				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: a.text, selection: a.selection };
 			}
-			return { type: a.type, path: a.path, displayName: a.displayName };
+			return { type: a.type, path, displayName: a.displayName };
 		});
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
@@ -330,7 +324,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async getMessages(): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
+	async getMessages(): Promise<SessionHistoryEvent[]> {
 		const events = await this._wrapper.session.getMessages();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -536,9 +530,9 @@ export class CopilotAgentSession extends Disposable {
 	 * respond via {@link respondToUserInputRequest}.
 	 */
 	async handleUserInputRequest(
-		request: IUserInputRequest,
+		request: UserInputRequest,
 		_invocation: { sessionId: string },
-	): Promise<IUserInputResponse> {
+	): Promise<UserInputResponse> {
 		const questionPreview = request.question.substring(0, 100);
 		try {
 			const requestId = generateUuid();
@@ -614,7 +608,7 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	private async _handlePreToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
 				const filePath = getEditFilePath(input.toolArgs);
@@ -628,7 +622,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePostToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
 				const filePath = getEditFilePath(input.toolArgs);
@@ -791,6 +785,17 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			this._onDidSessionProgress.fire({ session, type: 'idle' });
+		}));
+
+		// The SDK emits a `skill` tool call (which we hide) and a richer
+		// `skill.invoked` event with the resolved SKILL.md path. Synthesize a
+		// tool-start/complete pair from the latter so the UI can render a
+		// clickable file link, matching the `view`-tool display style.
+		this._register(wrapper.onSkillInvoked(e => {
+			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			const { start, complete } = synthesizeSkillToolEvents(session, e.data, e.id);
+			this._onDidSessionProgress.fire(start);
+			this._onDidSessionProgress.fire(complete);
 		}));
 
 		this._register(wrapper.onSubagentStarted(e => {

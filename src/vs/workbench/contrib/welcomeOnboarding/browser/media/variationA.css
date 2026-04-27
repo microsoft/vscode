@@ -723,11 +723,37 @@
 }
 
 .onboarding-a-sessions-features {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
 	flex: 1;
-	align-content: start;
+}
+
+.onboarding-a-sessions-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.onboarding-a-sessions-group-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-sessions-grid {
+	display: grid;
+	gap: 10px;
+}
+
+.onboarding-a-sessions-grid-3 {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.onboarding-a-sessions-grid-2 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .onboarding-a-feature-card {
@@ -982,7 +1008,8 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
-	.onboarding-a-sessions-features {
+	.onboarding-a-sessions-grid-3,
+	.onboarding-a-sessions-grid-2 {
 		grid-template-columns: 1fr;
 	}
 

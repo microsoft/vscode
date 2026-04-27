@@ -490,6 +490,12 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 			return existing;
 		}
 
+		// Propagate a renamed item label to the open chat model so the chat editor tab
+		// and chat panel header reflect the new title.
+		if (existing && existing.label !== updated.label && this._chatService.getSession(resource)) {
+			this._chatService.setSessionTitle(resource, updated.label);
+		}
+
 		this._items.set(resource, updated);
 		this._onDidChangeChatSessionItems.fire({
 			addedOrUpdated: [updated],

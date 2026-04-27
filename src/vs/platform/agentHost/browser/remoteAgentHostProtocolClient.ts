@@ -20,8 +20,8 @@ import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolv
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
+import type { ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -182,7 +182,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction): void {
+	dispatch(action: RootAction | SessionAction | TerminalAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this._clientId, seq);
 	}
@@ -205,7 +205,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction, _clientId: string, clientSeq: number): void {
+	dispatchAction(action: RootAction | SessionAction | TerminalAction, _clientId: string, clientSeq: number): void {
 		this._sendNotification('dispatchAction', { clientSeq, action });
 	}
 
@@ -301,8 +301,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			summary: s.title,
 			status: s.status,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
-			isRead: s.isRead,
-			isDone: s.isDone,
+			isRead: !!(s.status & SessionStatus.IsRead),
+			isArchived: !!(s.status & SessionStatus.IsArchived),
 			diffs: s.diffs,
 		}));
 	}

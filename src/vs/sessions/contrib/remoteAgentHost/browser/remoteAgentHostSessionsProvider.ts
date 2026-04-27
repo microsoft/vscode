@@ -10,15 +10,18 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -26,7 +29,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
+import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 
@@ -50,6 +53,8 @@ interface ISerializedSessionMetadata {
 	readonly model?: IAgentSessionMetadata['model'];
 	readonly workingDirectory?: string;
 	readonly isRead?: boolean;
+	readonly isArchived?: boolean;
+	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
 	readonly project?: { readonly uri: string; readonly displayName: string };
 }
@@ -63,7 +68,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		model: meta.model,
 		workingDirectory: meta.workingDirectory?.toString(),
 		isRead: meta.isRead,
-		isDone: meta.isDone,
+		isArchived: meta.isArchived,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 	};
 }
@@ -78,7 +83,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			model: raw.model,
 			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
 			isRead: raw.isRead,
-			isDone: raw.isDone,
+			isArchived: raw.isArchived ?? raw.isDone,
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 		};
 	} catch {
@@ -143,6 +148,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
 	protected override get onConnectionLost(): Event<void> { return this._onDidDisconnect.event; }
 
+	/**
+	 * Overridable seam so tests can exercise both the web and non-web
+	 * branches of the label/description gating without depending on the
+	 * ambient {@link isWeb} constant (the browser test runner always
+	 * reports `isWeb === true`).
+	 */
+	protected get isWebPlatform(): boolean { return isWeb; }
+
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
@@ -185,6 +198,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -200,6 +214,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
+			description: displayName,
+			group: 'folders',
 			icon: Codicon.remote,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -242,12 +258,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	protected _adapterOptions() {
+		const web = this.isWebPlatform;
 		return {
-			description: new MarkdownString().appendText(this.label),
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+			description: web ? undefined : new MarkdownString().appendText(this.label),
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => {
 				const uriForDescription = project?.uri ?? workingDirectory;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this.label, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description });
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, web ? undefined : this.label, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
@@ -357,9 +375,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		const rootStateValue = connection.rootState.value;
 		if (rootStateValue && !(rootStateValue instanceof Error)) {
 			this._syncSessionTypesFromRootState(rootStateValue);
+			this._syncRootConfigFromRootState(rootStateValue);
 		}
 		this._connectionListeners.add(connection.rootState.onDidChange(rootState => {
 			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
 		}));
 
 		this._attachConnectionListeners(connection, this._connectionListeners);
@@ -469,7 +489,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				modifiedTime: adapter.updatedAt.get().getTime(),
 				model: adapter.modelSelection ?? base.model,
 				isRead: adapter.isRead.get(),
-				isDone: adapter.isArchived.get(),
+				isArchived: adapter.isArchived.get(),
 			}));
 		}
 		if (entries.length === 0) {
@@ -489,14 +509,18 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	// -- Workspaces ----------------------------------------------------------
 
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description, branchProtectionPatterns }, gitState);
+	}
+
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
 		return {
-			label: `${folderName} [${this.label}]`,
+			label: this.isWebPlatform ? folderName : `${folderName} [${this.label}]`,
 			description: this._labelService.getUriLabel(dirname(uri), { relative: false }),
 			group: this.label,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}

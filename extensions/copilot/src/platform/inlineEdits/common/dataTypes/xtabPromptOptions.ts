@@ -51,6 +51,22 @@ export type LanguageContextOptions = {
 	readonly traitPosition: 'before' | 'after';
 };
 
+/**
+ * Options for including Completions-style neighbor file snippets (Jaccard-ranked)
+ * into the recently_viewed_code_snippets section of the prompt.
+ */
+export type NeighborFilesOptions = {
+	readonly enabled: boolean;
+	readonly maxTokens: number;
+};
+
+export namespace NeighborFilesOptions {
+	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
+		'enabled': vBoolean(),
+		'maxTokens': vNumber(),
+	});
+}
+
 export type DiffHistoryOptions = {
 	readonly nEntries: number;
 	readonly maxTokens: number;
@@ -238,6 +254,7 @@ export type PromptOptions = {
 	readonly pagedClipping: PagedClipping;
 	readonly recentlyViewedDocuments: RecentlyViewedDocumentsOptions;
 	readonly languageContext: LanguageContextOptions;
+	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
@@ -350,6 +367,10 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		enabled: false,
 		maxTokens: 2000,
 		traitPosition: 'after',
+	},
+	neighborFiles: {
+		enabled: false,
+		maxTokens: 1000,
 	},
 	diffHistory: {
 		nEntries: 25,

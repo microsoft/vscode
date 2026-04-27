@@ -70,7 +70,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session, its data, or the active provider changes
+		// Re-render when the active session or its data changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
@@ -78,7 +78,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
 			}
-			this.sessionsManagementService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
 			this._render();
 		}));

@@ -47,6 +47,7 @@ import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -227,6 +228,86 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('slash commands can share ids across non-overlapping session types', async () => {
+		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		const executions: string[] = [];
+		const progress = { report: (_progress: IChatProgress) => { } };
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'Local switch',
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: ['local'],
+		}, async () => {
+			executions.push('local');
+		}));
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'Remote switch',
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: ['remote'],
+		}, async () => {
+			executions.push('remote');
+		}));
+
+		assert.strictEqual(slashCommandService.hasCommand('switch', 'local'), true);
+		assert.strictEqual(slashCommandService.hasCommand('switch', 'remote'), true);
+		assert.strictEqual(slashCommandService.hasCommand('switch', 'other'), false);
+
+		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, LocalChatSessionUri.forSession('local-session'), CancellationToken.None);
+		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, URI.from({ scheme: 'remote', path: '/session' }), CancellationToken.None);
+
+		assert.deepStrictEqual(executions, ['local', 'remote']);
+	});
+
+	test('slash commands reject overlapping session types for the same id', () => {
+		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		const command = async () => undefined;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'Local switch',
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: ['local', 'remote'],
+		}, command));
+
+		assert.throws(() => slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'Remote switch',
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: ['remote', 'other'],
+		}, command));
+	});
+
+	test('slash commands without session types apply to all session types', async () => {
+		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		const executions: string[] = [];
+		const progress = { report: (_progress: IChatProgress) => { } };
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'All sessions switch',
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			executions.push('all');
+		}));
+
+		assert.strictEqual(slashCommandService.hasCommand('switch', 'local'), true);
+		assert.strictEqual(slashCommandService.hasCommand('switch', 'remote'), true);
+
+		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, LocalChatSessionUri.forSession('local-session'), CancellationToken.None);
+		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, URI.from({ scheme: 'remote', path: '/session' }), CancellationToken.None);
+
+		assert.deepStrictEqual(executions, ['all', 'all']);
+		assert.throws(() => slashCommandService.registerSlashCommand({
+			command: 'switch',
+			detail: 'Remote switch',
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: ['remote'],
+		}, async () => undefined));
+	});
 
 	test('retrieveSession', async () => {
 		const testService = createChatService();

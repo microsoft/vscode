@@ -23,15 +23,16 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentHostSessionConfigBranchNameHintKey, AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, SessionHistoryEvent } from '../../common/agentService.js';
+import { AutoApproveLevel, ISchemaProperty, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationStatus, CustomizationRef, SessionInputResponseKind, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
-import { IAgentHostGitService } from '../agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-import { SessionPermissionManager } from '../sessionPermissions.js';
 import { CopilotAgentSession, SessionWrapperFactory, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
@@ -120,7 +121,7 @@ function buildWorktreeAnnouncementText(branchName: string): string {
 	) + '\n\n';
 }
 
-type AgentMessageOrEvent = IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent;
+type AgentMessageOrEvent = SessionHistoryEvent;
 
 /**
  * Returns a copy of `messages` where `announcement` has been prepended to
@@ -574,99 +575,60 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const gitInfo = params.workingDirectory ? await this._getGitInfo(params.workingDirectory) : undefined;
-		const isolationValue = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree'
-			? params.config.isolation
-			: gitInfo ? 'worktree' : 'folder';
 
-		const autoApproveValue = params.config?.autoApprove === 'default' || params.config?.autoApprove === 'autoApprove' || params.config?.autoApprove === 'autopilot'
-			? params.config.autoApprove
-			: 'default';
+		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
+			type: 'string',
+			title: localize('agentHost.sessionConfig.isolation', "Isolation"),
+			description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
+			enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
+			enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
+			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
+			default: gitInfo ? 'worktree' : 'folder',
+			readOnly: !gitInfo,
+		});
 
-		const values: Record<string, unknown> = {
-			isolation: isolationValue,
-			autoApprove: autoApproveValue,
-			[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]: params.config?.[SessionPermissionManager.PERMISSIONS_CONFIG_KEY] || { allow: [], deny: [] },
-		};
-		if (gitInfo) {
-			const branchForMode = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
-			values.branch = typeof params.config?.branch === 'string' && isolationValue === 'worktree'
-				? params.config.branch
-				: branchForMode;
-		}
+		// Resolve isolation first — downstream schema shapes (branch's
+		// read-only mode + enum restriction) depend on the effective value.
+		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
+		const isolationValue = isolationProperty.validate(params.config?.[SessionConfigKey.Isolation])
+			? params.config[SessionConfigKey.Isolation] as 'folder' | 'worktree'
+			: isolationDefault;
 
-		const properties: ResolveSessionConfigResult['schema']['properties'] = {
-			isolation: {
-				type: 'string',
-				title: localize('agentHost.sessionConfig.isolation', "Isolation"),
-				description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
-				enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
-				enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
-				enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
-				default: gitInfo ? 'worktree' : 'folder',
-				readOnly: !gitInfo,
-			},
-			autoApprove: {
-				type: 'string',
-				title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
-				description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-				enum: ['default', 'autoApprove', 'autopilot'],
-				enumLabels: [
-					localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
-					localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-					localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
-				],
-				enumDescriptions: [
-					localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
-					localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-					localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
-				],
-				default: 'default',
-				sessionMutable: true,
-			},
-			[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]: {
-				type: 'object',
-				title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-				description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
-				properties: {
-					allow: {
-						type: 'array',
-						title: localize('agentHost.sessionConfig.permissions.allow', "Allowed tools"),
-						items: {
-							type: 'string',
-							title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-						},
-					},
-					deny: {
-						type: 'array',
-						title: localize('agentHost.sessionConfig.permissions.deny', "Denied tools"),
-						items: {
-							type: 'string',
-							title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
-						},
-					},
-				},
-				default: { allow: [], deny: [] },
-				sessionMutable: true,
-			},
-		};
-
+		let branchProperty: ISchemaProperty<string> | undefined;
+		let branchDefault: string | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
-			const branchForMode = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
-			properties.branch = {
+			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
+			branchProperty = schemaProperty<string>({
 				type: 'string',
 				title: localize('agentHost.sessionConfig.branch', "Branch"),
 				description: localize('agentHost.sessionConfig.branchDescription', "Base branch to work from"),
-				enum: [branchForMode],
-				enumLabels: [branchForMode],
-				default: branchForMode,
+				enum: [branchDefault],
+				enumLabels: [branchDefault],
+				default: branchDefault,
 				enumDynamic: !branchReadOnly,
 				readOnly: branchReadOnly,
-			};
+			});
 		}
 
+		const sessionSchema = createSchema({
+			[SessionConfigKey.Isolation]: isolationProperty,
+			...platformSessionSchema.definition,
+			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
+		});
+
+		const values = sessionSchema.validateOrDefault(params.config, {
+			[SessionConfigKey.Isolation]: isolationValue,
+			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
+			// Permissions intentionally omitted — leave unset so auto-approval
+			// falls through to the host-level `permissions` default, and only
+			// materializes on the session once the user hits "Allow in this
+			// Session".
+			...(branchDefault !== undefined ? { [SessionConfigKey.Branch]: branchDefault } : {}),
+		});
+
 		return {
-			schema: { type: 'object', properties },
+			schema: sessionSchema.toProtocol(),
 			values,
 		};
 	}
@@ -685,9 +647,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
+		const sessionId = AgentSession.id(session);
 		const activeClient = this._getOrCreateActiveClient(session);
+		const hasCachedEntry = this._sessions.has(sessionId);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
 		activeClient.updateTools(clientId, tools);
-		this._logService.info(`[Copilot:${AgentSession.id(session)}] Client tools updated: ${tools.map(t => t.name).join(', ') || '(none)'}`);
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
@@ -707,12 +671,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// dispose this session so it gets resumed with the updated config.
 			let entry = this._sessions.get(sessionId);
 			const activeClient = this._activeClients.get(session);
+			const hadCachedEntry = !!entry;
+			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			if (entry && activeClient && await activeClient.isOutdated(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${sessionId}] Session config changed, refreshing session`);
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (isOutdated=true), refreshing session. snapshotClientId=${entry.appliedSnapshot.clientId}`);
 				this._sessions.deleteAndDispose(sessionId);
 				entry = undefined;
 			}
 
+			if (!entry) {
+				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by isOutdated)' : ''}, calling _resumeSession`);
+			}
 			entry ??= await this._resumeSession(sessionId);
 
 			// Emit any pending first-turn announcements (e.g. worktree
@@ -729,7 +698,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._onDidSessionProgress.fire(event);
 			}
 
-			await entry.send(prompt, attachments, turnId);
+			try {
+				await entry.send(prompt, attachments, turnId);
+			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.error(`[Copilot:${sessionId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
+				throw err;
+			}
 		});
 	}
 
@@ -751,7 +727,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// No SDK-level enqueue is needed.
 	}
 
-	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
+	async getSessionMessages(session: URI): Promise<SessionHistoryEvent[]> {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
@@ -946,7 +922,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
-		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
+		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -968,20 +944,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
 			try {
+				this._logService.info(`[Copilot:${sessionId}] Calling SDK resumeSession...`);
 				const raw = await client.resumeSession(sessionId, {
 					...config,
 					workingDirectory: workingDirectory?.fsPath,
 				});
+				this._logService.info(`[Copilot:${sessionId}] SDK resumeSession succeeded`);
 				return new CopilotSessionWrapper(raw);
 			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.warn(`[Copilot:${sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
 				// The SDK fails to resume sessions that have no messages.
 				// Fall back to creating a new session with the same ID,
 				// seeding model & working directory from stored metadata.
-				if (!err || (err as { code?: number }).code !== -32603) {
+				if (!err || errCode !== -32603) {
 					throw err;
 				}
 
-				this._logService.warn(`[Copilot:${sessionId}] Resume failed (session not found in SDK), recreating`);
+				this._logService.warn(`[Copilot:${sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
 				const raw = await client.createSession({
 					...config,
 					sessionId,
@@ -990,6 +971,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					reasoningEffort: this._getReasoningEffort(storedMetadata.model),
 					workingDirectory: workingDirectory?.fsPath,
 				});
+				this._logService.info(`[Copilot:${sessionId}] Fallback createSession succeeded`);
 
 				return new CopilotSessionWrapper(raw);
 			}
@@ -1026,12 +1008,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchNameHintRaw = config.config[AgentHostSessionConfigBranchNameHintKey];
+		const branchNameHintRaw = config.config[SessionConfigKey.BranchNameHint];
 		const branchNameHint = typeof branchNameHintRaw === 'string' ? branchNameHintRaw : undefined;
 		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-		const baseBranch = typeof config.config.branch === 'string' ? config.config.branch : undefined;
+		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
 		// `addWorktree`'s signature requires a startPoint, but historically the
 		// runtime accepted undefined when `branch` was not set in config. Preserve
 		// that behavior by passing through whatever value (or undefined) was set.
@@ -1042,7 +1024,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		try {
-			await this._writeWorktreeBranchMetadata(sessionUri, branchName);
+			await this._writeWorktreeBranchMetadata(sessionUri, branchName, baseBranch);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to persist worktree branch metadata: ${error instanceof Error ? error.message : String(error)}`);
 		}
@@ -1072,10 +1054,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
 	private static readonly _META_WORKTREE_BRANCH = 'copilot.worktree.branchName';
 
-	private async _writeWorktreeBranchMetadata(session: URI, branchName: string): Promise<void> {
+	private async _writeWorktreeBranchMetadata(session: URI, branchName: string, baseBranch: string | undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			await dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName);
+			const work: Promise<void>[] = [dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName)];
+			if (baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			}
+			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
 		}

@@ -15,8 +15,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type INotification, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isSessionAction, type ActionEnvelope, type INotification, type RootAction, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -50,6 +50,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -61,7 +62,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 	override readonly onAgentHostExit = Event.None;
-	override readonly onAgentHostStart = Event.None;
+	private readonly _onAgentHostStart = new Emitter<void>();
+	override readonly onAgentHostStart = this._onAgentHostStart.event;
+
+	fireAgentHostStart(): void {
+		this._onAgentHostStart.fire();
+	}
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -77,6 +83,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public disposedSessions: URI[] = [];
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+
+	/**
+	 * If set, the next {@link createSession} call seeds the session summary's
+	 * `workingDirectory` to this URI instead of echoing back
+	 * `config.workingDirectory`. Used to simulate the server resolving the
+	 * working directory to a worktree path that differs from the requested
+	 * directory.
+	 */
+	public nextResolvedWorkingDirectory?: URI;
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
@@ -99,6 +114,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				workingDirectory: (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state: SessionState = {
 				...createSessionState(summary),
@@ -107,6 +123,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			};
 			this.sessionStates.set(session.toString(), state);
 		}
+		this.nextResolvedWorkingDirectory = undefined;
 		return session;
 	}
 
@@ -116,7 +133,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
-	public dispatchedActions: { action: SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: RootAction | SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
 	 *  (excludes lifecycle actions like activeClientChanged). */
@@ -156,7 +173,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	unsubscribe(_resource: URI): void { }
-	dispatchAction(action: SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 	private _nextSeq = 1;
@@ -249,7 +266,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			onDidApplyAction: Event.None,
 		} satisfies IAgentSubscription<T>;
 	}
-	override dispatch(action: SessionAction | TerminalAction): void {
+	override dispatch(action: RootAction | SessionAction | TerminalAction): void {
 		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
@@ -383,8 +400,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	return { instantiationService, agentHostService, chatAgentService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService> }) {
-	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, undefined, opts?.authServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined } }) {
+	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -637,6 +654,93 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 
 			assert.strictEqual(listController.items.length, 0);
+		});
+
+		test('refresh marks archived sessions as archived items', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'archived'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Archived session',
+				isArchived: true,
+			});
+
+			await listController.refresh(CancellationToken.None);
+
+			assert.strictEqual(listController.items.length, 1);
+			assert.strictEqual(listController.items[0].archived, true);
+		});
+
+		test('refresh skips listSessions RPC after first successful call', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'My session' });
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => { listCalls++; return originalListSessions(); };
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 1);
+			assert.strictEqual(listController.items.length, 1);
+
+			// Subsequent refresh should not re-fetch — the cache is kept in
+			// sync via notify/sessionAdded etc.
+			await listController.refresh(CancellationToken.None);
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 1);
+			assert.strictEqual(listController.items.length, 1);
+		});
+
+		test('refresh retries listSessions if the first call failed', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				if (listCalls === 1) {
+					throw new Error('fail');
+				}
+				return originalListSessions();
+			};
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'My session' });
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 1);
+			assert.strictEqual(listController.items.length, 0);
+
+			// Failure must not mark the cache valid; the next refresh retries.
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 2);
+			assert.strictEqual(listController.items.length, 1);
+		});
+
+		test('agent host restart invalidates cache so next refresh re-fetches', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'Before restart' });
+
+			let listCalls = 0;
+			const originalListSessions = agentHostService.listSessions.bind(agentHostService);
+			agentHostService.listSessions = async () => { listCalls++; return originalListSessions(); };
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 1);
+
+			// Subsequent refresh uses cache — no new RPC.
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 1);
+
+			// Directly resetting the cache (as onAgentHostStart does) must cause
+			// the next refresh to re-fetch.
+			listController.resetCache();
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listCalls, 2);
 		});
 	});
 
@@ -1613,7 +1717,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
-				{ type: 'file', path: URI.file('/workspace/test.ts').fsPath, displayName: 'test.ts' },
+				{ type: 'file', uri: URI.file('/workspace/test.ts').toString(), displayName: 'test.ts' },
 			]);
 		}));
 
@@ -1634,7 +1738,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
-				{ type: 'directory', path: URI.file('/workspace/src').fsPath, displayName: 'src' },
+				{ type: 'directory', uri: URI.file('/workspace/src').toString(), displayName: 'src' },
 			]);
 		}));
 
@@ -1655,18 +1759,19 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
-				{ type: 'selection', path: URI.file('/workspace/foo.ts').fsPath, displayName: 'selection' },
+				{ type: 'selection', uri: URI.file('/workspace/foo.ts').toString(), displayName: 'selection' },
 			]);
 		}));
 
-		test('non-file URIs are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('non-file URI variables are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const uri = URI.from({ scheme: 'untitled', path: '/foo' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'check this',
 				variables: {
 					variables: [
-						upcastPartial({ kind: 'file', id: 'v-file', name: 'untitled', value: URI.from({ scheme: 'untitled', path: '/foo' }) }),
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'untitled', value: uri }),
 					],
 				},
 			});
@@ -1675,7 +1780,6 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			// No attachments because it's not a file:// URI
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		}));
 
@@ -1718,8 +1822,8 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
-				{ type: 'file', path: URI.file('/workspace/a.ts').fsPath, displayName: 'a.ts' },
-				{ type: 'directory', path: URI.file('/workspace/lib').fsPath, displayName: 'lib' },
+				{ type: 'file', uri: URI.file('/workspace/a.ts').toString(), displayName: 'a.ts' },
+				{ type: 'directory', uri: URI.file('/workspace/lib').toString(), displayName: 'lib' },
 			]);
 		}));
 
@@ -1735,6 +1839,94 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
+		}));
+
+		// ---- Working-directory rebasing -----------------------------------
+		// On the first turn of a worktree-isolated session, the workbench
+		// resolves attachments under the original workspace folder, but the
+		// agent server has resolved its working directory to a freshly
+		// created worktree path. The handler rebases attachment URIs so the
+		// agent receives URIs under its own working directory.
+
+		test('rebases file/directory/selection attachments under requested working dir onto resolved working dir', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const requestedDir = URI.file('/source');
+			const resolvedDir = URI.file('/worktree');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => requestedDir },
+			});
+			agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'rebase me',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/source/a.ts') }),
+						upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: URI.file('/source/lib') }),
+						upcastPartial({ kind: 'implicit', id: 'v-implicit', name: 'selection', isFile: true as const, isSelection: true, uri: URI.file('/source/sub/foo.ts'), enabled: true, value: undefined }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+				{ type: 'file', uri: URI.file('/worktree/a.ts').toString(), displayName: 'a.ts' },
+				{ type: 'directory', uri: URI.file('/worktree/lib').toString(), displayName: 'lib' },
+				{ type: 'selection', uri: URI.file('/worktree/sub/foo.ts').toString(), displayName: 'selection' },
+			]);
+		}));
+
+		test('does not rebase when requested and resolved working dirs match', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const dir = URI.file('/source');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => dir },
+			});
+			agentHostService.nextResolvedWorkingDirectory = dir;
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'no rebase',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/source/a.ts') }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+				{ type: 'file', uri: URI.file('/source/a.ts').toString(), displayName: 'a.ts' },
+			]);
+		}));
+
+		test('attachments outside the requested working dir pass through unchanged', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const requestedDir = URI.file('/source');
+			const resolvedDir = URI.file('/worktree');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => requestedDir },
+			});
+			agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'outside',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'elsewhere.ts', value: URI.file('/elsewhere/elsewhere.ts') }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
+				{ type: 'file', uri: URI.file('/elsewhere/elsewhere.ts').toString(), displayName: 'elsewhere.ts' },
+			]);
 		}));
 	});
 
@@ -1839,7 +2031,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [AgentHostSessionConfigBranchNameHintKey]: 'add-agent-host-session-configuration-flow' });
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [SessionConfigKey.BranchNameHint]: 'add-agent-host-session-configuration-flow' });
 		}));
 
 		test('handler derives deterministic branch name hints from first request text', () => {
@@ -1934,6 +2126,28 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(controller.items.length, 1);
 			assert.strictEqual(controller.items[0].description, undefined);
+		});
+
+		test('list controller surfaces only working directory in metadata (git state is now per-session state, not summary)', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const workingDirectory = URI.file('/repo/work');
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'sess-git'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'With git',
+				workingDirectory,
+			});
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.deepStrictEqual(controller.items[0].metadata, {
+				workingDirectoryPath: workingDirectory.fsPath,
+			});
 		});
 
 		test('handler works with any IAgentConnection, not just IAgentHostService', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

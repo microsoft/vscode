@@ -9,10 +9,11 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
+import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../common/changes.js';
 import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import './changesViewActions.js';
 import './checksActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -26,7 +27,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	title: localize2('changes', 'Changes'),
 	icon: changesViewIcon,
 	order: 10,
-	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer, [CHANGES_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	storageId: CHANGES_VIEW_CONTAINER_ID,
 	hideIfEmpty: false,
 	openCommandActionDescriptor: {
@@ -40,7 +41,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 		},
 		order: 1,
 	},
-	windowVisibility: WindowVisibility.Sessions
+	windowEnablement: WindowEnablement.Sessions
 }, ViewContainerLocation.AuxiliaryBar);
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -54,7 +55,8 @@ viewsRegistry.registerViews([{
 	canMoveView: false,
 	weight: 100,
 	order: 1,
-	windowVisibility: WindowVisibility.Sessions,
+	when: IsPhoneLayoutContext.negate(),
+	windowEnablement: WindowEnablement.Sessions,
 }], changesViewContainer);
 
 registerWorkbenchContribution2(ChangesTitleBarContribution.ID, ChangesTitleBarContribution, WorkbenchPhase.AfterRestored);

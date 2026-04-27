@@ -282,10 +282,18 @@ export const enum SessionLifecycle {
  * @category Session State
  */
 export const enum SessionStatus {
+	/** Session is idle — no turn is active. */
 	Idle = 1,
+	/** Session ended with an error. */
 	Error = 1 << 1,
+	/** A turn is actively streaming. */
 	InProgress = 1 << 3,
+	/** A turn is in progress but blocked waiting for user input or tool confirmation. */
 	InputNeeded = (1 << 3) | (1 << 4),
+	/** The client has viewed this session since its last modification. */
+	IsRead = 1 << 5,
+	/** The session has been archived by the client. */
+	IsArchived = 1 << 6,
 }
 
 /**
@@ -323,6 +331,14 @@ export interface SessionState {
 	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
 	 */
 	customizations?: SessionCustomization[];
+	/**
+	 * Additional provider-specific metadata for this session.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `git` key may provide extra git metadata about the session's
+	 * workingDirectory.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -368,6 +384,8 @@ export interface SessionSummary {
 	title: string;
 	/** Current session status */
 	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
 	/** Creation timestamp */
 	createdAt: number;
 	/** Last modification timestamp */
@@ -378,10 +396,6 @@ export interface SessionSummary {
 	model?: ModelSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
-	/** Whether the client has viewed this session since its last modification */
-	isRead?: boolean;
-	/** Whether the session has been marked as done by the client */
-	isDone?: boolean;
 	/** Files changed during this session with diff statistics */
 	diffs?: FileEdit[];
 }
@@ -581,11 +595,20 @@ export interface SessionInputTextQuestion extends SessionInputQuestionBase {
 /** Numeric question within a session input request. */
 export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
-	/** Minimum value */
+	/**
+	 * Minimum value
+	 * @format float
+	 */
 	min?: number;
-	/** Maximum value */
+	/**
+	 * Maximum value
+	 * @format float
+	 */
 	max?: number;
-	/** Default numeric value */
+	/**
+	 * Default numeric value
+	 * @format float
+	 */
 	defaultValue?: number;
 }
 
@@ -676,6 +699,7 @@ export interface SessionInputTextAnswerValue {
 
 export interface SessionInputNumberAnswerValue {
 	kind: SessionInputAnswerValueKind.Number;
+	/** @format float */
 	value: number;
 }
 
@@ -821,8 +845,8 @@ export interface UserMessage {
 export interface MessageAttachment {
 	/** Attachment type */
 	type: AttachmentType;
-	/** File/directory path */
-	path: string;
+	/** File/directory URI */
+	uri: URI;
 	/** Display name */
 	displayName?: string;
 }
@@ -1450,6 +1474,11 @@ export interface SessionCustomization {
 	customization: CustomizationRef;
 	/** Whether this customization is currently enabled */
 	enabled: boolean;
+	/**
+	 * The `clientId` of the client that contributed this customization.
+	 * Absent for server-provided customizations.
+	 */
+	clientId?: string;
 	/** Server-reported loading status */
 	status?: CustomizationStatus;
 	/**

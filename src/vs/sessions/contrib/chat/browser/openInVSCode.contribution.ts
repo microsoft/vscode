@@ -16,10 +16,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
-import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { isWorkspaceAgentSessionType } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { resolveRemoteAuthority } from './openInVSCodeUtils.js';
@@ -41,8 +41,8 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+				order: 7,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -76,7 +76,7 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		const workspace = activeSession.workspace.get();
 		const repo = workspace?.repositories[0];
-		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? repo?.workingDirectory ?? repo?.uri : undefined;
 
 		if (!rawFolderUri) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });

@@ -79,6 +79,7 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-sonnet-4.6' },
 			{ family: 'claude-opus-4.5' },
 			{ family: 'claude-opus-4.6' },
+			{ family: 'claude-opus-4.7' },
 		],
 	},
 	ToolSearchTool,

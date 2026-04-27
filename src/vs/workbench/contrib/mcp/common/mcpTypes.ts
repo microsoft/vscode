@@ -81,9 +81,10 @@ export interface McpCollectionDefinition {
 
 	readonly source?: IWorkbenchMcpServer | ExtensionIdentifier;
 
+	/** Sort order of the collection. Lower values have higher priority. */
+	readonly order: number;
+
 	readonly presentation?: {
-		/** Sort order of the collection. */
-		readonly order?: number;
 		/** Place where this collection is configured, used in workspace trust prompts and "show config" */
 		readonly origin?: URI;
 	};
@@ -279,6 +280,7 @@ export const IMcpService = createDecorator<IMcpService>('IMcpService');
 export interface McpCollectionReference {
 	id: string;
 	label: string;
+	order: number;
 	presentation?: McpCollectionDefinition['presentation'];
 }
 

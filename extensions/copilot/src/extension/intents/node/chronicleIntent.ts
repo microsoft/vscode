@@ -49,7 +49,7 @@ export class ChronicleIntent implements IIntent {
 	readonly id = ChronicleIntent.ID;
 	readonly description = l10n.t('Session history tools and insights (standup, tips, improve)');
 	get locations(): ChatLocation[] {
-		return this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService) ? [ChatLocation.Panel] : [];
+		return this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService) ? [ChatLocation.Panel] : [];
 	}
 
 	readonly commandInfo: IIntentSlashCommandInfo = {
@@ -86,7 +86,7 @@ export class ChronicleIntent implements IIntent {
 		location: ChatLocation,
 		chatTelemetry: ChatTelemetryBuilder,
 	): Promise<vscode.ChatResult> {
-		if (!this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService)) {
+		if (!this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService)) {
 			stream.markdown(l10n.t('Session search is not available yet.'));
 			return {};
 		}
@@ -407,10 +407,10 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search.
 Always JOIN sessions with turns to get session content — do not rely on sessions.summary alone.`
 			: `Available tables (SQLite syntax — local):
-- **sessions**: id, cwd, repository, branch, summary, host_type, agent_name (who created the session, e.g. 'vscode', 'cli', 'CCA', 'CCR'), agent_description, created_at, updated_at
-- **turns**: session_id, turn_index, user_message, assistant_response, timestamp. The richest source of what actually happened — contains the user's prompts and the assistant's replies.
-- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used.
-- **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made.
+- **sessions**: id, cwd (workspace folder path), repository, branch, summary, host_type, agent_name, agent_description, created_at, updated_at. NOTE: agent_name and agent_description may be empty for older sessions. summary may contain raw JSON — prefer JOINing with turns.user_message for text search.
+- **turns**: session_id, turn_index, user_message, assistant_response (first ~1000 characters of the assistant reply, with an ellipsis if truncated — not the full response; may be empty for older sessions), timestamp. The richest source of what actually happened — always JOIN sessions with turns for meaningful results.
+- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used. May be empty for older sessions.
+- **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made. May be empty for older sessions.
 - **search_index**: FTS5 table. Use \`WHERE search_index MATCH 'query'\`
 
 Use \`datetime('now', '-1 day')\` for date math.

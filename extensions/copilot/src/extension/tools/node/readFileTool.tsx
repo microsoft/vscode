@@ -20,9 +20,9 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { getCachedSha256Hash } from '../../../util/common/crypto';
-import { hash } from '../../../util/vs/base/common/hash';
 import { clamp } from '../../../util/vs/base/common/numbers';
 import { dirname, extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
+import { sendSkillContentReadTelemetry } from '../common/skillTelemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelPromptTsxPart, LanguageModelToolResult, Location, MarkdownString, Range } from '../../../vscodeTypes';
@@ -374,37 +374,9 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 		// Send separate skillContentRead event only for successful skill file reads.
 		// Reuses extensionSkillInfo/skillInfo already computed above.
-		// TODO: Add pluginNameHash and pluginVersion properties once vscode core's
-		// extensionPromptFileProvider command exposes IAgentPluginService metadata.
 		if (skillInfo && documentSnapshot && uri && this.customInstructionsService.isSkillMdFile(uri)) {
 			const content = documentSnapshot instanceof TextDocumentSnapshot ? documentSnapshot.getText() : '';
-			const extensionId = extensionSkillInfo?.extensionId ?? '';
-			const extensionVersion = extensionId ? this.extensionsService.getExtension(extensionId)?.packageJSON?.version ?? '' : '';
-			const contentHash = content ? String(hash(content)) : '';
-
-			// Plaintext properties shared by enhanced GH and internal MSFT events
-			const plaintextProps = {
-				skillName: skillInfo.skillName,
-				skillPath: uri.toString(),
-				skillExtensionId: extensionId,
-				skillExtensionVersion: extensionVersion,
-				skillStorage: skillInfo.storage,
-				skillContentHash: contentHash,
-			};
-
-			this.telemetryService.sendGHTelemetryEvent('skillContentRead',
-				{
-					skillNameHash: String(hash(skillInfo.skillName)),
-					skillExtensionIdHash: extensionId ? String(hash(extensionId)) : '',
-					skillExtensionVersion: plaintextProps.skillExtensionVersion,
-					skillStorage: plaintextProps.skillStorage,
-					skillContentHash: contentHash,
-				}
-			);
-
-			this.telemetryService.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
-
-			this.telemetryService.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+			sendSkillContentReadTelemetry(this.telemetryService, this.customInstructionsService, this.extensionsService, uri, skillInfo, content);
 		}
 	}
 

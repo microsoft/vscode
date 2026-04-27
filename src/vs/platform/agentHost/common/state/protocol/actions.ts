@@ -51,9 +51,11 @@ export const enum ActionType {
 	SessionCustomizationToggled = 'session/customizationToggled',
 	SessionTruncated = 'session/truncated',
 	SessionIsReadChanged = 'session/isReadChanged',
-	SessionIsDoneChanged = 'session/isDoneChanged',
+	SessionIsArchivedChanged = 'session/isArchivedChanged',
+	SessionActivityChanged = 'session/activityChanged',
 	SessionDiffsChanged = 'session/diffsChanged',
 	SessionConfigChanged = 'session/configChanged',
+	SessionMetaChanged = 'session/metaChanged',
 	RootTerminalsChanged = 'root/terminalsChanged',
 	RootConfigChanged = 'root/configChanged',
 	TerminalData = 'terminal/data',
@@ -581,21 +583,38 @@ export interface SessionIsReadChangedAction {
 }
 
 /**
- * The done state of the session changed.
+ * The archived state of the session changed.
  *
- * Dispatched by a client to mark a session as done (e.g. the task is
- * complete) or to reopen it.
+ * Dispatched by a client to archive a session (e.g. the task is
+ * complete) or to unarchive it.
  *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
  */
-export interface SessionIsDoneChangedAction {
-	type: ActionType.SessionIsDoneChanged;
+export interface SessionIsArchivedChangedAction {
+	type: ActionType.SessionIsArchivedChanged;
 	/** Session URI */
 	session: URI;
-	/** Whether the session is done */
-	isDone: boolean;
+	/** Whether the session is archived */
+	isArchived: boolean;
+}
+
+/**
+ * The activity description of the session changed.
+ *
+ * Dispatched by the server to indicate what the session is currently doing
+ * (e.g. running a tool, thinking). Clear activity by setting it to `undefined`.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionActivityChangedAction {
+	type: ActionType.SessionActivityChanged;
+	/** Session URI */
+	session: URI;
+	/** Human-readable description of current activity, or `undefined` to clear */
+	activity: string | undefined;
 }
 
 /**
@@ -730,6 +749,22 @@ export interface SessionConfigChangedAction {
 	config: Record<string, unknown>;
 	/** When `true`, replaces all config values instead of merging */
 	replace?: boolean;
+}
+
+/**
+ * The session's `_meta` side-channel changed. Replaces `state._meta`
+ * entirely (full-replacement semantics). Producers SHOULD merge any
+ * keys they wish to preserve into the new value before dispatching.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionMetaChangedAction {
+	type: ActionType.SessionMetaChanged;
+	/** Session URI */
+	session: URI;
+	/** New `_meta` payload, or `undefined` to clear it */
+	_meta: Record<string, unknown> | undefined;
 }
 
 // ─── Truncation ──────────────────────────────────────────────────────────────
@@ -1142,9 +1177,11 @@ export type StateAction =
 	| SessionCustomizationToggledAction
 	| SessionTruncatedAction
 	| SessionIsReadChangedAction
-	| SessionIsDoneChangedAction
+	| SessionIsArchivedChangedAction
+	| SessionActivityChangedAction
 	| SessionDiffsChangedAction
 	| SessionConfigChangedAction
+	| SessionMetaChangedAction
 	| TerminalDataAction
 	| TerminalInputAction
 	| TerminalResizedAction
