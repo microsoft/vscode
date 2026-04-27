@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
+import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient, GitHubApiError } from '../../browser/githubApiClient.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, MergeBlockerKind } from '../../common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReview, IGitHubPullRequest, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient {
 
@@ -198,60 +198,50 @@ suite('GitHubPRFetcher', () => {
 		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { threadId: 'thread-a' });
 	});
 
-	test('getMergeability detects draft blocker', async () => {
-		// getMergeability makes two requests (PR then reviews)
-		// Use a counter to return different responses
-		let callCount = 0;
-		const originalRequest = mockApi.request.bind(mockApi);
-		mockApi.request = async function <T>(_method: string, _path: string, _body?: unknown): Promise<T> {
-			if (callCount++ === 0) {
-				return makePRResponse({ state: 'open', merged: false, draft: true, mergeable: true, mergeable_state: 'clean' }) as T;
-			}
-			return [] as unknown as T;
-		};
+	test('getReviews maps API response', async () => {
+		mockApi.setNextResponse([
+			{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
+			{ id: 2, user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
+		]);
 
-		const result = await fetcher.getMergeability('owner', 'repo', 1);
+		const reviews = await fetcher.getReviews('owner', 'repo', 1);
+		assert.deepStrictEqual(reviews, [
+			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
+		]);
+		assert.strictEqual(mockApi.requestCalls.length, 1);
+		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews');
+	});
+
+	test('computeMergeability detects draft blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: true, mergeable: true, mergeableState: 'clean' });
+		const result = computeMergeability(pr, []);
 		assert.strictEqual(result.canMerge, false);
 		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.Draft));
-
-		// Restore
-		mockApi.request = originalRequest;
 	});
 
-	test('getMergeability detects conflicts blocker', async () => {
-		let callCount = 0;
-		const originalRequest = mockApi.request.bind(mockApi);
-		mockApi.request = async function <T>(): Promise<T> {
-			if (callCount++ === 0) {
-				return makePRResponse({ state: 'open', merged: false, draft: false, mergeable: false, mergeable_state: 'dirty' }) as T;
-			}
-			return [] as unknown as T;
-		};
-
-		const result = await fetcher.getMergeability('owner', 'repo', 1);
+	test('computeMergeability detects conflicts blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: false, mergeableState: 'dirty' });
+		const result = computeMergeability(pr, []);
 		assert.strictEqual(result.canMerge, false);
 		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.Conflicts));
-
-		mockApi.request = originalRequest;
 	});
 
-	test('getMergeability detects changes requested blocker', async () => {
-		let callCount = 0;
-		const originalRequest = mockApi.request.bind(mockApi);
-		mockApi.request = async function <T>(): Promise<T> {
-			if (callCount++ === 0) {
-				return makePRResponse({ state: 'open', merged: false, draft: false, mergeable: true, mergeable_state: 'clean' }) as T;
-			}
-			return [
-				{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-01T00:00:00Z' },
-			] as unknown as T;
-		};
-
-		const result = await fetcher.getMergeability('owner', 'repo', 1);
+	test('computeMergeability detects changes requested blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
+		const reviews: IGitHubPullRequestReview[] = [
+			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+		];
+		const result = computeMergeability(pr, reviews);
 		assert.strictEqual(result.canMerge, false);
 		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.ChangesRequested));
+	});
 
-		mockApi.request = originalRequest;
+	test('computeMergeability returns canMerge for clean open PR', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
+		const result = computeMergeability(pr, []);
+		assert.strictEqual(result.canMerge, true);
+		assert.strictEqual(result.blockers.length, 0);
 	});
 });
 
@@ -362,6 +352,30 @@ suite('computeOverallCIStatus', () => {
 
 
 //#region Test Helpers
+
+function makePR(overrides: {
+	state: GitHubPullRequestState;
+	isDraft: boolean;
+	mergeable: boolean | undefined;
+	mergeableState: string;
+}): IGitHubPullRequest {
+	return {
+		number: 1,
+		title: 'Test PR',
+		body: 'Test body',
+		state: overrides.state,
+		author: { login: 'author', avatarUrl: '' },
+		headRef: 'feature',
+		headSha: 'abc123',
+		baseRef: 'main',
+		isDraft: overrides.isDraft,
+		createdAt: '2024-01-01T00:00:00Z',
+		updatedAt: '2024-01-02T00:00:00Z',
+		mergedAt: undefined,
+		mergeable: overrides.mergeable,
+		mergeableState: overrides.mergeableState,
+	};
+}
 
 function makePRResponse(overrides: {
 	state: 'open' | 'closed';

@@ -13,7 +13,7 @@ import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryMode
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPRReviewThread, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubRepository } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
 
 //#region Mock Fetchers
 
@@ -30,8 +30,8 @@ class MockRepositoryFetcher {
 
 class MockPRFetcher {
 	nextPR: IGitHubPullRequest | undefined;
-	nextMergeability: IGitHubPullRequestMergeability | undefined;
-	nextThreads: IGitHubPRReviewThread[] = [];
+	nextReviews: IGitHubPullRequestReview[] = [];
+	nextThreads: IGitHubPullRequestReviewThread[] = [];
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 
@@ -42,14 +42,11 @@ class MockPRFetcher {
 		return this.nextPR;
 	}
 
-	async getMergeability(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestMergeability> {
-		if (!this.nextMergeability) {
-			throw new Error('No mock mergeability');
-		}
-		return this.nextMergeability;
+	async getReviews(_owner: string, _repo: string, _prNumber: number): Promise<readonly IGitHubPullRequestReview[]> {
+		return this.nextReviews;
 	}
 
-	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPRReviewThread[]> {
+	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 		return this.nextThreads;
 	}
 
@@ -148,7 +145,7 @@ suite('GitHubPullRequestModel', () => {
 	test('refresh populates all observables', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		mockFetcher.nextPR = makePR();
-		mockFetcher.nextMergeability = { canMerge: true, blockers: [] };
+		mockFetcher.nextReviews = [];
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
 
 		await model.refresh();
@@ -280,7 +277,7 @@ function makePR(): IGitHubPullRequest {
 	};
 }
 
-function makeThread(id: string, path: string): IGitHubPRReviewThread {
+function makeThread(id: string, path: string): IGitHubPullRequestReviewThread {
 	return {
 		id,
 		isResolved: false,

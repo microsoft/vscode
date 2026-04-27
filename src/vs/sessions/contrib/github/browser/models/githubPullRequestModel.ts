@@ -5,10 +5,10 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPRReviewThread, IGitHubPullRequest, IGitHubPullRequestMergeability } from '../../common/types.js';
-import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
+import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
@@ -25,8 +25,8 @@ export class GitHubPullRequestModel extends Disposable {
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
-	private readonly _reviewThreads = observableValue<readonly IGitHubPRReviewThread[]>(this, []);
-	readonly reviewThreads: IObservable<readonly IGitHubPRReviewThread[]> = this._reviewThreads;
+	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
+	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
 
 	private readonly _pollScheduler: RunOnceScheduler;
 	private _disposed = false;
@@ -45,11 +45,12 @@ export class GitHubPullRequestModel extends Disposable {
 
 	/**
 	 * Refresh all PR data: pull request info, mergeability, and review threads.
+	 * The PR payload is fetched once and used to compute both `pullRequest` and
+	 * `mergeability`, avoiding duplicate `GET /pulls/:number` calls per cycle.
 	 */
 	async refresh(): Promise<void> {
 		await Promise.all([
-			this._refreshPullRequest(),
-			this._refreshMergeability(),
+			this._refreshPullRequestAndMergeability(),
 			this._refreshThreads(),
 		]);
 	}
@@ -108,26 +109,21 @@ export class GitHubPullRequestModel extends Disposable {
 		}
 	}
 
-	override dispose(): void {
-		this._disposed = true;
-		super.dispose();
-	}
-
-	private async _refreshPullRequest(): Promise<void> {
+	private async _refreshPullRequestAndMergeability(): Promise<void> {
 		try {
-			const data = await this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber);
-			this._pullRequest.set(data, undefined);
+			const [pr, reviews] = await Promise.all([
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber),
+			]);
+
+			const mergeability = computeMergeability(pr, reviews);
+
+			transaction(tx => {
+				this._pullRequest.set(pr, tx);
+				this._mergeability.set(mergeability, tx);
+			});
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
-		}
-	}
-
-	private async _refreshMergeability(): Promise<void> {
-		try {
-			const data = await this._fetcher.getMergeability(this.owner, this.repo, this.prNumber);
-			this._mergeability.set(data, undefined);
-		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh mergeability for PR #${this.prNumber}:`, err);
 		}
 	}
 
@@ -138,5 +134,10 @@ export class GitHubPullRequestModel extends Disposable {
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
 		}
+	}
+
+	override dispose(): void {
+		this._disposed = true;
+		super.dispose();
 	}
 }
