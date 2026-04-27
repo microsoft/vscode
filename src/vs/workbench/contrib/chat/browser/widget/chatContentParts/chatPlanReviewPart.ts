@@ -322,23 +322,27 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		this._buttonStore.add(approveButton.onDidClick(() => this.submitApproval(primary)));
 
-		// Provide Feedback button (grey secondary) — shown only when feedback
-		// is enabled and we are not in collapsed mode.
-		if (this.review.canProvideFeedback && includeReject) {
-			const feedbackButton = new Button(container, { ...defaultButtonStyles, secondary: true });
-			feedbackButton.label = localize('chat.planReview.provideFeedback', 'Provide Feedback');
-			this._buttonStore.add(feedbackButton);
-			this._buttonStore.add(feedbackButton.onDidClick(() => this.enterFeedbackMode()));
-		}
-
-		// Reject button (grey secondary) after the approve button — omitted in
-		// the collapsed title bar (parity with chatToolConfirmationCarouselPart
-		// which only surfaces the primary action when collapsed).
+		// Reject button (grey secondary) immediately after the approve button
+		// so the primary Approve / Reject pair stays grouped together —
+		// omitted in the collapsed title bar (parity with
+		// chatToolConfirmationCarouselPart which only surfaces the primary
+		// action when collapsed).
 		if (includeReject) {
 			const rejectButton = new Button(container, { ...defaultButtonStyles, secondary: true });
 			rejectButton.label = localize('chat.planReview.reject', 'Reject');
 			this._buttonStore.add(rejectButton);
 			this._buttonStore.add(rejectButton.onDidClick(() => this.submitRejection()));
+		}
+
+		// Provide Feedback button (grey secondary) — shown only when feedback
+		// is enabled and we are not in collapsed mode. Right-aligned via CSS
+		// so the primary Approve / Reject pair stays grouped on the left.
+		if (this.review.canProvideFeedback && includeReject) {
+			const feedbackButton = new Button(container, { ...defaultButtonStyles, secondary: true });
+			feedbackButton.element.classList.add('chat-plan-review-feedback-button');
+			feedbackButton.label = localize('chat.planReview.provideFeedback', 'Provide Feedback');
+			this._buttonStore.add(feedbackButton);
+			this._buttonStore.add(feedbackButton.onDidClick(() => this.enterFeedbackMode()));
 		}
 	}
 

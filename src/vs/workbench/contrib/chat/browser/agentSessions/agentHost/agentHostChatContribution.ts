@@ -152,6 +152,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentId = sessionType;
 		const vendor = sessionType;
 
+		// In the Agents app, the agent-host displayName is unambiguous because
+		// only agent-host sessions exist there. In VS Code, the same picker
+		// also lists the extension-host harness with the same displayName
+		// (e.g. "Copilot CLI"), so suffix with "- Agent Host" to disambiguate.
+		const displayName = this._isSessionsWindow
+			? agent.displayName
+			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
+
 		// Chat session contribution.
 		// In the Agents app, hide the delegation picker for local agent host
 		// sessions (matches behavior of remote agent host sessions). In VS Code,
@@ -159,7 +167,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
-			displayName: agent.displayName,
+			displayName,
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,

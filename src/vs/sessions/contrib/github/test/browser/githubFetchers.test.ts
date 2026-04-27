@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
+import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient, GitHubApiError } from '../../browser/githubApiClient.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, MergeBlockerKind } from '../../common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReview, IGitHubPullRequest, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient {
 
@@ -122,56 +122,52 @@ suite('GitHubPRFetcher', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getPullRequest maps open PR', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({ state: 'OPEN', isDraft: false }));
+		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.pullRequest.state, GitHubPullRequestState.Open);
-		assert.strictEqual(result.pullRequest.isDraft, false);
-		assert.strictEqual(result.pullRequest.number, 1);
-		assert.strictEqual(result.pullRequest.title, 'Test PR');
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.state, GitHubPullRequestState.Open);
+		assert.strictEqual(pr.isDraft, false);
+		assert.strictEqual(pr.number, 1);
+		assert.strictEqual(pr.title, 'Test PR');
 	});
 
 	test('getPullRequest maps merged PR', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({ state: 'MERGED', mergedAt: '2024-01-02T00:00:00Z' }));
+		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: true, draft: false }));
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.pullRequest.state, GitHubPullRequestState.Merged);
-		assert.ok(result.pullRequest.mergedAt);
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.state, GitHubPullRequestState.Merged);
+		assert.ok(pr.mergedAt);
 	});
 
 	test('getPullRequest maps closed PR', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({ state: 'CLOSED' }));
+		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.pullRequest.state, GitHubPullRequestState.Closed);
+		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
+		assert.strictEqual(pr.state, GitHubPullRequestState.Closed);
 	});
 
-	test('getPullRequest returns review threads', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({
-			state: 'OPEN',
-			reviewThreads: [
-				makeGraphQLReviewThread({
-					id: 'thread-a',
-					path: 'src/a.ts',
-					line: 10,
-					isResolved: false,
-					comments: [
-						makeGraphQLReviewComment({ databaseId: 100, path: 'src/a.ts', line: 10 }),
-						makeGraphQLReviewComment({ databaseId: 101, path: 'src/a.ts', line: 10, replyToDatabaseId: 100 }),
-					],
-				}),
-				makeGraphQLReviewThread({
-					id: 'thread-b',
-					path: 'src/b.ts',
-					line: 20,
-					isResolved: true,
-					comments: [makeGraphQLReviewComment({ databaseId: 200, path: 'src/b.ts', line: 20 })],
-				}),
-			],
-		}));
+	test('getReviewThreads returns GraphQL thread metadata', async () => {
+		mockApi.setNextResponse(makeGraphQLReviewThreadsResponse([
+			makeGraphQLReviewThread({
+				id: 'thread-a',
+				path: 'src/a.ts',
+				line: 10,
+				isResolved: false,
+				comments: [
+					makeGraphQLReviewComment({ databaseId: 100, path: 'src/a.ts', line: 10 }),
+					makeGraphQLReviewComment({ databaseId: 101, path: 'src/a.ts', line: 10, replyToDatabaseId: 100 }),
+				],
+			}),
+			makeGraphQLReviewThread({
+				id: 'thread-b',
+				path: 'src/b.ts',
+				line: 20,
+				isResolved: true,
+				comments: [makeGraphQLReviewComment({ databaseId: 200, path: 'src/b.ts', line: 20 })],
+			}),
+		]));
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		const threads = result.reviewThreads;
+		const threads = await fetcher.getReviewThreads('owner', 'repo', 1);
 		assert.strictEqual(threads.length, 2);
 
 		const thread1 = threads.find(t => t.id === 'thread-a')!;
@@ -202,41 +198,50 @@ suite('GitHubPRFetcher', () => {
 		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { threadId: 'thread-a' });
 	});
 
-	test('getPullRequest detects draft blocker', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({ state: 'OPEN', isDraft: true, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN' }));
+	test('getReviews maps API response', async () => {
+		mockApi.setNextResponse([
+			{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
+			{ id: 2, user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
+		]);
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.mergeability.canMerge, false);
-		assert.ok(result.mergeability.blockers.some(b => b.kind === MergeBlockerKind.Draft));
+		const reviews = await fetcher.getReviews('owner', 'repo', 1);
+		assert.deepStrictEqual(reviews, [
+			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
+		]);
+		assert.strictEqual(mockApi.requestCalls.length, 1);
+		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews');
 	});
 
-	test('getPullRequest detects conflicts blocker', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({
-			state: 'OPEN',
-			isDraft: false,
-			mergeable: 'CONFLICTING',
-			mergeStateStatus: 'DIRTY'
-		}));
-
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.mergeability.canMerge, false);
-		assert.ok(result.mergeability.blockers.some(b => b.kind === MergeBlockerKind.Conflicts));
+	test('computeMergeability detects draft blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: true, mergeable: true, mergeableState: 'clean' });
+		const result = computeMergeability(pr, []);
+		assert.strictEqual(result.canMerge, false);
+		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.Draft));
 	});
 
-	test('getPullRequest detects changes requested blocker', async () => {
-		mockApi.setNextResponse(makeGraphQLPRResponse({
-			state: 'OPEN',
-			isDraft: false,
-			mergeable: 'MERGEABLE',
-			mergeStateStatus: 'CLEAN',
-			reviews: [
-				{ state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z', author: { login: 'reviewer' } },
-			],
-		}));
+	test('computeMergeability detects conflicts blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: false, mergeableState: 'dirty' });
+		const result = computeMergeability(pr, []);
+		assert.strictEqual(result.canMerge, false);
+		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.Conflicts));
+	});
 
-		const result = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(result.mergeability.canMerge, false);
-		assert.ok(result.mergeability.blockers.some(b => b.kind === MergeBlockerKind.ChangesRequested));
+	test('computeMergeability detects changes requested blocker', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
+		const reviews: IGitHubPullRequestReview[] = [
+			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+		];
+		const result = computeMergeability(pr, reviews);
+		assert.strictEqual(result.canMerge, false);
+		assert.ok(result.blockers.some(b => b.kind === MergeBlockerKind.ChangesRequested));
+	});
+
+	test('computeMergeability returns canMerge for clean open PR', () => {
+		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
+		const result = computeMergeability(pr, []);
+		assert.strictEqual(result.canMerge, true);
+		assert.strictEqual(result.blockers.length, 0);
 	});
 });
 
@@ -348,37 +353,61 @@ suite('computeOverallCIStatus', () => {
 
 //#region Test Helpers
 
-function makeGraphQLPRResponse(overrides: {
-	state?: 'OPEN' | 'CLOSED' | 'MERGED';
-	isDraft?: boolean;
-	mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-	mergeStateStatus?: string;
-	mergedAt?: string | null;
-	reviews?: readonly { state: string; submittedAt: string | null; author: { login: string } | null }[];
-	reviewThreads?: readonly ReturnType<typeof makeGraphQLReviewThread>[];
-} = {}): unknown {
+function makePR(overrides: {
+	state: GitHubPullRequestState;
+	isDraft: boolean;
+	mergeable: boolean | undefined;
+	mergeableState: string;
+}): IGitHubPullRequest {
+	return {
+		number: 1,
+		title: 'Test PR',
+		body: 'Test body',
+		state: overrides.state,
+		author: { login: 'author', avatarUrl: '' },
+		headRef: 'feature',
+		headSha: 'abc123',
+		baseRef: 'main',
+		isDraft: overrides.isDraft,
+		createdAt: '2024-01-01T00:00:00Z',
+		updatedAt: '2024-01-02T00:00:00Z',
+		mergedAt: undefined,
+		mergeable: overrides.mergeable,
+		mergeableState: overrides.mergeableState,
+	};
+}
+
+function makePRResponse(overrides: {
+	state: 'open' | 'closed';
+	merged: boolean;
+	draft: boolean;
+	mergeable?: boolean | null;
+	mergeable_state?: string;
+}): unknown {
+	return {
+		number: 1,
+		title: 'Test PR',
+		body: 'Test body',
+		state: overrides.state,
+		draft: overrides.draft,
+		user: { login: 'author', avatar_url: 'https://example.com/avatar' },
+		head: { ref: 'feature-branch' },
+		base: { ref: 'main' },
+		created_at: '2024-01-01T00:00:00Z',
+		updated_at: '2024-01-02T00:00:00Z',
+		merged_at: overrides.merged ? '2024-01-02T00:00:00Z' : null,
+		mergeable: overrides.mergeable ?? true,
+		mergeable_state: overrides.mergeable_state ?? 'clean',
+		merged: overrides.merged,
+	};
+}
+
+function makeGraphQLReviewThreadsResponse(threads: readonly ReturnType<typeof makeGraphQLReviewThread>[]): unknown {
 	return {
 		repository: {
 			pullRequest: {
-				number: 1,
-				title: 'Test PR',
-				body: 'Test body',
-				state: overrides.state ?? 'OPEN',
-				isDraft: overrides.isDraft ?? false,
-				author: { login: 'author', avatarUrl: 'https://example.com/avatar' },
-				headRefName: 'feature-branch',
-				headRefOid: 'abc123',
-				baseRefName: 'main',
-				createdAt: '2024-01-01T00:00:00Z',
-				updatedAt: '2024-01-02T00:00:00Z',
-				mergedAt: overrides.mergedAt ?? null,
-				mergeable: overrides.mergeable ?? 'MERGEABLE',
-				mergeStateStatus: overrides.mergeStateStatus ?? 'CLEAN',
-				reviews: {
-					nodes: overrides.reviews ?? [],
-				},
 				reviewThreads: {
-					nodes: overrides.reviewThreads ?? [],
+					nodes: threads,
 				},
 			},
 		},

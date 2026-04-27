@@ -31,7 +31,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationStatus, CustomizationRef, SessionInputResponseKind, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
-import { IAgentHostGitService } from '../agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { CopilotAgentSession, SessionWrapperFactory, type IActiveClientSnapshot } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -1024,7 +1024,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		try {
-			await this._writeWorktreeBranchMetadata(sessionUri, branchName);
+			await this._writeWorktreeBranchMetadata(sessionUri, branchName, baseBranch);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to persist worktree branch metadata: ${error instanceof Error ? error.message : String(error)}`);
 		}
@@ -1054,10 +1054,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
 	private static readonly _META_WORKTREE_BRANCH = 'copilot.worktree.branchName';
 
-	private async _writeWorktreeBranchMetadata(session: URI, branchName: string): Promise<void> {
+	private async _writeWorktreeBranchMetadata(session: URI, branchName: string, baseBranch: string | undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			await dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName);
+			const work: Promise<void>[] = [dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName)];
+			if (baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			}
+			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
 		}

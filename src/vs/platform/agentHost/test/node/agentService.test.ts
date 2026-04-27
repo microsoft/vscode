@@ -291,6 +291,8 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktree: async () => { },
 				removeWorktree: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
+				computeSessionFileDiffs: async () => undefined,
+				showBlob: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -328,6 +330,8 @@ suite('AgentService (node dispatcher)', () => {
 				addWorktree: async () => { },
 				removeWorktree: async () => { },
 				getSessionGitState: async () => undefined,
+				computeSessionFileDiffs: async () => undefined,
+				showBlob: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');

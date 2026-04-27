@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ISSHRemoteAgentHostService = createDecorator<ISSHRemoteAgentHostService>('sshRemoteAgentHostService');
@@ -107,6 +108,20 @@ export interface ISSHRemoteAgentHostService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
+	/**
+	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
+	 * missing) and return its URI. The parent `~/.ssh` directory is created
+	 * with mode 0700 and the config file with mode 0600 on POSIX systems.
+	 */
+	ensureUserSSHConfig(): Promise<URI>;
+
+	/**
+	 * List the known SSH configuration file URIs in priority order — typically the
+	 * per-user `~/.ssh/config` (always returned, even if it does not yet exist) and
+	 * the system-wide `/etc/ssh/ssh_config` (only when present on disk).
+	 */
+	listSSHConfigFiles(): Promise<URI[]>;
+
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
@@ -201,6 +216,15 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
+
+	/**
+	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
+	 * missing) and return its URI.
+	 */
+	ensureUserSSHConfig(): Promise<URI>;
+
+	/** List the known SSH configuration file URIs (user config always included). */
+	listSSHConfigFiles(): Promise<URI[]>;
 
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
