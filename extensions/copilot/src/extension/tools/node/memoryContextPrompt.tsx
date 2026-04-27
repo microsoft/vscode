@@ -225,9 +225,13 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
  * Prompt component that provides comprehensive instructions for using the memory tool.
  * Covers all three memory tiers: user, session, and repository.
  */
-export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementProps> {
+export interface MemoryInstructionsPromptProps extends BasePromptElementProps {
+	readonly sessionResource?: string;
+}
+
+export class MemoryInstructionsPrompt extends PromptElement<MemoryInstructionsPromptProps> {
 	constructor(
-		props: PromptElementProps<BasePromptElementProps>,
+		props: PromptElementProps<MemoryInstructionsPromptProps>,
 		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
@@ -242,8 +246,9 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 			return null;
 		}
 
+		const sessionId = this.props.sessionResource ? extractSessionId(this.props.sessionResource) : undefined;
 		const storeInstructionsPrompt = enableCopilotMemory
-			? this.agentMemoryService.getCachedMemoryPrompt()?.storeInstructions?.prompt
+			? this.agentMemoryService.getCachedMemoryPrompt(sessionId)?.storeInstructions?.prompt
 			: undefined;
 
 		return <Tag name='memoryInstructions'>

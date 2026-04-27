@@ -106,6 +106,8 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const SafetyRules = customizations.SafetyRulesClass;
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
+		// TODO:@bhavyau find a better way to extract session resource
+		const sessionResourceStr = (this.props.promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -114,7 +116,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 			</SystemMessage>
 			{instructions}
 			<SystemMessage>
-				<MemoryInstructionsPrompt />
+				<MemoryInstructionsPrompt sessionResource={sessionResourceStr} />
 			</SystemMessage>
 		</>;
 		const isAutopilot = this.props.promptContext.request?.permissionLevel === 'autopilot';
