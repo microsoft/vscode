@@ -49,6 +49,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
+	private readonly _statusBarElement: HTMLElement[] = [];
 
 	private _isDisposed: boolean = false;
 	private _hoverPosition: HoverPosition;
@@ -222,6 +223,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);
+			this._statusBarElement.push(statusBarElement);
 		}
 
 		this._hoverContainer = $('div.workbench-hover-container');
@@ -254,6 +256,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');
 			statusBarElement.appendChild(infoElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);
+			this._statusBarElement.push(statusBarElement);
 		}
 
 		const mouseTrackerTargets = [...this._target.targetElements];
@@ -342,6 +345,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	public layout() {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
+		this._hover.scrollbar.getDomNode().style.maxHeight = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
@@ -585,6 +589,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		const statusBarHeight = this._statusBarElement.reduce((total, el) => total + el.offsetHeight, 0);
+		const scrollableMaxHeight = Math.max(0, maxHeight - statusBarHeight);
+		this._hover.scrollbar.getDomNode().style.maxHeight = `${scrollableMaxHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${scrollableMaxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
