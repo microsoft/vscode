@@ -9,7 +9,6 @@ import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -35,7 +34,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, isMacintosh } from '../../../../base/common/platform.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -45,11 +44,6 @@ import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextke
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { resetSessionsWelcome } from '../../welcome/browser/welcome.contribution.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -158,22 +152,6 @@ async function runSessionsUpdateAction(
 	}
 }
 
-export async function showSessionsWelcomeAfterSignOut(
-	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
-	resetWelcome: () => void,
-): Promise<void> {
-	const waitForUnknownEntitlement = Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
-	try {
-		if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
-			await waitForUnknownEntitlement;
-		}
-	} finally {
-		waitForUnknownEntitlement.cancel();
-	}
-
-	resetWelcome();
-}
-
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
 	constructor() {
@@ -214,13 +192,6 @@ registerAction2(class extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
-		const chatEntitlementService = accessor.get(IChatEntitlementService);
-		const storageService = accessor.get(IStorageService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
-		const logService = accessor.get(ILogService);
 		const defaultAccount = await defaultAccountService.getDefaultAccount();
 		if (!defaultAccount) {
 			return;
@@ -244,7 +215,6 @@ registerAction2(class extends Action2 {
 		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
 		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
 		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
-		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => resetSessionsWelcome(storageService, instantiationService, layoutService, chatEntitlementService, contextKeyService, environmentService, logService));
 	}
 });
 
@@ -757,6 +727,43 @@ class TitleBarUpdateWidget extends BaseActionViewItem {
 
 // --- Register custom view item --- //
 
+// Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
+// toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
+// view items registered in AccountWidgetContribution.
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SessionsTitleBarUpdateWidgetAction,
+			title: localize2('agentsUpdateTitleBar', "Agents Update"),
+			menu: {
+				id: Menus.TitleBarRightLayout,
+				group: 'navigation',
+				order: 99,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			}
+		});
+	}
+
+	run(): void { }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SessionsTitleBarAccountWidgetAction,
+			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
+			menu: {
+				id: Menus.TitleBarRightLayout,
+				group: 'navigation',
+				order: 100,
+				when: IsAuxiliaryWindowContext.toNegated(),
+			}
+		});
+	}
+
+	run(): void { }
+});
+
 class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsWidget';
@@ -767,59 +774,14 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		// Titlebar update widget (to the right of separator, left of account badge)
-		let updateWidget: TitleBarUpdateWidget | undefined;
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarUpdateWidgetAction, (action, options) => {
-			updateWidget = instantiationService.createInstance(TitleBarUpdateWidget, action, options);
-			return updateWidget;
+			return instantiationService.createInstance(TitleBarUpdateWidget, action, options);
 		}, undefined));
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SessionsTitleBarUpdateWidgetAction,
-					title: localize2('agentsUpdateTitleBar', "Agents Update"),
-					menu: {
-						id: Menus.TitleBarRightLayout,
-						group: 'navigation',
-						order: 99,
-						when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
-					}
-				});
-			}
-
-			async run(): Promise<void> {
-				updateWidget?.onClick();
-			}
-		}));
-
-		// Titlebar account widget (rightmost in titlebar)
-		let accountWidget: TitleBarAccountWidget | undefined;
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
-			accountWidget = instantiationService.createInstance(TitleBarAccountWidget, action, options);
-			return accountWidget;
+			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
-
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SessionsTitleBarAccountWidgetAction,
-					title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
-					menu: {
-						id: Menus.TitleBarRightLayout,
-						group: 'navigation',
-						order: 100,
-						when: IsAuxiliaryWindowContext.toNegated(),
-					}
-				});
-			}
-
-			async run(): Promise<void> {
-				accountWidget?.onClick();
-			}
-		}));
-
 	}
 }
 
-registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.BlockRestore);

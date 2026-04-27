@@ -52,9 +52,6 @@
 	max-height: min(720px, 75vh);
 }
 
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body {
-	max-height: min(600px, 65vh);
-}
 /* ---------- Title bar ---------- */
 .interactive-session .chat-plan-review-container .chat-plan-review-title {
 	display: flex;
@@ -101,16 +98,11 @@
 	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
-/* Icon-only square buttons (restore, chevron). Exactly 22x22 with no padding,
- * matching `.monaco-button.chat-question-collapse-toggle`. */
+/* Icon-only square buttons (restore, chevron, edit). Exactly 22x22 with no
+ * padding, matching `.monaco-button.chat-question-collapse-toggle`. */
 .interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-icon-button {
 	width: 22px;
 	padding: 0;
-}
-
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-edit {
-	font-size: var(--vscode-chat-font-size-body-s);
-	color: var(--vscode-foreground) !important;
 }
 
 /* Inline slot in the title bar. The action buttons (Approve + Reject) get
@@ -129,15 +121,44 @@
 	display: flex;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button {
+/* Action button row sizing — shared between the inline (collapsed) action
+ * slot in the title bar and the footer. Keep these two rule sets together so
+ * any tweaks stay in sync. */
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button {
 	width: auto;
 	min-width: auto;
 	padding: 0 10px;
 	height: 22px;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown {
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
 	width: auto;
+	height: 22px;
+	align-items: center;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button {
+	height: 22px;
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
+}
+
+/* The default-colors separator has `padding: 4px 0` plus 1px top/bottom
+ * borders; with content-box sizing it would visually overflow the 22px
+ * dropdown wrapper and make the chevron half look taller than the primary
+ * button. Force border-box and a fixed height so it matches. */
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button-dropdown-separator,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	box-sizing: border-box;
+	height: 22px;
+	padding: 3px 0;
 }
 
 /* ---------- Scrollable markdown body ----------
@@ -146,17 +167,36 @@
  * to clip and display its scrollbar against. DomScrollableElement sets the
  * inner element's `overflow: hidden` inline, so we don't set overflow here. */
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message-scrollable.chat-plan-review-body-scrollable {
-	flex: 1;
+	flex: 1 1 auto;
 	min-height: 0;
 }
 
+/* The inner message element must have its own bounded height so that
+ * `scrollHeight > clientHeight` and DomScrollableElement renders a scrollbar.
+ * Without this the element grows to its natural content size and never
+ * scrolls (parity with .chat-confirmation-widget-message in the tool
+ * confirmation carousel). */
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body {
-	flex: 1;
-	min-height: 0;
-	max-height: min(300px, 40vh);
 	padding: 6px 12px;
 	background: transparent;
 	border-bottom: none;
+	max-height: min(320px, 40vh);
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body {
+	max-height: min(620px, 65vh);
+}
+
+/* When the feedback section is open it claims ~80px below the body. Shrink
+ * the body's cap so the widget's overall max-height isn't exceeded and the
+ * footer buttons + textarea remain visible (otherwise the bottom of the
+ * widget gets clipped by the widget's own `overflow: hidden`). */
+.interactive-session .chat-plan-review-container.chat-plan-review-feedback-mode .chat-confirmation-widget-message.chat-plan-review-body {
+	max-height: min(220px, 28vh);
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-expanded.chat-plan-review-feedback-mode .chat-confirmation-widget-message.chat-plan-review-body {
+	max-height: min(520px, 55vh);
 }
 
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown p:first-child {
@@ -177,7 +217,17 @@
 	flex-shrink: 0;
 }
 
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 0;
+}
+
 .interactive-session .chat-plan-review-container .chat-plan-review-feedback-label {
+	flex: 1;
+	min-width: 0;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 }
@@ -223,15 +273,8 @@
 	align-items: center;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button {
-	width: auto;
-	min-width: auto;
-	padding: 0 10px;
-	height: 22px;
-}
-
-.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
-	width: auto;
+.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer .chat-buttons .monaco-button.chat-plan-review-feedback-button {
+	margin-left: auto;
 }
 
 /* ---------- Hidden helper ---------- */

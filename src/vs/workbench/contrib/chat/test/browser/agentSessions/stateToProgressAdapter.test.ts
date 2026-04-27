@@ -7,14 +7,14 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type IActiveTurn, type ICompletedToolCall, type IToolCallRunningState, type ITurn, type IToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
-function createToolCallState(overrides?: Partial<IToolCallRunningState>): IToolCallRunningState {
+function createToolCallState(overrides?: Partial<ToolCallRunningState>): ToolCallRunningState {
 	return {
 		toolCallId: 'tc-1',
 		toolName: 'test_tool',
@@ -40,7 +40,7 @@ function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): IComp
 	} as ICompletedToolCall;
 }
 
-function createTurn(overrides?: Partial<ITurn>): ITurn {
+function createTurn(overrides?: Partial<Turn>): Turn {
 	return {
 		id: 'turn-1',
 		userMessage: { text: 'Hello' },
@@ -87,7 +87,7 @@ suite('stateToProgressAdapter', () => {
 		test('single turn produces request + response pair', () => {
 			const turn = createTurn({
 				userMessage: { text: 'Do something' },
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
@@ -137,7 +137,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -165,7 +165,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -196,7 +196,7 @@ suite('stateToProgressAdapter', () => {
 						content: [{ type: ToolResultContentType.Text, text: 'Result text' }],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -293,6 +293,43 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('preserves label and tags vscodeLinkType=skill for SKILL.md links', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-skill',
+					content: 'Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value,
+				'Loaded [plan](vscode-agent-host://my-host/file/-/abs/repo/skills/plan/SKILL.md?vscodeLinkType%3Dskill) ' +
+				'and [](vscode-agent-host://my-host/file/-/abs/repo/foo.ts).'
+			);
+		});
+
+		test('preserves alt text for image tokens', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-image',
+					content: 'See ![diagram](file:///a/b.png).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/file/-/a/b.png).');
+		});
+
 		test('error turn produces error message in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
@@ -318,7 +355,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: false,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -504,6 +541,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri?.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
 			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
+			assert.strictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
+		});
+
+		test('does not hide presentation when tool with file edits fails', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: false,
+				pastTenseMessage: 'Failed to edit',
+				error: { message: 'write error' },
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					after: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///snap/after' },
+					},
+				}],
+			});
+
+			assert.notStrictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
 		});
 
 		test('returns empty file edits for cancelled tool call', () => {
@@ -596,7 +660,7 @@ suite('stateToProgressAdapter', () => {
 
 	suite('activeTurnToProgress', () => {
 
-		function createActiveTurnState(responseParts?: IActiveTurn['responseParts']): IActiveTurn {
+		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
 				userMessage: { text: 'Do things' },
@@ -650,7 +714,7 @@ suite('stateToProgressAdapter', () => {
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 						success: true,
 						pastTenseMessage: 'Ran test tool',
-					} as IToolCallResponsePart['toolCall'],
+					} as ToolCallResponsePart['toolCall'],
 				},
 			]), undefined);
 			assert.strictEqual(result.length, 1);
@@ -738,7 +802,7 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -767,7 +831,7 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -845,7 +909,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 
 			// Simulate subagent content arriving via SessionToolCallContentChanged
-			const runningTc: IToolCallRunningState = {
+			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
@@ -884,7 +948,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			const originalData = invocation.toolSpecificData;
 
-			const runningTc: IToolCallRunningState = {
+			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,
 			};

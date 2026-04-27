@@ -2,7 +2,7 @@
 
 **File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chatSessions.claude.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
 
 ## Registration
 
@@ -57,7 +57,7 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
 - No-ops for `setIsolationMode()` and `setBranch()`
 - `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
-- Gated by the `sessions.chatSessions.claude.enabled` setting (default: `false`)
+- Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
 
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 
@@ -105,7 +105,7 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 
 | Menu | Purpose | Examples |
 |------|---------|----------|
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, local model picker |
+| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude) |
 | `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
 | `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
 

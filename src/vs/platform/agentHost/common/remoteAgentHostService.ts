@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
@@ -169,8 +170,18 @@ export interface IRemoteAgentHostService {
 	 * Register a pre-connected agent connection.
 	 * Used by the SSH and tunnel services to inject relay-backed connections
 	 * without going through the WebSocket connect flow.
+	 *
+	 * The optional `transportDisposable` represents the underlying transport
+	 * (e.g. an SSH tunnel relay or tunnel-relay session) and is owned by this
+	 * service for the lifetime of the entry. It will be disposed when:
+	 *   - the entry is removed via {@link removeRemoteAgentHost}
+	 *   - the entry is reconciled away (config-driven removal)
+	 *   - this service itself is disposed
+	 * Callers should put any teardown that needs to happen on entry removal
+	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
+	 * into this disposable, so a single removal path tears down the whole stack.
 	 */
-	addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
 
 	/**
 	 * Look up the {@link IRemoteAgentHostEntry} for a given address.
@@ -200,7 +211,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string): void { }
-	async addSSHConnection(): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 	getEntryByAddress(): IRemoteAgentHostEntry | undefined { return undefined; }

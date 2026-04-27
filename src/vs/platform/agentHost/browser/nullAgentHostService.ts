@@ -7,12 +7,12 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import type { IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../common/state/sessionProtocol.js';
-import type { ComponentToState, IRootState, StateComponents } from '../common/state/sessionState.js';
+import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
+import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -27,31 +27,32 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onAgentHostExit = Event.None;
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
-	readonly onDidAction: Event<IActionEnvelope> = Event.None;
+	readonly onDidAction: Event<ActionEnvelope> = Event.None;
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
 
-	get rootState(): IAgentSubscription<IRootState> { return notSupported(); }
+	get rootState(): IAgentSubscription<RootState> { return notSupported(); }
 
 	getSubscription<T extends StateComponents>(_kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
-	dispatch(_action: ISessionAction | ITerminalAction): void { notSupported(); }
+	dispatch(_action: SessionAction | TerminalAction | IRootConfigChangedAction): void { notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
-	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return notSupported(); }
+	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return notSupported(); }
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return notSupported(); }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return notSupported(); }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return notSupported(); }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }
+	async getInspectInfo(_tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> { return undefined; }
 	async disposeSession(_session: URI): Promise<void> { }
-	async createTerminal(_params: ICreateTerminalParams): Promise<void> { notSupported(); }
+	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }
-	async resourceList(_uri: URI): Promise<IResourceListResult> { return notSupported(); }
-	async resourceRead(_uri: URI): Promise<IResourceReadResult> { return notSupported(); }
-	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return notSupported(); }
-	async resourceCopy(_params: IResourceCopyParams): Promise<IResourceCopyResult> { return notSupported(); }
-	async resourceDelete(_params: IResourceDeleteParams): Promise<IResourceDeleteResult> { return notSupported(); }
-	async resourceMove(_params: IResourceMoveParams): Promise<IResourceMoveResult> { return notSupported(); }
+	async resourceList(_uri: URI): Promise<ResourceListResult> { return notSupported(); }
+	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return notSupported(); }
+	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return notSupported(); }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return notSupported(); }
+	async resourceDelete(_params: ResourceDeleteParams): Promise<ResourceDeleteResult> { return notSupported(); }
+	async resourceMove(_params: ResourceMoveParams): Promise<ResourceMoveResult> { return notSupported(); }
 }

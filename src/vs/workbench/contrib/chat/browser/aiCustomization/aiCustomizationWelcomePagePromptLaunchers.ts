@@ -5,6 +5,8 @@
 
 import './media/aiCustomizationWelcomePromptLaunchers.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -33,6 +35,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private readonly cardDisposables = this._register(new DisposableStore());
 
 	readonly container: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 
@@ -93,7 +96,21 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	) {
 		super();
 
-		this.container = DOM.append(parent, $('.welcome-prompts-content-container'));
+		this.container = $('.welcome-prompts-content-container');
+		this.scrollable = this._register(new DomScrollableElement(this.container, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const scrollableNode = this.scrollable.getDomNode();
+		scrollableNode.classList.add('welcome-prompts-scrollable');
+		parent.appendChild(scrollableNode);
+
+		// Re-scan whenever the wrapper changes size so the scrollbar reflects
+		// the current overflow state. rebuildCards() scans after content changes.
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver(() => this.scrollable.scanDomNode()));
+		this._register(resizeObserver.observe(scrollableNode));
+
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
 
 		const heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
@@ -256,6 +273,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				}
 			}));
 		}
+
+		// Content changed — recompute scroll dimensions.
+		this.scrollable.scanDomNode();
 	}
 
 	focus(): void {

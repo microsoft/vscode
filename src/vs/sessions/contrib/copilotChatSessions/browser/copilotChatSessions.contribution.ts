@@ -12,8 +12,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -26,15 +24,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[CLAUDE_CODE_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
-			tags: ['experimental', 'onExp'],
-			description: localize('sessions.chatSessions.claude.enabled', "NOTE: This is HIGHLY experimental and under active development! Whether to enable Claude agent sessions in the sessions provider."),
+			default: true,
+			experiment: { mode: 'startup' },
+			description: localize('sessions.chat.claudeAgent.enabled', "Enable Claude Agent sessions in the Agents app. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly. Uses your existing Copilot subscription."),
 		},
 	},
 });
 
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
+ *
+ * Coexists with the local agent host provider when `chat.agentHost.enabled`
+ * is true. The two providers list disjoint sets of sessions:
+ * - The local agent host filters via the per-session Agent Host SQLite DB
+ *   (database-existence ownership gate in `CopilotAgent.listSessions`).
+ * - This provider's underlying extension service filters via the per-session
+ *   metadata file's `origin` field, which the local agent host never writes.
  */
 class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.defaultSessionsProvider';
@@ -42,16 +47,8 @@ class DefaultSessionsProviderContribution extends Disposable implements IWorkben
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-
-		// When the local agent host is enabled, skip registering the
-		// default CopilotChat provider so only the local agent host
-		// provider is active.
-		if (configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
-			return;
-		}
 
 		const provider = this._register(instantiationService.createInstance(CopilotChatSessionsProvider));
 		this._register(sessionsProvidersService.registerProvider(provider));

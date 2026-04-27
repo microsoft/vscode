@@ -3,11 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.ai-customization-management-editor .welcome-prompts-content-container {
+/* The DomScrollableElement wrapper fills the welcome page host */
+.ai-customization-management-editor .welcome-prompts-scrollable {
+	position: relative;
+	width: 100%;
 	height: 100%;
-	overflow-y: auto;
+}
+
+/* The inner element is the one DomScrollableElement scrolls.
+ * Constrain it so clientHeight < scrollHeight when content overflows. */
+.ai-customization-management-editor .welcome-prompts-content-container {
+	position: absolute;
+	inset: 0;
 	padding: 24px;
 	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .welcome-prompts-inner {

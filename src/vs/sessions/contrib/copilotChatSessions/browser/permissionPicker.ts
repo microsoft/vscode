@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
@@ -22,6 +23,9 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+
+const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
 /**
  * Strategy for the per-provider parts of {@link PermissionPicker}: how to read
@@ -101,10 +105,13 @@ export class PermissionPicker extends Disposable {
 
 		this._updateTriggerLabel(trigger);
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this.showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this.showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -150,7 +157,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Default,
 				},
 				label: localize('permissions.default', "Default Approvals"),
-				description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 				disabled: false,
 			},
 			{
@@ -163,7 +170,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
 				},
 				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
 		];
@@ -179,7 +186,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				disabled: policyRestricted,
 			});
 		}
@@ -215,7 +222,7 @@ export class PermissionPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,
@@ -344,6 +351,7 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 	}
@@ -355,7 +363,16 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 		}
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
 		if (provider instanceof CopilotChatSessionsProvider) {
-			provider.getSession(session.sessionId)?.setPermissionLevel(level);
+			const chatSession = provider.getSession(session.sessionId);
+			if (!chatSession) {
+				return;
+			}
+			if (chatSession.setOption) {
+				chatSession.setPermissionLevel(level);
+				chatSession.setOption(PERMISSION_LEVEL_OPTION_ID, level);
+			} else {
+				this._chatSessionsService.setSessionOption(chatSession.resource, PERMISSION_LEVEL_OPTION_ID, level);
+			}
 		}
 	}
 }

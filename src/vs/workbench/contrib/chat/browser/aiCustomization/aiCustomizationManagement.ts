@@ -5,6 +5,7 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
@@ -12,6 +13,22 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 export type { AICustomizationPromptsStorage } from '../../common/aiCustomizationWorkspaceService.js';
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
+
+export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return PromptsType.agent;
+		case AICustomizationManagementSection.Skills:
+			return PromptsType.skill;
+		case AICustomizationManagementSection.Instructions:
+			return PromptsType.instructions;
+		case AICustomizationManagementSection.Hooks:
+			return PromptsType.hook;
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return PromptsType.prompt;
+	}
+}
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.

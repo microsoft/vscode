@@ -5,6 +5,7 @@
 
 import '../media/agentHostSessionConfigPicker.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -23,8 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentHostSessionConfigBranchNameHintKey } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ISessionConfigPropertySchema, ISessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -34,13 +34,14 @@ import { ActiveSessionProviderIdContext } from '../../../../common/contextkeys.j
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate, AUTO_APPROVE_PROPERTY, isWellKnownAutoApproveSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema } from './agentHostPermissionPickerDelegate.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
-const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
-const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host');
+const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
+const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -66,7 +67,7 @@ interface IConfigPickerItem {
 	readonly description?: string;
 }
 
-function getConfigIcon(property: string, value: string | undefined): ThemeIcon | undefined {
+function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
 	if (property === 'isolation') {
 		if (value === 'folder') {
 			return Codicon.folder;
@@ -90,7 +91,7 @@ function getConfigIcon(property: string, value: string | undefined): ThemeIcon |
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: string | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
@@ -109,10 +110,13 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
-		disposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			onOpen();
-		}));
+		disposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(trigger, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				onOpen();
+			}));
+		}
 		disposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
@@ -149,7 +153,7 @@ function applyAutoApproveFiltering(
 	property: string,
 	configurationService: IConfigurationService,
 ): { readonly items: readonly IConfigPickerItem[]; readonly policyRestricted: boolean } {
-	if (property !== AUTO_APPROVE_PROPERTY) {
+	if (property !== SessionConfigKey.AutoApprove) {
 		return { items, policyRestricted: false };
 	}
 	const isAutopilotEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
@@ -212,8 +216,8 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
 /**
  * Applies warning/info CSS classes to a trigger element for auto-approve levels.
  */
-function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: string | undefined): void {
-	if (property === AUTO_APPROVE_PROPERTY) {
+function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
+	if (property === SessionConfigKey.AutoApprove) {
 		trigger.classList.toggle('warning', value === 'autopilot');
 		trigger.classList.toggle('info', value === 'autoApprove');
 	}
@@ -282,8 +286,28 @@ class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
+		// In the running-session flow only `sessionMutable` properties can
+		// actually be changed (non-mutable ones would no-op in
+		// `setSessionConfigValue`). In the new-session flow any property is
+		// changeable because changes trigger a full config re-resolve — so
+		// non-mutable properties like `isolation` must remain visible and
+		// interactive there.
+		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
+
 		for (const [property, schema] of Object.entries(resolvedConfig.schema.properties)) {
-			if (property === AgentHostSessionConfigBranchNameHintKey) {
+			if (property === SessionConfigKey.BranchNameHint) {
+				continue;
+			}
+			// Only render pickers for properties we know how to present. Today
+			// that's string properties with an `enum` — anything else (objects,
+			// arrays, free-form strings, numbers, booleans) has no enumerable
+			// choice set and is edited through the JSONC settings editor instead.
+			if (schema.type !== 'string' || !schema.enum || schema.enum.length === 0) {
+				continue;
+			}
+			// In a running session, skip non-mutable properties — they can't
+			// be changed and would render as dead pills.
+			if (!isNewSession && !schema.sessionMutable) {
 				continue;
 			}
 			// When the autoApprove property uses the well-known schema, the
@@ -291,7 +315,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 			// `Menus.NewSessionControl`) handles it — skip it here to avoid
 			// double-rendering. Non-conforming schemas still fall through to
 			// the generic per-property picker below.
-			if (property === AUTO_APPROVE_PROPERTY && isWellKnownAutoApproveSchema(schema)) {
+			if (property === SessionConfigKey.AutoApprove && isWellKnownAutoApproveSchema(schema)) {
 				continue;
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
@@ -301,7 +325,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _renderTrigger(trigger: HTMLElement, property: string, schema: ISessionConfigPropertySchema, value: string | undefined): void {
+	private _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): void {
 		dom.clearNode(trigger);
 		const icon = getConfigIcon(property, value);
 		if (icon) {
@@ -319,7 +343,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
-	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -329,7 +353,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
-		const isAutoApproveProperty = property === AUTO_APPROVE_PROPERTY;
+		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
@@ -368,7 +392,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -383,7 +407,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}));
 	}
 
-	private _fromCompletionItem(item: ISessionConfigValueItem): IConfigPickerItem {
+	private _fromCompletionItem(item: SessionConfigValueItem): IConfigPickerItem {
 		return {
 			value: item.value,
 			label: item.label,
@@ -391,7 +415,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	private _getLabel(schema: ISessionConfigPropertySchema, value: string | undefined): string {
+	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;

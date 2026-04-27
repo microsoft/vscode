@@ -224,6 +224,14 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				info(value) {
+					throwIfDone(this.progress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const part = new extHostTypes.ChatResponseInfoPart(value);
+					const dto = typeConvert.ChatResponseInfoPart.from(part);
+					_report(dto);
+					return this;
+				},
 				reference(value, iconPath) {
 					return this.reference2(value, iconPath);
 				},
@@ -822,8 +830,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				description: item.description,
 				groupKey: item.groupKey,
 				badge: item.badge,
-				badgeTooltip: item.badgeTooltip,
-			}));
+				badgeTooltip: item.badgeTooltip
+			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;
 		}

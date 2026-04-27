@@ -308,7 +308,7 @@ async function performReplace(accessor: ServicesAccessor,
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
 			if (isSearchTreeMatch(nextFocusElement)) {
-				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search?.useReplacePreview;
 				if (!useReplacePreview || instantiationService.invokeFunction(accessor => hasToOpenFile(accessor, nextFocusElement!)) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {

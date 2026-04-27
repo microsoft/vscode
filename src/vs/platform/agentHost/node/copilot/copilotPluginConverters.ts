@@ -12,6 +12,12 @@ import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IP
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
+type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
+type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
+type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
+type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -172,6 +178,37 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 }
 
 /**
+ * Runs a list of hook commands sequentially, passing `input` as JSON stdin.
+ * Returns the parsed output of the first command that emits a valid JSON object,
+ * or `undefined` if no command produces parseable JSON output.
+ * Command failures are swallowed — hooks are non-fatal.
+ */
+async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object | undefined> {
+	if (!commands) {
+		return undefined;
+	}
+	const stdin = JSON.stringify(input);
+	for (const cmd of commands) {
+		try {
+			const output = await executeHookCommand(cmd, stdin);
+			if (output.trim()) {
+				try {
+					const parsed = JSON.parse(output);
+					if (parsed && typeof parsed === 'object') {
+						return parsed;
+					}
+				} catch {
+					// Non-JSON output is fine — no modification
+				}
+			}
+		} catch {
+			// Hook failures are non-fatal
+		}
+	}
+	return undefined;
+}
+
+/**
  * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
  */
 const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
@@ -195,8 +232,8 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
-		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
-		readonly onPostToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 	},
 ): SessionHooks {
 	// Group all commands by SDK handler key
@@ -216,53 +253,25 @@ export function toSdkHooks(
 	// Pre-tool-use handler
 	const preToolCommands = commandsByKey.get('onPreToolUse');
 	if (preToolCommands?.length || editTrackingHooks) {
-		hooks.onPreToolUse = async (input: { toolName: string; toolArgs: unknown }) => {
+		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
 			await editTrackingHooks?.onPreToolUse(input);
-			if (preToolCommands) {
-				const stdin = JSON.stringify(input);
-				for (const cmd of preToolCommands) {
-					try {
-						const output = await executeHookCommand(cmd, stdin);
-						if (output.trim()) {
-							try {
-								const parsed = JSON.parse(output);
-								if (parsed && typeof parsed === 'object') {
-									return parsed;
-								}
-							} catch {
-								// Non-JSON output is fine — no modification
-							}
-						}
-					} catch {
-						// Hook failures are non-fatal
-					}
-				}
-			}
+			return runHookCommands(preToolCommands, input);
 		};
 	}
 
 	// Post-tool-use handler
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
-		hooks.onPostToolUse = async (input: { toolName: string; toolArgs: unknown }) => {
+		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			if (postToolCommands) {
-				const stdin = JSON.stringify(input);
-				for (const cmd of postToolCommands) {
-					try {
-						await executeHookCommand(cmd, stdin);
-					} catch {
-						// Hook failures are non-fatal
-					}
-				}
-			}
+			return runHookCommands(postToolCommands, input);
 		};
 	}
 
 	// User-prompt-submitted handler
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
 	if (promptCommands?.length) {
-		hooks.onUserPromptSubmitted = async (input: { prompt: string }) => {
+		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
 			const stdin = JSON.stringify(input);
 			for (const cmd of promptCommands) {
 				try {
@@ -277,7 +286,7 @@ export function toSdkHooks(
 	// Session-start handler
 	const startCommands = commandsByKey.get('onSessionStart');
 	if (startCommands?.length) {
-		hooks.onSessionStart = async (input: { source: string }) => {
+		hooks.onSessionStart = async (input: SessionStartHookInput) => {
 			const stdin = JSON.stringify(input);
 			for (const cmd of startCommands) {
 				try {
@@ -292,7 +301,7 @@ export function toSdkHooks(
 	// Session-end handler
 	const endCommands = commandsByKey.get('onSessionEnd');
 	if (endCommands?.length) {
-		hooks.onSessionEnd = async (input: { reason: string }) => {
+		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
 			const stdin = JSON.stringify(input);
 			for (const cmd of endCommands) {
 				try {
@@ -307,7 +316,7 @@ export function toSdkHooks(
 	// Error-occurred handler
 	const errorCommands = commandsByKey.get('onErrorOccurred');
 	if (errorCommands?.length) {
-		hooks.onErrorOccurred = async (input: { error: string }) => {
+		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
 			const stdin = JSON.stringify(input);
 			for (const cmd of errorCommands) {
 				try {

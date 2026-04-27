@@ -22,7 +22,7 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/con
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -33,6 +33,7 @@ import { ISessionChangeEvent } from '../../../../services/sessions/common/sessio
 import { ClaudeCodeSessionType, CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -41,6 +42,7 @@ function createMockAgentSession(resource: URI, opts?: {
 	title?: string;
 	archived?: boolean;
 	read?: boolean;
+	createdAt?: number;
 	metadata?: Record<string, unknown>;
 }): IAgentSession {
 	const providerType = opts?.providerType ?? AgentSessionProviders.Background;
@@ -53,7 +55,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly label = opts?.title ?? 'Test Session';
 		override readonly status = ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
-		override readonly timing = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
+		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 		override readonly metadata = opts?.metadata ?? { repositoryPath: '/test/repo' };
 		override isArchived(): boolean { return archived; }
 		override setArchived(value: boolean): void { archived = value; }
@@ -121,7 +123,7 @@ function createProviderWithConfig(
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -178,6 +180,9 @@ function createProviderWithConfig(
 	});
 	// Stub IInstantiationService so provider can use createInstance for CopilotCLISession
 	instantiationService.stub(IInstantiationService, instantiationService);
+	instantiationService.stub(ILabelService, {
+		getUriLabel: (uri: URI) => uri.path,
+	});
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -197,13 +202,13 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: () => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem'] },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
@@ -226,6 +231,7 @@ function createProviderForSendTests(
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
 		onDidChangeOptionGroups: Event.None,
+		createNewChatSessionItem: opts?.createNewChatSessionItem ?? (async () => undefined),
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: async () => undefined,
@@ -246,6 +252,9 @@ function createProviderForSendTests(
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
+	instantiationService.stub(ILabelService, {
+		getUriLabel: (uri: URI) => uri.path,
+	});
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -270,24 +279,24 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 3);
 	});
 
-	test('sessionTypes includes Claude when setting is enabled', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		assert.strictEqual(provider.sessionTypes.length, 3);
-		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	test('sessionTypes excludes Claude when setting is disabled', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
+		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 3);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
 
-		// Enable claude via config change
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		// Disable claude via config change
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
 		configService.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.USER,
 			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
@@ -296,7 +305,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
@@ -304,18 +313,7 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
 
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should be hidden when disabled');
-
-		// Enable Claude
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
-			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
-		});
-
-		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear after enabling');
+		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear when enabled by default');
 
 		// Disable Claude
 		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
@@ -327,6 +325,17 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should disappear after disabling');
+
+		// Re-enable Claude
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
+			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+		});
+
+		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should reappear after re-enabling');
 	});
 
 	// ---- getSessionTypes -------
@@ -338,7 +347,7 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('getSessionTypes does not return Claude for local workspace when disabled', () => {
-		const provider = createProvider(disposables, model);
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		const types = provider.getSessionTypes(URI.file('/test/project'));
 		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
 	});
@@ -395,7 +404,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
 		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
 
-		const provider = createProvider(disposables, model);
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 0);
@@ -529,6 +538,118 @@ suite('CopilotChatSessionsProvider', () => {
 
 		// Without explicit grouping, each chat is its own session
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('groups committed chats using metadata.sessionParentId', () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-session' });
+		const child1Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/child-session-1' });
+		const child2Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/child-session-2' });
+
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 1 }));
+		model.addSession(createMockAgentSession(child1Resource, {
+			title: 'Child 1',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+		model.addSession(createMockAgentSession(child2Resource, {
+			title: 'Child 2',
+			createdAt: 3,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.strictEqual(sessions[0].chats.get().length, 3);
+		assert.strictEqual(sessions[0].mainChat.resource.toString(), rootResource.toString());
+	});
+
+	test('orders chats within a grouped session by createdAt', () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-session' });
+		const olderChildResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/older-child' });
+		const newerChildResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/newer-child' });
+
+		// Add out of order to ensure grouping order is driven by createdAt rather than insertion order.
+		model.addSession(createMockAgentSession(newerChildResource, {
+			title: 'Newer Child',
+			createdAt: 30,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 10 }));
+		model.addSession(createMockAgentSession(olderChildResource, {
+			title: 'Older Child',
+			createdAt: 20,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[rootResource.toString(), olderChildResource.toString(), newerChildResource.toString()]
+		);
+	});
+
+	test('groups child sessions even when the parent/root session is missing', () => {
+		const orphan1Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/orphan-child-1' });
+		const orphan2Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/orphan-child-2' });
+		const provider = createProvider(disposables, model);
+
+		provider.getSessions(); // initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.addSession(createMockAgentSession(orphan1Resource, {
+			title: 'Orphan Child 1',
+			createdAt: 1,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+		model.addSession(createMockAgentSession(orphan2Resource, {
+			title: 'Orphan Child 2',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[orphan1Resource.toString(), orphan2Resource.toString()]
+		);
+		assert.deepStrictEqual(changes.map(e => ({ added: e.added.length, changed: e.changed.length })), [
+			{ added: 1, changed: 0 },
+			{ added: 0, changed: 1 },
+		]);
+	});
+
+	test('groups nested parent chains under the ultimate root', () => {
+		const middleResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/middle-session' });
+		const leafResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/leaf-session' });
+
+		model.addSession(createMockAgentSession(middleResource, {
+			title: 'Middle Session',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+		model.addSession(createMockAgentSession(leafResource, {
+			title: 'Leaf Session',
+			createdAt: 3,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'middle-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[middleResource.toString(), leafResource.toString()]
+		);
 	});
 
 	test('session title comes from primary (first) chat', () => {
@@ -741,6 +862,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const workspace = provider.resolveWorkspace(uri);
 
+		assert.ok(workspace, 'resolveWorkspace should resolve file:// URIs');
 		assert.strictEqual(workspace.label, 'project');
 		assert.strictEqual(workspace.repositories.length, 1);
 		assert.strictEqual(workspace.repositories[0].uri.toString(), uri.toString());
@@ -774,11 +896,14 @@ suite('CopilotChatSessionsProvider', () => {
 
 	// ---- Claude session creation -------
 
-	function makeClaudeInFlightProvider(): { provider: CopilotChatSessionsProvider; cancelRequest: () => void } {
+	function makeClaudeInFlightProvider(): { provider: CopilotChatSessionsProvider; cancelRequest: () => void; realResource: URI; commitSession: () => void } {
 		let resolveComplete!: () => void;
 		let resolveCreated!: (r: IChatResponseModel) => void;
 		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
 		const responseCreatedPromise = new Promise<IChatResponseModel>(r => { resolveCreated = r; });
+
+		// The real resource that createNewChatSessionItem returns
+		const realResource = URI.from({ scheme: AgentSessionProviders.Claude, path: `/claude-session-${Date.now()}` });
 
 		const provider = createProviderForSendTests(disposables, model, async () => ({
 			kind: 'sent' as const,
@@ -787,13 +912,25 @@ suite('CopilotChatSessionsProvider', () => {
 				responseCreatedPromise,
 				agent: new class extends mock<IChatAgentData>() { }(),
 			} as IChatSendRequestData,
-		}), { claudeEnabled: true });
+		}), {
+			claudeEnabled: true,
+			createNewChatSessionItem: async (_type, request): Promise<IChatSessionItem> => ({
+				resource: realResource,
+				label: request.prompt,
+				timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
+			}),
+		});
 
 		return {
 			provider,
+			realResource,
 			cancelRequest: () => {
 				resolveCreated({ isCanceled: true } as unknown as IChatResponseModel);
 				resolveComplete();
+			},
+			commitSession: () => {
+				// Add the agent session to the model so _waitForSessionInCache resolves
+				model.addSession(createMockAgentSession(realResource, { providerType: AgentSessionProviders.Claude }));
 			},
 		};
 	}
@@ -810,7 +947,7 @@ suite('CopilotChatSessionsProvider', () => {
 	}
 
 	test('createNewSession with Claude type creates a session', async () => {
-		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const { provider, commitSession } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
 
 		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
@@ -819,13 +956,12 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(session.sessionType, ClaudeCodeSessionType.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
 
-		// Send and clean up so the session enters the cache and can be disposed
+		// Send and commit so the session enters the cache and can be disposed
 		const added = waitForSessionAdded(provider);
 		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
 		await added;
-		cancelRequest();
+		commitSession();
 		await assert.doesNotReject(sendPromise);
-		await provider.deleteSession(session.sessionId);
 	});
 
 	test('archiveSession archives a Claude temp session', async () => {
@@ -866,6 +1002,66 @@ suite('CopilotChatSessionsProvider', () => {
 		await assert.doesNotReject(sendPromise);
 
 		// Clean up
+		await provider.deleteSession(session.sessionId);
+	});
+
+	// ---- Claude controller-based send flow -------
+
+	test('sendAndCreateChat replaces temp session with committed session on success', async () => {
+		const { provider, commitSession } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const replacements: { from: unknown; to: unknown }[] = [];
+		disposables.add(provider.onDidReplaceSession(e => replacements.push(e)));
+
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'hello world' });
+		await added;
+
+		assert.strictEqual(provider.getSessions().length, 1, 'temp session should appear while in-flight');
+
+		// Simulate the agent session appearing in the model
+		commitSession();
+		await sendPromise;
+
+		// The temp session should have been replaced by the committed one
+		assert.ok(replacements.length > 0, 'onDidReplaceSessions should have fired');
+	});
+
+	test('sendAndCreateChat uses the query as the temp session title', async () => {
+		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'fix the login bug' });
+		await added;
+
+		const sessions = provider.getSessions();
+		assert.strictEqual(sessions[0].title.get(), 'fix the login bug');
+
+		cancelRequest();
+		await assert.doesNotReject(sendPromise);
+		await provider.deleteSession(session.sessionId);
+	});
+
+	test('sendAndCreateChat keeps temp session on cancellation', async () => {
+		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		await added;
+
+		// Cancel before the agent session appears
+		cancelRequest();
+		await sendPromise;
+
+		assert.strictEqual(provider.getSessions().length, 1, 'session should remain after cancellation');
+		assert.strictEqual(provider.getSessions()[0].status.get(), SessionStatus.Completed, 'should be marked completed');
+
 		await provider.deleteSession(session.sessionId);
 	});
 

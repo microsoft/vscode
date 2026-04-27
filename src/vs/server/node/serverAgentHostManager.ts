@@ -63,37 +63,56 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._start();
 	}
 
-	private _start(): void {
-		const connection = this._starter.start();
+	private async _start(): Promise<void> {
+		try {
+			const connection = await this._starter.start();
 
-		this._logService.info('ServerAgentHostManager: agent host started');
-
-		// Connect logger channel so agent host logs appear in the output channel
-		connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
-
-		this._trackActiveSessions(connection);
-		this._trackClientConnections(connection);
-
-		// Handle unexpected exit
-		connection.store.add(connection.onDidProcessExit(e => {
-			if (!this._store.isDisposed) {
-				// Both signals are gone when the process exits
-				this._hasActiveSessions = false;
-				this._connectionCount = 0;
-				this._lifetimeToken.clear();
-
-				if (this._restartCount <= Constants.MaxRestarts) {
-					this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
-					this._restartCount++;
-					connection.store.dispose();
-					this._start();
-				} else {
-					this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
-				}
+			if (this._store.isDisposed) {
+				connection.store.dispose();
+				return;
 			}
-		}));
 
-		this._register(toDisposable(() => connection.store.dispose()));
+			this._logService.info('ServerAgentHostManager: agent host started');
+
+			// Connect logger channel so agent host logs appear in the output channel
+			connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+
+			this._trackActiveSessions(connection);
+			this._trackClientConnections(connection);
+
+			// Handle unexpected exit
+			connection.store.add(connection.onDidProcessExit(e => {
+				if (!this._store.isDisposed) {
+					// Both signals are gone when the process exits
+					this._hasActiveSessions = false;
+					this._connectionCount = 0;
+					this._lifetimeToken.clear();
+
+					if (this._restartCount <= Constants.MaxRestarts) {
+						this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
+						this._restartCount++;
+						connection.store.dispose();
+						this._start();
+					} else {
+						this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
+					}
+				}
+			}));
+
+			this._register(toDisposable(() => connection.store.dispose()));
+		} catch (error) {
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			if (this._restartCount <= Constants.MaxRestarts) {
+				this._logService.error('ServerAgentHostManager: agent host failed to start', error);
+				this._restartCount++;
+				this._start();
+			} else {
+				this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
+			}
+		}
 	}
 
 	private _trackActiveSessions(connection: IAgentHostConnection): void {

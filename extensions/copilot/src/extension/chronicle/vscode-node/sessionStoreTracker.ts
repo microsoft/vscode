@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { type FileRow, type RefRow, type SessionRow, type TurnRow, ISessionStore } from '../../../platform/chronicle/common/sessionStore';
@@ -14,6 +15,7 @@ import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IExtensionContribution } from '../../common/contributions';
 import {
+	extractAssistantResponse,
 	extractFilePath,
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
@@ -80,7 +82,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 		// Only set up span listener and flush timer when the feature is enabled.
 		// Uses autorun to react if the setting changes at runtime.
-		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService);
+		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.LocalIndexEnabled, this._expService);
 		const spanListenerStore = this._register(new DisposableStore());
 		this._register(autorun(reader => {
 			spanListenerStore.clear();
@@ -185,9 +187,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _initSession(sessionId: string, span: ICompletedSpanData): void {
 		this._initializedSessions.add(sessionId);
-		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode' });
 
 		const sessionSource = (span.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode', agent_name: sessionSource, ...(cwd ? { cwd } : {}) });
 
 		// Track the source of the very first session for firstWrite telemetry
 		if (!this._firstWriteSessionSource) {
@@ -293,8 +296,11 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			}
 		}
 
-		// Extract assistant response from OUTPUT_MESSAGES attribute
-		const assistantResponse = this._extractAssistantResponse(span);
+		// Extract assistant response from OUTPUT_MESSAGES attribute, truncated for storage
+		const fullResponse = extractAssistantResponse(span.attributes[GenAiAttr.OUTPUT_MESSAGES] as string | undefined);
+		const assistantResponse = fullResponse
+			? (fullResponse.length > 1000 ? fullResponse.slice(0, 1000).trim() + '...' : fullResponse)
+			: undefined;
 
 		// Use in-memory turn counter to avoid collisions with buffered-but-unflushed turns.
 		// Initialize from DB on first use, then increment in memory.
@@ -314,28 +320,6 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 					? { assistant_response: assistantResponse }
 					: {}),
 			});
-		}
-	}
-
-	/**
-	 * Extract assistant response text from gen_ai.output.messages attribute.
-	 * Format: [{"role":"assistant","parts":[{"type":"text","content":"..."}]}]
-	 */
-	private _extractAssistantResponse(span: ICompletedSpanData): string | undefined {
-		const raw = span.attributes[GenAiAttr.OUTPUT_MESSAGES] as string | undefined;
-		if (!raw) {
-			return undefined;
-		}
-		try {
-			const messages = JSON.parse(raw) as { role: string; parts: { type: string; content: string }[] }[];
-			const parts = messages
-				.filter(m => m.role === 'assistant')
-				.flatMap(m => m.parts)
-				.filter(p => p.type === 'text')
-				.map(p => p.content);
-			return parts.length > 0 ? parts.join('\n') : undefined;
-		} catch {
-			return undefined;
 		}
 	}
 

@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -18,19 +20,19 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
-import { ISessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
+import { SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { MockAgent } from './mockAgent.js';
+import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
-import { createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
  * {@link mapSessionEvents}, and returns the result suitable for setting
  * on {@link MockAgent.sessionMessages}. This tests the full pipeline:
- * SDK events → mapSessionEvents → _buildTurnsFromMessages → ITurn[].
+ * SDK events → mapSessionEvents → _buildTurnsFromMessages → Turn[].
  *
  * Fixture files live in `test-cases/` and are sanitized copies of real
  * `events.jsonl` files from `~/.copilot/session-state/`.
@@ -55,9 +57,10 @@ suite('AgentService (node dispatcher)', () => {
 	let service: AgentService;
 	let copilotAgent: MockAgent;
 	let fileService: FileService;
+	let nullSessionDataService: ISessionDataService;
 
 	setup(async () => {
-		const nullSessionDataService: ISessionDataService = {
+		nullSessionDataService = {
 			_serviceBrand: undefined,
 			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
 			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
@@ -67,6 +70,7 @@ suite('AgentService (node dispatcher)', () => {
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
+
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -74,7 +78,7 @@ suite('AgentService (node dispatcher)', () => {
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
 		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
 
-		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService));
+		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -108,7 +112,7 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 1,
 			);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
@@ -118,6 +122,49 @@ suite('AgentService (node dispatcher)', () => {
 
 	// ---- createSession --------------------------------------------------
 
+	suite('dispatchAction', () => {
+
+		test('applies and persists root config changes from clients', async () => {
+			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
+			try {
+				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				svc.registerProvider(agent);
+
+				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+				svc.dispatchAction({
+					type: ActionType.RootConfigChanged,
+					config: { customizations: [customization] },
+				}, 'test-client', 1);
+
+				let persisted = false;
+				for (let attempt = 0; attempt < 20; attempt++) {
+					try {
+						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
+						assert.deepStrictEqual(
+							parsed.customizations,
+							[customization],
+						);
+						persisted = true;
+						break;
+					} catch {
+						// Wait for the serialized root-config write to complete.
+					}
+					if (attempt === 19) {
+						break;
+					}
+					await new Promise(resolve => setTimeout(resolve, 5));
+				}
+
+				assert.ok(persisted, 'should persist the root config change');
+			} finally {
+				rmSync(tempDir.fsPath, { recursive: true, force: true });
+			}
+		});
+	});
+
 	suite('createSession', () => {
 
 		test('creates session via specified provider', async () => {
@@ -125,6 +172,31 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = await service.createSession({ provider: 'copilot' });
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
+		});
+
+		test('honors requested session URI', async () => {
+			service.registerProvider(copilotAgent);
+
+			const requestedSession = AgentSession.uri('copilot', 'requested-session');
+			const session = await service.createSession({ provider: 'copilot', session: requestedSession });
+			assert.strictEqual(session.toString(), requestedSession.toString());
+		});
+
+		test('scripted mock agent honors requested session URI', async () => {
+			const agent = new ScriptedMockAgent();
+			disposables.add(toDisposable(() => agent.dispose()));
+
+			const requestedSession = AgentSession.uri('mock', 'requested-session');
+			const result = await agent.createSession({ session: requestedSession });
+			const sessions = await agent.listSessions();
+
+			assert.deepStrictEqual({
+				created: result.session.toString(),
+				listed: sessions.some(s => s.session.toString() === requestedSession.toString()),
+			}, {
+				created: requestedSession.toString(),
+				listed: true,
+			});
 		});
 
 		test('uses default provider when none specified', async () => {
@@ -206,7 +278,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Manually add the session to the mock
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -242,6 +314,134 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].summary, 'User first message');
 		});
 
+		test('createSession attaches git state into state _meta when working directory is present', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: true,
+				branchName: 'feature/x',
+				baseBranchName: 'main',
+				upstreamBranchName: 'origin/feature/x',
+				incomingChanges: 1,
+				outgoingChanges: 2,
+				uncommittedChanges: 3,
+			};
+			const calls: string[] = [];
+			const gitService = {
+				_serviceBrand: undefined,
+				isInsideWorkTree: async () => true,
+				getCurrentBranch: async () => undefined,
+				getDefaultBranch: async () => undefined,
+				getBranches: async () => [],
+				getRepositoryRoot: async () => undefined,
+				getWorktreeRoots: async () => [],
+				addWorktree: async () => { },
+				removeWorktree: async () => { },
+				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
+				computeSessionFileDiffs: async () => undefined,
+				showBlob: async () => undefined,
+			};
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			// _attachGitState is fire-and-forget; drain microtasks until the
+			// git service's promise has resolved and setSessionMeta has run.
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			const sessions = await localService.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(session.toString())?._meta,
+				{ git: gitState },
+			);
+		});
+
+		test('createSession skips git overlay when no working directory or no git state', async () => {
+			const gitService = {
+				_serviceBrand: undefined,
+				isInsideWorkTree: async () => false,
+				getCurrentBranch: async () => undefined,
+				getDefaultBranch: async () => undefined,
+				getBranches: async () => [],
+				getRepositoryRoot: async () => undefined,
+				getWorktreeRoots: async () => [],
+				addWorktree: async () => { },
+				removeWorktree: async () => { },
+				getSessionGitState: async () => undefined,
+				computeSessionFileDiffs: async () => undefined,
+				showBlob: async () => undefined,
+			};
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			// No resolvedWorkingDirectory set on the mock.
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+			const sessions = await localService.listSessions();
+
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(localService.stateManager.getSessionState(session.toString())?._meta, undefined);
+		});
+
+		test('subscribe lazily attaches git state when an existing session has no _meta.git', async () => {
+			// Regression test: previously AgentService was constructed without
+			// a git service, so _attachGitState always bailed and `_meta.git`
+			// was never populated. This test ensures the lazy-fire path on
+			// subscribe() actually invokes the git service and writes git
+			// state into the session's `_meta`.
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'feature/lazy',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const calls: string[] = [];
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async (uri: URI) => { calls.push(uri.fsPath); return gitState; };
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			// Seed a session and clear its _meta so subscribe must lazily
+			// recompute git state.
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+			localService.stateManager.setSessionMeta(session.toString(), undefined);
+			calls.length = 0;
+
+			await localService.subscribe(session);
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+
+			assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
+			assert.deepStrictEqual(
+				localService.stateManager.getSessionState(session.toString())?._meta,
+				{ git: gitState },
+			);
+		});
+
 		test('createSession stores live session config', async () => {
 			service.registerProvider(copilotAgent);
 
@@ -254,10 +454,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('seeds activeClient into the initial session state when provided', async () => {
 			service.registerProvider(copilotAgent);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(env => envelopes.push(env)));
 
-			const activeClient: ISessionActiveClient = {
+			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
 				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
@@ -342,7 +542,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.lifecycle, SessionLifecycle.Ready);
 			assert.strictEqual(state!.turns.length, 1);
 			assert.strictEqual(state!.turns[0].userMessage.text, 'Hello');
-			const mdPart = state!.turns[0].responseParts.find((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdPart = state!.turns[0].responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
@@ -367,12 +567,46 @@ suite('AgentService (node dispatcher)', () => {
 			const state = service.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
 			const turn = state!.turns[0];
-			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = turn.responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(toolCallParts.length, 1);
-			const tc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			const tc = toolCallParts[0].toolCall as ToolCallCompletedState;
 			assert.strictEqual(tc.status, ToolCallStatus.Completed);
 			assert.strictEqual(tc.toolCallId, 'tc-1');
 			assert.strictEqual(tc.confirmed, ToolCallConfirmationReason.NotNeeded);
+		});
+
+		test('interleaves reasoning, markdown, and tool calls in stream order on resume', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'u-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'a-1', content: 'Reply A', reasoningText: 'Thinking A', toolRequests: [{ toolCallId: 'tc-1', name: 'shell' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-1', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Running...' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-1', result: { success: true, pastTenseMessage: 'Ran', content: [{ type: ToolResultContentType.Text, text: 'ok' }] } },
+				{ type: 'message', session, role: 'assistant', messageId: 'a-2', content: 'Reply B', reasoningText: 'Thinking B', toolRequests: [] },
+			];
+
+			await service.restoreSession(sessionResource);
+
+			const state = service.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			const turn = state!.turns[0];
+			const summary = turn.responseParts.map(p => {
+				if (p.kind === ResponsePartKind.Reasoning) { return ['reasoning', p.content]; }
+				if (p.kind === ResponsePartKind.Markdown) { return ['markdown', p.content]; }
+				if (p.kind === ResponsePartKind.ToolCall) { return ['toolCall', p.toolCall.toolCallId]; }
+				return ['other'];
+			});
+			assert.deepStrictEqual(summary, [
+				['reasoning', 'Thinking A'],
+				['markdown', 'Reply A'],
+				['toolCall', 'tc-1'],
+				['reasoning', 'Thinking B'],
+				['markdown', 'Reply B'],
+			]);
 		});
 
 		test('flushes interrupted turns', async () => {
@@ -439,11 +673,11 @@ suite('AgentService (node dispatcher)', () => {
 			// The parent turn should only have the parent tool call — inner
 			// tool calls are excluded from the parent and belong to the
 			// child subagent session instead.
-			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = turn.responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(toolCallParts.length, 1, `Expected 1 tool call (parent only) but got ${toolCallParts.length}`);
 
 			// Parent subagent tool call
-			const parentTc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			const parentTc = toolCallParts[0].toolCall as ToolCallCompletedState;
 			assert.strictEqual(parentTc.toolCallId, 'tc-sub');
 			assert.strictEqual(parentTc.status, ToolCallStatus.Completed);
 			assert.strictEqual(parentTc._meta?.toolKind, 'subagent');
@@ -462,13 +696,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(snapshot?.state, 'Child session snapshot should exist');
 			assert.ok(childState, 'Child session state should exist');
 			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
-			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.strictEqual(childToolParts.length, 2, `Child session should have 2 inner tool calls but got ${childToolParts.length}`);
 			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'Should have tc-inner-1');
 			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-2'), 'Should have tc-inner-2');
 
 			// The turn should also have the final markdown
-			const mdParts = turn.responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdParts = turn.responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.some(p => p.content.includes('3 issues')), 'Should have the final markdown response');
 		});
 
@@ -490,7 +724,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 
 			// Should have the parent subagent tool call with subagent content
-			const toolCallParts = state!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const toolCallParts = state!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			const parentTc = toolCallParts.find(p => p.toolCall.toolName === 'task');
 			assert.ok(parentTc, 'Should have a task tool call');
 			assert.strictEqual(parentTc!.toolCall._meta?.toolKind, 'subagent');
@@ -508,11 +742,11 @@ suite('AgentService (node dispatcher)', () => {
 			const childState = service.stateManager.getSessionState(childSessionUri);
 			assert.ok(childState, 'Child session state should exist');
 			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
-			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.ok(childToolParts.length > 0, `Child session should have inner tool calls but got ${childToolParts.length}`);
 
 			// Should have the final markdown
-			const mdParts = state!.turns[0].responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
 	});
@@ -526,7 +760,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
@@ -544,7 +778,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			await localService.createSession({ provider: 'copilot' });
@@ -560,7 +794,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend (no config) so listSessions can find it
@@ -593,7 +827,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			const session = await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
@@ -620,7 +854,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			const { session } = await localAgent.createSession();

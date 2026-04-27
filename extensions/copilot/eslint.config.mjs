@@ -338,7 +338,6 @@ export default tseslint.config(
 		ignores: [
 			'src/util/vs/**/*.ts', // vendored code
 			'src/**/*.spec.ts', // allow in tests
-			'./src/extension/agents/copilotcli/node/nodePtyShim.ts',
 			'./src/extension/byok/common/anthropicMessageConverter.ts',
 			'./src/extension/byok/common/geminiFunctionDeclarationConverter.ts',
 			'./src/extension/byok/common/geminiMessageConverter.ts',

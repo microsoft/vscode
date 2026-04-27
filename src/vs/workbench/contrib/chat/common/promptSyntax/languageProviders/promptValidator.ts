@@ -7,7 +7,6 @@ import { isEmptyPattern, parse, splitGlobAware } from '../../../../../../base/co
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
@@ -16,16 +15,17 @@ import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/langu
 import { PromptsType, Target } from '../promptTypes.js';
 import { ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION, VALID_SKILL_NAME_REGEX } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, isSkillFilename, LEGACY_MODE_FILE_EXTENSION, VALID_SKILL_NAME_REGEX } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
-import { PromptsConfig } from '../config/config.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -37,7 +37,8 @@ export class PromptValidator {
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@ILogService private readonly logger: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -61,31 +62,18 @@ export class PromptValidator {
 	}
 
 	private async validateSkillAttributes(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
-		if (promptType !== PromptsType.skill) {
+		if (promptType !== PromptsType.skill || !promptAST.header) {
 			return;
 		}
 
-		const nameAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.name);
+		const nameAttribute = promptAST.header.getAttribute(PromptHeaderAttributes.name);
 		if (!nameAttribute) {
 			report(toMarker(
-				localize('promptValidator.skillNameMissing', "Skill must provide a name."),
+				localize('promptValidator.skillNameMissing', "Skill should provide a name."),
 				new Range(1, 1, 1, 4),
-				MarkerSeverity.Error
+				MarkerSeverity.Warning
 			));
-			return;
-		}
-
-		const descriptionAttribute = promptAST.header?.attributes.find(attr => attr.key === PromptHeaderAttributes.description);
-		if (!descriptionAttribute) {
-			report(toMarker(
-				localize('promptValidator.skillDescriptionMissing', "Skill must provide a description."),
-				new Range(1, 1, 1, 4),
-				MarkerSeverity.Error
-			));
-			return;
-		}
-
-		if (nameAttribute.value.type === 'scalar') {
+		} else if (nameAttribute.value.type === 'scalar') {
 			const skillName = nameAttribute.value.value.trim();
 			if (skillName.length > 0) {
 				if (!VALID_SKILL_NAME_REGEX.test(skillName)) {
@@ -98,7 +86,7 @@ export class PromptValidator {
 
 				// Extract folder name from path (e.g., .github/skills/my-skill/SKILL.md -> my-skill)
 				const pathParts = promptAST.uri.path.split('/');
-				const skillIndex = pathParts.findIndex(part => part === 'SKILL.md');
+				const skillIndex = pathParts.findIndex(part => isSkillFilename(part));
 				if (skillIndex > 0) {
 					const folderName = pathParts[skillIndex - 1];
 					if (folderName && skillName !== folderName) {
@@ -109,6 +97,54 @@ export class PromptValidator {
 						));
 					}
 				}
+			}
+		}
+
+		const descriptionAttribute = promptAST.header.getAttribute(PromptHeaderAttributes.description);
+		if (!descriptionAttribute) {
+			report(toMarker(
+				localize('promptValidator.skillDescriptionMissing', "Skill should provide a description."),
+				new Range(1, 1, 1, 4),
+				MarkerSeverity.Warning
+			));
+
+			// Without a description, user-invocable: false is invalid because the skill
+			// would be model-only but has no description for the model to decide when to use it.
+			if (promptAST.header.userInvocable === false) {
+				const userInvocableAttr = promptAST.header.getAttribute(PromptHeaderAttributes.userInvocable);
+				if (userInvocableAttr) {
+					report(toMarker(
+						localize('promptValidator.skillUserInvocableRequiresDescription', "A description is required when user-invocable is false, because the model needs a description to decide when to load the skill."),
+						userInvocableAttr.value.range,
+						MarkerSeverity.Error
+					));
+				}
+			}
+
+			// Without a description, disable-model-invocation: false (model invocation enabled)
+			// is the default but if explicitly set, report an error that a description is needed.
+			if (promptAST.header.disableModelInvocation === false) {
+				const disableModelInvocationAttr = promptAST.header.getAttribute(PromptHeaderAttributes.disableModelInvocation);
+				if (disableModelInvocationAttr) {
+					report(toMarker(
+						localize('promptValidator.skillModelInvocationRequiresDescription', "A description is required when model invocation is enabled, because the model needs a description to decide when to load the skill."),
+						disableModelInvocationAttr.value.range,
+						MarkerSeverity.Error
+					));
+				}
+			}
+		}
+
+		// Validate context: fork — requires the skill tool to be enabled
+		const contextAttribute = promptAST.header?.getAttribute(PromptHeaderAttributes.context);
+		if (contextAttribute && contextAttribute.value.type === 'scalar' && contextAttribute.value.value.trim() === 'fork') {
+			const skillToolEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.skillTool.enabled');
+			if (!skillToolEnabled) {
+				report(toMarker(
+					localize('promptValidator.contextForkNotSupported', "The 'context: fork' attribute requires the skill tool to be enabled (github.copilot.chat.skillTool.enabled)."),
+					contextAttribute.value.range,
+					MarkerSeverity.Warning
+				));
 			}
 		}
 	}
@@ -132,13 +168,13 @@ export class PromptValidator {
 				fileReferenceChecks.push((async () => {
 					try {
 						const exists = await this.fileService.exists(resolved);
-						if (exists) {
-							return;
+						if (!exists) {
+							const loc = this.labelService.getUriLabel(resolved);
+							report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 						}
-					} catch {
+					} catch (e) {
+						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}': ${e.message}`);
 					}
-					const loc = this.labelService.getUriLabel(resolved);
-					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 				})());
 			}
 		}
@@ -211,9 +247,7 @@ export class PromptValidator {
 				this.validateUserInvocable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
-				if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-					this.validateHooks(attributes, target, report);
-				}
+				this.validateHooks(attributes, target, report);
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -235,19 +269,12 @@ export class PromptValidator {
 	}
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
-		let validAttributeNames = getValidAttributeNames(promptType, true, target);
-		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-			validAttributeNames = validAttributeNames.filter(name => name !== PromptHeaderAttributes.hooks);
-		}
-		const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
+		const validAttributeNames = getValidAttributeNames(promptType, true, target);
 		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
 				const supportedNames = new Lazy(() => {
-					let names = getValidAttributeNames(promptType, false, target);
-					if (!useCustomAgentHooks) {
-						names = names.filter(name => name !== PromptHeaderAttributes.hooks);
-					}
+					const names = getValidAttributeNames(promptType, false, target);
 					return names.sort().join(', ');
 				});
 				switch (promptType) {
@@ -913,7 +940,7 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
 	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
-	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];

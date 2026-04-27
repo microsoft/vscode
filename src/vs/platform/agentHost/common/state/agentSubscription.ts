@@ -7,11 +7,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IActionEnvelope, ISessionAction, IStateAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
-import type { IRootAction, ISessionAction as IProtocolSessionAction, ITerminalAction } from './protocol/action-origin.generated.js';
-import type { IRootState, ISessionState, ITerminalState } from './protocol/state.js';
+import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
+import type { RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { StateComponents } from './sessionState.js';
 
@@ -45,10 +45,10 @@ export interface IAgentSubscription<T> {
 	readonly onDidChange: Event<T>;
 
 	/** Fires before a server-originated action is applied to this subscription's state. */
-	readonly onWillApplyAction: Event<IActionEnvelope>;
+	readonly onWillApplyAction: Event<ActionEnvelope>;
 
 	/** Fires after a server-originated action is applied to this subscription's state. */
-	readonly onDidApplyAction: Event<IActionEnvelope>;
+	readonly onDidApplyAction: Event<ActionEnvelope>;
 }
 
 // --- Base Implementation -----------------------------------------------------
@@ -64,16 +64,16 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
-	private _bufferedEnvelopes: IActionEnvelope[] | undefined;
+	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
 
-	protected readonly _onWillApplyAction = this._register(new Emitter<IActionEnvelope>());
-	readonly onWillApplyAction: Event<IActionEnvelope> = this._onWillApplyAction.event;
+	protected readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onWillApplyAction: Event<ActionEnvelope> = this._onWillApplyAction.event;
 
-	protected readonly _onDidApplyAction = this._register(new Emitter<IActionEnvelope>());
-	readonly onDidApplyAction: Event<IActionEnvelope> = this._onDidApplyAction.event;
+	protected readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidApplyAction: Event<ActionEnvelope> = this._onDidApplyAction.event;
 
 	protected readonly _clientId: string;
 	protected readonly _log: (msg: string) => void;
@@ -116,7 +116,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Process an incoming action envelope. The subscription determines
 	 * whether the action is relevant via {@link _isRelevantAction}.
 	 */
-	receiveEnvelope(envelope: IActionEnvelope): void {
+	receiveEnvelope(envelope: ActionEnvelope): void {
 		if (!this._isRelevantAction(envelope.action)) {
 			return;
 		}
@@ -140,10 +140,10 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	}
 
 	/** Apply the reducer to confirmed state. Subclasses must implement. */
-	protected abstract _applyReducer(state: T, action: IStateAction): T;
+	protected abstract _applyReducer(state: T, action: StateAction): T;
 
 	/** Whether the given action targets this subscription. */
-	protected abstract _isRelevantAction(action: IStateAction): boolean;
+	protected abstract _isRelevantAction(action: StateAction): boolean;
 
 	/** Return optimistic state if write-ahead is active, otherwise `undefined`. */
 	protected _getOptimisticState(): T | undefined {
@@ -170,7 +170,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Default reconciliation: apply to confirmed, fire change event.
 	 * Session subscriptions override this for write-ahead.
 	 */
-	protected _reconcile(envelope: IActionEnvelope, _isOwnAction: boolean): void {
+	protected _reconcile(envelope: ActionEnvelope, _isOwnAction: boolean): void {
 		this._confirmedState = this._applyReducer(this._confirmedState!, envelope.action);
 		this._onDidChange.fire(this.value as T);
 	}
@@ -182,13 +182,13 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
  * Subscription to the root state at `agenthost:/root`.
  * Server-only mutations — no write-ahead.
  */
-export class RootStateSubscription extends BaseAgentSubscription<IRootState> {
+export class RootStateSubscription extends BaseAgentSubscription<RootState> {
 
-	protected override _applyReducer(state: IRootState, action: IStateAction): IRootState {
-		return rootReducer(state, action as IRootAction, this._log);
+	protected override _applyReducer(state: RootState, action: StateAction): RootState {
+		return rootReducer(state, action as RootAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: IStateAction): boolean {
+	protected override _isRelevantAction(action: StateAction): boolean {
 		return action.type.startsWith('root/');
 	}
 }
@@ -197,17 +197,17 @@ export class RootStateSubscription extends BaseAgentSubscription<IRootState> {
 
 interface IPendingAction {
 	readonly clientSeq: number;
-	readonly action: ISessionAction;
+	readonly action: SessionAction;
 }
 
 /**
  * Subscription to a session at `copilot:/<uuid>`.
  * Supports write-ahead reconciliation for client-dispatchable actions.
  */
-export class SessionStateSubscription extends BaseAgentSubscription<ISessionState> {
+export class SessionStateSubscription extends BaseAgentSubscription<SessionState> {
 
 	private readonly _pendingActions: IPendingAction[] = [];
-	private _optimisticState: ISessionState | undefined;
+	private _optimisticState: SessionState | undefined;
 	private readonly _sessionUri: string;
 	private readonly _seqAllocator: () => number;
 
@@ -226,7 +226,7 @@ export class SessionStateSubscription extends BaseAgentSubscription<ISessionStat
 	 * Optimistically apply a session action. Returns the clientSeq to send
 	 * to the server so it can echo back for reconciliation.
 	 */
-	applyOptimistic(action: ISessionAction): number {
+	applyOptimistic(action: SessionAction): number {
 		const clientSeq = this._seqAllocator();
 		this._pendingActions.push({ clientSeq, action });
 		// Apply on top of current optimistic
@@ -238,15 +238,15 @@ export class SessionStateSubscription extends BaseAgentSubscription<ISessionStat
 		return clientSeq;
 	}
 
-	protected override _getOptimisticState(): ISessionState | undefined {
+	protected override _getOptimisticState(): SessionState | undefined {
 		return this._optimisticState;
 	}
 
-	protected override _applyReducer(state: ISessionState, action: IStateAction): ISessionState {
+	protected override _applyReducer(state: SessionState, action: StateAction): SessionState {
 		return sessionReducer(state, action as IProtocolSessionAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: IStateAction): boolean {
+	protected override _isRelevantAction(action: StateAction): boolean {
 		return isSessionAction(action) && action.session === this._sessionUri;
 	}
 
@@ -257,7 +257,7 @@ export class SessionStateSubscription extends BaseAgentSubscription<ISessionStat
 		this._recomputeOptimistic();
 	}
 
-	protected override _reconcile(envelope: IActionEnvelope, isOwnAction: boolean): void {
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
@@ -276,7 +276,7 @@ export class SessionStateSubscription extends BaseAgentSubscription<ISessionStat
 		this._recomputeOptimistic();
 	}
 
-	private _confirmedApply(action: IStateAction): void {
+	private _confirmedApply(action: StateAction): void {
 		if (this._confirmedState) {
 			this._confirmedState = this._applyReducer(this._confirmedState, action);
 		}
@@ -318,7 +318,7 @@ export class SessionStateSubscription extends BaseAgentSubscription<ISessionStat
  * Subscription to a terminal at an agent-host terminal URI.
  * Server-only mutations — no write-ahead (terminal I/O is side-effect-only).
  */
-export class TerminalStateSubscription extends BaseAgentSubscription<ITerminalState> {
+export class TerminalStateSubscription extends BaseAgentSubscription<TerminalState> {
 
 	private readonly _terminalUri: string;
 
@@ -327,11 +327,11 @@ export class TerminalStateSubscription extends BaseAgentSubscription<ITerminalSt
 		this._terminalUri = terminalUri;
 	}
 
-	protected override _applyReducer(state: ITerminalState, action: IStateAction): ITerminalState {
-		return terminalReducer(state, action as ITerminalAction, this._log);
+	protected override _applyReducer(state: TerminalState, action: StateAction): TerminalState {
+		return terminalReducer(state, action as TerminalAction, this._log);
 	}
 
-	protected override _isRelevantAction(action: IStateAction): boolean {
+	protected override _isRelevantAction(action: StateAction): boolean {
 		return action.type.startsWith('terminal/') && (action as { terminal: string }).terminal === this._terminalUri;
 	}
 }
@@ -376,7 +376,7 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/** The always-live root state subscription. */
-	get rootState(): IAgentSubscription<IRootState> {
+	get rootState(): IAgentSubscription<RootState> {
 		return this._rootState;
 	}
 
@@ -384,7 +384,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Initialize the root state from a snapshot received during the
 	 * connection handshake.
 	 */
-	handleRootSnapshot(state: IRootState, fromSeq: number): void {
+	handleRootSnapshot(state: RootState, fromSeq: number): void {
 		this._rootState.handleSnapshot(state, fromSeq);
 	}
 
@@ -440,7 +440,7 @@ export class AgentSubscriptionManager extends Disposable {
 	/**
 	 * Route an incoming action envelope to all active subscriptions.
 	 */
-	receiveEnvelope(envelope: IActionEnvelope): void {
+	receiveEnvelope(envelope: ActionEnvelope): void {
 		// Root state gets all root actions
 		this._rootState.receiveEnvelope(envelope);
 		// Other subscriptions get filtered actions
@@ -453,7 +453,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
 	 */
-	dispatchOptimistic(action: ISessionAction | ITerminalAction): number {
+	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(action.session));
 			if (entry && entry.sub instanceof SessionStateSubscription) {

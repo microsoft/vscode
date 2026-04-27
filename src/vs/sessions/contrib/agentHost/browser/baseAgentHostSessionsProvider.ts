@@ -8,27 +8,28 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { IResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
-import type { IFileEdit, IModelSelection, IRootState, ISessionConfigPropertySchema, ISessionState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionGitState, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { diffsEqual, diffsToChanges, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
+import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 
 // ============================================================================
@@ -43,11 +44,11 @@ import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sess
  */
 export interface IAgentHostAdapterOptions {
 	readonly icon: ThemeIcon;
-	readonly description: IMarkdownString;
+	readonly description: IMarkdownString | undefined;
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
-	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => ISessionWorkspace | undefined;
+	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
 }
@@ -69,9 +70,9 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
-	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
+	readonly changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>('changes', []);
 	readonly modelId: ISettableObservable<string | undefined>;
-	modelSelection: IModelSelection | undefined;
+	modelSelection: ModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
@@ -85,6 +86,13 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly capabilities = { supportsMultipleChats: false };
 
 	readonly agentProvider: string;
+
+	// Retained so we can rebuild `workspace` when only `_meta` changes via
+	// a `SessionMetaChanged` action dispatched on session open (without a full
+	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
+	private _project: IAgentSessionMetadata['project'];
+	private _workingDirectory: URI | undefined;
+	private _meta: IAgentSessionMetadata['_meta'];
 
 	constructor(
 		metadata: IAgentSessionMetadata,
@@ -100,7 +108,7 @@ export class AgentHostSessionAdapter implements ISession {
 		}
 		this.agentProvider = agentProvider;
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
-		this.sessionId = `${providerId}:${this.resource.toString()}`;
+		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
 		this.icon = _options.icon;
@@ -112,13 +120,18 @@ export class AgentHostSessionAdapter implements ISession {
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model.id}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', _options.description);
-		this.workspace = observableValue('workspace', _options.buildWorkspace(metadata.project, metadata.workingDirectory));
+		this._project = metadata.project;
+		this._workingDirectory = metadata.workingDirectory;
+		this._meta = metadata._meta;
+		const initialGitState = readSessionGitState(this._meta);
+		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, initialGitState);
+		this.workspace = observableValue('workspace', initialWorkspace);
 		this.loading = _options.loading;
 
 		if (metadata.isRead === false) {
 			this.isRead.set(false, undefined);
 		}
-		if (metadata.isDone) {
+		if (metadata.isArchived) {
 			this.isArchived.set(true, undefined);
 		}
 		if (metadata.diffs && metadata.diffs.length > 0) {
@@ -176,7 +189,17 @@ export class AgentHostSessionAdapter implements ISession {
 			didChange = true;
 		}
 
-		const workspace = this._options.buildWorkspace(metadata.project, metadata.workingDirectory);
+		this._project = metadata.project;
+		this._workingDirectory = metadata.workingDirectory;
+		// Only update `_meta` when the source actually provides one. `update()`
+		// is fed from SessionSummary (via `listSessions`/`sessionAdded` paths)
+		// which has no `_meta` field, so an undefined value here means "not
+		// included" rather than "cleared". `_meta` (e.g. git state) flows in
+		// exclusively via `setMeta` from `SessionState` subscription updates.
+		if (metadata._meta !== undefined) {
+			this._meta = metadata._meta;
+		}
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
 		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 			this.workspace.set(workspace, undefined);
 			didChange = true;
@@ -187,8 +210,8 @@ export class AgentHostSessionAdapter implements ISession {
 			didChange = true;
 		}
 
-		if (metadata.isDone !== undefined && metadata.isDone !== this.isArchived.get()) {
-			this.isArchived.set(metadata.isDone, undefined);
+		if (metadata.isArchived !== undefined && metadata.isArchived !== this.isArchived.get()) {
+			this.isArchived.set(metadata.isArchived, undefined);
 			didChange = true;
 		}
 
@@ -205,6 +228,22 @@ export class AgentHostSessionAdapter implements ISession {
 		}
 
 		return didChange;
+	}
+
+	/**
+	 * Apply a `SessionState._meta` delta (fed from `_applySessionMetaFromState`)
+	 * and rebuild the workspace if the git state changed. Returns `true` iff
+	 * the workspace actually changed.
+	 */
+	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
+		this._meta = meta;
+		const gitState = readSessionGitState(this._meta);
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, gitState);
+		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
+			return false;
+		}
+		this.workspace.set(workspace, undefined);
+		return true;
 	}
 }
 
@@ -248,6 +287,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessionConfig = this._register(new Emitter<string>());
 	readonly onDidChangeSessionConfig = this._onDidChangeSessionConfig.event;
 
+	protected readonly _onDidChangeRootConfig = this._register(new Emitter<void>());
+	readonly onDidChangeRootConfig = this._onDidChangeRootConfig.event;
+
+	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
+	protected _rootConfig: RootConfigState | undefined;
+
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
 
@@ -266,12 +311,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _selectedModelId: string | undefined;
 
 	protected readonly _newSessionWorkspaces = new Map<string, URI>();
-	protected readonly _newSessionConfigs = new Map<string, IResolveSessionConfigResult>();
+	protected readonly _newSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	protected readonly _newSessionAgentProviders = new Map<string, string>();
 	protected readonly _newSessionConfigRequests = new Map<string, number>();
 
-	/** Config for running sessions (session-mutable properties only), keyed by session ID. */
-	protected readonly _runningSessionConfigs = new Map<string, IResolveSessionConfigResult>();
+	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
+	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 
 	/**
 	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
@@ -343,7 +388,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
 	 * id/label set actually changed.
 	 */
-	protected _syncSessionTypesFromRootState(rootState: IRootState): void {
+	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
@@ -358,7 +403,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionTypes.fire();
 	}
 
-	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
+	/**
+	 * Reconcile {@link _rootConfig} against {@link RootState.config}, firing
+	 * {@link onDidChangeRootConfig} only when schema or values actually change.
+	 */
+	protected _syncRootConfigFromRootState(rootState: RootState): void {
+		const next = rootState.config;
+		const prev = this._rootConfig;
+		if (prev === next) {
+			return;
+		}
+		if (!next) {
+			this._rootConfig = undefined;
+			this._onDidChangeRootConfig.fire();
+			return;
+		}
+		if (prev && prev.schema === next.schema && equals(prev.values, next.values)) {
+			return;
+		}
+		this._rootConfig = next;
+		this._onDidChangeRootConfig.fire();
+	}
+
+	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
 
 	/** Optional event fired when the underlying connection is lost; used to short-circuit `_waitForNewSession`. */
 	protected get onConnectionLost(): Event<void> { return Event.None; }
@@ -396,6 +463,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._ensureSessionCache();
 		for (const cached of this._sessionCache.values()) {
 			if (cached.resource.toString() === resource.toString()) {
+				// Opening a session: subscribe to its AHP state so that
+				// `_meta` (e.g. lazy git state computed by the agent host)
+				// flows into the cached adapter.
+				this._ensureSessionStateSubscription(cached.sessionId);
 				return cached;
 			}
 		}
@@ -427,6 +498,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._validateBeforeCreate(sessionType);
 
 		const workspace = this.resolveWorkspace(workspaceUri);
+		if (!workspace) {
+			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
+		}
 		return this._createNewSessionForType(workspace, sessionType);
 	}
 
@@ -449,7 +523,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue(this, '');
 		const updatedAt = observableValue(this, new Date());
-		const changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
+		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
 		const modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -504,10 +578,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Dynamic session config ----------------------------------------------
 
-	getSessionConfig(sessionId: string): IResolveSessionConfigResult | undefined {
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		// New-session config wins (during pre-creation flow). Otherwise lazily
 		// subscribe to the session's state so the running picker can seed its
-		// schema/values from the AHP `ISessionState.config` snapshot for sessions
+		// schema/values from the AHP `SessionState.config` snapshot for sessions
 		// that weren't created in this window.
 		const newSessionConfig = this._newSessionConfigs.get(sessionId);
 		if (newSessionConfig) {
@@ -517,7 +591,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
+	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
 		// New session (pre-creation): re-resolve the full config schema
 		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
 		if (workingDirectory) {
@@ -556,6 +630,55 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
+		const runningConfig = this._runningSessionConfigs.get(sessionId);
+		const connection = this.connection;
+		if (!runningConfig || !connection) {
+			return;
+		}
+
+		// Build the outgoing payload: for every known property, prefer the
+		// caller-supplied value if the property is user-editable
+		// (`sessionMutable: true` and not `readOnly`), otherwise force the
+		// current value through. This guarantees replace semantics never
+		// alter a non-editable property even if the caller included it.
+		const nextValues: Record<string, unknown> = {};
+		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
+			const editable = schema.sessionMutable === true && schema.readOnly !== true;
+			if (editable) {
+				nextValues[key] = values[key];
+			} else if (Object.hasOwn(runningConfig.values, key)) {
+				nextValues[key] = runningConfig.values[key];
+			}
+		}
+		// Unknown keys from the caller are ignored (no schema entry).
+
+		// Skip the dispatch entirely when nothing meaningful changes.
+		if (equals(nextValues, runningConfig.values)) {
+			return;
+		}
+
+		// Update local cache optimistically (full replace).
+		this._runningSessionConfigs.set(sessionId, {
+			...runningConfig,
+			values: nextValues,
+		});
+		this._onDidChangeSessionConfig.fire(sessionId);
+
+		// Dispatch to the agent host with replace semantics.
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			const action = {
+				type: ActionType.SessionConfigChanged as const,
+				session: AgentSession.uri(cached.agentProvider, rawId).toString(),
+				config: nextValues,
+				replace: true,
+			};
+			connection.dispatch(action);
+		}
+	}
+
 	async getSessionConfigCompletions(sessionId: string, property: string, query?: string) {
 		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
 		const connection = this.connection;
@@ -572,12 +695,73 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return result.items;
 	}
 
-	getCreateSessionConfig(sessionId: string): Record<string, string> | undefined {
+	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
 		return this._newSessionConfigs.get(sessionId)?.values;
 	}
 
 	clearSessionConfig(sessionId: string): void {
 		this._clearNewSessionConfig(sessionId);
+	}
+
+	// -- Root (agent host) Config --------------------------------------------
+
+	getRootConfig(): RootConfigState | undefined {
+		return this._rootConfig;
+	}
+
+	async setRootConfigValue(property: string, value: unknown): Promise<void> {
+		const current = this._rootConfig;
+		const connection = this.connection;
+		if (!current || !connection) {
+			return;
+		}
+		if (!current.schema.properties[property]) {
+			return;
+		}
+
+		// Optimistically update local cache.
+		this._rootConfig = {
+			...current,
+			values: { ...current.values, [property]: value },
+		};
+		this._onDidChangeRootConfig.fire();
+
+		const action = {
+			type: ActionType.RootConfigChanged as const,
+			config: { [property]: value },
+		};
+		connection.dispatch(action);
+	}
+
+	async replaceRootConfig(values: Record<string, unknown>): Promise<void> {
+		const current = this._rootConfig;
+		const connection = this.connection;
+		if (!current || !connection) {
+			return;
+		}
+
+		// Filter to known properties so we don't dispatch values for keys the
+		// host didn't publish a schema for.
+		const nextValues: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(values)) {
+			if (current.schema.properties[key]) {
+				nextValues[key] = value;
+			}
+		}
+
+		if (equals(nextValues, current.values)) {
+			return;
+		}
+
+		this._rootConfig = { ...current, values: nextValues };
+		this._onDidChangeRootConfig.fire();
+
+		const action = {
+			type: ActionType.RootConfigChanged as const,
+			config: nextValues,
+			replace: true,
+		};
+		connection.dispatch(action);
 	}
 
 	// -- Model selection ------------------------------------------------------
@@ -613,7 +797,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
+				const action = { type: ActionType.SessionIsArchivedChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isArchived: true };
 				connection.dispatch(action);
 			}
 		}
@@ -627,7 +811,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const connection = this.connection;
 			if (connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
+				const action = { type: ActionType.SessionIsArchivedChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isArchived: false };
 				connection.dispatch(action);
 			}
 		}
@@ -746,7 +930,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const committedSession = await this._waitForNewSession(existingKeys);
 			if (committedSession) {
-				this._preserveSessionMutableConfig(chatId, committedSession.sessionId);
+				this._preserveNewSessionConfig(chatId, committedSession.sessionId);
 				this._currentNewSession = undefined;
 				this._currentNewSessionModelId = undefined;
 				this._currentNewSessionLoading = undefined;
@@ -774,7 +958,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Session config plumbing ---------------------------------------------
 
-	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, string> | undefined): Promise<void> {
+	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, unknown> | undefined): Promise<void> {
 		const connection = this.connection;
 		if (!connection) {
 			this._setNewSessionLoading(sessionId, false);
@@ -812,28 +996,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * When a session transitions from untitled (new) to committed (running),
-	 * preserve the session-mutable config properties so they can be changed
-	 * during the running session.
+	 * carry over the full resolved config (schema + values) so consumers like
+	 * the session-settings JSONC editor can round-trip non-mutable values
+	 * (`isolation`, `branch`, …) through a replace dispatch. Mutable-vs-readonly
+	 * behavior is still driven off the per-property `sessionMutable` flag.
 	 */
-	private _preserveSessionMutableConfig(oldSessionId: string, newSessionId: string): void {
+	private _preserveNewSessionConfig(oldSessionId: string, newSessionId: string): void {
 		const config = this._newSessionConfigs.get(oldSessionId);
 		if (!config) {
 			return;
 		}
-		const mutableProperties: IResolveSessionConfigResult['schema']['properties'] = {};
-		const mutableValues: Record<string, string> = {};
-		for (const [key, propSchema] of Object.entries(config.schema.properties)) {
-			if (propSchema.sessionMutable) {
-				mutableProperties[key] = propSchema;
-				if (Object.hasOwn(config.values, key)) {
-					mutableValues[key] = config.values[key];
-				}
-			}
-		}
-		if (Object.keys(mutableProperties).length > 0) {
+		if (Object.keys(config.schema.properties).length > 0) {
 			this._runningSessionConfigs.set(newSessionId, {
-				schema: { type: 'object', properties: mutableProperties },
-				values: mutableValues,
+				schema: { type: 'object', properties: { ...config.schema.properties } },
+				values: { ...config.values },
 			});
 		}
 	}
@@ -866,7 +1042,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Lazily acquire a session-state subscription for `sessionId` so that
-	 * `_runningSessionConfigs` is seeded from the AHP `ISessionState.config`
+	 * `_runningSessionConfigs` is seeded from the AHP `SessionState.config`
 	 * snapshot. Safe to call repeatedly — no-op once a subscription exists.
 	 *
 	 * The subscription is reference-counted by {@link IAgentConnection.getSubscription},
@@ -893,43 +1069,59 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri);
 		const store = new DisposableStore();
 		store.add(ref);
-		store.add(ref.object.onDidChange(state => this._seedRunningConfigFromState(sessionId, state)));
+		store.add(ref.object.onDidChange(state => {
+			this._applySessionStateUpdate(sessionId, state);
+		}));
 		this._sessionStateSubscriptions.set(sessionId, store);
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
-			this._seedRunningConfigFromState(sessionId, value);
+			this._applySessionStateUpdate(sessionId, value);
 		}
 	}
 
 	/**
-	 * Filter `state.config` to session-mutable properties and update
-	 * {@link _runningSessionConfigs} if changed. No-op if the seeded value is
-	 * structurally equal to the existing entry to avoid spurious
+	 * Fan-out for AHP `SessionState` snapshots: keeps both the running
+	 * session config and the cached adapter's `_meta` (e.g. git state) in
+	 * sync.
+	 */
+	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
+		this._seedRunningConfigFromState(sessionId, state);
+		this._applySessionMetaFromState(sessionId, state);
+	}
+
+	private _applySessionMetaFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		if (cached.setMeta(state._meta)) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	/**
+	 * Seed {@link _runningSessionConfigs} from the AHP `SessionState.config`
+	 * snapshot. Keeps the full schema + values (including non-mutable ones)
+	 * so consumers like the JSONC settings editor can round-trip all values
+	 * through a replace dispatch. No-op if structurally equal to avoid spurious
 	 * `onDidChangeSessionConfig` fires.
 	 */
-	private _seedRunningConfigFromState(sessionId: string, state: ISessionState): void {
+	private _seedRunningConfigFromState(sessionId: string, state: SessionState): void {
 		const stateConfig = state.config;
 		if (!stateConfig) {
 			return;
 		}
-		const properties: Record<string, ISessionConfigPropertySchema> = {};
-		const values: Record<string, string> = {};
-		for (const [key, propSchema] of Object.entries(stateConfig.schema.properties)) {
-			if (!propSchema.sessionMutable) {
-				continue;
-			}
-			properties[key] = propSchema;
-			if (Object.hasOwn(stateConfig.values, key)) {
-				values[key] = stateConfig.values[key];
-			}
-		}
-		if (Object.keys(properties).length === 0) {
+		if (Object.keys(stateConfig.schema.properties).length === 0) {
 			return;
 		}
-		const seeded: IResolveSessionConfigResult = {
-			schema: { type: 'object', properties },
-			values,
+		const seeded: ResolveSessionConfigResult = {
+			schema: { type: 'object', properties: { ...stateConfig.schema.properties } },
+			values: { ...stateConfig.values },
 		};
 		const existing = this._runningSessionConfigs.get(sessionId);
 		if (existing && resolvedConfigsEqual(existing, seeded)) {
@@ -1048,17 +1240,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleModelChanged(e.action.session, e.action.model);
 			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
 				this._handleIsReadChanged(e.action.session, e.action.isRead);
-			} else if (e.action.type === ActionType.SessionIsDoneChanged && isSessionAction(e.action)) {
-				this._handleIsDoneChanged(e.action.session, e.action.isDone);
+			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
+				this._handleIsArchivedChanged(e.action.session, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
-				this._handleConfigChanged(e.action.session, e.action.config);
+				this._handleConfigChanged(e.action.session, e.action.config, e.action.replace === true);
 			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
 				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 	}
 
-	private _handleSessionAdded(summary: ISessionSummary): void {
+	private _handleSessionAdded(summary: SessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -1076,8 +1268,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(summary.project ? { project: { uri: this.mapProjectUri(URI.parse(summary.project.uri)), displayName: summary.project.displayName } } : {}),
 			model: summary.model,
 			workingDirectory: workingDir,
-			isRead: summary.isRead,
-			isDone: summary.isDone,
+			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
+			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
@@ -1104,7 +1296,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleModelChanged(session: string, model: IModelSelection): void {
+	private _handleModelChanged(session: string, model: ModelSelection): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
@@ -1126,16 +1318,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleIsDoneChanged(session: string, isDone: boolean): void {
+	private _handleIsArchivedChanged(session: string, isArchived: boolean): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
-			cached.isArchived.set(isDone, undefined);
+			cached.isArchived.set(isArchived, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
 
-	private _handleDiffsChanged(session: string, diffs: IFileEdit[]): void {
+	private _handleDiffsChanged(session: string, diffs: FileEdit[]): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
@@ -1144,7 +1336,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleSessionSummaryChanged(session: string, changes: Partial<ISessionSummary>): void {
+	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (!cached) {
@@ -1157,6 +1349,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const uiStatus = mapProtocolStatus(changes.status);
 			if (uiStatus !== cached.status.get()) {
 				cached.status.set(uiStatus, undefined);
+				didChange = true;
+			}
+
+			const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
+			if (isRead !== cached.isRead.get()) {
+				cached.isRead.set(isRead, undefined);
+				didChange = true;
+			}
+
+			const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
+			if (isArchived !== cached.isArchived.get()) {
+				cached.isArchived.set(isArchived, undefined);
 				didChange = true;
 			}
 		}
@@ -1179,7 +1383,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleConfigChanged(session: string, config: Record<string, string>): void {
+	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (!cached) {
@@ -1190,11 +1394,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (existing) {
 			this._runningSessionConfigs.set(sessionId, {
 				...existing,
-				values: { ...existing.values, ...config },
+				values: replace ? { ...config } : { ...existing.values, ...config },
 			});
 		} else {
 			// Session was restored (e.g. after reload) — create a minimal
 			// config entry from the changed values so the picker can render.
+			// `replace` vs merge is moot here (no existing values to merge with).
 			this._runningSessionConfigs.set(sessionId, {
 				schema: { type: 'object', properties: buildMutableConfigSchema(config) },
 				values: config,
