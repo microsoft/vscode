@@ -49,6 +49,7 @@ suite('HoverService', () => {
 		instantiationService.stub(IKeybindingService, {
 			mightProducePrintableCharacter() { return false; },
 			softDispatch() { return NoMatchingKb; },
+			lookupKeybinding() { return undefined; },
 			resolveKeyboardEvent() {
 				return {
 					getLabel() { return ''; },
@@ -241,6 +242,25 @@ suite('HoverService', () => {
 
 			hover.dispose();
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
+		});
+
+		test('should constrain scrollable content height during layout', () => {
+			const target = createTarget();
+
+			const hover = hoverService.showInstantHover({
+				content: 'Test content',
+				target,
+				actions: [{ label: 'Test Action', commandId: 'test.action', run: () => { } }]
+			});
+
+			assert.ok(hover, 'Hover should be created');
+			assertInDOM(hover, 'Hover should be in DOM');
+
+			const contentsNode = asHoverWidget(hover).domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsNode, 'Contents node should exist');
+			assert.notStrictEqual(contentsNode.style.maxHeight, '', 'Contents node should have maxHeight set after layout so DomScrollableElement can detect overflow');
+
+			hover.dispose();
 		});
 	});
 
