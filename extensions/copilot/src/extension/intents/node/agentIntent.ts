@@ -85,7 +85,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
 	const agentMemoryService = accessor.get<IAgentMemoryService>(IAgentMemoryService);
-	const logService = accessor.get<ILogService>(ILogService);
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -149,9 +148,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.MultiReplaceString] = true;
 	}
 
-	const cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt();
+	const sessionResource = (request.toolInvocationToken as any)?.sessionResource as string | undefined;
+	const sessionId = sessionResource ? extractSessionId(sessionResource) : undefined;
+	let cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt(sessionId);
 	if (!cachedMemoryPrompt && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
-		logService.debug('[getAgentTools] CopilotMemory is enabled but cache is not primed yet — StoreMemory tool will be disabled this turn');
+		cachedMemoryPrompt = await agentMemoryService.getMemoryPrompt(undefined, sessionId);
 	}
 	allowTools[ToolName.StoreMemory] = !!cachedMemoryPrompt;
 
