@@ -22,12 +22,7 @@ The Agents window has an established mobile architecture (documented in `src/vs/
 
 3. **Use conditional instantiation.** The call site that creates the component (e.g., `AgenticPaneCompositePartService`) should pick the mobile vs. desktop class based on viewport width at construction time — the same pattern already used for Part subclasses.
 
-4. **Co-locate component CSS with its TypeScript file.** Each component should own its CSS in a `media/` subfolder next to the component. For example:
-   - Component: `contrib/remoteAgentHost/browser/mobileHostFilterActionViewItem.ts`
-   - CSS: `contrib/remoteAgentHost/browser/media/hostPickerDropdown.css`
-   - Import in the component: `import './media/hostPickerDropdown.css';`
-   
-   This follows the same pattern as regular VS Code parts (e.g., `src/vs/workbench/browser/parts/*/media/`). The `mobileChatShell.css` file should contain only layout and shell-level styles for phone layout (`phone-layout` class rules), not component-specific styles.
+4. **Co-locate component CSS with its TypeScript file.** Each component should own its CSS in a `media/` subfolder next to the component, imported directly in the TypeScript file via `import './media/myComponent.css';`. Do not put component-specific styles in `mobileChatShell.css` — that file should contain only layout and shell-level styles for phone layout (`phone-layout` class rules).
 
 5. **Prefer reusable mobile widgets.** Before hand-rolling a bottom sheet, check if an existing pattern (panel sheet, context menu action sheet, quick pick) can be reused or extended. If a new pattern is genuinely needed, build it as a reusable widget in `browser/parts/mobile/` so other features can share it.
 
