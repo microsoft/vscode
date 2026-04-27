@@ -28,10 +28,7 @@ export class GitHubPullRequestModel extends Disposable {
 	private readonly _reviewThreads = observableValue<readonly IGitHubPRReviewThread[]>(this, []);
 	readonly reviewThreads: IObservable<readonly IGitHubPRReviewThread[]> = this._reviewThreads;
 
-	private _pollingClients = 0;
-	private _refreshPromise: Promise<void> | undefined;
 	private readonly _pollScheduler: RunOnceScheduler;
-
 	private _disposed = false;
 
 	constructor(
@@ -49,16 +46,8 @@ export class GitHubPullRequestModel extends Disposable {
 	/**
 	 * Refresh all PR data: pull request info, mergeability, and review threads.
 	 */
-	refresh(): Promise<void> {
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh().finally(() => {
-				if (this._refreshPromise) {
-					this._refreshPromise = undefined;
-				}
-			});
-		}
-
-		return this._refreshPromise;
+	async refresh(): Promise<void> {
+		await this._refresh();
 	}
 
 	/**
@@ -91,34 +80,23 @@ export class GitHubPullRequestModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.delay = intervalMs;
-
-		this._pollingClients++;
-		if (this._pollingClients === 1) {
-			this._pollScheduler.cancel();
-			this._pollScheduler.schedule();
-		}
+		this._pollScheduler.cancel();
+		this._pollScheduler.schedule(intervalMs);
 	}
 
 	/**
 	 * Stop periodic polling.
 	 */
 	stopPolling(): void {
-		if (this._pollingClients === 0) {
-			return;
-		}
-
-		this._pollingClients--;
-		if (this._pollingClients === 0) {
-			this._pollScheduler.cancel();
-		}
+		this._pollScheduler.cancel();
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
 
-		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
-		if (!this._disposed && this._pollingClients > 0) {
+		// Re-schedule for next poll cycle
+		// as RunOnceScheduler is one-shot
+		if (!this._disposed) {
 			this._pollScheduler.schedule();
 		}
 	}
@@ -139,9 +117,6 @@ export class GitHubPullRequestModel extends Disposable {
 
 	override dispose(): void {
 		this._disposed = true;
-		this._pollingClients = 0;
-		this._refreshPromise = undefined;
-
 		super.dispose();
 	}
 }
