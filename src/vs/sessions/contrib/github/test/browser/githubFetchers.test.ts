@@ -80,7 +80,7 @@ suite('GitHubRepositoryFetcher', () => {
 		});
 
 		const repo = await fetcher.getRepository('microsoft', 'vscode');
-		assert.deepStrictEqual(repo, {
+		assert.deepStrictEqual(repo.data, {
 			owner: 'microsoft',
 			name: 'vscode',
 			fullName: 'microsoft/vscode',
@@ -102,7 +102,7 @@ suite('GitHubRepositoryFetcher', () => {
 		});
 
 		const repo = await fetcher.getRepository('owner', 'test');
-		assert.strictEqual(repo.description, '');
+		assert.strictEqual(repo.data?.description, '');
 	});
 
 	test('getRepository propagates API errors', async () => {
@@ -278,8 +278,8 @@ suite('GitHubPRCIFetcher', () => {
 		});
 
 		const checks = await fetcher.getCheckRuns('owner', 'repo', 'abc123');
-		assert.strictEqual(checks.length, 2);
-		assert.deepStrictEqual(checks[0], {
+		assert.strictEqual(checks.data?.length, 2);
+		assert.deepStrictEqual(checks.data?.[0], {
 			id: 1,
 			name: 'build',
 			status: GitHubCheckStatus.Completed,
@@ -288,7 +288,7 @@ suite('GitHubPRCIFetcher', () => {
 			completedAt: '2024-01-01T00:10:00Z',
 			detailsUrl: 'https://example.com/1',
 		});
-		assert.strictEqual(checks[1].conclusion, undefined);
+		assert.strictEqual(checks.data?.[1].conclusion, undefined);
 	});
 
 	test('getCheckRunAnnotations returns formatted annotations', async () => {

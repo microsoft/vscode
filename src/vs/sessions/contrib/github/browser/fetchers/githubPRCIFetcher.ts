@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
 //#region GitHub API response types
 
@@ -59,13 +59,21 @@ export class GitHubPRCIFetcher {
 		private readonly _apiClient: GitHubApiClient,
 	) { }
 
-	async getCheckRuns(owner: string, repo: string, ref: string): Promise<IGitHubCICheck[]> {
-		const data = await this._apiClient.request<IGitHubCheckRunsListResponse>(
+	async getCheckRuns(owner: string, repo: string, ref: string, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubCICheck[]>> {
+		const response = await this._apiClient.request2<IGitHubCheckRunsListResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
-			'githubApi.getCheckRuns'
+			'githubApi.getCheckRuns',
+			undefined,
+			etag
 		);
-		return data.check_runs.map(mapCheckRun);
+
+		return {
+			...response,
+			data: response.data
+				? response.data.check_runs.map(mapCheckRun)
+				: undefined
+		};
 	}
 
 	/**
