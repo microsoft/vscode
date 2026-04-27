@@ -221,7 +221,7 @@ echo "=== Step 3: Launching Sessions app ===" >&2
 cd "$ROOT"
 # Unset ELECTRON_RUN_AS_NODE to ensure the app launches as Electron, not Node.
 VSCODE_SKIP_PRELAUNCH=1 ELECTRON_RUN_AS_NODE= ./scripts/code.sh \
-	--sessions \
+	--agents \
 	--skip-sessions-welcome \
 	--remote-debugging-port="$CDP_PORT" \
 	--user-data-dir="$USERDATA_DIR" \

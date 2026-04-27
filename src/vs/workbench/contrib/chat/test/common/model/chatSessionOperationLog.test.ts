@@ -51,6 +51,7 @@ suite('ChatSessionOperationLog', () => {
 			} else {
 				fileContent = VSBuffer.concat([fileContent, result.data]);
 			}
+			adapter.confirmWrite();
 		}
 
 		// Create new adapter and read back
@@ -210,6 +211,7 @@ suite('ChatSessionOperationLog', () => {
 
 
 			const result1 = adapter.write({ items: [{ id: 'a', value: [1, 2, 3] }] });
+			adapter.confirmWrite();
 			assert.deepStrictEqual(
 				JSON.parse(result1.data.toString().trim()),
 				{ kind: 2, k: ['items', 0, 'value'], v: [3] },
@@ -309,9 +311,12 @@ suite('ChatSessionOperationLog', () => {
 			adapter.createInitial(obj); // Entry 1
 
 			adapter.write({ ...obj, count: 1 }); // Entry 2
+			adapter.confirmWrite();
 			adapter.write({ ...obj, count: 2 }); // Entry 3
+			adapter.confirmWrite();
 
 			const before = adapter.write({ ...obj, count: 3 });
+			adapter.confirmWrite();
 			assert.strictEqual(before.op, 'append');
 
 			// This should trigger compaction
@@ -364,6 +369,7 @@ suite('ChatSessionOperationLog', () => {
 
 			// Change type from 'foo' to 'bar' - should detect change (different prefix)
 			const result1 = adapter.write({ data: { type: 'bar', version: 2 } });
+			adapter.confirmWrite();
 			assert.notStrictEqual(result1.data.toString(), '', 'different type should trigger change');
 			const entry1 = JSON.parse(result1.data.toString().trim());
 			assert.strictEqual(entry1.kind, 1); // EntryKind.Set
@@ -574,6 +580,97 @@ suite('ChatSessionOperationLog', () => {
 			const result = adapter.read(VSBuffer.fromString(logContent));
 
 			assert.deepStrictEqual(result.metadata, { tags: ['b', 'c'] });
+		});
+
+		test('write without confirmWrite resets to initial on next write', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+
+			// First write (no createInitial) — produces Initial replace
+			const result1 = adapter.write(obj);
+			assert.strictEqual(result1.op, 'replace');
+			// Do NOT confirm — simulates a failed persist
+
+			// Next write should produce a full replace again since state was not committed
+			const result2 = adapter.write({ ...obj, count: 2 });
+			assert.deepStrictEqual(
+				{ op: result2.op, entry: JSON.parse(result2.data.toString().trim()) },
+				{ op: 'replace', entry: { kind: 0, v: { name: 'test', count: 2, items: [] } } },
+			);
+		});
+
+		test('confirmWrite commits state so next write is incremental', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			adapter.createInitial(obj);
+
+			adapter.write({ ...obj, count: 1 });
+			adapter.confirmWrite();
+
+			// Next write should be an incremental append
+			const result = adapter.write({ ...obj, count: 2 });
+			assert.deepStrictEqual(
+				{ op: result.op, entry: JSON.parse(result.data.toString().trim()) },
+				{ op: 'append', entry: { kind: 1, k: ['count'], v: 2 } },
+			);
+		});
+
+		test('read throws on log file missing initial entry', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const logContent = JSON.stringify({ kind: 1, k: ['count'], v: 5 }) + '\n';
+			assert.throws(() => adapter.read(VSBuffer.fromString(logContent)), /missing an initial entry/);
+		});
+
+		test('failed first write followed by successful write produces valid roundtrip', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const initial: TestObject = { name: 'test', count: 0, items: [] };
+
+			// First write "fails" — data not persisted, no confirmWrite
+			const r1 = adapter.write(initial);
+			assert.strictEqual(r1.op, 'replace');
+			// skip confirmWrite — simulates failed persist
+
+			// Second write recovers — produces a full replace again
+			const r2 = adapter.write({ ...initial, count: 3 });
+			assert.strictEqual(r2.op, 'replace');
+			adapter.confirmWrite();
+			const fileContent = r2.data;
+
+			// Read back should give the last committed state
+			const reader = new Adapt.ObjectMutationLog(createTestSchema());
+			const result = reader.read(fileContent);
+			assert.strictEqual(result.count, 3);
+		});
+
+		test('unconfirmed append after createInitial still diffs against initial', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			let fileContent = adapter.createInitial(obj);
+
+			// Write but do NOT confirm
+			const r1 = adapter.write({ ...obj, count: 1 });
+			assert.strictEqual(r1.op, 'append');
+			// skip confirmWrite — simulates failed persist, data not appended to file
+
+			// Next write diffs against the createInitial state (count: 0)
+			const r2 = adapter.write({ ...obj, count: 2 });
+			assert.strictEqual(r2.op, 'append');
+			adapter.confirmWrite();
+			fileContent = VSBuffer.concat([fileContent, r2.data]);
+
+			const reader = new Adapt.ObjectMutationLog(createTestSchema());
+			const result = reader.read(fileContent);
+			assert.strictEqual(result.count, 2);
 		});
 	});
 });

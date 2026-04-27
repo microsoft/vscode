@@ -12,8 +12,10 @@ import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMa
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 /**
  * Find the session that contains the given resource by checking editing sessions,
@@ -39,14 +41,12 @@ export function getSessionForResource(
 	return undefined;
 }
 
-export type AgentFeedbackSessionChange = IChatSessionFileChange | IChatSessionFileChange2;
-
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 }
 
-export function changeMatchesResource(change: AgentFeedbackSessionChange, resourceUri: URI): boolean {
+export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {
 		return change.uri.fsPath === resourceUri.fsPath
 			|| change.modifiedUri?.fsPath === resourceUri.fsPath
@@ -61,7 +61,7 @@ export function getSessionChangeForResource(
 	sessionResource: URI | undefined,
 	resourceUri: URI,
 	sessionsManagementService: ISessionsManagementService,
-): AgentFeedbackSessionChange | undefined {
+): ISessionFileChange | undefined {
 	if (!sessionResource) {
 		return undefined;
 	}
@@ -315,6 +315,18 @@ function renderHunkGroup(
 
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
+
+	if (input instanceof MultiDiffEditorInput) {
+		const items = input.resources.get();
+		if (items) {
+			for (const item of items) {
+				if (item.originalUri) { result.push(item.originalUri); }
+				if (item.modifiedUri) { result.push(item.modifiedUri); }
+			}
+		}
+		return result;
+	}
+
 	const resources = EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH });
 	if (!resources) {
 		return result;

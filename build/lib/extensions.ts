@@ -65,21 +65,31 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
 
-	const esbuildConfigFileName = forWeb
+	let esbuildConfigFileName = forWeb
 		? 'esbuild.browser.mts'
 		: 'esbuild.mts';
 
-	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	let hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+
+	// Fallback: check for .esbuild.ts (used by extensions with their own build system, e.g. copilot)
+	if (!hasEsbuild && !forWeb) {
+		esbuildConfigFileName = '.esbuild.ts';
+		hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	}
 
 	let input: Stream;
 	let isBundled = false;
 
 	if (hasEsbuild) {
-		// Esbuild only does bundling so we still want to run a separate type check step
-		input = es.merge(
-			fromLocalEsbuild(extensionPath, esbuildConfigFileName),
-			...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
-		);
+		const isStandardEsbuild = esbuildConfigFileName.endsWith('.mts');
+		input = isStandardEsbuild
+			? es.merge(
+				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
+				// Standard esbuild extensions need a separate type check step
+				...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
+			)
+			// Extensions with their own build system (e.g. .esbuild.ts) handle type checking internally
+			: fromLocalEsbuild(extensionPath, esbuildConfigFileName);
 		isBundled = true;
 	} else {
 		input = fromLocalNormal(extensionPath);
@@ -151,7 +161,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 
 	// Run esbuild, then collect the files
 	new Promise<void>((resolve, reject) => {
-		const proc = cp.execFile(process.argv[0], [esbuildScript], {}, (error, _stdout, stderr) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript], { cwd: extensionPath }, (error, _stdout, stderr) => {
 			if (error) {
 				return reject(error);
 			}
@@ -302,6 +312,7 @@ const nativeExtensions = [
 ];
 
 const excludedExtensions = [
+	'copilot',
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-colorize-perf-tests',
@@ -442,6 +453,33 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 		result
 			.pipe(util2.setExecutableBit(['**/*.sh']))
 	);
+}
+
+/**
+ * Package the built-in copilot extension specifically.
+ * This is used by non-CI local builds where copilot is not downloaded as a VSIX
+ * but must be compiled from source and included in the build.
+ */
+export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
+	const extensionPath = path.join(root, 'extensions', 'copilot');
+	if (!fs.existsSync(extensionPath)) {
+		return es.readArray([]);
+	}
+
+	const localExtensionsStream = minifyExtensionResources(
+		fromLocal(extensionPath, false, disableMangle)
+			.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`))
+	);
+
+	const productionDependencies = getProductionDependencies('extensions/copilot');
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+
+	return es.merge(
+		localExtensionsStream,
+		gulp.src(dependenciesSrc, { base: '.' })
+			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
+	).pipe(util2.setExecutableBit(['**/*.sh']));
 }
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {

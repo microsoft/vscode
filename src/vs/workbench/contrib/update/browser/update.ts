@@ -176,10 +176,11 @@ export class ProductContribution implements IWorkbenchContribution {
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			const shouldShowPostInstallInfo = configurationService.getValue<boolean>('update.showPostInstallInfo');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
-			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
+			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
 				showReleaseNotesInEditor(instantiationService, productService.version, false)
 					.then(undefined, () => {
 						notificationService.prompt(

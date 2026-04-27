@@ -93,6 +93,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -100,13 +101,14 @@ class MockChatEntitlementService implements IChatEntitlementService {
 
 	readonly quotas = {};
 
-	readonly sentiment: IChatSentiment = { installed: true, registered: true };
-	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { installed: true, registered: true });
+	readonly sentiment: IChatSentiment = { completed: true, registered: true };
+	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { completed: true, registered: true });
 
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
 	markAnonymousRateLimited(): void { }
+	setForceHidden(_hidden: boolean): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }
 
@@ -121,6 +123,7 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 

@@ -2862,6 +2862,7 @@ class LayoutStateModel extends Disposable {
 		[StorageScope.WORKSPACE]: boolean;
 		[StorageScope.PROFILE]: boolean;
 		[StorageScope.APPLICATION]: boolean;
+		[StorageScope.APPLICATION_SHARED]: boolean;
 	};
 
 	constructor(
@@ -2875,7 +2876,8 @@ class LayoutStateModel extends Disposable {
 		this.isNew = {
 			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
 			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
-			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
+			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION),
+			[StorageScope.APPLICATION_SHARED]: this.storageService.isNew(StorageScope.APPLICATION_SHARED)
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));

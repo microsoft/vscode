@@ -46,8 +46,9 @@ function toNodePlatformArch(platform: string, arch: string): { nodePlatform: str
  * for architectures other than the build target.
  *
  * For platforms the copilot SDK doesn't natively support (e.g. alpine, armhf),
- * ALL platform packages are stripped - that's fine because the SDK doesn't ship
- * binaries for those platforms anyway, and we replace them with VS Code's own.
+ * ALL platform packages are stripped - that's fine because the copilot CLI SDK
+ * resolves `node-pty` from the embedder (VS Code) first via `hostRequire`,
+ * falling back to its bundled copy only if the embedder can't provide it.
  */
 export function getCopilotExcludeFilter(platform: string, arch: string): string[] {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
@@ -55,56 +56,55 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
 	// Strip wrong-architecture @github/copilot-{platform} packages.
-	// All copilot prebuilds are stripped by .moduleignore; VS Code's own
-	// node-pty is copied into the prebuilds location by a post-packaging task.
+	// All copilot prebuilds are stripped by .moduleignore; the copilot CLI SDK
+	// resolves `node-pty` from VS Code's own node_modules via `hostRequire`.
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
 
 	return ['**', ...excludes];
 }
 
 /**
- * Copies VS Code's own node-pty binaries into the copilot SDK's
- * expected locations so the copilot CLI subprocess can find them at runtime.
- * The copilot-bundled prebuilds are stripped by .moduleignore;
- * this replaces them with the same binaries VS Code already ships, avoiding
- * new system dependency requirements.
+ * Materializes the copilot CLI ripgrep shim directly inside the built-in copilot extension.
  *
- * This works even for platforms the copilot SDK doesn't natively support
- * (e.g. alpine, armhf) because the SDK's native module loader simply
- * looks for `prebuilds/{process.platform}-{process.arch}/pty.node` - it
- * doesn't validate the platform against a supported list.
+ * This is used when copilot is shipped as a built-in extension so startup does
+ * not need to create the shim at runtime. The destination layout matches the
+ * runtime shim logic in the copilot extension:
+ * - ripgrep:  node_modules/@github/copilot/sdk/ripgrep/bin/{platform-arch}
+ * - marker:   node_modules/@github/copilot/shims.txt
  *
- * Failures are logged but do not throw, to avoid breaking the build on
- * platforms where something unexpected happens.
+ * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
+ * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to
+ * its bundled copy only if that fails.
  *
- * @param nodeModulesDir Absolute path to the node_modules directory that
- *   contains both the source binaries (node-pty) and the copilot SDK
- *   target directories.
+ * Failures throw to fail the build because built-in packaging must guarantee
+ * this artifact is present.
  */
-export function copyCopilotNativeDeps(platform: string, arch: string, nodeModulesDir: string): void {
+export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string): void {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const platformArch = `${nodePlatform}-${nodeArch}`;
 
-	const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
-	if (!fs.existsSync(copilotBase)) {
-		console.warn(`[copyCopilotNativeDeps] @github/copilot not found at ${copilotBase}, skipping`);
-		return;
+	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
+	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
+	const copilotSdkBase = path.join(copilotBase, 'sdk');
+	if (!fs.existsSync(copilotSdkBase)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
 
-	const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
-	if (!fs.existsSync(nodePtySource)) {
-		console.warn(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}, skipping`);
-		return;
+	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep', 'bin');
+	if (!fs.existsSync(ripgrepSource)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ripgrep source not found at ${ripgrepSource}`);
 	}
+
+	const ripgrepDest = path.join(copilotSdkBase, 'ripgrep', 'bin', platformArch);
+	const shimMarkerPath = path.join(copilotBase, 'shims.txt');
 
 	try {
-		// Copy node-pty (pty.node + spawn-helper on Unix, conpty.node + conpty/ on Windows)
-		// into copilot prebuilds so the SDK finds them via loadNativeModule.
-		const copilotPrebuildsDir = path.join(copilotBase, 'prebuilds', platformArch);
-		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
-		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
-		console.log(`[copyCopilotNativeDeps] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
+		fs.mkdirSync(ripgrepDest, { recursive: true });
+		fs.cpSync(ripgrepSource, ripgrepDest, { recursive: true });
+
+		fs.writeFileSync(shimMarkerPath, 'Shims created successfully');
+		console.log(`[prepareBuiltInCopilotRipgrepShim] Materialized ripgrep shim for ${platformArch} in ${builtInCopilotExtensionDir}`);
 	} catch (err) {
-		console.warn(`[copyCopilotNativeDeps] Failed to copy node-pty for ${platformArch}: ${err}`);
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Failed to materialize ripgrep shim for ${platformArch}: ${err}`);
 	}
 }

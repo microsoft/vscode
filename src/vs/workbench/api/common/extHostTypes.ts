@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
@@ -3273,6 +3273,17 @@ export class ChatResponseWarningPart {
 	}
 }
 
+export class ChatResponseInfoPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseCommandButtonPart {
 	value: vscode.Command;
 	constructor(value: vscode.Command) {
@@ -3574,6 +3585,7 @@ export class ChatSessionCustomizationType {
 	static readonly Instructions = new ChatSessionCustomizationType('instructions');
 	static readonly Prompt = new ChatSessionCustomizationType('prompt');
 	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
 
 	constructor(public readonly id: string) { }
 }
@@ -3790,10 +3802,6 @@ export class ChatDebugEventHookContent {
 }
 
 export class ChatSessionChangedFile {
-	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
-}
-
-export class ChatSessionChangedFile2 {
 	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
@@ -4026,7 +4034,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
-			data: this.data,
+			data: encodeBase64(VSBuffer.wrap(this.data)),
 			audience: this.audience
 		};
 	}

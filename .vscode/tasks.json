@@ -45,13 +45,16 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
+				"source": "ts",
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
 					"file": 1,
 					"location": 2,
-					"message": 3
+					"code": 3,
+					"message": 4
 				},
 				"background": {
 					"beginsPattern": "Starting compilation\\.\\.\\.",
@@ -89,11 +92,24 @@
 			}
 		},
 		{
+			"type": "npm",
+			"script": "watch-copilotd",
+			"label": "Copilot - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": "$esbuild-watch"
+		},
+		{
 			"label": "VS Code - Build",
 			"dependsOn": [
 				"Core - Transpile",
 				"Core - Typecheck",
-				"Ext - Build"
+				"Ext - Build",
+				"Copilot - Build"
 			],
 			"group": {
 				"kind": "build",
@@ -138,11 +154,24 @@
 			"problemMatcher": "$tsc"
 		},
 		{
+			"type": "npm",
+			"script": "kill-watch-copilotd",
+			"label": "Kill Copilot - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$esbuild"
+		},
+		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
 				"Kill Core - Transpile",
 				"Kill Core - Typecheck",
-				"Kill Ext - Build"
+				"Kill Ext - Build",
+				"Kill Copilot - Build"
 			],
 			"group": "build",
 			"problemMatcher": []
@@ -228,14 +257,14 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run Dev Sessions",
+			"label": "Run Dev Agents",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions",
+				"--agents",
 				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
 				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],
@@ -248,17 +277,23 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Sessions - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Sessions"],
+			"label": "Run and Compile Agents - OSS",
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev Agents"
+			],
 			"dependsOrder": "sequence",
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev"
+			],
 			"dependsOrder": "sequence",
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -393,11 +428,11 @@
 			]
 		},
 		{
-			"label": "Launch Component Explorer",
+			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
 				"fileLocation": "absolute",
@@ -408,7 +443,7 @@
 					"column": 3
 				},
 				"background": {
-					"activeOnStart": true,
+					"activeOnStart": false,
 					"beginsPattern": ".*Setting up sessions.*",
 					"endsPattern": "  current: (?<componentExplorerUrl>.*) \\(current\\)"
 				}
@@ -421,9 +456,36 @@
 			"windows": {
 				"command": "cmd /c \"npm ci && npm run watch\""
 			},
-			"inSessions": true,
+			"inAgents": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			},
+			"presentation": {
+				"focus": false,
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "Serve Out (rspack)",
+			"type": "npm",
+			"script": "serve-out-rspack",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rspack",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*compiling.*",
+					"endsPattern": ".*compiled.*successfully.*"
+				}
 			}
 		},
 		{

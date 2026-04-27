@@ -7,9 +7,9 @@
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
-	border-top: 1px solid var(--vscode-panel-border, transparent);
+	border-top: 1px solid var(--vscode-agentsPanel-border, transparent);
 	margin: 0 10px;
-	padding: 6px 0;
+	padding: 6px 0 10px 0;
 }
 
 /* Make the toolbar, action bar, and items fill full width and stack vertically */
@@ -133,4 +133,5 @@
 
 .ai-customization-toolbar.collapsed .ai-customization-toolbar-content {
 	max-height: 0;
+	padding-bottom: 0;
 }

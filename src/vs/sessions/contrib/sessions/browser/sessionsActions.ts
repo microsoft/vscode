@@ -11,8 +11,8 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
-import { ISession } from '../common/sessionData.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
 // -- Show Sessions Picker --
 

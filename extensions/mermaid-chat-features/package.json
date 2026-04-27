@@ -130,7 +130,10 @@
     "@vscode/codicons": "^0.0.36"
   },
   "dependencies": {
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.4.0",
     "mermaid": "^11.12.3"
+  },
+  "overrides": {
+    "lodash-es": "4.18.1"
   }
 }
