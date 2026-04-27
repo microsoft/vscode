@@ -76,3 +76,11 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+
+## 💰 Bounty Contribution
+
+- **Task:** Add Agent Time/Audit Guardrails To Prevent Long Iteration Loops In Copilot Chat
+- **Reward:** $36
+- **Source:** GitHub-Paid
+- **Date:** 2026-04-27
+
