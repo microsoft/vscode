@@ -275,6 +275,13 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	const requestData = TelemetryData.createAndMarkAsIssued(filteredProperties, telemetryData.measurements);
 
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
+
+	// >>> DEBUG model.request.added — REMOVE THIS BLOCK <<<
+	{
+		console.log(`[DEBUG] model.request.added properties:`, JSON.stringify(requestData.properties, null, 2));
+		console.log(`[DEBUG] model.request.added measurements:`, JSON.stringify(requestData.measurements, null, 2));
+	}
+	// >>> END DEBUG model.request.added <<<
 }
 
 function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, messageDirection: 'input' | 'output', logService?: ILogService): Array<{ uuid: string; headerRequestId: string }> {
@@ -412,6 +419,13 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 			}, telemetryData.measurements); // Include measurements from original telemetryData
 
 			telemetryService.sendInternalMSFTTelemetryEvent(eventName, modelCallData.properties, modelCallData.measurements);
+
+			// >>> DEBUG model.modelCall.input/output — REMOVE THIS BLOCK <<<
+			{
+				console.log(`[DEBUG] ${eventName} properties:`, JSON.stringify(modelCallData.properties, null, 2));
+				console.log(`[DEBUG] ${eventName} measurements:`, JSON.stringify(modelCallData.measurements, null, 2));
+			}
+			// >>> END DEBUG model.modelCall.input/output <<<
 		}
 	}
 }
