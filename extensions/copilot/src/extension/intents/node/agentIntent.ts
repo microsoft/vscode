@@ -417,7 +417,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		progress: vscode.Progress<vscode.ChatResponseReferencePart | vscode.ChatResponseProgressPart>,
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
-		this.logService.info(`[AgentIntentInvocation] buildPrompt called, history.length=${promptContext.history?.length}`);
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
 		if (promptContext.history?.length === 0) {
