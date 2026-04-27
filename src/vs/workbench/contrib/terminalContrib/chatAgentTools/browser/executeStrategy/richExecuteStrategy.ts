@@ -11,13 +11,34 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { isCI, isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
+
+function isTerminalLaunchError(value: unknown): value is ITerminalLaunchError {
+	return typeof value === 'object' && value !== null && 'message' in value;
+}
+
+function formatExitCodeOrError(exitCodeOrError: number | ITerminalLaunchError | undefined): string {
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return `launch error: ${exitCodeOrError.message}${exitCodeOrError.code !== undefined ? `, code=${exitCodeOrError.code}` : ''}`;
+	}
+	return `code=${exitCodeOrError}`;
+}
+
+function extractExitCode(exitCodeOrError: number | ITerminalLaunchError | undefined): number | undefined {
+	if (isNumber(exitCodeOrError)) {
+		return exitCodeOrError;
+	}
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return exitCodeOrError.code;
+	}
+	return undefined;
+}
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -76,7 +97,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					return { type: 'disposal' } as const;
 				}),
 				Event.toPromise(this._instance.onExit, store).then((exitCodeOrError) => {
-					this._log(`onDone via process exit (code=${exitCodeOrError})`);
+					this._log(`onDone via process exit (${formatExitCodeOrError(exitCodeOrError)})`);
 					return { type: 'processExit', exitCodeOrError } as const;
 				}),
 				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval).then(() => {
@@ -157,7 +178,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Determine exit code from shell integration or from the process exit event
 			let exitCode = finishedCommand?.exitCode;
 			if (exitCode === undefined && onDoneResult && onDoneResult.type === 'processExit') {
-				exitCode = isNumber(onDoneResult.exitCodeOrError) ? onDoneResult.exitCodeOrError : undefined;
+				exitCode = extractExitCode(onDoneResult.exitCodeOrError);
 			}
 			if (isNumber(exitCode) && exitCode > 0) {
 				additionalInformationLines.push(`Command exited with code ${exitCode}`);

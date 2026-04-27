@@ -117,4 +117,48 @@ suite('RichExecuteStrategy', () => {
 
 		strictEqual(result.exitCode, 1);
 	});
+
+	test('handles ITerminalLaunchError on process exit', async () => {
+		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
+		const onExitEmitter = new Emitter<number | { message: string; code?: number } | undefined>();
+
+		const marker = {
+			line: 0,
+			dispose: () => { },
+			onDispose: Event.None,
+		};
+		const xterm = {
+			raw: {
+				registerMarker: () => marker,
+				buffer: {
+					active: {},
+					alternate: {},
+					onBufferChange: () => toDisposable(() => { }),
+				},
+				getContentsAsText: () => '',
+			}
+		};
+		const instance = {
+			xtermReadyPromise: Promise.resolve(xterm),
+			onData: Event.None,
+			onDisposed: Event.None,
+			onExit: onExitEmitter.event,
+			runCommand: () => {
+				queueMicrotask(() => onExitEmitter.fire({ message: 'Failed to launch', code: 127 }));
+			},
+		} as unknown as ITerminalInstance;
+		const commandDetection = {
+			onCommandFinished: onCommandFinishedEmitter.event,
+		} as unknown as ICommandDetectionCapability;
+		const strategy = store.add(new RichExecuteStrategy(
+			instance,
+			commandDetection,
+			new TestConfigurationService(),
+			createLogService(),
+		));
+
+		const result = await strategy.execute('bad-command', CancellationToken.None);
+
+		strictEqual(result.exitCode, 127);
+	});
 });
