@@ -728,4 +728,38 @@ suite('buildModelPickerItems', () => {
 		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
 		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
 	});
+
+	test('models from different vendors sharing a metadata.id all appear (issue #312908)', () => {
+		// A BYOK model that shares its `metadata.id` with a built-in Copilot model
+		// must not be filtered out of the picker just because the Copilot model was
+		// promoted (selected / recently used / featured). Each model is uniquely
+		// identified by its `identifier`, not by its bare `metadata.id`.
+		const auto = createAutoModel();
+		const copilotClaude = createModel('claude-opus-4.7', 'Claude Opus 4.7', 'copilot');
+		const byokClaude = createModel('claude-opus-4.7', 'Claude Opus 4.7 (my-endpoint)', 'customoai');
+		const items = callBuild([auto, copilotClaude, byokClaude], {
+			selectedModelId: copilotClaude.identifier,
+		});
+		const labels = getActionLabels(items);
+		assert.ok(labels.includes('Claude Opus 4.7'), 'Promoted Copilot model should appear');
+		assert.ok(labels.includes('Claude Opus 4.7 (my-endpoint)'), 'BYOK model with colliding metadata.id should still appear in Other Models');
+	});
+
+	test('promoted model does not hide other models with same metadata.id from Other Models', () => {
+		// Recently-used and featured promotion paths must also not pollute the
+		// `placed` set with bare metadata IDs, otherwise unrelated models from
+		// other vendors that happen to share a metadata.id are silently dropped.
+		const auto = createAutoModel();
+		const ollamaGemma = createModel('gemma:7b', 'gemma:7b', 'ollama');
+		const byokGemma = createModel('gemma:7b', 'gemma:7b (my-endpoint)', 'customoai');
+		const items = callBuild([auto, ollamaGemma, byokGemma], {
+			recentModelIds: [ollamaGemma.identifier],
+			controlModels: {
+				'gemma:7b': { label: 'gemma:7b', featured: true, exists: true },
+			},
+		});
+		const labels = getActionLabels(items);
+		assert.ok(labels.includes('gemma:7b'), 'Featured/recent Ollama model should appear');
+		assert.ok(labels.includes('gemma:7b (my-endpoint)'), 'BYOK model with colliding metadata.id should still appear in Other Models');
+	});
 });

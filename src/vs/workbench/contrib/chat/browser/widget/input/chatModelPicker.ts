@@ -241,14 +241,13 @@ export function buildModelPickerItems(
 				modelsByMetadataId.set(model.metadata.id, model);
 			}
 
+			// Tracks model identifiers (e.g. `vendor/group/id`) and control-manifest
+			// entry IDs that have already been rendered in the Auto / Promoted section.
+			// Intentionally does NOT include bare `metadata.id` values, because two
+			// models from different vendors can legitimately share the same
+			// `metadata.id` (e.g. a BYOK provider exposing `claude-opus-4.7` alongside
+			// the built-in Copilot one) — see issue #312908.
 			const placed = new Set<string>();
-
-			const markPlaced = (identifierOrId: string, metadataId?: string) => {
-				placed.add(identifierOrId);
-				if (metadataId) {
-					placed.add(metadataId);
-				}
-			};
 
 			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
 
@@ -266,7 +265,7 @@ export function buildModelPickerItems(
 			// --- 1. Auto ---
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
-				markPlaced(autoModel.identifier, autoModel.metadata.id);
+				placed.add(autoModel.identifier);
 				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
 			}
 
@@ -284,7 +283,7 @@ export function buildModelPickerItems(
 				}
 				const model = resolveModel(id);
 				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
+					placed.add(model.identifier);
 					const entry = controlModels[model.metadata.id];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
@@ -296,7 +295,7 @@ export function buildModelPickerItems(
 				if (!model) {
 					const entry = controlModels[id];
 					if (entry && !entry.exists) {
-						markPlaced(id);
+						placed.add(id);
 						promotedItems.push({ kind: 'unavailable', id, entry, reason: getUnavailableReason(entry) });
 						return true;
 					}
@@ -324,16 +323,16 @@ export function buildModelPickerItems(
 					if (model && !placed.has(model.identifier)) {
 						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							if (showUnavailableFeatured) {
-								markPlaced(model.identifier, model.metadata.id);
+								placed.add(model.identifier);
 								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 							}
 						} else {
-							markPlaced(model.identifier, model.metadata.id);
+							placed.add(model.identifier);
 							promotedItems.push({ kind: 'available', model });
 						}
 					} else if (!model && !entry.exists) {
 						if (showUnavailableFeatured) {
-							markPlaced(entryId);
+							placed.add(entryId);
 							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
 						}
 					}
@@ -363,8 +362,11 @@ export function buildModelPickerItems(
 			}
 
 			// --- 3. Other Models (collapsible) ---
+			// Filter strictly by `identifier`. Filtering by `metadata.id` would
+			// incorrectly drop models from other vendors that share an id with a
+			// promoted model (issue #312908).
 			otherModels = models
-				.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
+				.filter(m => !placed.has(m.identifier))
 				.sort((a, b) => {
 					const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
 					const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
