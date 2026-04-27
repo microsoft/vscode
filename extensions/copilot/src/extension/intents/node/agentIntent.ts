@@ -448,6 +448,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
+		// When the "last two messages" cache breakpoint strategy is enabled,
+		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
+		// will place breakpoints on the last two merged messages instead.
+		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -458,7 +463,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled,
+			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -722,7 +727,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		addCacheBreakpoints(result.messages);
+		if (!useLastTwoMessagesCacheBPs) {
+			addCacheBreakpoints(result.messages);
+		}
 
 		if (this.request.command === 'error') {
 			// Should trigger a 400

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isMacintosh } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -14,7 +14,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { BaseSecretStorageService, ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { BaseSecretStorageService, CROSS_APP_SHARED_SECRET_KEYS, ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { ISharedKeychainService } from '../../../../platform/secrets/common/sharedKeychainService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 
@@ -26,6 +27,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ISharedKeychainService private readonly _sharedKeychainService: ISharedKeychainService,
 		@IStorageService storageService: IStorageService,
 		@IEncryptionService encryptionService: IEncryptionService,
 		@ILogService logService: ILogService
@@ -38,6 +40,20 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		);
 	}
 
+	override get(key: string): Promise<string | undefined> {
+		return this._sequencer.queue(key, async () => {
+			if (isMacintosh && this.type !== 'in-memory' && CROSS_APP_SHARED_SECRET_KEYS.includes(key)) {
+				// Try shared keychain first
+				const value = await this._sharedKeychainService.get(key);
+				if (value !== undefined) {
+					return value;
+				}
+			}
+			// Fall back to old safeStorage+SQLite pipeline
+			return this._doGet(key);
+		});
+	}
+
 	override set(key: string, value: string): Promise<void> {
 		this._sequencer.queue(key, async () => {
 			await this.resolvedStorageService;
@@ -46,10 +62,42 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 				this._logService.trace('[NativeSecretStorageService] Notifying user that secrets are not being stored on disk.');
 				await this.notifyOfNoEncryptionOnce();
 			}
-
 		});
+		return this._sequencer.queue(key, async () => {
+			if (isMacintosh && this.type !== 'in-memory' && CROSS_APP_SHARED_SECRET_KEYS.includes(key)) {
+				// Write to shared keychain
+				await this._sharedKeychainService.set(key, value);
+			}
+			// Also write to legacy pipeline
+			await this._doSet(key, value);
+		});
+	}
 
-		return super.set(key, value);
+	override delete(key: string): Promise<void> {
+		return this._sequencer.queue(key, async () => {
+			if (isMacintosh && this.type !== 'in-memory' && CROSS_APP_SHARED_SECRET_KEYS.includes(key)) {
+				// Delete from shared keychain
+				await this._sharedKeychainService.delete(key);
+			}
+			// Delete from legacy pipeline
+			await this._doDelete(key);
+		});
+	}
+
+	override async keys(): Promise<string[]> {
+		return this._sequencer.queue('__keys__', async () => {
+			const legacyKeys = await this._doGetKeys();
+			if (isMacintosh && this.type !== 'in-memory') {
+				// Include any cross-app shared keys present in the shared keychain
+				for (const sharedKey of CROSS_APP_SHARED_SECRET_KEYS) {
+					const sharedValue = await this._sharedKeychainService.get(sharedKey);
+					if (sharedValue !== undefined && !legacyKeys.includes(sharedKey)) {
+						legacyKeys.push(sharedKey);
+					}
+				}
+			}
+			return legacyKeys;
+		});
 	}
 
 	private notifyOfNoEncryptionOnce = createSingleCallFunction(() => this.notifyOfNoEncryption());

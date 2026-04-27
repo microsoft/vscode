@@ -12,7 +12,9 @@ import { splitLines } from '../../../../util/vs/base/common/strings';
 import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { buildCodeSnippetsUsingPagedClipping, computeFocalPageCost, historyEntriesToCodeSnippet, selectFocalRangesWithinSpanCap } from '../../common/recentFilesForPrompt';
+import { LineRange0Based } from '../../common/lineRange';
+import { appendNeighborFileSnippets, buildCodeSnippetsUsingPagedClipping, computeFocalPageCost, historyEntriesToCodeSnippet, selectFocalRangesWithinSpanCap } from '../../common/recentFilesForPrompt';
+import { INeighborFileSnippet } from '../../common/similarFilesContextService';
 
 function nLines(n: number): StringText {
 	return new StringText(new Array(n).fill(0).map((_, i) => `${i + 1}`).join('\n'));
@@ -823,5 +825,148 @@ suite('historyEntriesToCodeSnippet', () => {
 			new OffsetRange(0, 2),  // newerEntry's "XX"
 			new OffsetRange(2, 2),  // olderEntry's deletion point, shifted
 		]);
+	});
+});
+
+suite('appendNeighborFileSnippets', () => {
+
+	function makeNeighbor(uri: string, snippet: string, startLine: number, score = 0.5): INeighborFileSnippet {
+		const lineCount = snippet.split(/\r?\n/).length;
+		return { uri, relativePath: uri, snippet, lineRange: new LineRange0Based(startLine, startLine + lineCount), score };
+	}
+
+	test('appends snippets formatted like recent files', () => {
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		appendNeighborFileSnippets(
+			[makeNeighbor('file:///src/n1.ts', 'a\nb', 5)],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 100,
+			computeTokens,
+			IncludeLineNumbersOption.WithSpaceAfter,
+		);
+		expect(snippets).toMatchInlineSnapshot(`
+			[
+			  "<|recently_viewed_code_snippet|>
+			code_snippet_file_path: /src/n1.ts
+			5| a
+			6| b
+			<|/recently_viewed_code_snippet|>",
+			]
+		`);
+		expect(docsInPrompt.has(DocumentId.create('file:///src/n1.ts'))).toBe(true);
+	});
+
+	test('skips oversize snippets but keeps trying smaller ones', () => {
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		// First snippet ~= 8 tokens (32 chars / 4); second ~= 1 token. Budget 5 only allows the second.
+		appendNeighborFileSnippets(
+			[
+				makeNeighbor('file:///src/big.ts', 'b'.repeat(32), 0),
+				makeNeighbor('file:///src/small.ts', 'aa', 0),
+			],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 5,
+			computeTokens,
+			IncludeLineNumbersOption.None,
+		);
+		expect(snippets).toHaveLength(1);
+		expect(snippets[0]).toContain('/src/small.ts');
+	});
+
+	test('skips snippets whose document is already in the prompt', () => {
+		const dupDoc = DocumentId.create('file:///src/dup.ts');
+		const docsInPrompt = new Set<DocumentId>([dupDoc]);
+		const snippets: string[] = [];
+		appendNeighborFileSnippets(
+			[
+				makeNeighbor('file:///src/dup.ts', 'duplicated', 0),
+				makeNeighbor('file:///src/fresh.ts', 'fresh', 0),
+			],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 100,
+			computeTokens,
+			IncludeLineNumbersOption.None,
+		);
+		expect(snippets).toHaveLength(1);
+		expect(snippets[0]).toContain('/src/fresh.ts');
+	});
+
+	test('no-op when no snippets provided', () => {
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		const result = appendNeighborFileSnippets([], snippets, docsInPrompt, 100, computeTokens, IncludeLineNumbersOption.None);
+		expect(snippets).toEqual([]);
+		expect(result).toEqual({ nComputed: 0, nIncluded: 0, includedIndices: [] });
+	});
+
+	test('selects highest-score snippets first when budget is tight', () => {
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		// Each snippet ~= 8 tokens (32 chars / 4); budget 10 only fits one.
+		// The highest-score one (last in input) must win.
+		appendNeighborFileSnippets(
+			[
+				makeNeighbor('file:///src/low.ts', 'l'.repeat(32), 0, /*score*/ 0.1),
+				makeNeighbor('file:///src/high.ts', 'h'.repeat(32), 0, /*score*/ 0.9),
+			],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 10,
+			computeTokens,
+			IncludeLineNumbersOption.None,
+		);
+		expect(snippets).toHaveLength(1);
+		expect(snippets[0]).toContain('/src/high.ts');
+	});
+
+	test('places highest-score snippet last (closest to current file)', () => {
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		appendNeighborFileSnippets(
+			[
+				makeNeighbor('file:///src/low.ts', 'low', 0, /*score*/ 0.1),
+				makeNeighbor('file:///src/mid.ts', 'mid', 0, /*score*/ 0.5),
+				makeNeighbor('file:///src/high.ts', 'high', 0, /*score*/ 0.9),
+			],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 100,
+			computeTokens,
+			IncludeLineNumbersOption.None,
+		);
+		expect(snippets).toHaveLength(3);
+		expect(snippets[0]).toContain('/src/low.ts');
+		expect(snippets[1]).toContain('/src/mid.ts');
+		expect(snippets[2]).toContain('/src/high.ts');
+	});
+
+	test('reports included indices, skipping oversize and budget-exhausted entries', () => {
+		// Indices: 0 (small low score), 1 (small low score), 2 (small low score), 3 (small mid), 4 (small mid), 5 (huge), 6 (small high)
+		// Budget allows ~4 small snippets (each ~1 token, big takes ~16 tokens, budget=4).
+		// Iteration order: 6, 5 (skipped — too big), 4, 3, 2, 1 (skipped — out of budget), 0 (skipped — out of budget).
+		const snippets: string[] = [];
+		const docsInPrompt = new Set<DocumentId>();
+		const result = appendNeighborFileSnippets(
+			[
+				makeNeighbor('file:///src/i0.ts', 'a', 0, /*score*/ 0.1),
+				makeNeighbor('file:///src/i1.ts', 'b', 0, /*score*/ 0.2),
+				makeNeighbor('file:///src/i2.ts', 'c', 0, /*score*/ 0.3),
+				makeNeighbor('file:///src/i3.ts', 'd', 0, /*score*/ 0.4),
+				makeNeighbor('file:///src/i4.ts', 'e', 0, /*score*/ 0.5),
+				makeNeighbor('file:///src/i5.ts', 'h'.repeat(64), 0, /*score*/ 0.6),
+				makeNeighbor('file:///src/i6.ts', 'g', 0, /*score*/ 0.9),
+			],
+			snippets,
+			docsInPrompt,
+			/*tokenBudget*/ 4,
+			computeTokens,
+			IncludeLineNumbersOption.None,
+		);
+		expect(result).toEqual({ nComputed: 7, nIncluded: 4, includedIndices: [2, 3, 4, 6] });
 	});
 });

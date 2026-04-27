@@ -89,6 +89,16 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 
 	// #region Chat Participant Handler
 
+	provideHandleOptionsChange(resource: vscode.Uri, updates: ReadonlyArray<vscode.ChatSessionOptionUpdate>, _token: vscode.CancellationToken): void {
+		const sessionId = ClaudeSessionUri.getSessionId(resource);
+		for (const update of updates) {
+			const value = update.value;
+			if (update.optionId === PERMISSION_MODE_OPTION_ID && value && isPermissionMode(value)) {
+				this.sessionStateService.setPermissionModeForSession(sessionId, value);
+			}
+		}
+	}
+
 	createHandler(): ChatExtendedRequestHandler {
 		return async (request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> => {
 			const { chatSessionContext } = context;

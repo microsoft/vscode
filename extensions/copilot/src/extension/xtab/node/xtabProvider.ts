@@ -357,6 +357,20 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
 		}
 
+		const neighborSnippets = promptOptions.neighborFiles.enabled
+			? await raceCancellation(
+				raceTimeout(
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					delaySession.getDebounceTime()
+				),
+				cancellationToken,
+			)
+			: undefined;
+
+		if (cancellationToken.isCancellationRequested) {
+			return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+		}
+
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 
 		const promptPieces = new PromptPieces(
@@ -371,13 +385,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			aggressivenessLevel,
 			lintErrors,
 			XtabProvider.computeTokens,
-			promptOptions
+			promptOptions,
+			neighborSnippets,
 		);
 
-		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt } = getUserPrompt(promptPieces);
+		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);
 
 		telemetry.setNDiffsInPrompt(nDiffsInPrompt);
 		telemetry.setDiffTokensInPrompt(diffTokensInPrompt);
+		if (neighborSnippetsResult) {
+			telemetry.setNNeighborSnippetsComputed(neighborSnippetsResult.nComputed);
+			telemetry.setNNeighborSnippetsInPrompt(neighborSnippetsResult.nIncluded);
+			telemetry.setNeighborSnippetIndicesInPrompt(neighborSnippetsResult.includedIndices);
+		}
 
 		const responseFormat = xtabPromptOptions.ResponseFormat.fromPromptingStrategy(promptOptions.promptingStrategy);
 
@@ -1408,6 +1428,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextMaxTokens, this.expService),
 				traitPosition: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextTraitsPosition, this.expService),
 			}),
+			neighborFiles: {
+				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
+				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffMaxTokens, this.expService),

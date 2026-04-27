@@ -393,8 +393,8 @@ suite('CustomizationHarnessService', () => {
 			const promptsService = new class extends MockPromptsService {
 				override async getPromptSlashCommands() {
 					return [
-						{ uri: URI.parse('file:///workspace/.github/prompts/explain.prompt.md'), name: 'explain', type: PromptsType.prompt, storage: PromptsStorage.local, userInvocable: false, when: undefined, sessionTypes: [testSessionType] },
-						{ uri: URI.parse('file:///workspace/.github/skills/review/SKILL.md'), name: 'review', type: PromptsType.skill, storage: PromptsStorage.user, userInvocable: true, when: undefined },
+						{ uri: URI.parse('file:///workspace/.github/prompts/explain.prompt.md'), name: 'explain', type: PromptsType.prompt, storage: PromptsStorage.local, userInvocable: false, sessionTypes: [testSessionType] },
+						{ uri: URI.parse('file:///workspace/.github/skills/review/SKILL.md'), name: 'review', type: PromptsType.skill, storage: PromptsStorage.user, userInvocable: true },
 					];
 				}
 				override isValidSlashCommandName() { return true; }

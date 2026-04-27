@@ -80,7 +80,7 @@ export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 				<MathIntegrationRules />
 			</Tag>
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
-			<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} modelFamily={this.props.modelFamily} />
+			<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} />
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			<Tag name='frontend_tasks'>
 				When doing frontend design tasks, avoid collapsing into "AI slop" or safe, average-looking layouts.<br />

@@ -10,5 +10,9 @@
     <true/>
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(TeamIdentifierPrefix)com.microsoft.vscode.shared-secrets</string>
+    </array>
 </dict>
 </plist>

@@ -647,7 +647,6 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					description: item.description,
 					userInvocable: true, // todo we need a way for providers to specify this if some items aren't user-invocable`
 					storage: item.storage ?? PromptsStorage.local,
-					when: undefined,
 					sessionTypes: [sessionType],
 				});
 			}
@@ -713,7 +712,6 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				description: item.description,
 				userInvocable: parsedPromptFile.header?.userInvocable ?? true,
 				storage: item.storage ?? PromptsStorage.local,
-				when: undefined,
 				sessionTypes: [sessionType],
 				parsedPromptFile,
 			};

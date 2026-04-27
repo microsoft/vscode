@@ -279,6 +279,50 @@ suite('SessionsWelcomeContribution', () => {
 		assert.strictEqual(isOverlayVisible(), false, 'should dismiss once setup completes');
 	});
 
+	(isWeb ? test.skip : test)('first-launch + already signed in shows welcome screen; Get Started completes it', async () => {
+		// Already set up: installed, not disabled, has entitlement
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
+
+		instantiationService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve(undefined)
+		} as unknown as IDefaultAccountService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ICommandService, {
+			executeCommand: () => Promise.resolve(false)
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
+
+			assert.strictEqual(overlay.isShowingWelcome, true, 'should be in welcome mode');
+			assert.ok(container.querySelector('.sessions-walkthrough-get-started-btn'), 'should show Get Started button');
+			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn'), null, 'should not show sign-in buttons');
+
+			let outcomeResolved = false;
+			overlay.outcome.then(() => { outcomeResolved = true; });
+
+			const getStartedBtn = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-get-started-btn');
+			assert.ok(getStartedBtn);
+			getStartedBtn.click();
+			await flushMicrotasks();
+
+			assert.strictEqual(overlay.isShowingWelcome, false, 'isShowingWelcome should be cleared after Get Started');
+			assert.strictEqual(outcomeResolved, true, 'outcome should resolve after Get Started click');
+
+			overlay.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('walkthrough cannot be dismissed by Escape or backdrop click', () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
@@ -299,7 +343,7 @@ suite('SessionsWelcomeContribution', () => {
 		document.body.appendChild(container);
 
 		try {
-			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
 			const overlayElement = container.querySelector<HTMLElement>('.sessions-walkthrough-overlay');
 			assert.ok(overlayElement);
 
@@ -349,7 +393,7 @@ suite('SessionsWelcomeContribution', () => {
 					}
 				} as unknown as ICommandService);
 
-				const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+				const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
 				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
 				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
 				const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
@@ -406,7 +450,7 @@ suite('SessionsWelcomeContribution', () => {
 		document.body.appendChild(container);
 
 		try {
-			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
 			const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-enterprise');
 			assert.ok(enterpriseButton);
 
@@ -455,7 +499,7 @@ suite('SessionsWelcomeContribution', () => {
 		document.body.appendChild(container);
 
 		try {
-			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
 			const disclaimer = container.querySelector<HTMLElement>('.sessions-walkthrough-disclaimer');
 			assert.ok(disclaimer);
 			assert.strictEqual(disclaimer.classList.contains('hidden'), false);
@@ -499,7 +543,7 @@ suite('SessionsWelcomeContribution', () => {
 		document.body.appendChild(container);
 
 		try {
-			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container, true));
 			const disclaimer = container.querySelector<HTMLElement>('.sessions-walkthrough-disclaimer');
 			assert.ok(disclaimer);
 			assert.strictEqual(disclaimer.classList.contains('hidden'), false);

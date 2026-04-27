@@ -363,6 +363,43 @@
 	border-radius: 2px !important;
 }
 
+/* ---- Welcome screen (first launch + signed in) ---- */
+
+.sessions-walkthrough-welcome-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 12px;
+	margin-top: 16px;
+}
+
+.sessions-walkthrough-get-started-btn {
+	padding: 8px 24px;
+	border-radius: 6px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 100ms;
+}
+
+.sessions-walkthrough-get-started-btn:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.sessions-walkthrough-get-started-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-tagline {
+	font-style: italic;
+	opacity: 0.85;
+	margin-top: 4px;
+}
+
 /* Reduced motion */
 
 .monaco-reduce-motion .sessions-walkthrough-overlay,

@@ -32,6 +32,13 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 
+type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
+type UserInputRequest = Parameters<UserInputHandler>[0];
+type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type SessionHooks = NonNullable<SessionConfig['hooks']>;
+type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+
 function getCopilotCLISessionStateDir(userHome: string): string {
 	const xdgHome = process.env['XDG_STATE_HOME'];
 	return xdgHome ? join(xdgHome, SESSION_STATE_DIRECTORY) : join(userHome, SESSION_STATE_DIRECTORY);
@@ -58,27 +65,14 @@ export interface IActiveClientSnapshot {
  */
 export type SessionWrapperFactory = (callbacks: {
 	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
-	readonly onUserInputRequest: (request: IUserInputRequest, invocation: { sessionId: string }) => Promise<IUserInputResponse>;
+	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
 	readonly hooks: {
-		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
-		readonly onPostToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 	};
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly clientTools: Tool<any>[];
 }) => Promise<CopilotSessionWrapper>;
-
-/** Matches the SDK's `UserInputRequest` which is not re-exported from the package entry point. */
-interface IUserInputRequest {
-	question: string;
-	choices?: string[];
-	allowFreeform?: boolean;
-}
-
-/** Matches the SDK's `UserInputResponse` which is not re-exported from the package entry point. */
-interface IUserInputResponse {
-	answer: string;
-	wasFreeform: boolean;
-}
 
 /**
  * Options for constructing a {@link CopilotAgentSession}.
@@ -245,15 +239,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		const textContent = result.content
-			?.filter(c => c.type === 'text')
-			.map(c => (c as { text: string }).text)
+			?.filter(c => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
 			.join('\n') ?? '';
 
 		const binaryResults = result.content
-			?.filter(c => c.type === 'embeddedResource')
+			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
 			.map(c => {
-				const embedded = c as { data: string; contentType: string };
-				return { data: embedded.data, mimeType: embedded.contentType, type: embedded.contentType };
+				return { data: c.data, mimeType: c.contentType, type: c.contentType };
 			});
 
 		if (result.success) {
@@ -537,9 +530,9 @@ export class CopilotAgentSession extends Disposable {
 	 * respond via {@link respondToUserInputRequest}.
 	 */
 	async handleUserInputRequest(
-		request: IUserInputRequest,
+		request: UserInputRequest,
 		_invocation: { sessionId: string },
-	): Promise<IUserInputResponse> {
+	): Promise<UserInputResponse> {
 		const questionPreview = request.question.substring(0, 100);
 		try {
 			const requestId = generateUuid();
@@ -615,7 +608,7 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	private async _handlePreToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
 				const filePath = getEditFilePath(input.toolArgs);
@@ -629,7 +622,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePostToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
 				const filePath = getEditFilePath(input.toolArgs);

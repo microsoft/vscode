@@ -267,6 +267,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "@vscode/macos-keychain": "^0.0.1",
     "windows-foreground-love": "0.6.1"
   }
 }

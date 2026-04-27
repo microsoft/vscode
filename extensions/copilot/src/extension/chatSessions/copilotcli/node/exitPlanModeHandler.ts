@@ -17,10 +17,10 @@ import { IToolsService } from '../../../tools/common/toolsService';
 type ExitPlanModeActionType = Parameters<NonNullable<SessionOptions['onExitPlanMode']>>[0]['actions'][number];
 
 const actionDescriptions: Record<ExitPlanModeActionType, { label: string; description: string }> = {
-	'autopilot': { label: 'Autopilot', description: l10n.t('Auto-approve all tool calls and continue until the task is done') },
-	'interactive': { label: 'Approve and Implement', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
-	'exit_only': { label: 'Approve', description: l10n.t('Approve plan, but do not execute the plan. I will execute the plan myself.') },
-	'autopilot_fleet': { label: 'Autopilot Fleet', description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
+	'autopilot': { label: l10n.t("Implement with Autopilot"), description: l10n.t('Auto-approve all tool calls and continue until the task is done.') },
+	'autopilot_fleet': { label: l10n.t("Implement with Autopilot Fleet"), description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
+	'interactive': { label: l10n.t("Implement Plan"), description: l10n.t('Implement the plan, asking for input and approval for each action.') },
+	'exit_only': { label: l10n.t("Approve Plan Only"), description: l10n.t('Approve the plan without executing it. I will implement it myself.') },
 };
 
 /**

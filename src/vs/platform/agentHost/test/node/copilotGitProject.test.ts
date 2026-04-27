@@ -25,6 +25,8 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async addWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
+	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
+	async showBlob(): Promise<undefined> { return undefined; }
 }
 
 suite('Copilot Git Project', () => {

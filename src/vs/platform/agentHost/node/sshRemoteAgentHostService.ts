@@ -11,6 +11,7 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -693,6 +694,47 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			this._logService.info(`${LOG_PREFIX} Could not read SSH config at ${configPath}`);
 			return [];
 		}
+	}
+
+	async ensureUserSSHConfig(): Promise<URI> {
+		const sshDir = join(os.homedir(), '.ssh');
+		const configPath = join(sshDir, 'config');
+		const isPosix = process.platform !== 'win32';
+		try {
+			await fsp.mkdir(sshDir, { recursive: true, mode: isPosix ? 0o700 : undefined });
+		} catch (err) {
+			this._logService.warn(`${LOG_PREFIX} Failed to ensure ~/.ssh directory: ${err}`);
+			throw err;
+		}
+		try {
+			await fsp.access(configPath);
+		} catch {
+			try {
+				const handle = await fsp.open(configPath, 'a', isPosix ? 0o600 : undefined);
+				await handle.close();
+			} catch (err) {
+				this._logService.warn(`${LOG_PREFIX} Failed to create ${configPath}: ${err}`);
+				throw err;
+			}
+		}
+		return URI.file(configPath);
+	}
+
+	async listSSHConfigFiles(): Promise<URI[]> {
+		const isWindows = process.platform === 'win32';
+		const userConfigPath = join(os.homedir(), '.ssh', 'config');
+		const systemConfigPath = isWindows
+			? join(process.env['ProgramData'] ?? 'C:\\ProgramData', 'ssh', 'ssh_config')
+			: '/etc/ssh/ssh_config';
+
+		const result: URI[] = [URI.file(userConfigPath)];
+		try {
+			await fsp.access(systemConfigPath);
+			result.push(URI.file(systemConfigPath));
+		} catch {
+			// system config file does not exist — skip
+		}
+		return result;
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {

@@ -163,7 +163,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				description: f.description,
 				disableModelInvocation: false,
 				userInvocable: true,
-				when: undefined,
 			}));
 		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
@@ -179,7 +178,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: f.storage,
 					source: undefined,
 					extension: toExtensionInfo(f) as never,
-					when: undefined,
 				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;

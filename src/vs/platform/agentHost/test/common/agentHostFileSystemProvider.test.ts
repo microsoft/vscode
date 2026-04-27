@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentHostRemotePath, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { FileType } from '../../../files/common/files.js';
+import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { ContentEncoding, type ResourceListResult, type ResourceReadResult } from '../../common/state/protocol/commands.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -174,5 +177,113 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
 		assert.strictEqual(stripped, '/snap/before');
+	});
+});
+
+suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Stub connection that records the URIs it's asked about and returns
+	 * canned data, so we can assert on the URIs the provider passes through.
+	 */
+	class StubConnection implements IRemoteFilesystemConnection {
+		readonly readCalls: URI[] = [];
+		readonly listCalls: URI[] = [];
+		readResult: ResourceReadResult = { data: 'stub-content', encoding: ContentEncoding.Utf8, contentType: 'text/plain' };
+
+		async resourceRead(uri: URI): Promise<ResourceReadResult> {
+			this.readCalls.push(uri);
+			return this.readResult;
+		}
+		async resourceList(uri: URI): Promise<ResourceListResult> {
+			this.listCalls.push(uri);
+			return { entries: [] };
+		}
+		async resourceWrite(): Promise<{}> { return {}; }
+		async resourceDelete(): Promise<{}> { return {}; }
+		async resourceMove(): Promise<{}> { return {}; }
+	}
+
+	function setup() {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('local', connection));
+		return { provider, connection };
+	}
+
+	// Regression: AHPFileSystemProvider.stat() used to fall through to
+	// _listDirectory(parent) for any URI whose decoded scheme wasn't
+	// session-db, which fails with "Directory not found" for synthetic
+	// content URIs that have no real parent directory. The diff editor
+	// stats every URI before reading it, so this broke "open diff of a
+	// modified file" entirely. The fix is the scheme allowlist in stat().
+
+	test('stat returns File for git-blob: URIs without listing the parent', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.type, FileType.File);
+		assert.deepStrictEqual(connection.listCalls, [], 'stat must not list a synthetic parent directory');
+	});
+
+	test('stat returns File for session-db: URIs (parity with git-blob)', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'session-db', authority: 'sess1', path: '/snap/some-blob' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.type, FileType.File);
+		assert.deepStrictEqual(connection.listCalls, []);
+	});
+
+	test('stat still lists parent for ordinary file: URIs', async () => {
+		// Use a non-local authority so the URI actually goes through the
+		// agent-host wrapping (toAgentHostUri short-circuits 'local'
+		// + file:// to return the URI unchanged).
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		try {
+			await provider.stat(wrapped);
+		} catch {
+			// Either FileNotFound or EntryNotFound is fine — we only
+			// care that the provider tried to list the parent (rather
+			// than treating this as a synthetic content URI).
+		}
+		assert.strictEqual(connection.listCalls.length, 1);
+	});
+
+	test('readFile passes the decoded synthetic URI through to the connection', async () => {
+		const { provider, connection } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const bytes = await provider.readFile(wrapped);
+
+		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
+		assert.deepStrictEqual(connection.readCalls.map(u => u.toString()), [inner.toString()]);
+	});
+
+	test('full stat-then-read round-trip mirrors the diff editor flow', async () => {
+		// This is the exact sequence the workbench's TextFileEditorModel
+		// goes through when DiffEditorInput.createModel resolves: stat
+		// the URI, then read the file. Pre-fix this combo failed at the
+		// stat step before readFile was even called.
+		const { provider } = setup();
+		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
+		const wrapped = toAgentHostUri(inner, 'local');
+
+		const stat = await provider.stat(wrapped);
+		assert.strictEqual(stat.type, FileType.File);
+		const bytes = await provider.readFile(wrapped);
+		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
 	});
 });

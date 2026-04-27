@@ -8,7 +8,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
@@ -291,12 +290,6 @@ export interface ICustomAgent {
 	readonly source: IAgentSource;
 
 	/**
-	 * Optional context key expression. When set, the agent is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
-
-	/**
 	 * Optional session types that describe when this agent should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
@@ -319,7 +312,6 @@ export interface IChatPromptSlashCommand {
 	readonly userInvocable: boolean;
 	readonly extension?: IExtensionDescription;
 	readonly pluginUri?: URI;
-	readonly when: ContextKeyExpression | undefined;
 	/**
 	 * Optional session types that describe when this slash command should be offered.
 	 */
@@ -372,11 +364,6 @@ export interface IInstructionFile {
 	readonly source?: PromptFileSource;
 
 	/**
-	 * Optional context key expression. When set, the instruction file is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
-	/**
 	 * Optional session types that describe when this instruction should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
@@ -400,11 +387,6 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
-	/**
-	 * Optional context key expression. When set, the skill is only available
-	 * when this expression evaluates to true against a scoped context.
-	 */
-	readonly when?: ContextKeyExpression;
 	/**
 	 * Optional plugin URI describing where this skill originated.
 	 */

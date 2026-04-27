@@ -811,7 +811,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -869,7 +869,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -948,7 +948,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
@@ -1040,7 +1040,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'github-agent',
@@ -1158,7 +1158,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'copilot-agent',
@@ -1260,7 +1260,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'demonstrate',
@@ -1332,7 +1332,7 @@ suite('PromptsService', () => {
 				}
 			]);
 
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(({ when, ...agent }) => ({ ...agent, uri: URI.from(agent.uri) }));
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'restricted-agent',

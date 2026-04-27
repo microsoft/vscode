@@ -49,12 +49,22 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private currentFocusableElements: readonly HTMLElement[] = [];
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
 	private _outcomeResolved = false;
+	private _isShowingWelcome = false;
+
+	/**
+	 * Whether the overlay is currently displaying the signed-in welcome
+	 * greeting (as opposed to the sign-in provider buttons). When `true`,
+	 * external callers should **not** auto-dismiss the overlay — the user
+	 * is expected to click "Get Started" to proceed.
+	 */
+	get isShowingWelcome(): boolean { return this._isShowingWelcome; }
 
 	/** Resolves when the user completes or dismisses the walkthrough. */
 	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => { this._resolveOutcome = resolve; });
 
 	constructor(
 		container: HTMLElement,
+		private readonly _isFirstLaunch: boolean,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -102,6 +112,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement = disclaimer.element;
 		this.disclaimerLinks = disclaimer.links;
 
+		// Set synchronously so the autorun in the contribution doesn't
+		// auto-dismiss before the async _renderSignIn completes.
+		if (this._isFirstLaunch && this._isAlreadySetUp()) {
+			this._isShowingWelcome = true;
+		}
+
 		this._renderSignIn();
 	}
 
@@ -115,26 +131,42 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.footerContainer.textContent = '';
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
+		const productName = this.productService.nameLong;
+
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
 
 		append(layout, $('div.sessions-walkthrough-logo'));
 
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
-		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Agents")));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to continue with agent-powered development.")));
 
-		// If already signed in, finish immediately so the app can render.
-		if (this._isAlreadySetUp()) {
-			this.complete();
+		// First time + signed in → welcome greeting with "Get Started"
+		if (this._isFirstLaunch && this._isAlreadySetUp()) {
+			this._renderWelcome(stepDisposables, right, productName);
 			return;
 		}
 
+		// First time + not signed in → welcome content with sign-in buttons
+		// Returning + not signed in → plain sign-in screen
+		const titleEl = this._isFirstLaunch
+			? append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)))
+			: append(right, $('h2', undefined, localize('walkthrough.signin.title', "Sign In")));
+		const subtitleEl = append(right, $('p', undefined, this._isFirstLaunch
+			? localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")
+			: localize('walkthrough.signin.subtitle', "Sign in to continue.")));
+		if (this._isFirstLaunch) {
+			append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+		}
+
+		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
+	}
+
+	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.provider-github')) as HTMLButtonElement;
-		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Continue with GitHub")));
+		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Sign in with GitHub")));
 
 		// Desktop-only provider buttons
 		let providerButtons: HTMLButtonElement[];
@@ -200,6 +232,34 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				)));
 			}
 		}
+	}
+
+	// ------------------------------------------------------------------
+	// Welcome (first launch + signed in)
+
+	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
+		this._isShowingWelcome = true;
+		this.disclaimerElement.classList.add('hidden');
+
+		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+
+		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
+		const getStartedBtn = append(actions, $('button.sessions-walkthrough-get-started-btn')) as HTMLButtonElement;
+		getStartedBtn.textContent = localize('walkthrough.welcome.getStarted', "Get Started");
+		stepDisposables.add(addDisposableListener(getStartedBtn, EventType.CLICK, () => {
+			this._isShowingWelcome = false;
+			this.complete();
+		}));
+
+		this.currentFocusableElements = [getStartedBtn];
+
+		disposableTimeout(() => {
+			if (this.overlay.isConnected) {
+				getStartedBtn.focus();
+			}
+		}, 0, stepDisposables);
 	}
 
 	private _isAlreadySetUp(): boolean {

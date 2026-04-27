@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -83,7 +83,7 @@ class CapturingLogService extends NullLogService {
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
  * handler implementation actually returns.
  */
-function invokeClientToolHandler(tool: { name: string; handler: (args: any, invocation: any) => unknown }, toolCallId: string): Promise<ToolResultObject> {
+function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string): Promise<ToolResultObject> {
 	return Promise.resolve(tool.handler({}, {
 		sessionId: 'test-session-1',
 		toolCallId,
@@ -882,7 +882,12 @@ suite('CopilotAgentSession', () => {
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPreToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				capturedCallbacks.current!.hooks.onPreToolUse({
+					timestamp: 0,
+					cwd: '/tmp',
+					toolName: 'edit',
+					toolArgs: { path: '/tmp/file.ts' },
+				}),
 				/pre tool boom/,
 			);
 
@@ -903,7 +908,13 @@ suite('CopilotAgentSession', () => {
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPostToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				capturedCallbacks.current!.hooks.onPostToolUse({
+					timestamp: 0,
+					cwd: '/tmp',
+					toolName: 'edit',
+					toolArgs: { path: '/tmp/file.ts' },
+					toolResult: { textResultForLlm: '', resultType: 'success' },
+				}),
 				/post tool boom/,
 			);
 

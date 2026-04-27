@@ -757,16 +757,9 @@ class TitleBarUpdateWidget extends BaseActionViewItem {
 
 // --- Register custom view item --- //
 
-// These actions are registered at module level (not lazily inside AccountWidgetContribution)
-// so that Menus.TitleBarRightLayout is non-empty when the MenuWorkbenchToolBar is first
-// constructed. If they were registered lazily (WorkbenchPhase.AfterRestored), the toolbar's
-// IntersectionObserver would have already observed an empty, display:none container and
-// stopped listening for menu changes — causing the widgets to never appear.
-//
-// The actual widget rendering and interaction is handled by TitleBarUpdateWidget /
-// TitleBarAccountWidget, which are custom view items registered via IActionViewItemService
-// in AccountWidgetContribution. Those widgets attach their own DOM click handlers, so
-// run() here is intentionally a no-op.
+// Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
+// toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
+// view items registered in AccountWidgetContribution.
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -811,16 +804,14 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		// Titlebar update widget (to the right of separator, left of account badge)
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarUpdateWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarUpdateWidget, action, options);
 		}, undefined));
 
-		// Titlebar account widget (rightmost in titlebar)
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
 	}
 }
 
-registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.BlockRestore);

@@ -19,13 +19,9 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
-import { IOutputService } from '../../../../workbench/services/output/common/output.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -33,6 +29,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getStatusHover, getStatusLabel, showRemoteHostOptions } from '../../remoteAgentHost/browser/remoteHostOptions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { Menus } from '../../../browser/menus.js';
@@ -126,15 +124,12 @@ export class WorkspacePicker extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -476,16 +471,22 @@ export class WorkspacePicker extends Disposable {
 			const action = toAction({
 				id: `workspacePicker.remote.${provider.id}`,
 				label: provider.label,
-				tooltip: this._getStatusLabel(status),
+				tooltip: getStatusLabel(status),
 				enabled: true,
 				run: () => {
 					this.actionWidgetService.hide();
 					this._showRemoteHostOptionsDelayed(provider);
 				},
 			});
-			const extended = action as IAction & { icon?: ThemeIcon; hoverContent?: string };
+			const extended = action as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
 			extended.icon = isTunnel ? Codicon.cloud : Codicon.remote;
-			extended.hoverContent = this._getStatusHover(status, provider.remoteAddress);
+			extended.hoverContent = getStatusHover(status, provider.remoteAddress);
+			if (!isTunnel && provider.remoteAddress) {
+				const address = provider.remoteAddress;
+				extended.onRemove = async () => {
+					await this.remoteAgentHostService.removeRemoteAgentHost(address);
+				};
+			}
 			remoteProviderActions.push(action);
 		}
 
@@ -527,93 +528,13 @@ export class WorkspacePicker extends Disposable {
 		return items;
 	}
 
-	private _getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
-		switch (status) {
-			case RemoteAgentHostConnectionStatus.Connected:
-				return localize('workspacePicker.statusOnline', "Online");
-			case RemoteAgentHostConnectionStatus.Connecting:
-				return localize('workspacePicker.statusConnecting', "Connecting");
-			case RemoteAgentHostConnectionStatus.Disconnected:
-				return localize('workspacePicker.statusOffline', "Offline");
-		}
-	}
-
-	private _getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
-		switch (status) {
-			case RemoteAgentHostConnectionStatus.Connected:
-				return address
-					? localize('workspacePicker.hoverConnectedAddr', "Remote agent host is connected and ready.\n\nAddress: {0}", address)
-					: localize('workspacePicker.hoverConnected', "Remote agent host is connected and ready.");
-			case RemoteAgentHostConnectionStatus.Connecting:
-				return address
-					? localize('workspacePicker.hoverConnectingAddr', "Attempting to connect to remote agent host...\n\nAddress: {0}", address)
-					: localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...");
-			case RemoteAgentHostConnectionStatus.Disconnected:
-				return address
-					? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
-					: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");
-		}
-	}
-
-	/**
-	 * Show the remote host options quickpick after a short delay.
-	 * This ensures the action widget has fully hidden before the quickpick opens,
-	 * preventing focus conflicts that cause the quickpick to flash and disappear.
-	 */
 	private _showRemoteHostOptionsDelayed(provider: IAgentHostSessionsProvider): void {
-		const timeout = setTimeout(() => this._showRemoteHostOptions(provider), 1);
+		// Defer one tick so the action widget fully tears down (focus/DOM cleanup)
+		// before the QuickPick opens and claims focus.
+		const timeout = setTimeout(() => {
+			this.instantiationService.invokeFunction(accessor => showRemoteHostOptions(accessor, provider));
+		}, 1);
 		this._renderDisposables.add({ dispose: () => clearTimeout(timeout) });
-	}
-
-	private async _showRemoteHostOptions(provider: IAgentHostSessionsProvider): Promise<void> {
-		const address = provider.remoteAddress;
-		if (!address) {
-			return;
-		}
-
-		const status = provider.connectionStatus?.get();
-		const isConnected = status === RemoteAgentHostConnectionStatus.Connected;
-
-		const items: IQuickPickItem[] = [];
-		if (!isConnected) {
-			items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
-		}
-		items.push(
-			{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
-			{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
-			{ label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' },
-		);
-		if (provider.outputChannelId) {
-			items.push({ label: '$(output) ' + localize('workspacePicker.showOutput', "Show Output"), id: 'output' });
-		}
-
-		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('workspacePicker.remoteOptionsTitle', "Options for {0}", provider.label),
-		});
-		if (!picked) {
-			return;
-		}
-
-		const action = (picked as IQuickPickItem & { id: string }).id;
-		switch (action) {
-			case 'reconnect':
-				this.remoteAgentHostService.reconnect(address);
-				break;
-			case 'remove':
-				await this.remoteAgentHostService.removeRemoteAgentHost(address);
-				break;
-			case 'copy':
-				await this.clipboardService.writeText(address);
-				break;
-			case 'settings':
-				await this.preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
-				break;
-			case 'output':
-				if (provider.outputChannelId) {
-					this.outputService.showChannel(provider.outputChannelId, true);
-				}
-				break;
-		}
 	}
 
 	private _updateTriggerLabel(): void {

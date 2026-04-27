@@ -107,6 +107,8 @@ export class WebviewEditor extends EditorPane {
 		if (this.webview && this._visible) {
 			this.setWebviewAnchorElement(this.webview);
 		}
+
+		this.setEditorVisible(dimension.width > 0 && dimension.height > 0);
 	}
 
 	public override focus(): void {
@@ -123,6 +125,10 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
+		if (visible === this._visible) {
+			return;
+		}
+
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {

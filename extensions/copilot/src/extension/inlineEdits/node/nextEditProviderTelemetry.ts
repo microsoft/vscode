@@ -1115,6 +1115,9 @@ export class TelemetrySender implements IDisposable {
 				"promptCharCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of characters in the prompt", "isMeasurement": true },
 				"nDiffsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of diffs included in the prompt", "isMeasurement": true },
 				"diffTokensInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens consumed by diffs in the prompt", "isMeasurement": true },
+				"nNeighborSnippetsComputed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of neighbor (similar files) snippets computed before budget filtering", "isMeasurement": true },
+				"nNeighborSnippetsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of neighbor (similar files) snippets actually included in the prompt", "isMeasurement": true },
+				"neighborSnippetIndicesInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "JSON-encoded array of original input indices (ascending) of neighbor snippets included in the prompt" },
 				"hadLowLogProbSuggestion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the suggestion had low log probability", "isMeasurement": true },
 				"nEditsSuggested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of edits suggested", "isMeasurement": true },
 				"hasNextEdit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether next edit provider returned an edit (if an edit was previously rejected, this field is false)", "isMeasurement": true },
@@ -1177,6 +1180,7 @@ export class TelemetrySender implements IDisposable {
 				xtabAggressivenessLevel,
 				userAggressivenessSetting,
 				modelConfig,
+				neighborSnippetIndicesInPrompt: telemetry.neighborSnippetIndicesInPrompt,
 			},
 			{
 				requestN,
@@ -1237,6 +1241,8 @@ export class TelemetrySender implements IDisposable {
 				xtabUserHappinessScore,
 				nDiffsInPrompt: telemetry.nDiffsInPrompt,
 				diffTokensInPrompt: telemetry.diffTokensInPrompt,
+				nNeighborSnippetsComputed: telemetry.nNeighborSnippetsComputed,
+				nNeighborSnippetsInPrompt: telemetry.nNeighborSnippetsInPrompt,
 			}
 		);
 	}
