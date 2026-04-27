@@ -27,6 +27,7 @@ const taskDefinitionSchema: IJSONSchema = {
 		},
 		required: {
 			type: 'array',
+			markdownDescription: nls.localize('TaskDefinition.required', 'The names of the properties from the `properties` object that must be provided for a task of this type to be considered a match. Used by VS Code to associate a `tasks.json` entry with a registered task provider.'),
 			items: {
 				type: 'string'
 			}

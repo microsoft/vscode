@@ -57,7 +57,13 @@ class ErrorTestingSettings {
 	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
 	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
 	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
+	public anonymizedNodeModulePath: string = '<REDACTED: user-file-path>/node_modules/path/that/shouldbe/retained/names.js:14:15854';
 	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public anonymizedNodeModuleAsarPath: string = '<REDACTED: user-file-path>/node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public fullNodeModulePath: string = '/Users/username/projects/vscode/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public anonymizedFullNodeModulePath: string = '<REDACTED: user-file-path>/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public fullNodeModuleAsarPath: string = '/Users/username/projects/vscode/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
+	public anonymizedFullNodeModuleAsarPath: string = '<REDACTED: user-file-path>/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
 	public extensionPathToRetain: string = '.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public fullExtensionPath: string = '/Users/username/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public anonymizedExtensionPath: string = '<REDACTED: user-file-path>/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
@@ -90,6 +96,8 @@ class ErrorTestingSettings {
 		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
 		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
 		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+		`    at get dimensions (${this.fullNodeModulePath})`,
+		`    at _._refreshCanvasDimensions (${this.fullNodeModuleAsarPath})`,
 		`    at uv.provideCodeActions (${this.fullExtensionPath})`,
 		`    at remote.handleConnection (${this.fullServerInsidersExtensionPath})`,
 		`    at git.getRepositoryState (${this.fullBuiltinExtensionPath})`,
@@ -200,6 +208,22 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(service.sessionId, 'one');
 		assert.strictEqual(service.machineId, 'three');
+
+		service.dispose();
+	});
+
+	test('setCommonProperty adds property to all subsequent events', function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('eventBeforeSet');
+		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
+		service.publicLog('eventAfterSet');
+
+		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
+		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
 
 		service.dispose();
 	});
@@ -468,10 +492,8 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedNodeModuleAsarPath), -1, 'bare node_modules.asar path');
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedNodeModulePath), -1, 'bare node_modules path');
 		assert.notStrictEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
@@ -504,10 +526,12 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+			// All node_modules paths (bare and full) should preserve the node_modules/... suffix after redaction
+			const cs = testAppender.events[0].data.callstack;
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedNodeModuleAsarPath), -1, 'bare node_modules.asar path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedNodeModulePath), -1, 'bare node_modules path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedFullNodeModulePath), -1, 'full node_modules path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedFullNodeModuleAsarPath), -1, 'full node_modules.asar path');
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -1031,6 +1055,45 @@ suite('TelemetryService', () => {
 		errorTelemetry.dispose();
 		service.dispose();
 		sinon.restore();
+	}));
+
+	test('Unexpected Error Telemetry strips web origin but preserves path in web stack traces when piiPaths includes origin', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const webOrigin = 'https://codespace-host.github.dev';
+			const service = new TestErrorTelemetryService({ appenders: [testAppender], piiPaths: [webOrigin] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const bundlePath = '/static/build/bundle.js';
+			const stack = [
+				`Error: Something failed`,
+				`    at x3t._delegate (${webOrigin}${bundlePath}:1:200953)`,
+				`    at y4u.run (${webOrigin}${bundlePath}:1:304822)`,
+				`    at DedicatedWorkerGlobalScope.self.onmessage`,
+			];
+
+			const webError: any = new Error('Something failed');
+			webError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(webError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs = testAppender.events[0].data.callstack;
+			// Verify the web origin is stripped (not leaked as PII)
+			assert.strictEqual(cs.indexOf(webOrigin), -1, 'Web origin should be stripped');
+			assert.strictEqual(cs.indexOf('https://'), -1, 'HTTPS scheme should be stripped');
+			// Verify the bundle path is preserved for debugging
+			assert.notStrictEqual(cs.indexOf(bundlePath), -1, 'Bundle path should be preserved');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
 	}));
 
 	ensureNoDisposablesAreLeakedInTestSuite();

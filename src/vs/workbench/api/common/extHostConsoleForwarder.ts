@@ -46,13 +46,13 @@ export abstract class AbstractExtHostConsoleForwarder {
 
 		Object.defineProperty(console, method, {
 			set: () => { },
-			get: () => function () {
-				that._handleConsoleCall(method, severity, original, arguments);
+			get: () => (...args: unknown[]) => {
+				that._handleConsoleCall(method, severity, original, args);
 			},
 		});
 	}
 
-	private _handleConsoleCall(method: 'log' | 'info' | 'warn' | 'error' | 'debug', severity: 'log' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments): void {
+	private _handleConsoleCall(method: 'log' | 'info' | 'warn' | 'error' | 'debug', severity: 'log' | 'warn' | 'error' | 'debug', original: (...args: unknown[]) => void, args: unknown[]): void {
 		this._mainThreadConsole.$logExtensionHostMessage({
 			type: '__$console',
 			severity,
@@ -63,7 +63,7 @@ export abstract class AbstractExtHostConsoleForwarder {
 		}
 	}
 
-	protected abstract _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments): void;
+	protected abstract _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: unknown[]) => void, args: unknown[]): void;
 
 }
 
@@ -72,7 +72,7 @@ const MAX_LENGTH = 100000;
 /**
  * Prevent circular stringify and convert arguments to real array
  */
-function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean): string {
+function safeStringifyArgumentsToArray(args: unknown[], includeStack: boolean): string {
 	const argsArray = [];
 
 	// Massage some arguments with special treatment

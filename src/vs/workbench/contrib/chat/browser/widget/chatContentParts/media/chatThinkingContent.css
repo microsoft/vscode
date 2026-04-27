@@ -13,6 +13,13 @@
 	position: relative;
 	color: var(--vscode-descriptionForeground);
 
+	contain: layout style;
+
+	.chat-thinking-external-resources {
+		margin-top: 4px;
+		margin-left: 5px;
+	}
+
 	.chat-used-context {
 		margin: 0px;
 	}
@@ -49,6 +56,19 @@
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+
+		.chat-thinking-title-diff {
+			padding-left: 6px;
+
+			> .label-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			> .label-removed {
+				padding-left: 4px;
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
@@ -56,6 +76,9 @@
 		.codicon.codicon-circle-filled {
 			display: none;
 		}
+	}
+
+	&.chat-thinking-active.chat-used-context-collapsed > .chat-used-context-label .monaco-button.monaco-icon-button {
 
 		.chat-thinking-title-shimmer {
 			background: linear-gradient(90deg,
@@ -69,6 +92,7 @@
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			animation: chat-thinking-shimmer 2s linear infinite;
+			will-change: background-position;
 		}
 	}
 
@@ -85,11 +109,25 @@
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
 		overflow: visible;
 		max-height: none;
+	}
+
+	/* Curved connector from the header to the first thinking item */
+	&:not(.chat-used-context-collapsed)::after {
+		content: '';
+		position: absolute;
+		left: 3px;
+		top: 22px;
+		height: 16px;
+		width: 5px;
+		border-left: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+		border-bottom-left-radius: 5px;
 	}
 
 	.monaco-button.hidden,
@@ -98,11 +136,13 @@
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible {
-		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: var(--vscode-cornerRadius-medium);
+		border: none;
+		border-radius: 0;
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
+		padding-top: 0;
+		margin-left: 5px;
 
 		.chat-tool-invocation-part {
 			padding: 4px 12px 4px 18px;
@@ -161,15 +201,16 @@
 
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
-					padding: 4px 12px 4px 20px;
-					margin-bottom: 0;
-				}
+				padding: 4px 12px 4px 20px;
+				margin-bottom: 0;
+			}
 		}
 
 		.chat-thinking-item.markdown-content {
 			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
+
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;
@@ -202,6 +243,10 @@
 					margin-bottom: 0px;
 				}
 			}
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
+			padding: 2px 0px;
 		}
 
 		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
@@ -255,7 +300,6 @@
 			> .chat-thinking-icon .codicon.codicon-book {
 				top: 10px;
 			}
-
 		}
 
 		.chat-thinking-spinner-item {
@@ -326,8 +370,33 @@
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
+	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
+	&:has(.chat-thinking-streaming) > .chat-used-context-label {
+		display: none;
+	}
+
+	&.chat-thinking-persistent-streaming {
+		margin-bottom: 3px;
+	}
+
 	> .monaco-scrollable-element > .shadow {
 		display: none;
+	}
+
+	/* Directional fade indicators via mask-image on the scrollable viewport */
+	&.chat-thinking-fade-top > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, transparent 0px, black 20px);
+		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px);
+	}
+
+	&.chat-thinking-fade-bottom > .monaco-scrollable-element {
+		mask-image: linear-gradient(to top, transparent 0px, black 20px);
+		-webkit-mask-image: linear-gradient(to top, transparent 0px, black 20px);
+	}
+
+	&.chat-thinking-fade-top.chat-thinking-fade-bottom > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
+		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
 	}
 
 	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
@@ -338,6 +407,42 @@
 		max-height: 200px;
 		overflow: hidden;
 		display: block;
+		margin-left: 0px;
+		padding-left: 0px;
+
+		.chat-tool-invocation-part {
+			padding-left: 13px;
+		}
+
+		.chat-thinking-spinner-item {
+			padding-left: 19px;
+		}
+
+		.chat-used-context.chat-hook-outcome-blocked,
+		.chat-used-context.chat-hook-outcome-warning {
+			padding-left: 15px;
+		}
+
+		.chat-thinking-item.markdown-content {
+			padding-left: 19px;
+		}
+
+		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding-left: 19px;
+		}
+
+		/* chain of thought lines */
+		.chat-thinking-tool-wrapper,
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-spinner-item {
+			&::before {
+				left: 5.5px;
+			}
+
+			> .chat-thinking-icon {
+				left: 0px;
+			}
+		}
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
@@ -349,10 +454,6 @@
 	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
 		overflow: visible;
 		height: auto;
-
-		> .scrollbar {
-			display: none;
-		}
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {

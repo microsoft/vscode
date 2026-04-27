@@ -10,7 +10,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { formatHookCommandLabel, IHookCommand } from '../../common/promptSyntax/hookSchema.js';
+import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { type IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HOOK_METADATA, HookType } from '../../common/promptSyntax/hookTypes.js';
 import { parseHooksFromFile, parseHooksIgnoringDisableAll } from '../../common/promptSyntax/hookCompatibility.js';
 import * as nls from '../../../../../nls.js';
@@ -168,7 +169,7 @@ export function findHookCommandInYaml(content: string, commandText: string): ITe
 export interface IParsedHook {
 	hookType: HookType;
 	hookTypeLabel: string;
-	command: IHookCommand;
+	command: IParsedHookCommand;
 	commandLabel: string;
 	fileUri: URI;
 	filePath: string;

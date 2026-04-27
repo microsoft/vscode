@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -15,13 +14,13 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ChatManagementEditor, ModelsManagementEditor } from './chatManagementEditor.js';
-import { ChatManagementEditorInput, ModelsManagementEditorInput } from './chatManagementEditorInput.js';
+import { ModelsManagementEditor } from './chatManagementEditor.js';
+import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
@@ -32,23 +31,13 @@ const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settin
 
 const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
+	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
 	ChatContextKeys.Entitlement.planProPlus,
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
 	ChatContextKeys.Entitlement.internal
 ));
-
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		ChatManagementEditor,
-		ChatManagementEditor.ID,
-		localize('chatManagementEditor', "Chat Management Editor")
-	),
-	[
-		new SyncDescriptor(ChatManagementEditorInput)
-	]
-);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -60,21 +49,6 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(ModelsManagementEditorInput)
 	]
 );
-
-class ChatManagementEditorInputSerializer implements IEditorSerializer {
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(input: ChatManagementEditorInput): string {
-		return '';
-	}
-
-	deserialize(instantiationService: IInstantiationService): ChatManagementEditorInput {
-		return instantiationService.createInstance(ChatManagementEditorInput);
-	}
-}
 
 class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 
@@ -91,30 +65,7 @@ class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatManagementEditorInput.ID, ChatManagementEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ModelsManagementEditorInput.ID, ModelsManagementEditorInputSerializer);
-
-interface IOpenManageCopilotEditorActionOptions {
-	query?: string;
-	section?: string;
-}
-
-function sanitizeString(arg: unknown): string | undefined {
-	return isString(arg) ? arg : undefined;
-}
-
-function sanitizeOpenManageCopilotEditorArgs(input: unknown): IOpenManageCopilotEditorActionOptions {
-	if (!isObject(input)) {
-		input = {};
-	}
-
-	const args = <IOpenManageCopilotEditorActionOptions>input;
-
-	return {
-		query: sanitizeString(args?.query),
-		section: sanitizeString(args?.section)
-	};
-}
 
 class ChatManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -139,10 +90,9 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					f1: true,
 				});
 			}
-			async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
+			async run(accessor: ServicesAccessor) {
 				const editorService = accessor.get(IEditorService);
-				args = sanitizeOpenManageCopilotEditorArgs(args);
-				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true }, MODAL_GROUP);
+				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 			}
 		}));
 

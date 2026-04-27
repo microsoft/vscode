@@ -159,7 +159,15 @@ function measureNodeWidth(label: string, sublabel?: string): number {
 }
 
 function subgraphHeaderLabel(node: FlowNode): string {
-	return node.description ? `${node.label}: ${node.description}` : node.label;
+	// For subagent nodes, the label already includes the description
+	// (e.g. "Subagent: Count markdown files"), so don't append it again.
+	if (node.kind === 'subagentInvocation') {
+		return node.label;
+	}
+	if (node.description && node.description !== node.label) {
+		return `${node.label}: ${node.description}`;
+	}
+	return node.label;
 }
 
 function measureSubgraphHeaderWidth(headerLabel: string): number {
@@ -338,14 +346,17 @@ function resolvePendingExpansions(
 			expandY += NODE_HEIGHT + NODE_GAP_Y;
 		}
 
-		// Horizontal edge from merged node to first child
+		// Edge from merged node to first expanded child.
+		// Use a horizontal edge aligned with the first child's midpoint
+		// so the orthogonal renderer doesn't need to route upward.
+		const edgeY = childNodes[0].y + childNodes[0].height / 2;
 		result.edges.push({
 			fromId: mergedNode.id,
 			toId: childNodes[0].id,
 			fromX: mergedNode.x + mergedNode.width,
-			fromY: mergedNode.y + mergedNode.height / 2,
+			fromY: edgeY,
 			toX: expandX,
-			toY: childNodes[0].y + childNodes[0].height / 2,
+			toY: edgeY,
 		});
 
 		// Vertical edges between consecutive children

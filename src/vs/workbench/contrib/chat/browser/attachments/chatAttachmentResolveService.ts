@@ -10,7 +10,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IDraggedResourceEditorInput, MarkerTransferData, DocumentSymbolTransferData, NotebookCellOutputTransferData } from '../../../../../platform/dnd/browser/dnd.js';
@@ -27,8 +26,7 @@ import { getOutputViewModelFromId } from '../../../notebook/browser/controller/c
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { SCMHistoryItemTransferData } from '../../../scm/browser/scmHistoryChatContext.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../common/model/chatModel.js';
-import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, ISCMHistoryItemVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { imageToHash } from '../widget/input/editor/chatPasteProviders.js';
 import { resizeImage } from '../chatImageUtils.js';
 
@@ -56,7 +54,6 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IEditorService,
-		@ITextModelService private textModelService: ITextModelService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IDialogService private dialogService: IDialogService
 	) { }
@@ -115,26 +112,8 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		let omittedState = OmittedState.NotOmitted;
 
 		if (!isDirectory) {
-
-			let languageId: string | undefined;
-			try {
-				const createdModel = await this.textModelService.createModelReference(resource);
-				languageId = createdModel.object.getLanguageId();
-				createdModel.dispose();
-			} catch {
-				omittedState = OmittedState.Full;
-			}
-
 			if (/\.(svg)$/i.test(resource.path)) {
 				omittedState = OmittedState.Full;
-			}
-			if (languageId) {
-				const promptsType = getPromptsTypeForLanguageId(languageId);
-				if (promptsType === PromptsType.prompt) {
-					return toPromptFileVariableEntry(resource, PromptFileVariableKind.PromptFile);
-				} else if (promptsType === PromptsType.instructions) {
-					return toPromptFileVariableEntry(resource, PromptFileVariableKind.Instruction);
-				}
 			}
 		}
 

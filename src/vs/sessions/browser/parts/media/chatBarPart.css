@@ -11,7 +11,11 @@
 .monaco-workbench .part.chatbar > .content .monaco-editor,
 .monaco-workbench .part.chatbar > .content .monaco-editor .margin,
 .monaco-workbench .part.chatbar > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench .part.chatbar > .content > .monaco-progress-container {
+	top: 0;
 }
 
 .monaco-workbench .part.chatbar .title-actions .actions-container {
@@ -23,7 +27,7 @@
 }
 
 .monaco-workbench .part.chatbar > .title {
-	background-color: var(--vscode-sideBarTitle-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench .part.chatbar > .title > .title-label {
@@ -63,7 +67,7 @@
 
 .monaco-workbench .part.chatbar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 .monaco-workbench .part.chatbar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
-	color: var(--vscode-sideBarTitle-foreground) !important;
+	color: var(--vscode-agentsPanel-foreground) !important;
 }
 
 .monaco-workbench .part.chatbar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,

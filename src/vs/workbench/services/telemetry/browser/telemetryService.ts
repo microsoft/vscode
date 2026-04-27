@@ -18,8 +18,10 @@ import { getTelemetryLevel, isInternalTelemetry, isLoggingOnly, ITelemetryAppend
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { resolveWorkbenchCommonProperties } from './workbenchCommonProperties.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
+import { IRequestService, NO_FETCH_TELEMETRY } from '../../../../platform/request/common/request.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -42,7 +44,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@IStorageService storageService: IStorageService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
+		@IRequestService requestService: IRequestService
 	) {
 		super();
 
@@ -53,6 +56,29 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
 				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService, meteredConnectionService);
 			}
+		}));
+
+		this._register(requestService.onDidCompleteRequest(e => {
+			if (e.callSite === NO_FETCH_TELEMETRY || productService.quality === 'stable') {
+				return;
+			}
+			type FetchCallClassification = {
+				owner: 'lramos15';
+				comment: 'Tracks fetch requests made through the request service';
+				callSite: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The call site that initiated the request.' };
+				latency: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds for the request to complete.' };
+				statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status code of the response.' };
+			};
+			type FetchCallEvent = {
+				callSite: string;
+				latency: number;
+				statusCode: number | undefined;
+			};
+			this.publicLog2<FetchCallEvent, FetchCallClassification>('fetchCall', {
+				callSite: e.callSite,
+				latency: e.latency,
+				statusCode: e.statusCode,
+			});
 		}));
 	}
 
@@ -90,6 +116,11 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService, isInternal, environmentService.remoteAuthority, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				// Use the web origin as a cleanup pattern (analogous to appRoot on desktop).
+				// This strips the origin from web URLs in stack traces so the useful
+				// relative path (e.g. /static/build/bundle.js:1:200953) is preserved
+				// for debugging, while the origin itself is removed.
+				piiPaths: [mainWindow.location.origin],
 				sendErrorTelemetry: this.sendErrorTelemetry,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 				meteredConnectionService,
@@ -102,6 +133,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
+	}
+
+	setCommonProperty(name: string, value: string): void {
+		this.impl.setCommonProperty(name, value);
 	}
 
 	get telemetryLevel(): TelemetryLevel {

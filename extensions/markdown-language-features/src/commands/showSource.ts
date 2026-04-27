@@ -10,12 +10,16 @@ import { MarkdownPreviewManager } from '../preview/previewManager';
 export class ShowSourceCommand implements Command {
 	public readonly id = 'markdown.showSource';
 
+	readonly #previewManager: MarkdownPreviewManager;
+
 	public constructor(
-		private readonly _previewManager: MarkdownPreviewManager
-	) { }
+		previewManager: MarkdownPreviewManager
+	) {
+		this.#previewManager = previewManager;
+	}
 
 	public execute() {
-		const { activePreviewResource, activePreviewResourceColumn } = this._previewManager;
+		const { activePreviewResource, activePreviewResourceColumn } = this.#previewManager;
 		if (activePreviewResource && activePreviewResourceColumn) {
 			return vscode.workspace.openTextDocument(activePreviewResource).then(document => {
 				return vscode.window.showTextDocument(document, activePreviewResourceColumn);

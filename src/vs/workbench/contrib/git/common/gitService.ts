@@ -40,8 +40,16 @@ export interface GitDiffChange extends GitChange {
 	readonly deletions: number;
 }
 
+export interface GitRemote {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface GitRepositoryState {
 	readonly HEAD?: GitBranch;
+	readonly remotes: readonly GitRemote[];
 	readonly mergeChanges: readonly GitChange[];
 	readonly indexChanges: readonly GitChange[];
 	readonly workingTreeChanges: readonly GitChange[];
@@ -52,6 +60,11 @@ export interface GitBranch extends GitRef {
 	readonly upstream?: GitUpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface GitBaseRef {
+	readonly name: string;
+	readonly isProtected: boolean;
 }
 
 export interface GitUpstreamRef {
@@ -68,6 +81,7 @@ export interface IGitRepository {
 
 	getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export interface IGitExtensionDelegate {
@@ -76,6 +90,7 @@ export interface IGitExtensionDelegate {
 
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
+	diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export const IGitService = createDecorator<IGitService>('gitService');

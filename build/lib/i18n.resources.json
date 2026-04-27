@@ -171,6 +171,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/imageCarousel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
@@ -288,6 +292,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeGettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeOnboarding",
 			"project": "vscode-workbench"
 		},
 		{
@@ -427,6 +435,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/policies",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/progress",
 			"project": "vscode-workbench"
 		},
@@ -561,6 +573,152 @@
 		{
 			"name": "vs/workbench/contrib/list",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/browserView",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/dropOrPasteInto",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/editTelemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/inlineCompletions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/mcp",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/meteredConnection",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/processExplorer",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remoteCodingAgents",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/telemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeAgentSessions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/accounts",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/chat",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/request",
+			"project": "vscode-workbench"
+		}
+	],
+	"sessions": [
+		{
+			"name": "vs/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/accountMenu",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/agentFeedback",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/agentHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/aiCustomizationTreeView",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/applyCommitsToParentRepo",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/changes",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/configuration",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/codeReview",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/fileTreeView",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/files",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/policyBlocked",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/git",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/logs",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/remoteAgentHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/terminal",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/welcome",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatDebug",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/editor",
+			"project": "vscode-sessions"
 		}
 	]
 }
