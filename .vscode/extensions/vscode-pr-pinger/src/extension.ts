@@ -9,20 +9,22 @@ import { graphql } from '@octokit/graphql';
 export function activate(context: vscode.ExtensionContext) {
 
 	const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+	context.subscriptions.push(item);
 
 	let session: vscode.AuthenticationSession | undefined;
 
-	vscode.commands.registerCommand('pr.promptLogin', async () => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.promptLogin', async () => {
 		session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: true });
 		updateItem();
-	});
+	}));
 
-	vscode.commands.registerCommand('pr.show', async (pr: PrInfo) => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.show', async (pr: PrInfo) => {
 		vscode.env.openExternal(vscode.Uri.parse(pr.url));
 		item.hide();
-	});
+	}));
 
 	let currentShow: vscode.Disposable | undefined = undefined;
+	context.subscriptions.push(new vscode.Disposable(() => currentShow?.dispose()));
 
 	// monitor focus/unfocus to "nudge harder" after a context switch
 	let lastGone: number | undefined;
