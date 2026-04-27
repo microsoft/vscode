@@ -3557,6 +3557,15 @@
           "description": "%config.confirmEmptyCommits%",
           "default": true
         },
+        "git.experimental.retainCommitMessageAfterCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%config.experimental.retainCommitMessageAfterCommit%",
+          "default": false,
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.decorations.enabled": {
           "type": "boolean",
           "default": true,
