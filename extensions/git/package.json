@@ -3513,6 +3513,15 @@
           "description": "%config.useEditorAsCommitInput%",
           "default": true
         },
+        "git.experimental.generateCommitMessageIfEmpty": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%config.experimental.generateCommitMessageIfEmpty%",
+          "default": false,
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.verboseCommit": {
           "type": "boolean",
           "scope": "resource",
