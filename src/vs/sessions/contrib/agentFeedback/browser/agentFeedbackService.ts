@@ -369,7 +369,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return undefined;
 		}
 
-		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		const matchingChange = changes.find(change => changeMatchesResource(change, resourceUri));
 		if (!matchingChange) {
 			return undefined;
 		}
@@ -387,17 +387,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			modifiedUri: matchingChange.modifiedUri,
 			isDeletion: false,
 		};
-	}
-
-	private _changeContainsResource(change: ISessionFileChange, resourceUri: URI): boolean {
-		if (isIChatSessionFileChange2(change)) {
-			return isEqual(change.uri, resourceUri)
-				|| isEqual(change.originalUri, resourceUri)
-				|| isEqual(change.modifiedUri, resourceUri);
-		}
-
-		return isEqual(change.modifiedUri, resourceUri)
-			|| isEqual(change.originalUri, resourceUri);
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
