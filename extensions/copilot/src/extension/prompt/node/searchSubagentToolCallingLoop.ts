@@ -147,7 +147,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return allTools.filter(tool => allowedSearchTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
+	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: SearchSubagentToolCallingLoop.ID,
@@ -170,6 +170,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
 				parentModelCallId: this.options.parentModelCallId,
+				iterationNumber: iterationNumber.toString(),
 			},
 			requestKindOptions: { kind: 'subagent' }
 		}, token);
