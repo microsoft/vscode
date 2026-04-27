@@ -34,7 +34,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, isExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, matchesSessionType } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -517,7 +517,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (!file.when) {
 				return true;
 			}
-
+			// items that come in from extensions (via contribution point or provider) can have a `when` clause.
+			// The service checks that when clause when passing it out and also tracks all properties that are
+			// part of the when clause for refreshing purposes.`
 			const when = ContextKeyExpr.deserialize(file.when);
 			if (!when) {
 				this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
@@ -685,9 +687,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
-		const when = isExtensionPromptPath(promptPath) && promptPath.when
-			? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
-			: undefined;
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -699,7 +698,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
-			when,
 			sessionTypes: promptPath.sessionTypes,
 		};
 	}
@@ -1129,9 +1127,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.promptPath.description, file.promptPath.uri);
-				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
-					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
-					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1139,7 +1134,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
-					when,
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
 					sessionTypes: file.promptPath.sessionTypes,
@@ -1284,9 +1278,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IInstructionFile[] = [];
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
-				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
-					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
-					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1296,7 +1287,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 					name: file.promptPath.name,
 					description: file.promptPath.description,
 					pattern: file.pattern,
-					when,
 					sessionTypes: file.promptPath.sessionTypes,
 				});
 			}
@@ -1712,7 +1702,7 @@ class ModelChangeTracker extends Disposable {
 }
 
 export namespace CustomAgent {
-	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; when?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined }): ICustomAgent {
+	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined }): ICustomAgent {
 		const uri = ast.uri;
 		const { hooks, sessionTypes } = extra;
 
@@ -1746,10 +1736,9 @@ export namespace CustomAgent {
 		const description = ast.header?.description ?? extra.description;
 		const target = getTarget(PromptsType.agent, ast.header ?? uri);
 
-		const when = extra.when ? ContextKeyExpr.deserialize(extra.when) ?? undefined : undefined;
 		const source = extra.source;
 		if (!ast.header) {
-			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks, when };
+			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks };
 		}
 		const visibility = {
 			userInvocable: ast.header.userInvocable !== false,
@@ -1764,7 +1753,7 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, when };
+		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks };
 
 	}
 }

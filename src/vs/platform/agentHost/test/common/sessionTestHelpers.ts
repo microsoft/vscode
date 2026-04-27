@@ -172,6 +172,8 @@ export function createNoopGitService(): import('../../node/agentHostGitService.j
 		addWorktree: async () => { },
 		removeWorktree: async () => { },
 		getSessionGitState: async () => undefined,
+		computeSessionFileDiffs: async () => undefined,
+		showBlob: async () => undefined,
 	};
 }
 

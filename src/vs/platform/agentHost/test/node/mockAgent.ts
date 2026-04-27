@@ -569,6 +569,29 @@ export class ScriptedMockAgent implements IAgent {
 			}
 
 			default:
+				if (prompt.startsWith('terminal-edit:')) {
+					// Test prompt: simulate a terminal command that edits a file on disk
+					// without emitting any ToolResultFileEditContent. The test relies on the
+					// git-driven diff path to pick this up. Format: `terminal-edit:<absPath>`.
+					const filePath = prompt.slice('terminal-edit:'.length);
+					void (async () => {
+						this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-term-edit-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Edit file via shell' });
+						const fs = await import('fs/promises');
+						await fs.writeFile(filePath, 'edited-from-terminal\n');
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-term-edit-1', result: { pastTenseMessage: 'Edited file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'idle', session },
+						]);
+					})().catch(err => {
+						// Surface failures deterministically — an unhandled rejection
+						// would make the test suite flaky.
+						this._fireSequence(session, [
+							{ type: 'delta', session, messageId: 'msg-err', content: 'terminal-edit failed: ' + (err instanceof Error ? err.message : String(err)) },
+							{ type: 'idle', session },
+						]);
+					});
+					break;
+				}
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
 					{ type: 'idle', session },

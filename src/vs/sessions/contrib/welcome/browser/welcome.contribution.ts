@@ -75,13 +75,14 @@ export function resetSessionsWelcome(
 	const walkthrough = store.add(instantiationService.createInstance(
 		SessionsWalkthroughOverlay,
 		layoutService.mainContainer,
+		true,
 	));
 
 	store.add(autorun(reader => {
 		chatEntitlementService.sentimentObs.read(reader);
 		chatEntitlementService.entitlementObs.read(reader);
 
-		if (!needsChatSetup(chatEntitlementService)) {
+		if (!walkthrough.isShowingWelcome && !needsChatSetup(chatEntitlementService)) {
 			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			walkthrough.complete();
 			store.dispose();
@@ -141,7 +142,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		}
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 		if (isFirstLaunch) {
-			this.showWalkthrough();
+			this.showWalkthrough(true);
 		} else {
 			this.showWalkthroughIfNeeded();
 		}
@@ -163,7 +164,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		} catch {
 			// Provider not available yet — show walkthrough
 		}
-		this.showWalkthrough();
+		this.showWalkthrough(false);
 	}
 
 	/**
@@ -188,13 +189,13 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			}
 			this.logService.info('[sessions welcome] GitHub session removed on web, re-showing walkthrough');
 			this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
-			this.showWalkthrough();
+			this.showWalkthrough(false);
 		}));
 	}
 
 	private showWalkthroughIfNeeded(): void {
 		if (this._needsChatSetup()) {
-			this.showWalkthrough();
+			this.showWalkthrough(false);
 		} else {
 			this.watchEntitlementState();
 		}
@@ -220,7 +221,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			const includeUnknown = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 			const needsSetup = this._needsChatSetup(includeUnknown);
 			if (setupComplete && needsSetup) {
-				this.showWalkthrough();
+				this.showWalkthrough(false);
 			}
 			setupComplete = !needsSetup;
 		});
@@ -230,7 +231,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		return needsChatSetup(this.chatEntitlementService, includeUnknown);
 	}
 
-	private showWalkthrough(): void {
+	private showWalkthrough(isFirstLaunch: boolean): void {
 		if (this.overlayRef.value) {
 			return;
 		}
@@ -247,6 +248,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		const walkthrough = this.overlayRef.value.add(this.instantiationService.createInstance(
 			SessionsWalkthroughOverlay,
 			this.layoutService.mainContainer,
+			isFirstLaunch,
 		));
 
 		// When chat setup completes (observables flip), persist completion and
@@ -255,7 +257,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
-			if (!welcomeCompletionStored && !this._needsChatSetup()) {
+			if (!welcomeCompletionStored && !walkthrough.isShowingWelcome && !this._needsChatSetup()) {
 				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				walkthrough.complete();

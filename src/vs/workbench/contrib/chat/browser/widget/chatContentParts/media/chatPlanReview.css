@@ -273,6 +273,10 @@
 	align-items: center;
 }
 
+.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer .chat-buttons .monaco-button.chat-plan-review-feedback-button {
+	margin-left: auto;
+}
+
 /* ---------- Hidden helper ---------- */
 .interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-hidden {
 	display: none;

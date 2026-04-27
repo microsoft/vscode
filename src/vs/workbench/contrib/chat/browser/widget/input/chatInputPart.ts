@@ -140,6 +140,7 @@ const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const CHAT_INPUT_PICKER_COLLAPSE_WIDTH = 480;
+const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
 export interface IChatInputStyles {
 	overlayBackground: string;
@@ -821,6 +822,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentPermissionLevel.set(level, undefined);
 		this.permissionLevelKey.set(level);
 		this.permissionWidget?.refresh();
+		const sessionResource = this.getCurrentSessionResource();
+		if (sessionResource) {
+			this.chatSessionsService.setSessionOption(sessionResource, PERMISSION_LEVEL_OPTION_ID, level);
+		}
 		this._syncInputStateToModel();
 	}
 

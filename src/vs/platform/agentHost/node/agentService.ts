@@ -26,6 +26,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from './agentCo
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
+import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 
@@ -105,6 +106,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
 			[IAgentConfigurationService, configurationService],
+			[IAgentHostGitService, this._gitService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 
@@ -648,6 +650,15 @@ export class AgentService extends Disposable implements IAgentService {
 			return this._fetchSessionDbContent(dbFields);
 		}
 
+		// Handle git-blob: URIs that reference file content at a specific
+		// git commit (the merge-base used as diff baseline). The URI
+		// encodes the session it belongs to so we can find the right
+		// working directory to run `git show` from.
+		const blobFields = parseGitBlobUri(uri.toString());
+		if (blobFields) {
+			return this._fetchGitBlobContent(blobFields);
+		}
+
 		try {
 			const content = await this._fileService.readFile(uri);
 			return {
@@ -1029,6 +1040,25 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private async _fetchGitBlobContent(fields: IGitBlobUriFields): Promise<ResourceReadResult> {
+		if (!this._gitService) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
+		}
+		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.summary.workingDirectory;
+		if (!workingDirectory) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
+		}
+		const blob = await this._gitService.showBlob(URI.parse(workingDirectory), fields.sha, fields.repoRelativePath);
+		if (!blob) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
+		}
+		return {
+			data: blob.toString(),
+			encoding: ContentEncoding.Utf8,
+			contentType: 'text/plain',
+		};
 	}
 
 	/**
