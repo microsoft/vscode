@@ -6,7 +6,10 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
@@ -47,7 +50,10 @@ export enum ChatConfiguration {
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
+	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
+	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -56,15 +62,33 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	SignInTitleBarEnabled = 'chat.signInTitleBar.enabled',
-	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
+	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
-	ArtifactsMode = 'chat.artifacts.mode',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
-	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
+	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
+	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
+	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostClientTools = 'chat.agentHost.clientTools',
+
+	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
+	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
+	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
+
+	/**
+	 * When enabled, `vscode_renameSymbol` and `vscode_listCodeUsages` are always
+	 * registered with a static, language-list-free description. This makes the
+	 * tools array byte-stable across rounds even as language extensions activate
+	 * mid-turn, which significantly improves prompt-cache hit rates on agent
+	 * conversations. Behavior is unchanged: the tools still error on
+	 * unsupported languages at invocation time. Behind an A/B flag for
+	 * controlled rollout.
+	 */
+	SymbolToolsCacheStable = 'chat.experimental.symbolTools.cacheStable',
 }
 
 /**
@@ -74,17 +98,6 @@ export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
-}
-
-export function validateChatMode(mode: unknown): ChatModeKind | undefined {
-	switch (mode) {
-		case ChatModeKind.Ask:
-		case ChatModeKind.Edit:
-		case ChatModeKind.Agent:
-			return mode as ChatModeKind;
-		default:
-			return undefined;
-	}
 }
 
 /**
@@ -99,16 +112,18 @@ export enum ChatPermissionLevel {
 	Autopilot = 'autopilot'
 }
 
+const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel));
+
+export function isChatPermissionLevel(level: unknown | undefined): level is ChatPermissionLevel {
+	return chatPermissionLevels.has(level as string);
+}
+
 /**
  * Returns true if the permission level enables auto-approval of all tool calls.
  * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
-}
-
-export function isChatMode(mode: unknown): mode is ChatModeKind {
-	return !!validateChatMode(mode);
 }
 
 // Thinking display modes for pinned content
@@ -191,8 +206,23 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+
+export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
+	ProductQualityContext.notEqualsTo('stable'),
+	ChatEntitlementContextKeys.Setup.hidden.negate(),
+	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
+	IsSessionsWindowContext.negate(),
+);
+
 export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
+
+/**
+ * The built-in general-purpose agent name. When the model uses this name,
+ * the subagent inherits the parent's system prompt, model, and tools.
+ */
+export const GeneralPurposeAgentName = 'General Purpose';

@@ -15,6 +15,7 @@ import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { isMultilineCommand } from '../runInTerminalHelpers.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -39,7 +40,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, _commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			if (token.isCancellationRequested) {
@@ -85,7 +86,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
 			const startLine = this._startMarker.value?.line;
-			const forceBracketedPasteMode = isMacintosh;
+			const forceBracketedPasteMode = isMacintosh || isMultilineCommand(commandLine);
 			this._instance.sendText(commandLine, true, forceBracketedPasteMode);
 
 			// Wait for the cursor to move past the command line before

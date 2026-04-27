@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IReference } from '../../../base/common/lifecycle.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
-import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import type { ISyncedCustomization } from './agentPluginManager.js';
+import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolDefinition } from './state/protocol/state.js';
+import type { ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction } from './state/sessionActions.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionMeta, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -24,11 +30,48 @@ export const enum AgentHostIpcChannels {
 	ConnectionTracker = 'agentHostConnectionTracker',
 }
 
-/** Configuration key that controls whether the agent host process is spawned. */
+/** Configuration key that controls whether the local agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
+
+/** Result of starting the agent host WebSocket server on-demand. */
+export interface IAgentHostSocketInfo {
+	readonly socketPath: string;
+}
+
+/** Inspector listener information for the agent host process. */
+export interface IAgentHostInspectInfo {
+	readonly host: string;
+	readonly port: number;
+	/** A `devtools://` URL that can be opened with `INativeHostService.openDevToolsWindow`. */
+	readonly devtoolsUrl: string;
+}
+
+/**
+ * IPC service exposed on the {@link AgentHostIpcChannels.ConnectionTracker}
+ * channel. Used by the server process for lifetime management and by the
+ * shared process to request a local WebSocket listener on-demand.
+ */
+export interface IConnectionTrackerService {
+	readonly onDidChangeConnectionCount: Event<number>;
+
+	/**
+	 * Request the agent host to start a WebSocket server on a local
+	 * pipe/socket. Returns the socket path.
+	 * If a server is already running, returns the existing info.
+	 */
+	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
+
+	/**
+	 * Get inspector listener info for the agent host process. If the inspector
+	 * is not currently active and `tryEnable` is true, opens the inspector on
+	 * a random local port. Returns `undefined` if the inspector cannot be
+	 * enabled (e.g. running in an environment without `node:inspector`).
+	 */
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
+}
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
@@ -36,7 +79,33 @@ export interface IAgentSessionMetadata {
 	readonly session: URI;
 	readonly startTime: number;
 	readonly modifiedTime: number;
+	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	readonly status?: SessionStatus;
+	readonly model?: ModelSelection;
+	readonly workingDirectory?: URI;
+	readonly isRead?: boolean;
+	readonly isArchived?: boolean;
+	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
+	 * to clients via per-session state subscriptions.
+	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
+	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
+	 * `readSessionGitState`) for well-known slots.
+	 */
+	readonly _meta?: SessionMeta;
+}
+
+export interface IAgentSessionProjectInfo {
+	readonly uri: URI;
+	readonly displayName: string;
+}
+
+export interface IAgentCreateSessionResult {
+	readonly session: URI;
+	readonly project?: IAgentSessionProjectInfo;
+	/** The resolved working directory, which may differ from the requested one (e.g. worktree). */
 	readonly workingDirectory?: URI;
 }
 
@@ -47,37 +116,15 @@ export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
-	/**
-	 * Whether the renderer should push a GitHub auth token for this agent.
-	 * @deprecated Use {@link IResourceMetadata.resources} from {@link IAgentService.getResourceMetadata} instead.
-	 */
-	readonly requiresAuth: boolean;
 }
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
 
 /**
- * Describes the agent host as an OAuth 2.0 protected resource.
- * Uses {@link IAuthorizationProtectedResourceMetadata} from RFC 9728
- * to describe auth requirements, enabling clients to resolve tokens
- * using the standard VS Code authentication service.
- *
- * Returned from the server via {@link IAgentService.getResourceMetadata}.
- */
-export interface IResourceMetadata {
-	/**
-	 * Protected resources the agent host requires authentication for.
-	 * Each entry uses the standard RFC 9728 shape so clients can resolve
-	 * tokens via {@link IAuthenticationService.getOrActivateProviderIdForServer}.
-	 */
-	readonly resources: readonly IAuthorizationProtectedResourceMetadata[];
-}
-
-/**
  * Parameters for the `authenticate` command.
  * Analogous to sending `Authorization: Bearer <token>` (RFC 6750 section 2.1).
  */
-export interface IAuthenticateParams {
+export interface AuthenticateParams {
 	/**
 	 * The `resource` identifier from the server's
 	 * {@link IAuthorizationProtectedResourceMetadata} that this token targets.
@@ -91,22 +138,55 @@ export interface IAuthenticateParams {
 /**
  * Result of the `authenticate` command.
  */
-export interface IAuthenticateResult {
+export interface AuthenticateResult {
 	/** Whether the token was accepted. */
 	readonly authenticated: boolean;
 }
 
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
-	readonly model?: string;
+	readonly model?: ModelSelection;
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
+	readonly config?: Record<string, unknown>;
+	/**
+	 * Eagerly claim the active client role for the new session. When provided,
+	 * the server initializes the session with this client as the active
+	 * client, equivalent to dispatching a `session/activeClientChanged`
+	 * action immediately after creation. The `clientId` MUST match the
+	 * connection's own `clientId`.
+	 */
+	readonly activeClient?: SessionActiveClient;
+	/** Fork from an existing session at a specific turn. */
+	readonly fork?: {
+		readonly session: URI;
+		readonly turnIndex: number;
+		readonly turnId: string;
+		/**
+		 * Maps old protocol turn IDs to new protocol turn IDs.
+		 * Populated by the service layer after generating fresh UUIDs
+		 * for the forked session's turns. Used by the agent to remap
+		 * per-turn data (e.g. SDK event ID mappings) in the session database.
+		 */
+		readonly turnIdMapping?: ReadonlyMap<string, string>;
+	};
+}
+
+export interface IAgentResolveSessionConfigParams {
+	readonly provider?: AgentProvider;
+	readonly workingDirectory?: URI;
+	readonly config?: Record<string, unknown>;
+}
+
+export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams {
+	readonly property: string;
+	readonly query?: string;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
 	readonly type: AttachmentType;
-	readonly path: string;
+	readonly uri: URI;
 	readonly displayName?: string;
 	/** For selections: the selected text. */
 	readonly text?: string;
@@ -122,13 +202,10 @@ export interface IAgentModelInfo {
 	readonly provider: AgentProvider;
 	readonly id: string;
 	readonly name: string;
-	readonly maxContextWindow: number;
+	readonly maxContextWindow?: number;
 	readonly supportsVision: boolean;
-	readonly supportsReasoningEffort: boolean;
-	readonly supportedReasoningEfforts?: readonly string[];
-	readonly defaultReasoningEffort?: string;
+	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
-	readonly billingMultiplier?: number;
 }
 
 // ---- Progress events (discriminated union by `type`) ------------------------
@@ -177,26 +254,44 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	/** Human-readable display name for this tool. */
 	readonly displayName: string;
 	/** Message describing the tool invocation in progress (e.g., "Running `echo hello`"). */
-	readonly invocationMessage: string;
+	readonly invocationMessage: StringOrMarkdown;
 	/** A representative input string for display in the UI (e.g., the shell command). */
 	readonly toolInput?: string;
-	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands). */
-	readonly toolKind?: 'terminal';
+	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands, 'subagent' for subagent-spawning tools). */
+	readonly toolKind?: 'terminal' | 'subagent';
 	/** Language identifier for syntax highlighting (e.g., 'shellscript', 'powershell'). Used with toolKind 'terminal'. */
 	readonly language?: string;
 	/** Serialized JSON of the tool arguments, if available. */
 	readonly toolArguments?: string;
+	/**
+	 * For `toolKind === 'subagent'`, the internal name of the agent being
+	 * spawned (e.g. 'explore'). Adapters are responsible for extracting this
+	 * from their SDK-specific tool argument shape.
+	 */
+	readonly subagentAgentName?: string;
+	/**
+	 * For `toolKind === 'subagent'`, a human-readable description of the
+	 * subagent's task. Adapters are responsible for extracting this from
+	 * their SDK-specific tool argument shape.
+	 */
+	readonly subagentDescription?: string;
 	readonly mcpServerName?: string;
 	readonly mcpToolName?: string;
 	readonly parentToolCallId?: string;
+	/**
+	 * If set, this tool is provided by a client and the identified client
+	 * is responsible for executing it. Maps to `toolClientId` in the
+	 * protocol `session/toolCallStart` action.
+	 */
+	readonly toolClientId?: string;
 }
 
 /** A tool has finished executing (`tool.execution_complete`). */
 export interface IAgentToolCompleteEvent extends IAgentProgressEventBase {
 	readonly type: 'tool_complete';
 	readonly toolCallId: string;
-	/** Tool execution result, matching the protocol {@link IToolCallResult} shape. */
-	readonly result: IToolCallResult;
+	/** Tool execution result, matching the protocol {@link ToolCallResult} shape. */
+	readonly result: ToolCallResult;
 	readonly isUserRequested?: boolean;
 	/** Serialized JSON of tool-specific telemetry data. */
 	readonly toolTelemetry?: string;
@@ -239,10 +334,12 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
-	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
-	readonly permissionKind?: string;
+	/** Kind of permission being requested. */
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool';
 	/** File path associated with the permission request. */
 	readonly permissionPath?: string;
+	/** File edits this tool call will perform, for preview before confirmation. */
+	readonly edits?: { items: FileEdit[] };
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -251,10 +348,43 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/**
+ * The set of events returned by {@link IAgent.getSessionMessages} when
+ * reconstructing a session's history. Reasoning is carried inline on
+ * {@link IAgentMessageEvent.reasoningText} rather than as a separate event.
+ */
+export type SessionHistoryEvent =
+	| IAgentMessageEvent
+	| IAgentToolStartEvent
+	| IAgentToolCompleteEvent
+	| IAgentSubagentStartedEvent;
+
 /** A steering message was consumed (sent to the model). */
 export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
 	readonly type: 'steering_consumed';
 	readonly id: string;
+}
+
+/** The agent's ask_user tool is requesting user input. */
+export interface IAgentUserInputRequestEvent extends IAgentProgressEventBase {
+	readonly type: 'user_input_request';
+	readonly request: SessionInputRequest;
+}
+
+/** A subagent has been spawned by a tool call. */
+export interface IAgentSubagentStartedEvent extends IAgentProgressEventBase {
+	readonly type: 'subagent_started';
+	readonly toolCallId: string;
+	readonly agentName: string;
+	readonly agentDisplayName: string;
+	readonly agentDescription?: string;
+}
+
+/** Partial content update for a running tool call (e.g. terminal URI available). */
+export interface IAgentToolContentChangedEvent extends IAgentProgressEventBase {
+	readonly type: 'tool_content_changed';
+	readonly toolCallId: string;
+	readonly content: ToolResultContent[];
 }
 
 export type IAgentProgressEvent =
@@ -268,7 +398,10 @@ export type IAgentProgressEvent =
 	| IAgentErrorEvent
 	| IAgentUsageEvent
 	| IAgentReasoningEvent
-	| IAgentSteeringConsumedEvent;
+	| IAgentSteeringConsumedEvent
+	| IAgentUserInputRequestEvent
+	| IAgentSubagentStartedEvent
+	| IAgentToolContentChangedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -315,11 +448,17 @@ export interface IAgent {
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
 
-	/** Create a new session. Returns the session URI. */
-	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Create a new session. Returns server-owned session metadata. */
+	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
+
+	/** Resolve the dynamic configuration schema for creating a session. */
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+
+	/** Return dynamic completions for a session configuration property. */
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
+	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
@@ -329,10 +468,10 @@ export interface IAgent {
 	 * Queued messages are consumed on the server side and are not
 	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
-	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
+	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+	getSessionMessages(session: URI): Promise<SessionHistoryEvent[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -341,28 +480,75 @@ export interface IAgent {
 	abortSession(session: URI): Promise<void>;
 
 	/** Change the model for an existing session. */
-	changeModel(session: URI, model: string): Promise<void>;
+	changeModel(session: URI, model: ModelSelection): Promise<void>;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
+	/** Respond to a pending user input request from the SDK's ask_user tool. */
+	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void;
+
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
 
-	/** List available models from this provider. */
-	listModels(): Promise<IAgentModelInfo[]>;
+	/** Available models from this provider. */
+	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
-	getProtectedResources(): IAuthorizationProtectedResourceMetadata[];
+	getProtectedResources(): ProtectedResourceMetadata[];
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
+	 * and including that turn. If omitted, all turns are removed.
+	 * Optional — not all providers support truncation.
+	 */
+	truncateSession?(session: URI, turnId?: string): Promise<void>;
+
+	/**
+	 * Receives client-provided customization refs and syncs them (e.g. copies
+	 * plugin files to local storage). Returns per-customization status with
+	 * local plugin directories.
+	 *
+	 * The agent MAY defer a client restart until all active sessions are idle.
+	 */
+	setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Receives client-provided tool definitions to make available in a
+	 * specific session. The agent registers these as custom tools so the
+	 * LLM can call them; execution is routed back to the owning client.
+	 *
+	 * Always called on `activeClientChanged`, even with an empty array,
+	 * to clear a previous client's tools.
+	 *
+	 * @param session The session URI this tool set applies to.
+	 * @param clientId The client that owns these tools.
+	 * @param tools The tool definitions (full replacement).
+	 */
+	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void;
+
+	/**
+	 * Called when a client completes a client-provided tool call.
+	 * Resolves the tool handler's deferred promise so the SDK can continue.
+	 *
+	 * @param session The session the tool call belongs to.
+	 */
+	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
+
+	/**
+	 * Notifies the agent that a customization has been toggled on or off.
+	 * The agent MAY restart its client before the next message is sent.
+	 */
+	setCustomizationEnabled(uri: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -386,27 +572,13 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
 
-	/** Discover available agent backends from the agent host. */
-	listAgents(): Promise<IAgentDescriptor[]>;
-
-	/**
-	 * Retrieve the resource metadata describing auth requirements.
-	 * Modeled on RFC 9728 (OAuth 2.0 Protected Resource Metadata).
-	 */
-	getResourceMetadata(): Promise<IResourceMetadata>;
-
 	/**
 	 * Authenticate for a protected resource on the server.
-	 * The {@link IAuthenticateParams.resource} must match a resource from
-	 * {@link getResourceMetadata}. Analogous to RFC 6750 bearer token delivery.
+	 * The {@link AuthenticateParams.resource} must match a resource from
+	 * the agent's protectedResources in root state. Analogous to RFC 6750
+	 * bearer token delivery.
 	 */
-	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
-
-	/**
-	 * Refresh the model list from all providers, publishing updated
-	 * agents (with models) to root state via `root/agentsChanged`.
-	 */
-	refreshModels(): Promise<void>;
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -414,8 +586,20 @@ export interface IAgentService {
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
+	/** Resolve the dynamic configuration schema for creating a session. */
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+
+	/** Return dynamic completions for a session configuration property. */
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
+
+	/** Create a new terminal on the agent host. */
+	createTerminal(params: CreateTerminalParams): Promise<void>;
+
+	/** Dispose a terminal and kill its process if still running. */
+	disposeTerminal(terminal: URI): Promise<void>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
@@ -437,7 +621,7 @@ export interface IAgentService {
 	 * Clients use this alongside {@link subscribe} to keep their local
 	 * state in sync.
 	 */
-	readonly onDidAction: Event<IActionEnvelope>;
+	readonly onDidAction: Event<ActionEnvelope>;
 
 	/**
 	 * Fires when the server broadcasts an ephemeral notification
@@ -450,37 +634,84 @@ export interface IAgentService {
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
 	 */
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void;
+	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	resourceList(uri: URI): Promise<ResourceListResult>;
 
 	/**
-	 * Fetch stored content by URI from the agent host (e.g. file edit snapshots,
+	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	fetchContent(uri: URI): Promise<IFetchContentResult>;
+	resourceRead(uri: URI): Promise<ResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
 	 * Used for undo/redo operations on file edits.
 	 */
-	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
+	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
+
+	/**
+	 * Copy a resource from one URI to another on the agent host's filesystem.
+	 */
+	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
+
+	/**
+	 * Delete a resource at a URI on the agent host's filesystem.
+	 */
+	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
+
+	/**
+	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
+	 */
+	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
 }
 
 /**
- * A concrete connection to an agent host - local utility process or remote
- * WebSocket. Extends the core protocol surface with a `clientId` used for
- * write-ahead reconciliation. Both {@link IAgentHostService} (local) and
- * per-connection objects from {@link IRemoteAgentHostService} (remote)
- * satisfy this contract.
+ * Consumer-facing connection to an agent host. Session handlers, terminal
+ * contributions, and other features program against this interface.
+ *
+ * Implementations wrap an {@link IAgentService} and layer subscription
+ * management and optimistic write-ahead on top.
  */
-export interface IAgentConnection extends IAgentService {
-	/** Unique identifier for this client connection, used as the origin in action envelopes. */
+export interface IAgentConnection {
+	readonly _serviceBrand: undefined;
 	readonly clientId: string;
+
+	// ---- State subscriptions ------------------------------------------------
+	readonly rootState: IAgentSubscription<RootState>;
+	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>>;
+	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+
+	// ---- Action dispatch ----------------------------------------------------
+	dispatch(action: RootAction | SessionAction | TerminalAction): void;
+
+	// ---- Events (connection-level) ------------------------------------------
+	readonly onDidNotification: Event<INotification>;
+	readonly onDidAction: Event<ActionEnvelope>;
+
+	// ---- Session lifecycle --------------------------------------------------
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	listSessions(): Promise<IAgentSessionMetadata[]>;
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+	disposeSession(session: URI): Promise<void>;
+
+	// ---- Terminal lifecycle -------------------------------------------------
+	createTerminal(params: CreateTerminalParams): Promise<void>;
+	disposeTerminal(terminal: URI): Promise<void>;
+
+	// ---- Filesystem operations ----------------------------------------------
+	resourceList(uri: URI): Promise<ResourceListResult>;
+	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
+	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
+	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
+	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -494,5 +725,30 @@ export interface IAgentHostService extends IAgentConnection {
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;
 
+	/**
+	 * `true` while we are in the middle of authenticating against the local
+	 * agent host (resolving tokens for any advertised `protectedResources` and
+	 * pushing them via {@link authenticate}). Defaults to `true` at startup so
+	 * that the period before the first auth pass is also covered.
+	 *
+	 * Producers (the workbench `AgentHostContribution`) flip this around their
+	 * auth pass; consumers (e.g. the local sessions provider) read it to mark
+	 * sessions as still loading.
+	 */
+	readonly authenticationPending: IObservable<boolean>;
+
+	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
+	setAuthenticationPending(pending: boolean): void;
+
 	restartAgentHost(): Promise<void>;
+
+	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
+
+	/**
+	 * Get inspector listener info for the agent host process. If the inspector
+	 * is not currently active and `tryEnable` is true, opens the inspector on
+	 * a random local port. Returns `undefined` if the inspector cannot be
+	 * enabled.
+	 */
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }

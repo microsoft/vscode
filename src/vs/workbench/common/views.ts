@@ -63,17 +63,17 @@ type OpenCommandActionDescriptor = {
 /**
  * Specifies in which window a view or view container should be visible.
  */
-export const enum WindowVisibility {
+export const enum WindowEnablement {
 	/**
 	 * Visible only in the editor window
 	 */
 	Editor = 1,
 	/**
-	 * Visible only in sessions window
+	 * Visible only in agent sessions window
 	 */
 	Sessions = 2,
 	/**
-	 * Visible in both editor and sessions windows
+	 * Visible in both editor and agent sessions windows
 	 */
 	Both = 3,
 }
@@ -140,10 +140,10 @@ export interface IViewContainerDescriptor {
 	readonly rejectAddedViews?: boolean;
 
 	/**
-	 * Specifies in which window this view container should be visible.
-	 * Defaults to WindowVisibility.Editor
+	 * Specifies in which window this view container should be enabled.
+	 * Defaults to WindowEnablement.Editor
 	 */
-	readonly windowVisibility?: WindowVisibility;
+	readonly windowEnablement?: WindowEnablement;
 
 	requestedIndex?: number;
 }
@@ -328,9 +328,9 @@ export interface IViewDescriptor {
 
 	/**
 	 * Specifies in which window this view should be visible.
-	 * Defaults to WindowVisibility.Workbench (main workbench only).
+	 * Defaults to WindowEnablement.Workbench (main workbench only).
 	 */
-	readonly windowVisibility?: WindowVisibility;
+	readonly windowEnablement?: WindowEnablement;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

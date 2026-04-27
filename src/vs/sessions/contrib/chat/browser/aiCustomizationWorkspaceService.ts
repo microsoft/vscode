@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -100,7 +100,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
@@ -111,6 +110,10 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	readonly isSessionsWindow = true;
+
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
 
 	/**
 	 * Commits customization files. Always commits to the main repository
@@ -266,8 +269,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const allCommands = await this.promptsService.getPromptSlashCommands(token);
 		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
-			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
+			const filter = this.getStorageSourceFilter(cmd.type);
+			return applyStorageSourceFilter([cmd], filter).length > 0;
 		});
 	}
 

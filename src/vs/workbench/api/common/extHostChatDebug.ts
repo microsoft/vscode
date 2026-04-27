@@ -422,6 +422,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		return { uri: result.uri, sessionTitle: result.sessionTitle };
 	}
 
+	async $getAvailableDebugSessionResources(_handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]> {
+		if (!this._provider?.provideAvailableDebugSessionResources) {
+			return [];
+		}
+		const result = await this._provider.provideAvailableDebugSessionResources(token);
+		return result ?? [];
+	}
+
 	override dispose(): void {
 		for (const store of this._activeProgress.values()) {
 			store.dispose();

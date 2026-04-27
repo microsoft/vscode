@@ -7,7 +7,7 @@ import es from 'event-stream';
 import path from 'path';
 import fs from 'fs';
 import * as task from './lib/task.ts';
-import { hygiene } from './hygiene.ts';
+import { checkCopilotEnginesVersion, hygiene } from './hygiene.ts';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);
 
@@ -41,6 +41,12 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
 			checkPackageJSON.call(this, 'build/package.json');
+
+			const repoRoot = path.join(dirName, '..');
+			const copilotError = checkCopilotEnginesVersion(repoRoot);
+			if (copilotError) {
+				this.emit('error', copilotError);
+			}
 		})
 	);
 });

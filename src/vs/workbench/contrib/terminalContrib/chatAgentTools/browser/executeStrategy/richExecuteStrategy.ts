@@ -17,6 +17,7 @@ import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecute
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { isMultilineCommand } from '../runInTerminalHelpers.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -41,8 +42,13 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+		// Register the store with this strategy's disposable chain so that if
+		// the strategy is disposed while execute() is still running (e.g. the
+		// session is torn down), accumulated Event.toPromise listeners on
+		// shared emitters like onCommandFinished are cleaned up immediately.
+		this._register(store);
 		try {
 			// Ensure xterm is available
 			this._log('Waiting for xterm');
@@ -85,8 +91,8 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = isMacintosh;
-			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode);
+			const forceBracketedPasteMode = isMacintosh || isMultilineCommand(commandLine);
+			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode, commandLineForMetadata);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

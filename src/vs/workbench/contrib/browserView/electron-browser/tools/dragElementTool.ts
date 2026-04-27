@@ -5,10 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, DEFAULT_ELEMENT_LABEL, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const DragElementToolData: IToolData = {
@@ -26,33 +27,44 @@ export const DragElementToolData: IToolData = {
 				type: 'string',
 				description: `The browser page ID, acquired from context or the open tool.`
 			},
-			fromSelector: {
-				type: 'string',
-				description: 'Playwright selector of the element to drag.'
-			},
 			fromRef: {
 				type: 'string',
-				description: 'Element reference of the element to drag. One of "fromSelector" or "fromRef" must be provided.'
+				description: 'Element reference of the element to drag.'
 			},
-			toSelector: {
+			fromSelector: {
 				type: 'string',
-				description: 'Playwright selector of the element to drop onto.'
+				description: 'Playwright selector of the element to drag when "fromRef" is not available.'
+			},
+			fromElement: {
+				type: 'string',
+				description: 'Human-readable description of the element to drag (e.g., "file item", "draggable card").'
 			},
 			toRef: {
 				type: 'string',
-				description: 'Element reference of the element to drop onto. One of "toSelector" or "toRef" must be provided.'
+				description: 'Element reference of the element to drop onto.'
+			},
+			toSelector: {
+				type: 'string',
+				description: 'Playwright selector of the element to drop onto when "toRef" is not available.'
+			},
+			toElement: {
+				type: 'string',
+				description: 'Human-readable description of the element to drop onto (e.g., "drop zone", "target folder").'
 			},
 		},
-		required: ['pageId'],
+		required: ['pageId', 'fromElement', 'toElement'],
+		$comment: 'One of "fromRef" or "fromSelector" is required, and one of "toRef" or "toSelector" is required.',
 	},
 };
 
 interface IDragElementToolParams {
 	pageId: string;
-	fromSelector?: string;
 	fromRef?: string;
-	toSelector?: string;
+	fromSelector?: string;
+	fromElement?: string;
 	toRef?: string;
+	toSelector?: string;
+	toElement?: string;
 }
 
 export class DragElementTool implements IToolImpl {
@@ -61,9 +73,13 @@ export class DragElementTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const params = _context.parameters as IDragElementToolParams;
+		const link = createBrowserPageLink(params.pageId);
+		const fromElement = escapeMarkdownSyntaxTokens(params.fromElement ?? DEFAULT_ELEMENT_LABEL);
+		const toElement = escapeMarkdownSyntaxTokens(params.toElement ?? DEFAULT_ELEMENT_LABEL);
 		return {
-			invocationMessage: localize('browser.drag.invocation', "Dragging element in browser"),
-			pastTenseMessage: localize('browser.drag.past', "Dragged element in browser"),
+			invocationMessage: new MarkdownString(localize('browser.drag.invocation', "Dragging {0} to {1} in {2}", fromElement, toElement, link)),
+			pastTenseMessage: new MarkdownString(localize('browser.drag.past', "Dragged {0} to {1} in {2}", fromElement, toElement, link)),
 		};
 	}
 
@@ -79,7 +95,7 @@ export class DragElementTool implements IToolImpl {
 			fromSelector = `aria-ref=${params.fromRef}`;
 		}
 		if (!fromSelector) {
-			return errorResult('Either a "fromSelector" or "fromRef" parameter is required for the source element.');
+			return errorResult('Either a "fromRef" or "fromSelector" parameter is required for the source element.');
 		}
 
 		let toSelector = params.toSelector;
@@ -87,7 +103,7 @@ export class DragElementTool implements IToolImpl {
 			toSelector = `aria-ref=${params.toRef}`;
 		}
 		if (!toSelector) {
-			return errorResult('Either a "toSelector" or "toRef" parameter is required for the target element.');
+			return errorResult('Either a "toRef" or "toSelector" parameter is required for the target element.');
 		}
 
 		return playwrightInvoke(this.playwrightService, params.pageId, (page, from, to) => page.dragAndDrop(from, to), fromSelector, toSelector);

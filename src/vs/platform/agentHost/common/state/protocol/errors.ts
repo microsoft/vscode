@@ -50,7 +50,7 @@ export const AhpErrorCodes = {
 	/**
 	 * A command failed because the client has not authenticated for a required
 	 * protected resource. The `data` field of the JSON-RPC error SHOULD contain
-	 * an `IProtectedResourceMetadata[]` array describing the resources that
+	 * a `ProtectedResourceMetadata[]` array describing the resources that
 	 * require authentication.
 	 *
 	 * @see {@link /specification/authentication | Authentication}
@@ -68,7 +68,7 @@ export const AhpErrorCodes = {
 	PermissionDenied: -32009,
 	/**
 	 * The target resource already exists and the operation does not allow
-	 * overwriting (e.g. `writeFile` with `createOnly: true`).
+	 * overwriting (e.g. `resourceWrite` with `createOnly: true`).
 	 */
 	AlreadyExists: -32010,
 } as const;

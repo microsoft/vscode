@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -111,6 +111,7 @@ export const MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID = 'workbench.action.moveModa
 export const TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID = 'workbench.action.toggleModalEditorMaximized';
 export const NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID = 'workbench.action.navigateModalEditorPrevious';
 export const NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID = 'workbench.action.navigateModalEditorNext';
+export const TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID = 'workbench.action.toggleModalEditorSidebar';
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
@@ -1479,6 +1480,28 @@ function registerModalEditorCommands(): void {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
+				title: localize2('toggleModalEditorSidebar', 'Toggle Modal Editor Sidebar'),
+				category: Categories.View,
+				f1: true,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalSidebarContext),
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					part.toggleSidebar();
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID,
 				title: localize2('toggleModalEditorMaximized', 'Maximize Modal Editor'),
 				category: Categories.View,
@@ -1492,7 +1515,7 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 1
+					order: 99
 				}
 			});
 		}
@@ -1529,7 +1552,7 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 2
+					order: 100
 				}
 			});
 		}

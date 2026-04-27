@@ -26,8 +26,10 @@ import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -613,6 +615,111 @@ suite('Response', () => {
 		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
 	});
 
+	test('response stringification prefers terminal display command over sandbox wrapper', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" -c 'npm test'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: {
+				original: sandboxWrappedCommand,
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'npm test',
+				isSandboxWrapped: true,
+			},
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-display-command',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: npm test');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
+	});
+
+	test('response stringification prefers terminal presentation override over display command', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" -c 'python -c "print(1)"'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'python',
+			commandLine: {
+				original: sandboxWrappedCommand,
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'python -c "print(1)"',
+				isSandboxWrapped: true,
+			},
+			presentationOverrides: {
+				commandLine: 'print(1)',
+				language: 'python',
+			},
+			terminalCommandOutput: { text: '1' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-presentation-override',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran python command',
+			toolSpecificData,
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('python -c "print(1)"'));
+	});
+
+	test('response stringification uses terminal presentation override for result details', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" CLAUDE_TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" --settings "/tmp/settings.json" -c 'python -c "print(1)"'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'python',
+			commandLine: {
+				original: 'python -c "print(1)"',
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'python -c "print(1)"',
+				isSandboxWrapped: true,
+			},
+			presentationOverrides: {
+				commandLine: 'print(1)',
+				language: 'python',
+			},
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-result-details',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran python command',
+			toolSpecificData,
+			resultDetails: {
+				input: sandboxWrappedCommand,
+				output: [{ type: 'embed', isText: true, value: '1' }],
+				isError: true,
+			},
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
+		assert.ok(!responseString.includes('python -c "print(1)"'));
+	});
+
 	test('getFinalResponse returns last contiguous markdown after tool call', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Early text'), kind: 'markdownContent' });
@@ -961,6 +1068,112 @@ suite('ChatResponseModel', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('isIncomplete stays true during tool confirmations', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			const response = request.response!;
+
+			// Initially incomplete and in progress
+			assert.strictEqual(response.isIncomplete.get(), true);
+			assert.strictEqual(response.isInProgress.get(), true);
+
+			// Add a pending tool confirmation
+			const toolState = observableValue<any>('state', { type: 1 /* IChatToolInvocation.StateKind.WaitingForConfirmation */, confirmationMessages: { title: 'Please confirm' } });
+			const toolInvocation = {
+				kind: 'toolInvocation',
+				invocationMessage: 'calling tool',
+				state: toolState
+			} as Partial<IChatToolInvocation> as IChatToolInvocation;
+			model.acceptResponseProgress(request, toolInvocation);
+
+			// isInProgress should be false (it factors out pending confirmations), but isIncomplete should remain true
+			assert.strictEqual(response.isInProgress.get(), false);
+			assert.strictEqual(response.isIncomplete.get(), true);
+
+			// Resolve tool confirmation
+			toolState.set({ type: 4 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
+			assert.strictEqual(response.isInProgress.get(), true);
+			assert.strictEqual(response.isIncomplete.get(), true);
+
+			// Complete the response
+			response.complete();
+			assert.strictEqual(response.isInProgress.get(), false);
+			assert.strictEqual(response.isIncomplete.get(), false);
+			assert.strictEqual(response.state, ResponseModelState.Complete);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('isIncomplete becomes false on cancellation', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const response = request.response!;
+
+		assert.strictEqual(response.isIncomplete.get(), true);
+
+		model.cancelRequest(request);
+		assert.strictEqual(response.isIncomplete.get(), false);
+		assert.strictEqual(response.state, ResponseModelState.Cancelled);
+	});
+
+	test('cancellation transitions streaming tool invocations to Cancelled (issue #288701)', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		const text = 'edit a file';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const response = request.response!;
+
+		// Simulate a tool invocation that is still streaming partial input from
+		// the LM (e.g. an edit tool whose args are still being produced) when
+		// the user presses Stop. This is the exact scenario reported in #288701
+		// where the "Editing files" spinner remained after cancellation.
+		const toolInvocation = ChatToolInvocation.createStreaming({
+			toolCallId: 'tool-call-1',
+			toolId: 'replace_string_in_file',
+			toolData: {
+				id: 'replace_string_in_file',
+				modelDescription: 'Replace string in file',
+				displayName: 'Replace String in File',
+				source: ToolDataSource.Internal,
+			},
+		});
+		model.acceptResponseProgress(request, toolInvocation);
+
+		// Pre-conditions: the tool is in Streaming state (UI still shows spinner).
+		assert.strictEqual(toolInvocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
+		assert.strictEqual(IChatToolInvocation.isComplete(toolInvocation), false);
+
+		// User presses Stop.
+		model.cancelRequest(request);
+
+		// The tool invocation must be transitioned out of Streaming so that the
+		// thinking content part sees it as complete and drops the spinner/label.
+		assert.strictEqual(toolInvocation.state.get().type, IChatToolInvocation.StateKind.Cancelled);
+		assert.strictEqual(IChatToolInvocation.isComplete(toolInvocation), true);
+		assert.strictEqual(response.state, ResponseModelState.Cancelled);
+	});
+
+	test('hasActiveRequest reflects last request isIncomplete', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		assert.strictEqual(model.hasActiveRequest.get(), false);
+
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		assert.strictEqual(model.hasActiveRequest.get(), true);
+
+		request.response!.complete();
+		assert.strictEqual(model.hasActiveRequest.get(), false);
 	});
 });
 

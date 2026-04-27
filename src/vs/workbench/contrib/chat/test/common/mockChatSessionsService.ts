@@ -131,6 +131,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.inProgress.entries()).map(([chatSessionType, count]) => ({ chatSessionType, count }));
 	}
 
+	async resolveChatSessionItem(_chatSessionType: string, _resource: URI, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		return undefined;
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
@@ -169,7 +173,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	async getNewChatSessionInputState(_chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	async getNewChatSessionInputState(_chatSessionType: string, _sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		return undefined;
 	}
 

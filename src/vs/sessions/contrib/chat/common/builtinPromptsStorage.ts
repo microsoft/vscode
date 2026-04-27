@@ -12,7 +12,7 @@ export type { AICustomizationPromptsStorage } from '../../../../workbench/contri
 export { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 /**
- * Prompt path for built-in prompts bundled with the Sessions app.
+ * Prompt path for built-in prompts bundled with the Agents app.
  */
 export interface IBuiltinPromptPath {
 	readonly uri: URI;

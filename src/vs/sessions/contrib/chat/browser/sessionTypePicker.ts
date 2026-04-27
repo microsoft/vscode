@@ -4,49 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class SessionTypePicker extends Disposable {
 
 	private _sessionType: string | undefined;
-	private _sessionTypes: ISessionType[] = [];
+	private readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
+	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
+
+	private _supportedSessionTypes: ISessionType[] = [];
+	private _allProviderSessionTypes: ISessionType[] = [];
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+		const refresh = (session: ISession | undefined) => {
 			if (session) {
-				this._sessionTypes = this.sessionsManagementService.getSessionTypes(session);
+				const provider = this.sessionsProvidersService.getProvider(session.providerId);
+				this._supportedSessionTypes = provider?.getSessionTypes(session.resource) ?? [];
+				const providerTypes = provider ? [...provider.sessionTypes] : [];
+				const providerTypeIds = new Set(providerTypes.map(t => t.id));
+				this._allProviderSessionTypes = [
+					...providerTypes,
+					...this._supportedSessionTypes.filter(t => !providerTypeIds.has(t.id)),
+				];
 				this._sessionType = session.sessionType;
 			} else {
-				this._sessionTypes = [];
+				this._supportedSessionTypes = [];
+				this._allProviderSessionTypes = [];
 				this._sessionType = undefined;
 			}
 			this._updateTriggerLabel();
+		};
+
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSession.read(reader);
+			refresh(session);
 		}));
+		// Re-read when a provider advertises/removes session types at runtime
+		// (e.g. a remote agent host discovers a new agent).
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			refresh(this.sessionsManagementService.activeSession.get());
+		}));
+	}
+
+	get selectedType(): string | undefined {
+		return this._sessionType;
 	}
 
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._slotElement = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -55,10 +82,13 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -73,19 +103,22 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		if (this._sessionTypes.length <= 1) {
+		if (this._allProviderSessionTypes.length <= 1) {
 			return;
 		}
 
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!chat) {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
 			return;
 		}
 
-		const items: IActionListItem<ISessionType>[] = this._sessionTypes.map(type => ({
+		const supportedTypeIds = new Set(this._supportedSessionTypes.map(t => t.id));
+
+		const items: IActionListItem<ISessionType>[] = this._allProviderSessionTypes.map(type => ({
 			kind: ActionListItemKind.Action,
 			label: type.label,
 			group: { title: '', icon: type.icon },
+			disabled: !supportedTypeIds.has(type.id),
 			item: type.id === this._sessionType ? { ...type, checked: true } : type,
 		}));
 
@@ -93,7 +126,9 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(chat, type);
+				if (type.id !== this._sessionType) {
+					this._onDidSelectSessionType.fire(type.id);
+				}
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
@@ -120,7 +155,13 @@ export class SessionTypePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
-		const currentType = this._sessionTypes.find(t => t.id === this._sessionType);
+		if (this._allProviderSessionTypes.length === 0) {
+			this._triggerElement.classList.add('hidden');
+			return;
+		}
+
+		this._triggerElement.classList.remove('hidden');
+		const currentType = this._allProviderSessionTypes.find(t => t.id === this._sessionType);
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._sessionType ?? '';
 
@@ -128,8 +169,8 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		const hasMultipleTypes = this._sessionTypes.length > 1;
-		this._slotElement?.classList.toggle('disabled', !hasMultipleTypes);
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

@@ -17,14 +17,13 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
-import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
+import { computeProgressPercent } from '../common/updateUtils.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
@@ -32,16 +31,11 @@ import { UpdateTooltip } from './updateTooltip.js';
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
 
+const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
+const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
-
-const LAST_KNOWN_VERSION_KEY = 'updateTitleBarEntry/lastKnownVersion';
-
-interface ILastKnownVersion {
-	readonly version: string;
-	readonly commit: string | undefined;
-	readonly timestamp: number;
-}
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
@@ -77,7 +71,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
@@ -129,36 +122,38 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			return;
 		}
 
-		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip) {
-			showTooltip = await this.tooltip.renderPostInstall();
-		} else {
-			this.tooltip.renderState(this.state);
-			switch (this.state.type) {
-				case StateType.Disabled:
-					if (startup) {
-						const reason = this.state.reason;
-						showTooltip = reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin;
+		this.tooltip.renderState(this.state);
+		let showTooltip = false;
+		switch (this.state.type) {
+			case StateType.Disabled:
+				if (startup) {
+					const reason = this.state.reason;
+					if (reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin) {
+						const lastShown = this.storageService.getNumber(DISABLED_REMINDER_LAST_SHOWN_KEY, StorageScope.APPLICATION);
+						showTooltip = lastShown === undefined || (Date.now() - lastShown) >= DISABLED_REMINDER_PERIOD;
 					}
-					break;
-				case StateType.Idle:
-					showTooltip = !!this.state.error;
-					break;
-				case StateType.Downloading:
-				case StateType.Updating:
-				case StateType.Overwriting:
-					this.context.set(this.state.explicit);
-					break;
-				case StateType.Restarting:
-					this.context.set(true);
-					break;
-			}
+				}
+				break;
+			case StateType.Idle:
+				showTooltip = !!this.state.error;
+				break;
+			case StateType.Downloading:
+			case StateType.Updating:
+			case StateType.Overwriting:
+				this.context.set(this.state.explicit);
+				break;
+			case StateType.Restarting:
+				this.context.set(true);
+				break;
 		}
 
 		if (showTooltip) {
 			this.tooltipVisible = true;
 			this.context.set(true);
 			this.entry?.showTooltip();
+			if (this.state.type === StateType.Disabled) {
+				this.storageService.store(DISABLED_REMINDER_LAST_SHOWN_KEY, Date.now(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}
 	}
 
@@ -178,30 +173,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 	}
 
-	private detectVersionChange() {
-		let from: ILastKnownVersion | undefined;
-		try {
-			from = this.storageService.getObject(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		} catch { }
-
-		const to: ILastKnownVersion = {
-			version: this.productService.version,
-			commit: this.productService.commit,
-			timestamp: Date.now(),
-		};
-
-		if (from?.commit === to.commit) {
-			return false;
-		}
-
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		if (from) {
-			return isMajorMinorVersionChange(from.version, to.version);
-		}
-
-		return false;
-	}
 }
 
 /**
@@ -296,35 +267,46 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
-
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.Restarting:
-				label.textContent = localize('updateIndicator.restarting', "Restarting");
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.overwriting', "Updating...");
 				this.renderProgressState(this.content);
 				break;
 
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				break;
 
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
+				break;
+
+			case StateType.Restarting:
+				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
 				break;
 		}
 	}

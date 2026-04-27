@@ -5,23 +5,26 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
@@ -45,18 +48,20 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IPluginGitService private readonly _pluginGit: IPluginGitService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
 		// so that external tools can discover it. On web, fall back to the
 		// internal cache location.
-		this.agentPluginsHome = environmentService.agentPluginsHome;
+		this.agentPluginsHome = userDataProfileService.currentProfile.agentPluginsHome;
 		const legacyCacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
 		const oldCacheRoot = environmentService.cacheHome.scheme === 'file'
 			? legacyCacheRoot
@@ -141,22 +146,24 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		const updateLabel = options?.pluginName ?? marketplace.displayLabel;
 
 		try {
-			const doPull = async () => {
-				return !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
-			};
-
 			if (options?.silent) {
-				return await doPull();
+				return await this._pluginGit.pull(repoDir);
 			}
 
-			return await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				doPull,
-			);
+			const cts = new CancellationTokenSource();
+			try {
+				return await this._progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
+						cancellable: true,
+					},
+					() => this._pluginGit.pull(repoDir, cts.token),
+					() => cts.dispose(true),
+				);
+			} finally {
+				cts.dispose();
+			}
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
@@ -232,17 +239,19 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
 		try {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: progressTitle,
-					cancellable: false,
+					cancellable: true,
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
-				}
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+				},
+				() => cts.dispose(true),
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to clone ${cloneUrl}:`, err);
@@ -256,6 +265,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				},
 			});
 			throw err;
+		} finally {
+			cts.dispose();
 		}
 	}
 
@@ -297,8 +308,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 
 		try {
-			await this._commandService.executeCommand('_git.fetchRepository', repoDir.fsPath);
-			const behindCount = await this._commandService.executeCommand<number>('_git.revListCount', repoDir.fsPath, 'HEAD', '@{u}') ?? 0;
+			await this._pluginGit.fetchRepository(repoDir);
+			const behindCount = await this._pluginGit.revListCount(repoDir, 'HEAD', '@{u}');
 			return behindCount > 0;
 		} catch (err) {
 			this._logService.debug(`[AgentPluginRepositoryService] Silent fetch failed for ${marketplace.displayLabel}:`, err);

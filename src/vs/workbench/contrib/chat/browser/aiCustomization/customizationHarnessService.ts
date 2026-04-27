@@ -5,43 +5,29 @@
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import {
-	CustomizationHarness,
 	CustomizationHarnessServiceBase,
 	ICustomizationHarnessService,
-	IHarnessDescriptor,
-	createCliHarnessDescriptor,
-	createClaudeHarnessDescriptor,
 	createVSCodeHarnessDescriptor,
-	getCliUserRoots,
-	getClaudeUserRoots,
 } from '../../common/customizationHarnessService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 /**
  * Core implementation of the customization harness service.
- * Exposes VS Code, CLI, and Claude harnesses for filtering customizations.
+ *
+ * Only the Local harness is registered statically. All other harnesses
+ * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
 class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
-		@IPathService pathService: IPathService,
+		@IPromptsService promptsService: IPromptsService
 	) {
-		const userHome = pathService.userHome({ preferLocal: true });
-		// The Local harness includes extension-contributed and built-in customizations.
-		// Built-in items come from the default chat extension (productService.defaultChatAgent).
-		// CLI and Claude harnesses don't consume extension contributions.
 		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
-		const restrictedExtras: readonly string[] = [];
-		const allHarnesses: readonly IHarnessDescriptor[] = [
-			createVSCodeHarnessDescriptor(localExtras),
-			createCliHarnessDescriptor(getCliUserRoots(userHome), restrictedExtras),
-			createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), restrictedExtras),
-		];
-
 		super(
-			allHarnesses,
-			CustomizationHarness.VSCode,
+			[createVSCodeHarnessDescriptor(localExtras)],
+			SessionType.Local,
+			promptsService,
 		);
 	}
 }
