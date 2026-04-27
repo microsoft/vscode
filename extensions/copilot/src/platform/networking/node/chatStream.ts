@@ -413,6 +413,7 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 				...(requestTurn !== undefined && { requestTurn: requestTurn.toString() }), // Add requestTurn only for input calls
 				...(requestOptionsId && { requestOptionsId }), // Add requestOptionsId for input calls
 				...(telemetryData.properties.turnIndex && { turnIndex: telemetryData.properties.turnIndex }), // Add turnIndex from original telemetryData
+				...(telemetryData.properties.iterationNumber && { iterationNumber: telemetryData.properties.iterationNumber }), // Add iterationNumber from tool calling loop
 				...(parentToolCallId && { parentToolCallId }), // Link subagent calls to parent tool invocation
 				...(parentHeaderRequestId && { parentHeaderRequestId }), // Link subagent calls to parent HTTP request
 				...(parentModelCallId && { parentModelCallId }), // Link subagent calls to parent model call
