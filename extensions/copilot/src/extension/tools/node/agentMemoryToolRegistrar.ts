@@ -38,6 +38,5 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		// Call with sessionId but let service auto-determine repoNwo to match original working behavior
 		const response = await this.agentMemoryService.getMemoryPrompt(undefined, sessionId);
 		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache for session ${sessionId || 'default'}, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
-		this.logService.debug(`[AgentMemoryToolRegistrar] DEBUG: sessionId type=${typeof sessionId}, value='${sessionId}'`);
 	}
 }
