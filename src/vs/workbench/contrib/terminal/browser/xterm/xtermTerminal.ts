@@ -12,8 +12,8 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IXtermCore, IXtermThemeColors } from '../xterm-private.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import type { IXtermCore, IXtermThemeColors } from '../xterm-private.js';
+import type { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId, type IDecorationAddon } from '../../../../../platform/terminal/common/terminal.js';
