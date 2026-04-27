@@ -2056,9 +2056,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const cellWidth = rawXterm.dimensions?.css.cell.width;
 		// Subtract that extra render column before reporting pixel width to the PTY so process sizing
 		// stays based on the real terminal columns.
-		const adjustedPixelWidth = pixelWidth && cellWidth ? Math.max(0, pixelWidth - cellWidth) : pixelWidth;
-		const roundedPixelWidth = adjustedPixelWidth ? Math.round(adjustedPixelWidth) : undefined;
-		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
+		const adjustedPixelWidth = pixelWidth !== undefined && cellWidth ? Math.max(0, pixelWidth - cellWidth) : pixelWidth;
+		const roundedPixelWidth = adjustedPixelWidth !== undefined ? Math.round(adjustedPixelWidth) : undefined;
+		const roundedPixelHeight = pixelHeight !== undefined ? Math.round(pixelHeight) : undefined;
 		await this._processManager.setDimensions(ptyCols, ptyRows, undefined, roundedPixelWidth, roundedPixelHeight);
 	}
 
