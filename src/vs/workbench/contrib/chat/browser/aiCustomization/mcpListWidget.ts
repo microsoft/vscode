@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +16,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -38,9 +40,10 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, CustomizationHarness } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -162,7 +165,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		// Show/hide the "Bridged" badge based on active harness
 		templateData.disposables.add(autorun(reader => {
 			const activeId = this.harnessService.activeHarness.read(reader);
-			templateData.bridgedBadge.style.display = activeId !== CustomizationHarness.VSCode ? '' : 'none';
+			templateData.bridgedBadge.style.display = activeId !== SessionType.Local ? '' : 'none';
 		}));
 		templateData.disposables.add(this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
@@ -285,10 +288,9 @@ class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpG
 		const header = DOM.append(headerContainer, $('.header'));
 		const name = DOM.append(header, $('span.name'));
 		const description = DOM.append(details, $('.description.ellipsis'));
-		const footer = DOM.append(details, $('.footer'));
-		const publisherContainer = DOM.append(footer, $('.publisher-container'));
-		const publisher = DOM.append(publisherContainer, $('span.publisher-name'));
-		const actionContainer = DOM.append(footer, $('.mcp-gallery-action'));
+		const publisherContainer = DOM.append(details, $('.publisher-container'));
+		const publisher = DOM.append(publisherContainer, $('span.publisher-name.mcp-gallery-publisher'));
+		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
 		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
 		installButton.element.classList.add('mcp-gallery-install-button');
 
@@ -372,9 +374,12 @@ export class McpListWidget extends Disposable {
 	private emptyContainer!: HTMLElement;
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
+	private disabledContainer!: HTMLElement;
+	private disabledIcon!: HTMLElement;
+	private disabledMessage!: HTMLElement;
+	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
 	private addButton!: Button;
-	private backLink!: HTMLElement;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private filteredBuiltinCount = 0;
@@ -384,6 +389,7 @@ export class McpListWidget extends Disposable {
 	private browseMode: boolean = false;
 	private lastHeight: number = 0;
 	private lastWidth: number = 0;
+	private _layoutDeferred = false;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -401,10 +407,17 @@ export class McpListWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
 		this.create();
+		this.updateAccessState();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(mcpAccessConfig)) {
+				this.updateAccessState();
+			}
+		}));
 		this._register({
 			dispose: () => {
 				this.galleryCts?.dispose();
@@ -458,26 +471,6 @@ export class McpListWidget extends Disposable {
 			this.commandService.executeCommand(McpCommandIds.AddConfiguration);
 		}));
 
-		// Back to installed link (shown only in browse mode)
-		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
-		this.backLink.setAttribute('role', 'button');
-		this.backLink.tabIndex = 0;
-		this.backLink.setAttribute('aria-label', localize('backToInstalledAriaLabel', "Back to installed servers"));
-		const backIcon = DOM.append(this.backLink, $('span'));
-		backIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
-		const backText = DOM.append(this.backLink, $('span'));
-		backText.textContent = localize('backToInstalled', "Back to installed servers");
-		this._register(DOM.addDisposableListener(this.backLink, 'click', () => {
-			this.toggleBrowseMode(false);
-		}));
-		this._register(DOM.addDisposableListener(this.backLink, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.toggleBrowseMode(false);
-			}
-		}));
-		this.backLink.style.display = 'none';
-
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
@@ -485,6 +478,15 @@ export class McpListWidget extends Disposable {
 		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
+
+		// Disabled (access blocked) state — shown when chat.mcp.access is set to none,
+		// either by user setting or by enterprise policy.
+		this.disabledContainer = DOM.append(this.element, $('.mcp-disabled-state'));
+		const disabledHeader = DOM.append(this.disabledContainer, $('.empty-state-header'));
+		this.disabledIcon = DOM.append(disabledHeader, $('.empty-icon'));
+		const disabledText = DOM.append(disabledHeader, $('.empty-text'));
+		disabledText.textContent = localize('mcpAccessDisabledTitle', "MCP servers are disabled");
+		this.disabledMessage = DOM.append(this.disabledContainer, $('.empty-subtext'));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
@@ -588,13 +590,48 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
+	private updateAccessState(): void {
+		const inspect = this.configurationService.inspect<string>(mcpAccessConfig);
+		const value = inspect.value ?? inspect.defaultValue;
+		const disabled = value === McpAccessValue.None;
+		const policyLocked = inspect.policyValue === McpAccessValue.None;
+
+		this.element.classList.toggle('access-disabled', disabled);
+
+		if (disabled) {
+			this.disabledIcon.className = 'empty-icon';
+			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
+
+			DOM.clearNode(this.disabledMessage);
+			this.disabledLinkListener.clear();
+			if (policyLocked) {
+				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.");
+			} else {
+				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
+				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+				link.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
+				link.href = '#';
+				link.setAttribute('role', 'button');
+				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
+					e.preventDefault();
+					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
+				});
+			}
+		}
+	}
+
+	public showBrowseMarketplace(): void {
+		if (!this.browseMode) {
+			this.toggleBrowseMode(true);
+		}
+	}
+
 	private toggleBrowseMode(browse: boolean): void {
 		this.browseMode = browse;
 		this.searchInput.value = '';
 		this.searchQuery = '';
 
 		// Update UI for browse vs installed mode
-		this.backLink.style.display = browse ? '' : 'none';
 		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
 
@@ -886,6 +923,29 @@ export class McpListWidget extends Disposable {
 	}
 
 	/**
+	 * Prepends an element to the search row (left of the search input).
+	 */
+	prependToSearchRow(element: HTMLElement): void {
+		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+	}
+
+	/**
+	 * Whether the widget is currently in marketplace browse mode.
+	 */
+	isInBrowseMode(): boolean {
+		return this.browseMode;
+	}
+
+	/**
+	 * Exits marketplace browse mode and returns to the installed servers list.
+	 */
+	exitBrowseMode(): void {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
+	}
+
+	/**
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
@@ -895,17 +955,24 @@ export class McpListWidget extends Disposable {
 		this.element.style.height = `${height}px`;
 
 		// Measure sibling elements to calculate the list height.
-		// When offsetHeight returns 0 the container just became visible
-		// after display:none and the browser hasn't reflowed yet — defer
-		// layout to the next frame so measurements are accurate.
+		// When offsetHeight returns 0 the container may have just become visible
+		// after display:none and the browser hasn't reflowed yet — defer layout
+		// once so measurements are accurate. Only retry once to avoid an endless
+		// loop when the widget is created while permanently hidden.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
-		if (searchBarHeight === 0) {
-			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+		if (searchBarHeight === 0 && !this._layoutDeferred) {
+			this._layoutDeferred = true;
+			DOM.getWindow(this.element).requestAnimationFrame(() => {
+				try {
+					this.layout(this.lastHeight, this.lastWidth);
+				} finally {
+					this._layoutDeferred = false;
+				}
+			});
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;
-		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

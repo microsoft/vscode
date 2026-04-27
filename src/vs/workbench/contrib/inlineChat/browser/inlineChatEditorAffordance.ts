@@ -33,12 +33,13 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 
 class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
-	private readonly _lightBulbStore = this._store.add(new MutableDisposable<DisposableStore>());
-	private _currentTitle: string | undefined;
+	readonly #lightBulbStore = this._store.add(new MutableDisposable<DisposableStore>());
+	#currentTitle: string | undefined;
+	readonly #editor: ICodeEditor;
 
 	constructor(
 		action: MenuItemAction,
-		private readonly _editor: ICodeEditor,
+		editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -55,7 +56,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 			elementGetter: () => HTMLElement | undefined = () => undefined;
 
 			override async run(...args: unknown[]): Promise<void> {
-				const controller = CodeActionController.get(_editor);
+				const controller = CodeActionController.get(editor);
 				const info = controller?.lightBulbState.get();
 				const element = this.elementGetter();
 				if (controller && info && element) {
@@ -67,26 +68,27 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
 		super(wrappedAction, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 
+		this.#editor = editor;
 		wrappedAction.elementGetter = () => this.element;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._updateFromLightBulb();
+		this.#updateFromLightBulb();
 	}
 
 	protected override getTooltip(): string {
-		return this._currentTitle ?? super.getTooltip();
+		return this.#currentTitle ?? super.getTooltip();
 	}
 
-	private _updateFromLightBulb(): void {
-		const controller = CodeActionController.get(this._editor);
+	#updateFromLightBulb(): void {
+		const controller = CodeActionController.get(this.#editor);
 		if (!controller) {
 			return;
 		}
 
 		const store = new DisposableStore();
-		this._lightBulbStore.value = store;
+		this.#lightBulbStore.value = store;
 
 		store.add(autorun(reader => {
 			const info = controller.lightBulbState.read(reader);
@@ -99,7 +101,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 			}
 
 			// Update tooltip
-			this._currentTitle = info?.title;
+			this.#currentTitle = info?.title;
 			this.updateTooltip();
 		}));
 	}
@@ -107,7 +109,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
 class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
 
-	private readonly _kbLabel: string | undefined;
+	readonly #kbLabel: string | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -121,14 +123,14 @@ class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
 		super(action, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 		this.options.label = true;
 		this.options.icon = false;
-		this._kbLabel = keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
+		this.#kbLabel = keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
 	}
 
 	protected override updateLabel(): void {
 		if (this.label) {
 			dom.reset(this.label,
 				this.action.label,
-				...(this._kbLabel ? [dom.$('span.inline-chat-keybinding', undefined, this._kbLabel)] : [])
+				...(this.#kbLabel ? [dom.$('span.inline-chat-keybinding', undefined, this.#kbLabel)] : [])
 			);
 		}
 	}
@@ -140,38 +142,42 @@ class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
  */
 export class InlineChatEditorAffordance extends Disposable implements IContentWidget {
 
-	private static _idPool = 0;
+	static #idPool = 0;
 
-	private readonly _id = `inline-chat-content-widget-${InlineChatEditorAffordance._idPool++}`;
-	private readonly _domNode: HTMLElement;
-	private _position: IContentWidgetPosition | null = null;
-	private _isVisible = false;
+	readonly #id = `inline-chat-content-widget-${InlineChatEditorAffordance.#idPool++}`;
+	readonly #domNode: HTMLElement;
+	#position: IContentWidgetPosition | null = null;
+	#isVisible = false;
 
-	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
-	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
+	readonly #onDidRunAction = this._store.add(new Emitter<string>());
+	readonly onDidRunAction: Event<string> = this.#onDidRunAction.event;
 
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
+	readonly #editor: ICodeEditor;
+
 	constructor(
-		private readonly _editor: ICodeEditor,
+		editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
+		this.#editor = editor;
+
 		// Create the widget DOM
-		this._domNode = dom.$('.inline-chat-content-widget');
+		this.#domNode = dom.$('.inline-chat-content-widget');
 
 		// Create toolbar with the inline chat start action
-		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.InlineChatEditorAffordance, {
+		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this.#domNode, MenuId.InlineChatEditorAffordance, {
 			telemetrySource: 'inlineChatEditorAffordance',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
-					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
+					return instantiationService.createInstance(QuickFixActionViewItem, action, this.#editor);
 				}
 				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT || action.id === 'inlineChat.fixDiagnostics')) {
 					return instantiationService.createInstance(LabelWithKeybindingActionViewItem, action);
@@ -180,50 +186,50 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			}
 		}));
 		this._store.add(toolbar.actionRunner.onDidRun((e) => {
-			this._onDidRunAction.fire(e.action.id);
-			this._hide();
+			this.#onDidRunAction.fire(e.action.id);
+			this.#hide();
 		}));
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
 			if (sel) {
-				this._show(sel);
+				this.#show(sel);
 			} else {
-				this._hide();
+				this.#hide();
 			}
 		}));
 
-		this._store.add(this._editor.onDidScrollChange(() => {
+		this._store.add(this.#editor.onDidScrollChange(() => {
 			const sel = selection.get();
 			if (!sel) {
 				return;
 			}
-			const isInViewport = this._isPositionInViewport();
-			if (isInViewport && !this._isVisible) {
-				this._show(sel);
-			} else if (!isInViewport && this._isVisible) {
-				this._hide();
+			const isInViewport = this.#isPositionInViewport();
+			if (isInViewport && !this.#isVisible) {
+				this.#show(sel);
+			} else if (!isInViewport && this.#isVisible) {
+				this.#hide();
 			}
 		}));
 	}
 
-	private _show(selection: Selection): void {
+	#show(selection: Selection): void {
 
 		if (selection.isEmpty()) {
-			this._showAtLineStart(selection.getPosition().lineNumber);
+			this.#showAtLineStart(selection.getPosition().lineNumber);
 		} else {
-			this._showAtSelection(selection);
+			this.#showAtSelection(selection);
 		}
 
-		if (this._isVisible) {
-			this._editor.layoutContentWidget(this);
+		if (this.#isVisible) {
+			this.#editor.layoutContentWidget(this);
 		} else {
-			this._editor.addContentWidget(this);
-			this._isVisible = true;
+			this.#editor.addContentWidget(this);
+			this.#isVisible = true;
 		}
 	}
 
-	private _showAtSelection(selection: Selection): void {
+	#showAtSelection(selection: Selection): void {
 		const cursorPosition = selection.getPosition();
 		const direction = selection.getDirection();
 
@@ -231,20 +237,20 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			? ContentWidgetPositionPreference.ABOVE
 			: ContentWidgetPositionPreference.BELOW;
 
-		this._position = {
+		this.#position = {
 			position: cursorPosition,
 			preference: [preference],
 		};
 	}
 
-	private _showAtLineStart(lineNumber: number): void {
-		const model = this._editor.getModel();
+	#showAtLineStart(lineNumber: number): void {
+		const model = this.#editor.getModel();
 		if (!model) {
 			return;
 		}
 
 		const tabSize = model.getOptions().tabSize;
-		const fontInfo = this._editor.getOptions().get(EditorOption.fontInfo);
+		const fontInfo = this.#editor.getOptions().get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = indent < 0 ? true : fontInfo.spaceWidth * indent > 22;
@@ -267,20 +273,20 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		const effectiveColumnNumber = /^\S\s*$/.test(model.getLineContent(effectiveLineNumber)) ? 2 : 1;
 
-		this._position = {
+		this.#position = {
 			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
 	}
 
-	private _isPositionInViewport(): boolean {
-		const widgetPosition = this._position?.position;
+	#isPositionInViewport(): boolean {
+		const widgetPosition = this.#position?.position;
 		if (!widgetPosition) {
 			return false;
 		}
 
 		// Check vertical visibility
-		const visibleRanges = this._editor.getVisibleRanges();
+		const visibleRanges = this.#editor.getVisibleRanges();
 		const isLineVisible = visibleRanges.some(range =>
 			widgetPosition.lineNumber >= range.startLineNumber && widgetPosition.lineNumber <= range.endLineNumber
 		);
@@ -289,45 +295,45 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		}
 
 		// Check horizontal visibility
-		const scrolledPos = this._editor.getScrolledVisiblePosition(widgetPosition);
+		const scrolledPos = this.#editor.getScrolledVisiblePosition(widgetPosition);
 		if (!scrolledPos) {
 			return false;
 		}
-		const layoutInfo = this._editor.getOptions().get(EditorOption.layoutInfo);
+		const layoutInfo = this.#editor.getOptions().get(EditorOption.layoutInfo);
 		return scrolledPos.left >= 0 && scrolledPos.left <= layoutInfo.width;
 	}
 
-	private _hide(): void {
-		if (this._isVisible) {
-			this._isVisible = false;
-			this._editor.removeContentWidget(this);
+	#hide(): void {
+		if (this.#isVisible) {
+			this.#isVisible = false;
+			this.#editor.removeContentWidget(this);
 		}
 	}
 
 	getId(): string {
-		return this._id;
+		return this.#id;
 	}
 
 	getDomNode(): HTMLElement {
-		return this._domNode;
+		return this.#domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return this._position;
+		return this.#position;
 	}
 
 	beforeRender(): IDimension | null {
-		const position = this._editor.getPosition();
-		const lineHeight = position ? this._editor.getLineHeightForPosition(position) : this._editor.getOption(EditorOption.lineHeight);
+		const position = this.#editor.getPosition();
+		const lineHeight = position ? this.#editor.getLineHeightForPosition(position) : this.#editor.getOption(EditorOption.lineHeight);
 
-		this._domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
+		this.#domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
 
 		return null;
 	}
 
 	override dispose(): void {
-		if (this._isVisible) {
-			this._editor.removeContentWidget(this);
+		if (this.#isVisible) {
+			this.#editor.removeContentWidget(this);
 		}
 		super.dispose();
 	}

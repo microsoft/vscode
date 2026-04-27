@@ -17,6 +17,7 @@ import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { isMultilineCommand } from '../runInTerminalHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -58,8 +59,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+		// Register with strategy lifetime so listeners are cleaned up if
+		// the strategy is disposed while execute() is still running.
+		this._register(store);
 
 		try {
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
@@ -130,7 +134,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = isMacintosh;
+			const forceBracketedPasteMode = isMacintosh || isMultilineCommand(commandLine);
 			this._instance.sendText(commandLine, true, forceBracketedPasteMode);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual

@@ -9,14 +9,14 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidgetContribution.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, ICodeReviewSuggestion, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
@@ -143,34 +143,6 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override clearFeedback(): void { }
 
 		override async addFeedbackAndSubmit(): Promise<void> { }
-	}();
-}
-
-function createMockCodeReviewService(): ICodeReviewService {
-	return new class extends mock<ICodeReviewService>() {
-		private readonly _state = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
-
-		override getReviewState() {
-			return this._state;
-		}
-
-		override hasReview(): boolean {
-			return false;
-		}
-
-		override requestReview(): void { }
-
-		override removeComment(): void { }
-
-		override dismissReview(): void { }
-
-		private readonly _prState = observableValue<IPRReviewState>('fixture.prReviewState', { kind: PRReviewStateKind.None });
-
-		override getPRReviewState() {
-			return this._prState;
-		}
-
-		override async resolvePRReviewThread(): Promise<void> { }
 	}();
 }
 

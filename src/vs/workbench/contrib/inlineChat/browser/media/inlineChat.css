@@ -113,6 +113,7 @@
 	.chat-attachments-container > .chat-input-toolbar {
 		margin-left: auto;
 		margin-right: 16px;
+		width: 100%;
 	}
 
 	/* TODO@jrieken this isn't the nicest selector... */
@@ -320,4 +321,86 @@
 
 .monaco-workbench .inline-chat .chat-attached-context {
 	padding: 2px 0px;
+}
+
+/* Termination card (zone widget) — aligned with overlay widget */
+
+.monaco-workbench .inline-chat-terminated-card {
+	padding: 4px;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.monaco-workbench .inline-chat-terminated-card.hidden {
+	display: none;
+}
+
+/* Markdown scrollable area */
+.monaco-workbench .inline-chat-terminated-card > .monaco-scrollable-element {
+	width: 100%;
+}
+
+.monaco-workbench .inline-chat-terminated-card > .monaco-scrollable-element.hidden {
+	display: none;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-scroll-container {
+	width: 100%;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message {
+	padding: 5px;
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message p {
+	margin: 0;
+}
+
+.monaco-workbench .inline-chat-terminated-card .markdown-message code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border);
+	white-space: pre-wrap;
+}
+
+/* Content row: toolbar */
+.monaco-workbench .inline-chat-terminated-card > .content-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+}
+
+.monaco-workbench .inline-chat-terminated-card > .content-row > .toolbar .monaco-text-button {
+	padding: 2px 8px;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+/* Status Placeholder */
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder {
+	margin-left: auto;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget .status-placeholder .action-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	cursor: default;
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget:hover .status-placeholder,
+.monaco-workbench .zone-widget.inline-chat-widget:focus-within .status-placeholder {
+	opacity: 1;
 }

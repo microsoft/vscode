@@ -203,7 +203,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					store.add(token.onCancellationRequested(() => {
 						store.dispose();
 					}));
-					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store);
+					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
 
 					// todo@connor4312/@benibenj: workaround for #257923
 					store.add(disposableWindowInterval(mainWindow, () => {

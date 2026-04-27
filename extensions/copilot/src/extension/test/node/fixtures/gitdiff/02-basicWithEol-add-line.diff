@@ -1,0 +1,9 @@
+diff --git a/02-basicWithEol b/02-basicWithEol-add-line
+index 807b9ea8f..a686137e6 100644
+--- a/02-basicWithEol
++++ b/02-basicWithEol-add-line
+@@ -13,3 +13,4 @@ export function f(args_: string[], flags: any, child: any) {
+ 	child.unref();
+ 	return Promise.resolve();
+ }
++

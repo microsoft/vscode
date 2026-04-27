@@ -19,8 +19,7 @@ import { IEditorWorkerService } from '../../../../../../editor/common/services/e
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ContentEncoding, IWriteFileParams } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { getToolFileEdits, ToolCallStatus, type IToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { EditorActivation } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -36,18 +35,11 @@ import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgr
 
 // ---- Internal data model ----------------------------------------------------
 
-interface IAgentHostFileEdit {
-	readonly resource: URI;
-	readonly beforeContentUri: URI;
-	readonly afterContentUri: URI;
-	readonly undoStopId: string;
-	readonly diff?: { added?: number; removed?: number };
-}
-
 interface IAgentHostCheckpoint {
 	readonly requestId: string;
-	readonly undoStopId: string;
-	readonly edits: IAgentHostFileEdit[];
+	/** Tool-call ID, or `undefined` for the sentinel checkpoint at request start. */
+	readonly undoStopId: string | undefined;
+	readonly edits: IToolCallFileEdit[];
 }
 
 // ---- Modified file entry ----------------------------------------------------
@@ -120,13 +112,29 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	private readonly _entriesObs = observableValue<readonly AgentHostModifiedFileEntry[]>(this, []);
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = this._entriesObs;
 
-	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = constObservable([]);
+	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
+		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId && v.afterUndoStop === b[i].afterUndoStop) },
+		reader => {
+			const currentIdx = this._currentCheckpointIndex.read(reader);
+			if (currentIdx >= this._checkpoints.length - 1) {
+				return [];
+			}
+			// Collect unique request IDs from checkpoints after the current
+			// index. Keep the first entry per request — if that's the sentinel
+			// (undoStopId === undefined) the entire request is disabled.
+			const disabled = new Map<string, string | undefined>();
+			for (let i = currentIdx + 1; i < this._checkpoints.length; i++) {
+				const cp = this._checkpoints[i];
+				if (!disabled.has(cp.requestId)) {
+					disabled.set(cp.requestId, cp.undoStopId);
+				}
+			}
+			return [...disabled].map(([requestId, afterUndoStop]): IChatRequestDisablement => ({ requestId, afterUndoStop }));
+		},
+	);
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
-
-	private readonly _onDidRequestFileWrite = this._register(new Emitter<IWriteFileParams>());
-	readonly onDidRequestFileWrite: Event<IWriteFileParams> = this._onDidRequestFileWrite.event;
 
 	private readonly _checkpoints: IAgentHostCheckpoint[] = [];
 	private readonly _currentCheckpointIndex = observableValue<number>(this, -1);
@@ -154,7 +162,28 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 	// ---- Hydration from protocol state --------------------------------------
 
-	addToolCallEdits(requestId: string, tc: IToolCallState): IChatProgress[] {
+	/**
+	 * Ensures a sentinel checkpoint exists for the given request. Called at the
+	 * start of every turn so that `requestDisablement` and `restoreSnapshot`
+	 * can reference requests that may not produce any file edits.
+	 *
+	 * Also splices away stale checkpoints after the current index (undo branch
+	 * semantics) when a new request arrives after a checkpoint restore.
+	 */
+	ensureRequestCheckpoint(requestId: string): void {
+		// Splice stale checkpoints if the user restored a checkpoint
+		const currentIdx = this._currentCheckpointIndex.get();
+		if (currentIdx < this._checkpoints.length - 1) {
+			this._checkpoints.splice(currentIdx + 1);
+		}
+
+		// Insert sentinel for this request if it doesn't exist yet
+		if (!this._checkpoints.some(cp => cp.requestId === requestId)) {
+			this._checkpoints.push({ requestId, undoStopId: undefined, edits: [] });
+		}
+	}
+
+	addToolCallEdits(requestId: string, tc: ToolCallState): IChatProgress[] {
 		if (tc.status !== ToolCallStatus.Completed) {
 			return [];
 		}
@@ -164,20 +193,24 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return [];
 		}
 
+		// Ensure the sentinel and undo-branch splice are handled
+		this.ensureRequestCheckpoint(requestId);
+
 		const fileEdits = fileEditsToExternalEdits(tc);
 		if (fileEdits.length === 0) {
 			return [];
 		}
 
 		const authority = this._connectionAuthority;
-		const protocolEdits = getToolFileEdits(tc);
 
-		const edits: IAgentHostFileEdit[] = fileEdits.map((edit: IToolCallFileEdit, i: number) => ({
+		const edits: IToolCallFileEdit[] = fileEdits.map((edit: IToolCallFileEdit) => ({
+			kind: edit.kind,
 			resource: toAgentHostUri(edit.resource, authority),
-			beforeContentUri: toAgentHostUri(edit.beforeContentUri, authority),
-			afterContentUri: toAgentHostUri(edit.afterContentUri, authority),
+			originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
+			beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
+			afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
 			undoStopId: edit.undoStopId,
-			diff: protocolEdits[i]?.diff,
+			diff: edit.diff,
 		}));
 
 		const checkpoint: IAgentHostCheckpoint = {
@@ -200,11 +233,24 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		// Build progress parts for the file edit pills in the chat response
 		const progressParts: IChatProgress[] = [];
 		for (const edit of edits) {
-			progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
-			progressParts.push({ kind: 'codeblockUri', uri: edit.resource, isEdit: true, undoStopId: tc.toolCallId });
-			progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: false, isExternalEdit: true });
-			progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: true, isExternalEdit: true });
-			progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+			// Emit workspace file edit progress for creates, deletes, and renames
+			if (edit.kind === FileEditKind.Create || edit.kind === FileEditKind.Delete || edit.kind === FileEditKind.Rename) {
+				progressParts.push({
+					kind: 'workspaceEdit',
+					edits: [{
+						oldResource: edit.originalResource ?? (edit.kind === FileEditKind.Delete ? edit.resource : undefined),
+						newResource: edit.kind === FileEditKind.Delete ? undefined : edit.resource,
+					}],
+				});
+			}
+			// Emit code-block UI for content edits (and renames/creates with content)
+			if (edit.afterContentUri) {
+				progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+				progressParts.push({ kind: 'codeblockUri', uri: edit.resource, isEdit: true, undoStopId: tc.toolCallId });
+				progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: false, isExternalEdit: true });
+				progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: true, isExternalEdit: true });
+				progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+			}
 		}
 		return progressParts;
 	}
@@ -250,43 +296,54 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		if (stopId !== undefined) {
 			return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === stopId);
 		}
-		// No specific stop: use the last checkpoint for this request
-		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
-			if (this._checkpoints[i].requestId === requestId) {
-				return i;
-			}
-		}
-		return -1;
+		// No specific stop: find the sentinel checkpoint (undoStopId === undefined)
+		// for this request, which marks the request boundary.
+		return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === undefined);
 	}
 
 	private _findCheckpoint(requestId: string, stopId: string | undefined): IAgentHostCheckpoint | undefined {
-		const idx = this._findCheckpointIndex(requestId, stopId);
-		return idx >= 0 ? this._checkpoints[idx] : undefined;
+		if (stopId !== undefined) {
+			const idx = this._findCheckpointIndex(requestId, stopId);
+			return idx >= 0 ? this._checkpoints[idx] : undefined;
+		}
+		// No specific stop: find the last non-sentinel checkpoint for this
+		// request (the one with actual edits).
+		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
+			const cp = this._checkpoints[i];
+			if (cp.requestId === requestId && cp.undoStopId !== undefined) {
+				return cp;
+			}
+		}
+		return undefined;
 	}
 
 	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
-		const idx = this._findCheckpointIndex(requestId, stopId);
-		if (idx < 0) {
+		const cpIdx = this._findCheckpointIndex(requestId, stopId);
+		if (cpIdx < 0) {
 			this._logService.warn(`[AgentHostEditingSession] No checkpoint found for requestId=${requestId}${stopId ? `, stopId=${stopId}` : ''}`);
 			return;
 		}
 
+		// When stopId is undefined we found the sentinel (request boundary).
+		// Navigate to one before it so the request's edits are fully undone.
+		const targetIdx = stopId === undefined ? cpIdx - 1 : cpIdx;
+
 		// Navigate to the target checkpoint
 		const currentIdx = this._currentCheckpointIndex.get();
-		if (idx < currentIdx) {
+		if (targetIdx < currentIdx) {
 			// Undo forward checkpoints
-			for (let i = currentIdx; i > idx; i--) {
+			for (let i = currentIdx; i > targetIdx; i--) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'before');
 			}
-		} else if (idx > currentIdx) {
+		} else if (targetIdx > currentIdx) {
 			// Redo to reach the target
-			for (let i = currentIdx + 1; i <= idx; i++) {
+			for (let i = currentIdx + 1; i <= targetIdx; i++) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'after');
 			}
 		}
 
 		transaction(tx => {
-			this._currentCheckpointIndex.set(idx, tx);
+			this._currentCheckpointIndex.set(targetIdx, tx);
 		});
 		this._rebuildEntries();
 	}
@@ -323,6 +380,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		}
 
 		try {
+			if (!edit.afterContentUri) {
+				return VSBuffer.fromByteArray([]);
+			}
 			const content = await this._fileService.readFile(edit.afterContentUri);
 			return content.value;
 		} catch (err) {
@@ -558,8 +618,14 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 		await this._writeCheckpointContent(this._checkpoints[idx], 'before');
 
+		// Skip past any sentinel checkpoints (they have no edits)
+		let newIdx = idx - 1;
+		while (newIdx >= 0 && this._checkpoints[newIdx].undoStopId === undefined) {
+			newIdx--;
+		}
+
 		transaction(tx => {
-			this._currentCheckpointIndex.set(idx - 1, tx);
+			this._currentCheckpointIndex.set(newIdx, tx);
 		});
 		this._rebuildEntries();
 	}
@@ -570,7 +636,15 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		const nextIdx = idx + 1;
+		// Skip past sentinel checkpoints to the next tool-call checkpoint
+		let nextIdx = idx + 1;
+		while (nextIdx < this._checkpoints.length && this._checkpoints[nextIdx].undoStopId === undefined) {
+			nextIdx++;
+		}
+		if (nextIdx >= this._checkpoints.length) {
+			return;
+		}
+
 		await this._writeCheckpointContent(this._checkpoints[nextIdx], 'after');
 
 		transaction(tx => {
@@ -628,7 +702,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 	private _rebuildEntries(): void {
 		const currentIdx = this._currentCheckpointIndex.get();
-		const resourceMap = new Map<string, { resource: URI; beforeContentUri: URI; afterContentUri: URI; requestId: string; added: number; removed: number }>();
+		const resourceMap = new Map<string, { resource: URI; beforeContentUri?: URI; afterContentUri?: URI; requestId: string; added: number; removed: number }>();
 
 		for (let i = 0; i <= currentIdx && i < this._checkpoints.length; i++) {
 			const cp = this._checkpoints[i];
@@ -637,7 +711,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 				const existing = resourceMap.get(key);
 				if (existing) {
 					// Update after-content to the latest, accumulate diff counts
-					existing.afterContentUri = edit.afterContentUri;
+					if (edit.afterContentUri) {
+						existing.afterContentUri = edit.afterContentUri;
+					}
 					existing.requestId = cp.requestId;
 					existing.added += edit.diff?.added ?? 0;
 					existing.removed += edit.diff?.removed ?? 0;
@@ -654,28 +730,90 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			}
 		}
 
-		const entries = [...resourceMap.values()].map(v =>
-			new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri, v.requestId, v.added, v.removed)
-		);
+		const entries = [...resourceMap.values()]
+			.filter(v => v.beforeContentUri && v.afterContentUri)
+			.map(v =>
+				new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri!, v.requestId, v.added, v.removed)
+			);
 
 		this._entriesObs.set(entries, undefined);
 	}
 
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const writes = checkpoint.edits.map(async edit => {
-			const contentUri = direction === 'before' ? edit.beforeContentUri : edit.afterContentUri;
+		const ops = checkpoint.edits.map(async edit => {
 			try {
-				const file = await this._fileService.readFile(contentUri);
-				this._onDidRequestFileWrite.fire({
-					uri: edit.resource.toString(),
-					data: file.value.toString(),
-					encoding: ContentEncoding.Utf8,
-				});
+				if (direction === 'before') {
+					// Undoing this edit
+					switch (edit.kind) {
+						case FileEditKind.Create:
+							// Undo create → delete the file
+							await this._fileService.del(edit.resource);
+							break;
+						case FileEditKind.Delete:
+							// Undo delete → recreate from before-snapshot
+							if (edit.beforeContentUri) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Rename:
+							// Undo rename → move back to original
+							if (edit.originalResource) {
+								await this._fileService.move(edit.resource, edit.originalResource, true);
+							}
+							// Also restore before-content if we have it
+							if (edit.beforeContentUri && edit.originalResource) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.originalResource, content.value);
+							}
+							break;
+						case FileEditKind.Edit:
+							// Undo edit → write before-snapshot content
+							if (edit.beforeContentUri) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+					}
+				} else {
+					// Redoing this edit
+					switch (edit.kind) {
+						case FileEditKind.Create:
+							// Redo create → recreate from after-snapshot
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Delete:
+							// Redo delete → delete the file again
+							await this._fileService.del(edit.resource);
+							break;
+						case FileEditKind.Rename:
+							// Redo rename → move from original to new
+							if (edit.originalResource) {
+								await this._fileService.move(edit.originalResource, edit.resource, true);
+							}
+							// Also apply after-content if we have it
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Edit:
+							// Redo edit → write after-snapshot content
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+					}
+				}
 			} catch (err) {
-				this._logService.warn(`[AgentHostEditingSession] Failed to fetch content for ${direction}`, contentUri.toString(), err);
+				this._logService.warn(`[AgentHostEditingSession] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
 			}
 		});
-		await Promise.all(writes);
+		await Promise.all(ops);
 	}
 
 	/**

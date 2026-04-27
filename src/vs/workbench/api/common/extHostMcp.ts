@@ -42,7 +42,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
 
 	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
-	startMcpGateway(): Promise<vscode.McpGateway | undefined>;
+	startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined>;
 }
 
 const serverDataValidation = vObj({
@@ -264,8 +264,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	/** {@link vscode.lm.startMcpGateway} */
-	public async startMcpGateway(): Promise<vscode.McpGateway | undefined> {
-		const result = await this._proxy.$startMcpGateway();
+	public async startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined> {
+		const result = await this._proxy.$startMcpGateway(chatSessionResource?.toJSON());
 		if (!result) {
 			return undefined;
 		}
@@ -705,7 +705,8 @@ export class McpHTTPHandle extends Disposable {
 					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
 					authorizationServerMetadata: this._authMetadata.serverMetadata,
 					resourceMetadata: this._authMetadata.resourceMetadata,
-					scopes: this._authMetadata.scopes
+					scopes: this._authMetadata.scopes,
+					clientId: this._launch.oauth?.clientId,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,
@@ -734,7 +735,8 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.scopes,
 					{
 						errorOnUserInteraction,
-						forceNewRegistration: options?.forceNewRegistration
+						forceNewRegistration: options?.forceNewRegistration,
+						clientId: this._launch.oauth?.clientId,
 					}
 				);
 				if (token) {
