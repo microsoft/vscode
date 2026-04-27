@@ -15,6 +15,7 @@ import { CopilotLanguageModelWrapper } from '../../conversation/vscode-node/lang
 import { BYOKAuthType, BYOKKnownModels, byokKnownModelsToAPIInfo, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { IBYOKStorageService } from './byokStorageService';
+import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 
 export interface LanguageModelChatConfiguration {
 	readonly apiKey?: string;
@@ -105,7 +106,7 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		const modelsUrl = this.getModelsBaseUrl(configuration);
 		if (modelsUrl) {
 			const models = await this.getModelsFromEndpoint(modelsUrl, silent, apiKey);
-			return byokKnownModelsToAPIInfo(this._name, models).map(model => ({
+			return byokKnownModelsToAPIInfoWithEffort(this._name, models).map(model => ({
 				...model,
 				url: modelsUrl
 			}));
