@@ -810,10 +810,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		// Programmatically-registered contributions are always considered
+		// available; mark them as such so the autorun in the constructor
+		// registers the in-place "New {0} Session" action for them. Without
+		// this, types like `agent-host-copilotcli` (registered by the local
+		// agent host) have no `openNewChatSessionInPlace.<type>` command.
+		this._contributionDisposables.set(contribution.type, new DisposableStore());
+		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
 			this._contributions.delete(contribution.type);
+			this._contributionDisposables.deleteAndDispose(contribution.type);
+			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
 		});
 	}

@@ -1104,6 +1104,20 @@ describe('ChatSessionContentProvider', () => {
 			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
 		});
 
+		it('live permission option changes update session state', async () => {
+			const mocks = createDefaultMocks();
+			const { provider, accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+
+			provider.provideHandleOptionsChange(createClaudeSessionUri('live-session'), [
+				{ optionId: 'permissionMode', value: 'plan' }
+			], CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('live-session', 'plan');
+			expect(sessionStateService.getPermissionModeForSession('live-session')).toBe('plan');
+		});
+
 		it('external permission change syncs into a previousInputState-restored pipeline', async () => {
 			const mocks = createDefaultMocks();
 			const { accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);

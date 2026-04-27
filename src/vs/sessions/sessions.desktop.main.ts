@@ -58,6 +58,7 @@ import '../workbench/services/mcp/electron-browser/mcpWorkbenchManagementService
 import '../workbench/services/encryption/electron-browser/encryptionService.js';
 import '../workbench/services/imageResize/electron-browser/imageResizeService.js';
 import '../workbench/services/secrets/electron-browser/secretStorageService.js';
+import '../workbench/services/secrets/electron-browser/sharedKeychainService.js';
 import '../workbench/services/localization/electron-browser/languagePackService.js';
 import '../workbench/services/telemetry/electron-browser/telemetryService.js';
 import '../workbench/services/extensions/electron-browser/extensionHostStarter.js';
