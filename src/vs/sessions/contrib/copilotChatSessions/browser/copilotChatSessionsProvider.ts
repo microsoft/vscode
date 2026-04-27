@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { raceCancellationError, raceTimeout, Throttler } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -103,7 +103,6 @@ export interface ICopilotChatSession {
 
 	readonly gitRepository?: IGitRepository;
 	readonly branches: IObservable<readonly string[]>;
-	setTitle(title: string): void;
 }
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
@@ -230,7 +229,6 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		readonly resource: URI,
 		readonly sessionWorkspace: ISessionWorkspace,
 		providerId: string,
-		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
 	) {
@@ -411,7 +409,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, this.chatService, undefined);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, undefined);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
@@ -875,7 +873,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
-		private readonly _chatService: IChatService,
 		private readonly _gitHubService: IGitHubService | undefined,
 	) {
 		this.id = toSessionId(providerId, session.resource);
@@ -887,7 +884,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
 
-		this._title = observableValue(this, this._getDisplayTitle(session));
+		this._title = observableValue(this, session.label);
 		this.title = this._title;
 
 		const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
@@ -945,16 +942,12 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		throw new Error('Method not implemented.');
 	}
 
-	setTitle(title: string): void {
-		this._title.set(title, undefined);
-	}
-
 	/**
 	 * Update reactive properties from a refreshed agent session.
 	 */
 	update(session: IAgentSession): void {
 		transaction(tx => {
-			this._title.set(this._getDisplayTitle(session), tx);
+			this._title.set(session.label, tx);
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
@@ -965,15 +958,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 			this._baseGitHubInfo.set(this._extractGitHubInfo(session), tx);
 		});
-	}
-
-	private _getDisplayTitle(session: IAgentSession): string {
-		const chatModel = this._chatService.getSession(session.resource);
-		if (chatModel?.hasCustomTitle) {
-			return chatModel.title;
-		}
-
-		return session.label;
 	}
 
 	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
@@ -1219,12 +1203,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession>();
 
-	/** Locally renamed chat titles that must win over transient agent-session labels. */
-	private readonly _renamedChatTitles = new Map<string, string>();
-
-	/** Reactive renamed session titles keyed by grouped session ID. */
-	private readonly _renamedSessionTitles = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
-
 	/** Cache of ISession wrappers, keyed by session group ID. */
 	private readonly _sessionGroupCache = new Map<string, ISession>();
 
@@ -1245,17 +1223,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 	private _claudeEnabled: boolean;
-
-	/**
-	 * Coalesces rapid `onDidChangeSessions` events from the underlying model
-	 * into a single `_refreshSessionCache` invocation per microtask burst.
-	 * Mirrors the throttling that VS Code's chat sessions tree applies in
-	 * `AgentSessionsControl.update()`. Without this, transient label values
-	 * the CLI extension reports around each request would each cause an
-	 * immediate reactive re-render of the agents-app session pill and
-	 * sidebar list.
-	 */
-	private readonly _refreshSessionCacheThrottler = this._register(new Throttler());
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
@@ -1309,18 +1276,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			},
 		];
 
-		// Forward session changes from the underlying model. Throttle the
-		// refresh the same way VS Code's chat sessions tree does (via
-		// `Throttler.queue` in `AgentSessionsControl.update`): the CLI extension
-		// can fire several `onDidChangeSessions` events in quick succession
-		// around each request as labels and other metadata churn, and without
-		// throttling every event would synchronously call `update()` on each
-		// adapter and push transient values through reactive observables
-		// (visibly flickering the agents-app session pill and sidebar list).
-		// Throttler.queue ensures only the latest pending refresh runs after
-		// the current one finishes, so intermediate values are skipped.
+		// Forward session changes from the underlying model
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
-			void this._refreshSessionCacheThrottler.queue(async () => this._refreshSessionCache());
+			this._refreshSessionCache();
 		}));
 	}
 
@@ -1489,35 +1447,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const agentSession = this.agentSessionsService.getSession(chatUri);
 		if (agentSession?.providerType === CopilotCLISessionType.id) {
 			await this.commandService.executeCommand('github.copilot.cli.sessions.setTitle', { resource: chatUri }, title);
-			this._applyRenamedChatTitle(sessionId, chatUri, title);
 			return;
 		}
 		if (agentSession?.providerType === AgentSessionProviders.Claude) {
 			await this.commandService.executeCommand('github.copilot.claude.sessions.rename', { resource: chatUri }, title);
-			this._applyRenamedChatTitle(sessionId, chatUri, title);
 			return;
 		}
 		throw new Error('Renaming is not supported for this session type');
-	}
-
-	private _applyRenamedChatTitle(sessionId: string, chatUri: URI, title: string): void {
-		this._getRenamedSessionTitle(sessionId).set(title, undefined);
-		this._renamedChatTitles.set(chatUri.toString(), title);
-		this.chatService.setChatSessionTitle(chatUri, title);
-		this._sessionCache.get(chatUri.toString())?.setTitle(title);
-		const chat = this._findChatSession(sessionId) ?? this._sessionCache.get(chatUri.toString());
-		if (chat) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(chat)] });
-		}
-	}
-
-	private _getRenamedSessionTitle(sessionId: string): ReturnType<typeof observableValue<string | undefined>> {
-		let title = this._renamedSessionTitles.get(sessionId);
-		if (!title) {
-			title = observableValue<string | undefined>(this, undefined);
-			this._renamedSessionTitles.set(sessionId, title);
-		}
-		return title;
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
@@ -2429,17 +2365,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const existing = this._sessionCache.get(key);
 			if (existing) {
 				existing.update(session);
-				const renamedTitle = this._renamedChatTitles.get(key);
-				if (renamedTitle) {
-					existing.setTitle(renamedTitle);
-				}
 				changedData.push(existing);
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id, this.chatService, this.gitHubService);
-				const renamedTitle = this._renamedChatTitles.get(key);
-				if (renamedTitle) {
-					adapter.setTitle(renamedTitle);
-				}
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 				cacheChanged = true;
@@ -2450,8 +2378,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		for (const [key, adapter] of this._sessionCache) {
 			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				this._sessionCache.delete(key);
-				this._renamedChatTitles.delete(key);
-				this._renamedSessionTitles.delete(adapter.id);
 				removedData.push(adapter);
 				cacheChanged = true;
 			}
@@ -2646,8 +2572,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const primaryChat = firstChatId
 			? this._sessionCache.get(this._localIdFromchatId(firstChatId)) ?? chat
 			: chat;
-		const sessionTitleOverride = this._getRenamedSessionTitle(sessionId);
-		const title = derived(this, reader => sessionTitleOverride.read(reader) ?? primaryChat.title.read(reader));
 
 		const chatsObs = observableFromEvent<readonly IChat[]>(
 			this,
@@ -2680,7 +2604,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			icon: primaryChat.icon,
 			createdAt: primaryChat.createdAt,
 			workspace: primaryChat.workspace,
-			title,
+			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
 			changes: primaryChat.changes,
@@ -2702,8 +2626,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _chatToSingleChatSession(chat: ICopilotChatSession): ISession {
 		const mainChat = this._toChat(chat);
-		const sessionTitleOverride = this._getRenamedSessionTitle(chat.id);
-		const title = derived(this, reader => sessionTitleOverride.read(reader) ?? chat.title.read(reader));
 		return {
 			sessionId: chat.id,
 			resource: chat.resource,
@@ -2712,7 +2634,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			icon: chat.icon,
 			createdAt: chat.createdAt,
 			workspace: chat.workspace,
-			title: title,
+			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
 			changes: chat.changes,

@@ -89,14 +89,6 @@ class MockAgentSessionsModel {
 		this._onDidChangeSessions.fire();
 	}
 
-	updateSession(resource: URI, session: IAgentSession): void {
-		const idx = this._sessions.findIndex(s => s.resource.toString() === resource.toString());
-		if (idx !== -1) {
-			this._sessions[idx] = session;
-			this._onDidChangeSessions.fire();
-		}
-	}
-
 	removeSession(resource: URI): void {
 		const idx = this._sessions.findIndex(s => s.resource.toString() === resource.toString());
 		if (idx !== -1) {
@@ -117,12 +109,7 @@ class MockAgentSessionsModel {
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: {
-		multiChatEnabled?: boolean;
-		claudeEnabled?: boolean;
-		chatService?: Partial<IChatService>;
-		commandService?: Partial<ICommandService>;
-	},
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
 ): CopilotChatSessionsProvider {
 	return createProviderWithConfig(disposables, model, opts).provider;
 }
@@ -130,12 +117,7 @@ function createProvider(
 function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: {
-		multiChatEnabled?: boolean;
-		claudeEnabled?: boolean;
-		chatService?: Partial<IChatService>;
-		commandService?: Partial<ICommandService>;
-	},
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -164,7 +146,6 @@ function createProviderWithConfig(
 			}
 			return undefined;
 		},
-		...opts?.commandService,
 	});
 	instantiationService.stub(IAgentSessionsService, {
 		model: model as unknown as IAgentSessionsModel,
@@ -184,11 +165,7 @@ function createProviderWithConfig(
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }),
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
-		getSession: () => undefined,
-		getSessionTitle: () => undefined,
-		setSessionTitle: () => { },
 		setChatSessionTitle: () => { },
-		...opts?.chatService,
 	});
 	instantiationService.stub(IChatWidgetService, {
 		openSession: async () => undefined,
@@ -260,9 +237,6 @@ function createProviderForSendTests(
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: sendRequest,
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
-		getSession: () => undefined,
-		getSessionTitle: () => undefined,
-		setSessionTitle: () => { },
 		setChatSessionTitle: () => { },
 	});
 	instantiationService.stub(IChatWidgetService, {
@@ -1103,53 +1077,6 @@ suite('CopilotChatSessionsProvider', () => {
 
 		// Should not throw — delegates to ICommandService.executeCommand
 		await provider.renameChat(sessions[0].sessionId, claudeResource, 'New Title');
-	});
-
-	test('renameChat keeps a renamed CLI title when later model refreshes keep the old label without a live chat model', async () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/cli-session' });
-		const childResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/cli-session-child' });
-		model.addSession(createMockAgentSession(resource, {
-			providerType: CopilotCLISessionType.id,
-			title: 'Request Derived Title',
-			createdAt: 2,
-		}));
-		model.addSession(createMockAgentSession(childResource, {
-			providerType: CopilotCLISessionType.id,
-			title: 'Newest Request Title',
-			createdAt: 1,
-			metadata: { repositoryPath: '/test/repo', sessionParentId: 'cli-session' }
-		}));
-
-		let executedCommand: string | undefined;
-		const provider = createProvider(disposables, model, {
-			commandService: {
-				executeCommand: async (id: string) => {
-					executedCommand = id;
-					return undefined;
-				},
-			},
-		});
-
-		const sessions = provider.getSessions();
-		assert.strictEqual(sessions[0].title.get(), 'Newest Request Title');
-
-		await provider.renameChat(sessions[0].sessionId, resource, 'Renamed Title');
-		assert.strictEqual(executedCommand, 'github.copilot.cli.sessions.setTitle');
-		assert.strictEqual(sessions[0].title.get(), 'Renamed Title');
-
-		model.updateSession(resource, createMockAgentSession(resource, {
-			providerType: CopilotCLISessionType.id,
-			title: 'Request Derived Title',
-			createdAt: 2,
-		}));
-		model.updateSession(childResource, createMockAgentSession(childResource, {
-			providerType: CopilotCLISessionType.id,
-			title: 'Another Request Title',
-			createdAt: 1,
-			metadata: { repositoryPath: '/test/repo', sessionParentId: 'cli-session' }
-		}));
-
-		assert.strictEqual(provider.getSessions()[0].title.get(), 'Renamed Title');
 	});
 
 	test('renameChat throws for unsupported session type', async () => {
