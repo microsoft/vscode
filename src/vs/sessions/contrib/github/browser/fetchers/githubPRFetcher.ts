@@ -215,13 +215,16 @@ export class GitHubPRFetcher {
 		body: string,
 		inReplyTo: number,
 	): Promise<IGitHubPRComment> {
-		const data = await this._apiClient.request<IGitHubReviewCommentResponse>(
+		const response = await this._apiClient.request2<IGitHubReviewCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/comments`,
 			'githubApi.postReviewComment',
 			{ body, in_reply_to: inReplyTo },
 		);
-		return mapReviewComment(data);
+		if (!response.data) {
+			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
+		}
+		return mapReviewComment(response.data);
 	}
 
 	async postIssueComment(
@@ -230,12 +233,16 @@ export class GitHubPRFetcher {
 		prNumber: number,
 		body: string,
 	): Promise<IGitHubPRComment> {
-		const data = await this._apiClient.request<IGitHubIssueCommentResponse>(
+		const response = await this._apiClient.request2<IGitHubIssueCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/issues/${prNumber}/comments`,
 			'githubApi.postIssueComment',
 			{ body },
 		);
+		const data = response.data;
+		if (!data) {
+			throw new Error(`Failed to post issue comment to ${owner}/${repo}#${prNumber}`);
+		}
 		return {
 			id: data.id,
 			body: data.body ?? '',

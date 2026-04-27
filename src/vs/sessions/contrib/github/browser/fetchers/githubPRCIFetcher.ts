@@ -80,7 +80,7 @@ export class GitHubPRCIFetcher {
 	 * Rerun failed jobs in a GitHub Actions workflow run.
 	 */
 	async rerunFailedJobs(owner: string, repo: string, runId: number): Promise<void> {
-		await this._apiClient.request<void>(
+		await this._apiClient.request2<void>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/actions/runs/${runId}/rerun-failed-jobs`,
 			'githubApi.rerunFailedJobs'
@@ -98,23 +98,22 @@ export class GitHubPRCIFetcher {
 	 */
 	async getCheckRunAnnotations(owner: string, repo: string, checkRunId: number): Promise<string> {
 		const sections: string[] = [];
-		let detail: IGitHubCheckRunDetailResponse | undefined;
 
 		// 1. Fetch check run detail for output fields
 		try {
-			detail = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
+			const detailResponse = await this._apiClient.request2<IGitHubCheckRunDetailResponse>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}`,
 				'githubApi.getCheckRunAnnotations'
 			);
-			const output = detail.output;
-			if (output.title) {
+			const output = detailResponse.data?.output;
+			if (output?.title) {
 				sections.push(`# ${output.title}`);
 			}
-			if (output.summary) {
+			if (output?.summary) {
 				sections.push(output.summary);
 			}
-			if (output.text) {
+			if (output?.text) {
 				sections.push(output.text);
 			}
 		} catch {
@@ -123,12 +122,13 @@ export class GitHubPRCIFetcher {
 
 		// 2. Fetch annotations
 		try {
-			const annotations = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
+			const annotationsResponse = await this._apiClient.request2<readonly IGitHubCheckRunAnnotationResponse[]>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}/annotations`,
 				'githubApi.getCheckRunAnnotations.annotations'
 			);
-			if (annotations.length > 0) {
+			const annotations = annotationsResponse.data;
+			if (annotations && annotations.length > 0) {
 				sections.push(
 					annotations.map(a =>
 						`[${a.annotation_level}] ${a.path}:${a.start_line}${a.end_line !== a.start_line ? `-${a.end_line}` : ''} ${a.title ? `(${a.title}) ` : ''}${a.message}`
