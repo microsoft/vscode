@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill } from 'vscode';
+import type { ChatCustomAgent, ChatHook, ChatInstruction, ChatPlugin, ChatSkill, ChatSlashCommand } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Event } from '../../../util/vs/base/common/event';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -46,7 +46,7 @@ export interface IPromptsService {
 	 * Returns the slash command prompt files. These are prompts and skills
 	 * from all sources (workspace, user, and extension-provided).
 	 */
-	getSlashCommands(token: CancellationToken): Promise<readonly ParsedPromptFile[]>;
+	getSlashCommands(token: CancellationToken): Promise<readonly ChatSlashCommand[]>;
 
 	/**
 	 * An event that fires when the list of {@link instructions instructions} changes.

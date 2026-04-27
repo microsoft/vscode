@@ -26,6 +26,11 @@ jobs:
     steps:
       - template: ./common/checkout.yml@self
 
+      - pwsh: |
+          $hour = [DateTimeOffset]::UtcNow.ToString('HH')
+          Write-Host "##vso[task.setvariable variable=VSCODE_BUILD_HOUR]$hour"
+        displayName: Capture build hour (UTC)
+
       - task: NodeTool@0
         inputs:
           versionSource: fromFile
@@ -116,6 +121,8 @@ jobs:
 
       - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
         - script: node build/azure-pipelines/common/releaseBuild.ts
+          # Only release on the 05:00 and 17:00 UTC schedules (skip the 11:00 and 23:00 UTC schedules)
+          condition: and(succeeded(), or(eq(variables['VSCODE_BUILD_HOUR'], '05'), eq(variables['VSCODE_BUILD_HOUR'], '17')))
           env:
             PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
           displayName: Release build

@@ -18,7 +18,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
-import { isEqual } from '../../../util/vs/base/common/resources';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
@@ -30,7 +29,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	declare _serviceBrand: undefined;
 
 	private _sessionWorktrees: Map<string, string | ChatSessionWorktreeProperties> = new Map();
-
+	private readonly _onDidChangeWorktreeChanges = this._register(new vscode.EventEmitter<{ sessionId: string }>());
+	readonly onDidChangeWorktreeChanges = this._onDidChangeWorktreeChanges.event;
 	constructor(
 		@IAgentSessionsWorkspace private readonly agentSessionsWorkspace: IAgentSessionsWorkspace,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -178,33 +178,22 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		return branch;
 	}
 
-	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined>;
-	async getWorktreeProperties(sessionIdOrFolder: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> {
-		if (typeof sessionIdOrFolder === 'string') {
-			const properties = this._sessionWorktrees.get(sessionIdOrFolder);
-			if (properties !== undefined) {
-				return typeof properties === 'string' ? undefined : properties;
-			}
-			// Fall back to metadata store (file-based)
-			return this.metadataStore.getWorktreeProperties(sessionIdOrFolder);
-		} else {
-			for (const [_, value] of this._sessionWorktrees.entries()) {
-				if (typeof value === 'string') {
-					continue;
-				}
-				if (isEqual(vscode.Uri.file(value.worktreePath), sessionIdOrFolder)) {
-					return value;
-				}
-			}
-			// Fall back to metadata store (file-based)
-			return this.metadataStore.getWorktreeProperties(sessionIdOrFolder);
+	async getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined> {
+		const properties = this._sessionWorktrees.get(sessionId);
+		if (properties !== undefined) {
+			return typeof properties === 'string' ? undefined : properties;
 		}
+		// Fall back to metadata store (file-based)
+		return this.metadataStore.getWorktreeProperties(sessionId);
 	}
 
 	async setWorktreeProperties(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
 		this._sessionWorktrees.set(sessionId, properties);
 		await this.metadataStore.storeWorktreeInfo(sessionId, properties);
+		// If we're explicitly clearing the changes.
+		if ('changes' in properties && !properties.changes) {
+			this._onDidChangeWorktreeChanges.fire({ sessionId });
+		}
 	}
 
 	async getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {
@@ -318,6 +307,14 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		}
 	}
 
+	async hasCachedChanges(sessionId: string): Promise<boolean> {
+		const worktreeProperties = await this.getWorktreeProperties(sessionId);
+		if (!worktreeProperties || typeof worktreeProperties === 'string') {
+			return false;
+		}
+		return !!worktreeProperties.changes;
+	}
+
 	async getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined> {
 		const worktreeProperties = await this.getWorktreeProperties(sessionId);
 		if (!worktreeProperties || typeof worktreeProperties === 'string') {
@@ -387,18 +384,6 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 
 			return [];
 		}
-	}
-
-	async getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined> {
-		for (const [sessionId, value] of this._sessionWorktrees.entries()) {
-			if (typeof value === 'string') {
-				continue;
-			}
-			if (isEqual(vscode.Uri.file(value.worktreePath), folder)) {
-				return sessionId;
-			}
-		}
-		return this.metadataStore.getSessionIdForWorktree(folder);
 	}
 
 	async handleRequestCompleted(sessionId: string): Promise<void> {

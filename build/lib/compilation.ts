@@ -339,8 +339,18 @@ function generateApiProposalNames() {
 				'',
 			].join(eol);
 
+			const filePath = 'vs/platform/extensions/common/extensionsApiProposals.ts';
+			try {
+				const existing = fs.readFileSync(path.join('src', filePath), 'utf-8');
+				if (existing === contents) {
+					this.emit('end');
+					return;
+				}
+			} catch {
+				// File doesn't exist yet, emit it
+			}
 			this.emit('data', new File({
-				path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
+				path: filePath,
 				contents: Buffer.from(contents)
 			}));
 			this.emit('end');

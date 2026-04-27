@@ -13,7 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -49,13 +49,33 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private currentFocusableElements: readonly HTMLElement[] = [];
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
 	private _outcomeResolved = false;
+	private _isShowingWelcome = false;
+	private _isShowingSignIn = false;
+
+	/**
+	 * Whether the overlay is currently displaying the signed-in welcome
+	 * greeting (as opposed to the sign-in provider buttons). When `true`,
+	 * external callers should **not** auto-dismiss the overlay — the user
+	 * is expected to click "Get Started" to proceed.
+	 */
+	get isShowingWelcome(): boolean { return this._isShowingWelcome; }
+
+	/**
+	 * Whether the overlay is currently displaying the sign-in buttons.
+	 * Only `true` after the sign-in screen has been fully rendered —
+	 * deliberately `false` during the loading phase so that external
+	 * account resolution (e.g. VS Code signing in) cannot auto-dismiss
+	 * the overlay before the user has had a chance to interact.
+	 */
+	get isShowingSignIn(): boolean { return this._isShowingSignIn; }
 
 	/** Resolves when the user completes or dismisses the walkthrough. */
 	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => { this._resolveOutcome = resolve; });
 
 	constructor(
 		container: HTMLElement,
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		private readonly _isFirstLaunch: boolean,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -102,7 +122,49 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement = disclaimer.element;
 		this.disclaimerLinks = disclaimer.links;
 
-		this._renderSignIn();
+		// Set synchronously so the autorun in the contribution doesn't
+		// auto-dismiss before the async _renderSignIn completes.
+		// On first launch, optimistically assume signed in — the welcome
+		// screen renders the same regardless, and we update before painting.
+		if (this._isFirstLaunch) {
+			this._isShowingWelcome = true;
+		}
+
+		if (this._isFirstLaunch) {
+			// First launch: render a loading state while the default account resolves.
+			// Reading `currentDefaultAccount` synchronously here would always return null
+			// and cause us to render the sign-in screen for users who are actually signed in.
+			this._renderLoading();
+			this.defaultAccountService.getDefaultAccount().then(() => {
+				if (this._outcomeResolved) {
+					return;
+				}
+				this._isShowingWelcome = this._isSignedIn();
+				this._renderSignIn();
+			});
+		} else {
+			// Sign-out scenario (returning user who is now signed out): account is
+			// already known to be null, so render the sign-in screen immediately.
+			this._isShowingWelcome = false;
+			this._renderSignIn();
+		}
+	}
+
+	/**
+	 * Renders a centered animated agents icon as the loading state.
+	 * Used while the default account is being resolved on startup, before
+	 * the welcome content is rendered.
+	 */
+	private _renderLoading(): void {
+		this.contentContainer.textContent = '';
+		this.footerContainer.textContent = '';
+		this.disclaimerElement.classList.add('hidden');
+
+		const loadingIndicator = append(this.contentContainer, $('div.sessions-walkthrough-loading-indicator')) as HTMLElement;
+		loadingIndicator.setAttribute('role', 'status');
+		loadingIndicator.setAttribute('aria-busy', 'true');
+		loadingIndicator.setAttribute('aria-label', localize('walkthrough.loading', "Loading"));
+		append(loadingIndicator, $('div.sessions-walkthrough-logo.sessions-walkthrough-loading-icon'));
 	}
 
 	// ------------------------------------------------------------------
@@ -115,26 +177,37 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.footerContainer.textContent = '';
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
+		const productName = this.productService.nameLong;
+
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
 
 		append(layout, $('div.sessions-walkthrough-logo'));
 
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
-		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Agents")));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to continue with agent-powered development.")));
 
-		// If already signed in, finish immediately so the app can render.
-		if (this._isAlreadySetUp()) {
-			this.complete();
+		// First time + signed in → welcome greeting with "Get Started"
+		if (this._isFirstLaunch && this._isSignedIn()) {
+			this._renderWelcome(stepDisposables, right, productName);
 			return;
 		}
 
+		// Always show the welcome title/subtitle with sign-in buttons,
+		// whether it's the first launch or a returning user who is signed out.
+		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+
+		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
+	}
+
+	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
+		this._isShowingSignIn = true;
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.provider-github')) as HTMLButtonElement;
-		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Continue with GitHub")));
+		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Sign in with GitHub")));
 
 		// Desktop-only provider buttons
 		let providerButtons: HTMLButtonElement[];
@@ -202,14 +275,36 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private _isAlreadySetUp(): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		return !!(
-			sentiment?.installed &&
-			!sentiment?.disabled &&
-			entitlement !== ChatEntitlement.Available &&
-			!(entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.anonymous)
-		);
+	// ------------------------------------------------------------------
+	// Welcome (first launch + signed in)
+
+	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
+		this._isShowingWelcome = true;
+		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+
+		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+
+		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
+		const getStartedBtn = append(actions, $('button.sessions-walkthrough-get-started-btn')) as HTMLButtonElement;
+		getStartedBtn.textContent = localize('walkthrough.welcome.getStarted', "Get Started");
+		stepDisposables.add(addDisposableListener(getStartedBtn, EventType.CLICK, () => {
+			this._isShowingWelcome = false;
+			this.complete();
+		}));
+
+		this.currentFocusableElements = [getStartedBtn, ...this.disclaimerLinks];
+
+		disposableTimeout(() => {
+			if (this.overlay.isConnected) {
+				getStartedBtn.focus();
+			}
+		}, 0, stepDisposables);
+	}
+
+	private _isSignedIn(): boolean {
+		return this.defaultAccountService.currentDefaultAccount !== null;
 	}
 
 	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {

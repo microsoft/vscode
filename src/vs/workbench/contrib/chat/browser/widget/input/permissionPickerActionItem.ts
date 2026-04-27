@@ -17,7 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, SessionType } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -110,7 +110,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: `chat.permissions.ext.${sessionTypeSeg}.${groupSeg}.${sanitizeIdSegment(item.id)}`,
 						label: item.name,
-						description: item.description,
+						detail: item.description,
 						icon: item.icon,
 						checked: ext.selectedId === item.id,
 						enabled: !item.locked,
@@ -131,7 +131,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.default',
 						label: localize('permissions.default', "Default Approvals"),
-						description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+						detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default,
 						tooltip: '',
@@ -149,7 +149,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
-						description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+						detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
@@ -208,7 +208,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+						detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -275,11 +275,15 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				class: undefined,
 				enabled: true,
 				run: async () => {
-					await openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+					const ext = delegate.getExtensionPermissions?.();
+					const url = ext?.sessionType === SessionType.ClaudeCode
+						? 'https://code.claude.com/docs/en/permission-modes#available-modes'
+						: 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
+					await openerService.open(URI.parse(url));
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { descriptionBelow: true, minWidth: 255 },
+			listOptions: { minWidth: 255 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 

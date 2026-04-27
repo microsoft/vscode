@@ -21,9 +21,6 @@ import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ICrossAppIPCService } from '../../crossAppIpc/electron-main/crossAppIpcService.js';
-import { IProductService } from '../../product/common/productService.js';
-import { INodeProcess } from '../../../base/common/platform.js';
-import { getUserDataPath } from '../../environment/node/userDataPath.js';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -100,7 +97,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICrossAppIPCService private readonly crossAppIPCService: ICrossAppIPCService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -212,14 +208,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		// from APPLICATION to APPLICATION_SHARED scope:
 		// In VS Code: reuse the own application storage (keys are local)
 		let fallbackStorage: IStorageMain = this.applicationStorage;
-		if (this.environmentService.isBuilt && (process as INodeProcess).isEmbeddedApp) {
+		const hostUserRoamingDataHome = this.environmentService.hostUserRoamingDataHome;
+		if (hostUserRoamingDataHome) {
 			// - In the Agents App: create a storage backed by the host (VS Code)
 			//   app's application DB so keys are found even if VS Code hasn't
 			//   migrated them to the shared DB yet.
 			//   We use ProfileStorageMain (not ApplicationStorageMain) to avoid
 			//   writing telemetry state into the host app's DB — this is read-only.
-			const hostUserDataPath = getUserDataPath(this.environmentService.args, this.productService.quality === 'stable' ? 'Code' : this.productService.quality === 'insider' ? 'Code - Insiders' : 'Code - Exploration');
-			const hostApplicationStoragePath = join(hostUserDataPath, 'User', 'globalStorage', 'state.vscdb');
+			const hostApplicationStoragePath = join(hostUserRoamingDataHome.with({ scheme: Schemas.file }).fsPath, 'globalStorage', 'state.vscdb');
 			this.logService.info(`StorageMainService: creating application shared storage with host app fallback at '${hostApplicationStoragePath}'`);
 			fallbackStorage = this._register(new HostApplicationStorageMain(
 				hostApplicationStoragePath,
@@ -358,6 +354,8 @@ export const IApplicationStorageMainService = createDecorator<IStorageMainServic
  * A specialized `IStorageService` interface that only allows
  * access to the `StorageScope.APPLICATION` scope.
  */
+type ApplicationStorageScope = StorageScope.APPLICATION | StorageScope.APPLICATION_SHARED;
+
 export interface IApplicationStorageMainService extends IStorageService {
 
 	/**
@@ -373,24 +371,24 @@ export interface IApplicationStorageMainService extends IStorageService {
 	 */
 	readonly whenReady: Promise<void>;
 
-	get(key: string, scope: StorageScope.APPLICATION, fallbackValue: string): string;
-	get(key: string, scope: StorageScope.APPLICATION, fallbackValue?: string): string | undefined;
+	get(key: string, scope: ApplicationStorageScope, fallbackValue: string): string;
+	get(key: string, scope: ApplicationStorageScope, fallbackValue?: string): string | undefined;
 
-	getBoolean(key: string, scope: StorageScope.APPLICATION, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope.APPLICATION, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, scope: ApplicationStorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: ApplicationStorageScope, fallbackValue?: boolean): boolean | undefined;
 
-	getNumber(key: string, scope: StorageScope.APPLICATION, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope.APPLICATION, fallbackValue?: number): number | undefined;
+	getNumber(key: string, scope: ApplicationStorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: ApplicationStorageScope, fallbackValue?: number): number | undefined;
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope.APPLICATION, target: StorageTarget): void;
+	store(key: string, value: string | boolean | number | undefined | null, scope: ApplicationStorageScope, target: StorageTarget): void;
 
-	remove(key: string, scope: StorageScope.APPLICATION): void;
+	remove(key: string, scope: ApplicationStorageScope): void;
 
-	keys(scope: StorageScope.APPLICATION, target: StorageTarget): string[];
+	keys(scope: ApplicationStorageScope, target: StorageTarget): string[];
 
 	switch(): never;
 
-	isNew(scope: StorageScope.APPLICATION): boolean;
+	isNew(scope: ApplicationStorageScope): boolean;
 }
 
 export class ApplicationStorageMainService extends AbstractStorageService implements IApplicationStorageMainService {

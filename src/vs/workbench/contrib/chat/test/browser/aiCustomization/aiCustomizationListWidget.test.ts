@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -14,9 +13,10 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -131,35 +131,24 @@ suite('aiCustomizationListWidget', () => {
 		});
 	});
 
-	suite('dispose-during-async guards', () => {
+	suite('disposed widget', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
-		let fetchDeferred: DeferredPromise<ICustomizationItem[] | undefined>;
-		let fetchStarted: DeferredPromise<void>;
 
-		function createMockHarnessDescriptor(): IHarnessDescriptor {
-			return {
-				id: 'test',
-				label: 'Test',
-				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
-				itemProvider: {
-					onDidChange: Event.None,
-					provideChatSessionCustomizations: (_token: CancellationToken) => {
-						fetchStarted.complete();
-						return fetchDeferred.p;
-					},
-				},
-			};
-		}
+		const descriptor: IHarnessDescriptor = {
+			id: 'test',
+			label: 'Test',
+			icon: Codicon.settingsGear,
+			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: (_token: CancellationToken) => Promise.resolve(undefined),
+			},
+		};
 
 		setup(() => {
 			disposables = new DisposableStore();
-			fetchDeferred = new DeferredPromise();
-			fetchStarted = new DeferredPromise();
-			const descriptor = createMockHarnessDescriptor();
-
 			instaService = workbenchInstantiationService({}, disposables);
 
 			instaService.stub(IPromptsService, {
@@ -198,6 +187,7 @@ suite('aiCustomizationListWidget', () => {
 				setActiveHarness: () => { },
 				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => descriptor,
+				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
 			});
 
@@ -215,55 +205,24 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+
+			// The widget reads items from the items model; stub it with empty
+			// per-section observables. This avoids needing to wire up the full
+			// ProviderCustomizationItemSource pipeline in tests.
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => observableValue('test', [] as readonly never[]),
+				getCount: () => observableValue('test', 0),
+				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [] }),
+				getPromptsServiceItemProvider: () => ({ onDidChange: Event.None, provideChatSessionCustomizations: async () => undefined }),
+			});
 		});
 
-		teardown(() => {
-			// Resolve any pending deferred to avoid hanging promises.
-			if (!fetchDeferred.isSettled) {
-				fetchDeferred.complete(undefined);
-			}
-			disposables.dispose();
-		});
+		teardown(() => disposables.dispose());
 
-		test('refresh does not throw when disposed during loadItems', async () => {
+		test('generateDebugReport returns empty string when widget is disposed', async () => {
 			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			// Start refresh — loadItems will await fetchItemsForSection
-			// which blocks on our deferred
-			const refreshPromise = widget.refresh();
-
-			// Wait until the provider is actually called before disposing
-			await fetchStarted.p;
 			widget.dispose();
-
-			// Resolve the deferred — this should not cause an error
-			// because the disposal guard prevents updateAddButton() from running
-			fetchDeferred.complete(undefined);
-			await refreshPromise;
-		});
-
-		test('setSection does not throw when disposed during loadItems', async () => {
-			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			const setSectionPromise = widget.setSection(AICustomizationManagementSection.Instructions);
-
-			await fetchStarted.p;
-			widget.dispose();
-
-			fetchDeferred.complete(undefined);
-			await setSectionPromise;
-		});
-
-		test('generateDebugReport returns empty string when disposed during loadItems', async () => {
-			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
-
-			const reportPromise = widget.generateDebugReport();
-
-			await fetchStarted.p;
-			widget.dispose();
-
-			fetchDeferred.complete(undefined);
-			const result = await reportPromise;
+			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
 		});
 	});

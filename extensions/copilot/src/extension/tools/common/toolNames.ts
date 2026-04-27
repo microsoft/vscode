@@ -47,7 +47,8 @@ export enum ToolName {
 	FindTestFiles = 'test_search',
 	GetProjectSetupInfo = 'get_project_setup_info',
 	SearchViewResults = 'get_search_view_results',
-	GithubRepo = 'github_repo',
+	GithubSemanticRepoSearch = 'github_repo',
+	GithubTextSearch = 'github_text_search',
 	CreateDirectory = 'create_directory',
 	RunVscodeCmd = 'run_vscode_command',
 	CoreManageTodoList = 'manage_todo_list',
@@ -73,6 +74,7 @@ export enum ToolName {
 	ToolSearch = 'tool_search',
 	ResolveMemoryFileUri = 'resolve_memory_file_uri',
 	ExecutionSubagent = 'execution_subagent',
+	Skill = 'skill',
 	SessionStoreSql = 'session_store_sql',
 	CoreOpenBrowserPage = 'open_browser_page',
 	CoreClickElement = 'click_element',
@@ -132,7 +134,8 @@ export enum ContributedToolName {
 	FindTestFiles = 'copilot_findTestFiles',
 	GetProjectSetupInfo = 'copilot_getProjectSetupInfo',
 	SearchViewResults = 'copilot_getSearchResults',
-	GithubRepo = 'copilot_githubRepo',
+	GithubSemanticRepoSearch = 'copilot_githubRepo',
+	GithubTextSearch = 'copilot_githubTextSearch',
 	CreateAndRunTask = 'copilot_createAndRunTask',
 	CreateDirectory = 'copilot_createDirectory',
 	RunVscodeCmd = 'copilot_runVscodeCommand',
@@ -223,7 +226,8 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 
 	// Web Interaction
 	[ToolName.FetchWebPage]: ToolCategory.WebInteraction,
-	[ToolName.GithubRepo]: ToolCategory.WebInteraction,
+	[ToolName.GithubSemanticRepoSearch]: ToolCategory.WebInteraction,
+	[ToolName.GithubTextSearch]: ToolCategory.WebInteraction,
 	[ToolName.CoreOpenBrowserPage]: ToolCategory.WebInteraction,
 	[ToolName.CoreClickElement]: ToolCategory.WebInteraction,
 	[ToolName.CoreScreenshotPage]: ToolCategory.WebInteraction,
@@ -263,6 +267,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.Memory]: ToolCategory.VSCodeInteraction,
 	[ToolName.ToolSearch]: ToolCategory.Core,
 	[ToolName.ResolveMemoryFileUri]: ToolCategory.Core,
+	[ToolName.Skill]: ToolCategory.Core,
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
 

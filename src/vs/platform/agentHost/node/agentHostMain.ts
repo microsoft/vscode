@@ -9,12 +9,15 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
-import { AgentHostIpcChannels, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import * as inspector from 'inspector';
+import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -84,24 +87,29 @@ function startAgentHost(): void {
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
-		agentService = new AgentService(logService, fileService, sessionDataService, productService);
-		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
+		// Build the DI container early so the git service can be created via
+		// `createInstance` (it needs IFileService + INativeEnvironmentService).
 		const diServices = new ServiceCollection();
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		const instantiationService = new InstantiationService(diServices);
+		const gitService = instantiationService.createInstance(AgentHostGitService);
+		diServices.set(IAgentHostGitService, gitService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
+		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
-		const instantiationService = new InstantiationService(diServices);
-		diServices.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
@@ -147,6 +155,52 @@ function startAgentHost(): void {
 			logService.info(`[AgentHost] Dynamic WebSocket server listening on ${socketPath}`);
 			dynamicSocketInfo = { socketPath };
 			return dynamicSocketInfo;
+		},
+		async getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> {
+			let url = inspector.url();
+			if (!url && tryEnable) {
+				try {
+					inspector.open(0, '127.0.0.1', false);
+				} catch (err) {
+					logService.error('[AgentHost] Failed to open inspector', err);
+					return undefined;
+				}
+				url = inspector.url();
+			}
+			if (!url) {
+				return undefined;
+			}
+			// Inspector URL looks like: ws://host:port/uuid (host may be IPv6 in brackets)
+			try {
+				const parsedUrl = new URL(url);
+				if (parsedUrl.protocol !== 'ws:') {
+					logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+					return undefined;
+				}
+
+				const port = Number(parsedUrl.port);
+				const auth = parsedUrl.pathname.replace(/^\/+/, '');
+				if (!Number.isInteger(port) || !auth) {
+					logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+					return undefined;
+				}
+
+				const host = parsedUrl.hostname === '0.0.0.0'
+					? '127.0.0.1'
+					: parsedUrl.hostname === '::'
+						? '::1'
+						: parsedUrl.hostname;
+				const devtoolsHost = host.includes(':') ? `[${host}]` : host;
+
+				return {
+					host,
+					port,
+					devtoolsUrl: `devtools://devtools/bundled/js_app.html?v8only=true&ws=${devtoolsHost}:${parsedUrl.port}/${auth}`,
+				};
+			} catch {
+				logService.warn(`[AgentHost] Unexpected inspector URL: ${url}`);
+				return undefined;
+			}
 		},
 	};
 	const connectionTrackerChannel = ProxyChannel.fromService(connectionTrackerService, disposables);

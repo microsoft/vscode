@@ -102,12 +102,31 @@ import './fixtures.css';
 
 // Import color registrations to ensure colors are available
 import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
-import { AsyncSchedulerProcessor, TimeTravelScheduler } from '../../../../base/test/common/timeTravelScheduler.js';
+import { AsyncSchedulerProcessor, TimeTravelScheduler, captureGlobalTimeApi, createLoggingTimeApi, createVirtualTimeApi, overwriteGlobalTimeApi } from '../../../../base/test/common/timeTravelScheduler.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
 import '../../../../platform/theme/common/colors/miscColors.js';
 import '../../../common/theme.js';
+
+// eslint-disable-next-line local/code-import-patterns
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install({
+	environment: 'browser',
+	handleUncaughtExceptions: false,
+	retrieveSourceMap: (source: string) => {
+		const mapUrl = source + '.map';
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', mapUrl, false);
+			xhr.send();
+			if (xhr.status === 200) {
+				return { url: null as never, map: xhr.responseText };
+			}
+		} catch { }
+		return null;
+	},
+});
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -421,6 +440,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeDefaultAccount: new Emitter<null>().event,
 		onDidChangePolicyData: new Emitter<null>().event,
 		policyData: null,
+		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		getDefaultAccount: async () => null,
@@ -630,6 +650,15 @@ export interface ComponentFixtureOptions {
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 
+// Permanent logging layer that detects real timer API usage.
+// Includes handler source for identification since bundled stack traces are not useful.
+const realTimeApi = captureGlobalTimeApi();
+const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
+	const handlerStr = typeof handler === 'function' ? handler.toString().slice(0, 500) : String(handler);
+	console.warn(`[ComponentFixture] Real ${name} called outside of virtual time.\nHandler: ${handlerStr}\nStack: ${stack}`);
+});
+overwriteGlobalTimeApi(loggingTimeApi);
+
 /**
  * Creates Dark and Light fixture variants from a single render function.
  * The render function receives a context with container and disposableStore.
@@ -643,20 +672,22 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: theme === darkTheme ? 'dark' : 'light',
-		render: async (container: HTMLElement) => {
-			const disposableStore = new DisposableStore();
+		render: async (container: HTMLElement, context) => {
+			const disposableStore = context.addDisposable(new DisposableStore());
 
 			const schedulerStore = disposableStore.add(new DisposableStore());
 			const scheduler = new TimeTravelScheduler(Date.now());
 			const p = schedulerStore.add(new AsyncSchedulerProcessor(scheduler, {
 				maxTaskCount: 100,
+				realTimeApi,
 			}));
 
 			async function actualRender() {
 
 				setupTheme(container, theme);
 
-				schedulerStore.add(scheduler.installGlobally());
+				const virtualTimeApi = createVirtualTimeApi(scheduler, { fakeRequestAnimationFrame: true });
+				schedulerStore.add(overwriteGlobalTimeApi(virtualTimeApi));
 				disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
 					return scheduler.schedule({
 						time: scheduler.now,
@@ -676,7 +707,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 				const result = options.render({ container, disposableStore, theme });
 
-				const p2 = p.waitFor(1000);
+				const p2 = p.runForVirtualTimeMs(1000);
 
 				await Promise.all([
 					result instanceof Promise ? result : Promise.resolve(),
@@ -685,10 +716,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			}
 
 			await actualRender();
-
-			schedulerStore.dispose();
-
-			return disposableStore;
 		},
 	});
 

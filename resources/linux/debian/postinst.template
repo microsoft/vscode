@@ -29,12 +29,34 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	# Register apt repository
-	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d)
+	eval $(apt-config shell APT_SOURCE_PARTS Dir::Etc::sourceparts/d APT_SOURCES_LIST Dir::Etc::sourcelist/f)
 	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
 	CODE_SOURCE_PART_DEB822=${APT_SOURCE_PARTS}vscode.sources
 
 	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
 	CODE_TRUSTED_PART_OLD="/etc/apt/trusted.gpg.d/microsoft.gpg"
+
+	has_existing_repo_source() {
+		for source_file in "${APT_SOURCE_PARTS}"*.list "${APT_SOURCE_PARTS}"*.sources "$APT_SOURCES_LIST"; do
+			if [ ! -f "$source_file" ]; then
+				continue
+			fi
+
+			# Classic apt source list entry, for example:
+			# deb [arch=amd64] https://packages.microsoft.com/repos/code stable main
+			if grep -Eiq "^[[:space:]]*deb[[:space:]].*https://packages\\.microsoft\\.com/repos/code/?([[:space:]]|$)" "$source_file"; then
+				return 0
+			fi
+
+			# DEB822 source entry, for example:
+			# URIs: https://packages.microsoft.com/repos/code
+			if grep -Eiq "^[[:space:]]*URIs:[[:space:]]*https://packages\\.microsoft\\.com/repos/code/?([[:space:]]|$)" "$source_file"; then
+				return 0
+			fi
+		done
+
+		return 1
+	}
 
 	# RET seems to be true by default even after db_get is called on a first install.
 	RET='true'
@@ -54,6 +76,9 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
 		# The user is on the new DEB822 format, but refresh the file contents
 		WRITE_SOURCE='yes'
+	elif has_existing_repo_source; then
+		# Another source list file already maps to this repository
+		WRITE_SOURCE='no'
 	elif [ -f /etc/rpi-issue ]; then
 		# Do not write on Raspberry Pi OS
 		# https://github.com/microsoft/vscode/issues/118825

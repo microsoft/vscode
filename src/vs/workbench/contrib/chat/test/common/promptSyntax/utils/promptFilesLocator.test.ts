@@ -23,7 +23,7 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { getSourceDescription, PromptFileSource, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { hasGlobPattern, isValidGlob, isValidPromptFolderPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
@@ -2283,11 +2283,11 @@ suite('PromptFilesLocator', () => {
 					folders,
 					[
 						// defaults
-						'/Users/legomushroom/repos/vscode/.github/skills',
 						'/Users/legomushroom/repos/vscode/.agents/skills',
+						'/Users/legomushroom/repos/vscode/.github/skills',
 						'/Users/legomushroom/repos/vscode/.claude/skills',
-						'/Users/legomushroom/.copilot/skills',
 						'/Users/legomushroom/.agents/skills',
+						'/Users/legomushroom/.copilot/skills',
 						'/Users/legomushroom/.claude/skills',
 						// custom
 						'/Users/legomushroom/repos/vscode/custom-skills',
@@ -2820,6 +2820,143 @@ suite('PromptFilesLocator', () => {
 				['/Users/legomushroom/my-project'],
 				'Should only return the workspace folder when no .git is found in any parent',
 			);
+		});
+	});
+	suite('getHookSourceFolders', () => {
+		testT('returns source metadata for hook folders', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'.github/hooks': true,
+				'~/.copilot/hooks': true,
+				// disable Claude paths (which are filtered out anyway)
+				'.claude/settings.json': false,
+				'.claude/settings.local.json': false,
+				'~/.claude/settings.json': false,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, []);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const folders = await locator.getHookSourceFolders();
+
+			assert.deepStrictEqual(
+				folders.map(f => ({ path: f.uri.path, source: f.source, storage: f.storage })),
+				[
+					{ path: '/Users/legomushroom/repos/vscode/.github/hooks', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+					{ path: '/Users/legomushroom/.copilot/hooks', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
+				],
+			);
+		});
+
+		testT('excludes Claude paths', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'.github/hooks': true,
+				'.claude/settings.json': true,
+				'.claude/settings.local.json': true,
+				'~/.claude/settings.json': true,
+				'~/.copilot/hooks': true,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, []);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const folders = await locator.getHookSourceFolders();
+
+			// Claude paths should be filtered out
+			const paths = folders.map(f => f.uri.path);
+			assert.ok(!paths.some(p => p.includes('.claude')), 'Claude paths must be excluded');
+			assert.deepStrictEqual(paths, [
+				'/Users/legomushroom/repos/vscode/.github/hooks',
+				'/Users/legomushroom/.copilot/hooks',
+			]);
+		});
+	});
+
+	suite('listFiles with PromptsType.hook', () => {
+		testT('only returns targeted json files, not sibling json files', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'.claude/settings.json': true,
+				'.claude/settings.local.json': true,
+				'~/.claude/settings.json': true,
+				'.github/hooks': true,
+				'~/.copilot/hooks': true,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, [
+				// targeted files that should be found
+				{ path: '/Users/legomushroom/repos/vscode/.claude/settings.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/repos/vscode/.claude/settings.local.json', contents: ['{}'] },
+				// sibling files in .claude/ that should NOT be found
+				{ path: '/Users/legomushroom/repos/vscode/.claude/config.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/repos/vscode/.claude/stats-cache.json', contents: ['{}'] },
+				// hook directory files that should be found
+				{ path: '/Users/legomushroom/repos/vscode/.github/hooks/pre-commit.json', contents: ['{}'] },
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const files = await locator.listFiles(PromptsType.hook, PromptsStorage.local, CancellationToken.None);
+			assert.deepStrictEqual(
+				files.map(f => f.path).sort(),
+				[
+					'/Users/legomushroom/repos/vscode/.claude/settings.json',
+					'/Users/legomushroom/repos/vscode/.claude/settings.local.json',
+					'/Users/legomushroom/repos/vscode/.github/hooks/pre-commit.json',
+				],
+			);
+		});
+
+		testT('returns hook files from user home specific json paths', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'~/.claude/settings.json': true,
+				'~/.copilot/hooks': true,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, [
+				// targeted user file
+				{ path: '/Users/legomushroom/.claude/settings.json', contents: ['{}'] },
+				// sibling files that should NOT be found
+				{ path: '/Users/legomushroom/.claude/config.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/.claude/stats-cache.json', contents: ['{}'] },
+				// hook directory files
+				{ path: '/Users/legomushroom/.copilot/hooks/my-hook.json', contents: ['{}'] },
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const files = await locator.listFiles(PromptsType.hook, PromptsStorage.user, CancellationToken.None);
+			assert.deepStrictEqual(
+				files.map(f => f.path).sort(),
+				[
+					'/Users/legomushroom/.claude/settings.json',
+					'/Users/legomushroom/.copilot/hooks/my-hook.json',
+				],
+			);
+		});
+	});
+
+	suite('getSourceDescription', () => {
+		test('returns descriptions for all known folder sources', () => {
+			const folderSources: PromptFileSource[] = [
+				PromptFileSource.AgentsWorkspace,
+				PromptFileSource.AgentsPersonal,
+				PromptFileSource.GitHubWorkspace,
+				PromptFileSource.CopilotPersonal,
+				PromptFileSource.ClaudeWorkspace,
+				PromptFileSource.ClaudeWorkspaceLocal,
+				PromptFileSource.ClaudePersonal,
+				PromptFileSource.UserData,
+				PromptFileSource.ConfigWorkspace,
+				PromptFileSource.ConfigPersonal,
+			];
+
+			for (const source of folderSources) {
+				const description = getSourceDescription(source);
+				assert.ok(typeof description === 'string' && description.length > 0, `Expected a description for ${source}`);
+			}
+		});
+
+		test('returns undefined for extension/plugin sources', () => {
+			assert.strictEqual(getSourceDescription(PromptFileSource.ExtensionContribution), undefined);
+			assert.strictEqual(getSourceDescription(PromptFileSource.ExtensionAPI), undefined);
+			assert.strictEqual(getSourceDescription(PromptFileSource.Plugin), undefined);
 		});
 	});
 });

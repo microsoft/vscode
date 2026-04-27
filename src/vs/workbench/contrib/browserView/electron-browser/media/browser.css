@@ -88,13 +88,15 @@
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
+		padding: 2px;
+		gap: 2px;
 	}
 
 	.browser-zoom-pill {
 		display: none;
 		align-items: center;
 		gap: 2px;
-		margin: 0 2px;
+		margin: 0;
 		padding: 0 2px;
 		flex-shrink: 0;
 		border-radius: var(--vscode-cornerRadius-small);
@@ -113,10 +115,72 @@
 		}
 	}
 
+	.browser-link-opened-hint-pill {
+		display: none;
+		align-items: center;
+		gap: 4px;
+		margin: 0;
+		padding: 3px 4px;
+		flex-shrink: 0;
+		border-radius: 9999px;
+		border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+		background-color: var(--vscode-button-secondaryBackground);
+		color: var(--vscode-button-secondaryForeground);
+		font-size: 12px;
+		line-height: 1;
+		white-space: nowrap;
+		cursor: pointer;
+		overflow: hidden;
+		max-width: 14px;
+		transition: max-width 0.3s ease, padding 0.3s ease, background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+		position: relative;
+
+		&.attention {
+			border-color: var(--vscode-button-border, transparent);
+			background-color: var(--vscode-button-background);
+			color: var(--vscode-button-foreground);
+			max-width: 200px;
+			padding: 3px 6px;
+
+			span {
+				opacity: 1;
+			}
+
+			&:hover {
+				background-color: var(--vscode-button-hoverBackground);
+			}
+		}
+
+		&.visible {
+			display: flex;
+		}
+
+		&:hover {
+			background-color: var(--vscode-button-secondaryHoverBackground);
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 1px;
+		}
+
+		span {
+			opacity: 0;
+			transition: opacity 0.3s ease;
+		}
+
+		.codicon {
+			color: inherit;
+			font-size: 14px;
+			flex-shrink: 0;
+			opacity: 1;
+		}
+	}
+
 	.browser-share-toggle-container {
 		display: flex;
 		align-items: center;
-		margin: 2px 4px;
+		margin: 0;
 		flex-shrink: 0;
 
 		.browser-share-toggle {
@@ -480,8 +544,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 23px;
-		height: 23px;
+		width: 24px;
+		height: 24px;
 		border-radius: var(--vscode-cornerRadius-small);
 		cursor: pointer;
 		background-color: var(--vscode-statusBarItem-errorBackground);

@@ -13,6 +13,12 @@ const LOG_PREFIX = '[GitHubApiClient]';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 
+export interface IGitHubApiResponse<T> {
+	readonly data: T | undefined;
+	readonly statusCode: number;
+	readonly etag?: string;
+}
+
 interface IGitHubGraphQLError {
 	readonly message: string;
 }
@@ -52,6 +58,10 @@ export class GitHubApiClient extends Disposable {
 
 	async request<T>(method: string, path: string, callSite: string, body?: unknown): Promise<T> {
 		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body);
+	}
+
+	async request2<T>(method: string, path: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
+		return this._request2<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body, etag);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -126,6 +136,61 @@ export class GitHubApiClient extends Disposable {
 		}
 
 		return data;
+	}
+
+	private async _request2<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
+		const token = await this._getAuthToken();
+
+		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
+
+		const response = await this._requestService.request({
+			type: method,
+			url,
+			headers: {
+				'Authorization': `token ${token}`,
+				'Accept': accept,
+				'User-Agent': 'VSCode-Sessions-GitHub',
+				...(etag !== undefined ? { 'If-None-Match': etag } : {}),
+				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+			},
+			data: body !== undefined ? JSON.stringify(body) : undefined,
+			callSite
+		}, CancellationToken.None);
+
+		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
+		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
+			this._logService.warn(`${LOG_PREFIX} GitHub API rate limit low: ${rateLimitRemaining} remaining`);
+		}
+
+		const statusCode = response.res.statusCode ?? 0;
+		const responseETag = response.res.headers?.['etag'];
+
+		if (
+			statusCode === 204 /* No Content */ ||
+			statusCode === 304 /* Not Modified */
+		) {
+			return { data: undefined, statusCode, etag: responseETag };
+		}
+
+		if (statusCode < 200 || statusCode >= 300) {
+			const errorBody = await asJson<{ message?: string }>(response).catch(() => undefined);
+			throw new GitHubApiError(
+				errorBody?.message ?? `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`,
+				statusCode,
+				rateLimitRemaining,
+			);
+		}
+
+		const data = await asJson<T>(response);
+		if (!data) {
+			throw new GitHubApiError(
+				`Failed to parse response for ${method} ${pathForLogging}`,
+				statusCode,
+				rateLimitRemaining,
+			);
+		}
+
+		return { data, statusCode, etag: responseETag };
 	}
 
 	private async _getAuthToken(): Promise<string> {

@@ -7,17 +7,17 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { IActionEnvelope, ISessionAddedNotification } from '../../../common/state/sessionActions.js';
+import { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import type { ActionEnvelope, SessionAddedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
-	type IAhpNotification,
-	type IJsonRpcErrorResponse,
-	type IJsonRpcSuccessResponse,
+	type AhpNotification,
+	type JsonRpcErrorResponse,
+	type JsonRpcSuccessResponse,
 	type INotificationBroadcastParams,
-	type IProtocolMessage,
+	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -31,8 +31,8 @@ export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
-	private readonly _notifications: IAhpNotification[] = [];
-	private readonly _notifWaiters: { predicate: (n: IAhpNotification) => boolean; resolve: (n: IAhpNotification) => void; reject: (err: Error) => void }[] = [];
+	private readonly _notifications: AhpNotification[] = [];
+	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -52,16 +52,16 @@ export class TestProtocolClient {
 		});
 	}
 
-	private _handleMessage(msg: IProtocolMessage): void {
+	private _handleMessage(msg: ProtocolMessage): void {
 		if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingCalls.get(msg.id);
 			if (pending) {
 				this._pendingCalls.delete(msg.id);
-				const errResp = msg as IJsonRpcErrorResponse;
+				const errResp = msg as JsonRpcErrorResponse;
 				if (errResp.error) {
 					pending.reject(new Error(errResp.error.message));
 				} else {
-					pending.resolve((msg as IJsonRpcSuccessResponse).result);
+					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
 		} else if (isJsonRpcNotification(msg)) {
@@ -99,13 +99,13 @@ export class TestProtocolClient {
 	}
 
 	/** Wait for a server notification matching a predicate. */
-	waitForNotification(predicate: (n: IAhpNotification) => boolean, timeoutMs = 5000): Promise<IAhpNotification> {
+	waitForNotification(predicate: (n: AhpNotification) => boolean, timeoutMs = 5000): Promise<AhpNotification> {
 		const existing = this._notifications.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
 		}
 
-		return new Promise<IAhpNotification>((resolve, reject) => {
+		return new Promise<AhpNotification>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
 				if (idx >= 0) {
@@ -123,7 +123,7 @@ export class TestProtocolClient {
 	}
 
 	/** Return all received notifications matching a predicate. */
-	receivedNotifications(predicate?: (n: IAhpNotification) => boolean): IAhpNotification[] {
+	receivedNotifications(predicate?: (n: AhpNotification) => boolean): AhpNotification[] {
 		return predicate ? this._notifications.filter(predicate) : [...this._notifications];
 	}
 
@@ -271,16 +271,16 @@ export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
-export function isActionNotification(n: IAhpNotification, actionType: string): boolean {
+export function isActionNotification(n: AhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
 		return false;
 	}
-	const envelope = n.params as unknown as IActionEnvelope;
+	const envelope = n.params as unknown as ActionEnvelope;
 	return envelope.action.type === actionType;
 }
 
-export function getActionEnvelope(n: IAhpNotification): IActionEnvelope {
-	return n.params as unknown as IActionEnvelope;
+export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
+	return n.params as unknown as ActionEnvelope;
 }
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
@@ -292,9 +292,9 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 	);
-	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
 
-	await c.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
+	await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
 	c.clearReceived();
 
 	return realSessionUri;
