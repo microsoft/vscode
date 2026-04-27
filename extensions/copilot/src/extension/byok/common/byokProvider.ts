@@ -108,7 +108,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
-				adaptive_thinking: !!knownModelInfo?.adaptiveThinking
+				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,
 			limits: {
