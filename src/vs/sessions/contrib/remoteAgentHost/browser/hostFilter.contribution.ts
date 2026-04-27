@@ -16,7 +16,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentHostFilterService } from '../common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
-import { MobileHostFilterActionViewItem } from '../../../browser/parts/mobile/mobileHostFilterActionViewItem.js';
+import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
 
 /**
  * Context key that is `true` when at least one remote agent host is known

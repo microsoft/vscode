@@ -14,8 +14,8 @@ import { DisposableStore, MutableDisposable } from '../../../../base/common/life
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IAgentHostFilterService } from '../../../contrib/remoteAgentHost/common/agentHostFilter.js';
-import { HostFilterActionViewItem } from '../../../contrib/remoteAgentHost/browser/hostFilterActionViewItem.js';
+import { IAgentHostFilterService } from '../common/agentHostFilter.js';
+import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import './media/hostPickerDropdown.css';
 
 /**
@@ -64,7 +64,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// Append inside the workbench container so CSS theme variables are inherited.
 		// The workbench element sets all --vscode-* custom properties; rendering
 		// outside it (e.g. on document.body) leaves them undefined.
-		const workbenchContainer = targetDocument.body.querySelector('.monaco-workbench') as HTMLElement
+		const workbenchContainer = dom.findParentWithClass(this.element!, 'monaco-workbench')
 			?? targetDocument.body;
 
 		// --- Backdrop (transparent, dismiss on tap) ---
@@ -93,6 +93,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		panel.style.transform = 'translateX(-50%)';
 		panel.style.minWidth = `${Math.max(triggerRect.width, 200)}px`;
 
+		let firstItem: HTMLElement | undefined;
 		for (const host of hosts) {
 			const item = targetDocument.createElement('button');
 			item.className = 'host-picker-dropdown-item';
@@ -128,6 +129,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			disposables.add(dom.addDisposableListener(item, TouchEventType.Tap, selectHost));
 
 			panel.appendChild(item);
+			firstItem ??= item;
 		}
 
 		backdrop.appendChild(panel);
@@ -143,7 +145,6 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		}));
 
 		// Focus first item
-		const firstItem = panel.querySelector<HTMLElement>('.host-picker-dropdown-item');
 		firstItem?.focus();
 
 		let isDismissing = false;
