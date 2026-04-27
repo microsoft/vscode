@@ -483,8 +483,14 @@ export class PromptBody {
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
-					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
-					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
+					// Skip fragment-only links (e.g. [text](#anchor)) - these are intra-document anchors, not file references
+					const linkTarget = match[2];
+					const fragmentIndex = linkTarget.lastIndexOf('#');
+					const beforeFragment = fragmentIndex >= 0 ? linkTarget.substring(0, fragmentIndex) : linkTarget;
+					if (beforeFragment.length > 0) {
+						fileReferences.push({ content: linkTarget, range, isMarkdownLink: true });
+						markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
+					}
 				}
 				// Match #file:<filePath> and #tool:<toolName>
 				// Regarding the <toolName> pattern below, see also the variableReg regex in chatRequestParser.ts.
