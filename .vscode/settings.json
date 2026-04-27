@@ -2,7 +2,6 @@
 	// --- Chat ---
 	"inlineChat.enableV2": true,
 	"inlineChat.affordance": "editor",
-	"inlineChat.renderMode": "hover",
 	"chat.tools.terminal.autoApprove": {
 		"scripts/test.bat": true,
 		"scripts/test.sh": true,
@@ -12,7 +11,6 @@
 	"chat.tools.edits.autoApprove": {
 		".github/skills/azure-pipelines/azure-pipeline.ts": false
 	},
-	"chat.viewSessions.enabled": true,
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
@@ -46,6 +44,7 @@
 		".git": true,
 		".build": true,
 		".profile-oss": true,
+		"**/*.tsbuildinfo": true,
 		"**/.DS_Store": true,
 		".vscode-test": true,
 		"cli/target": true,
@@ -72,6 +71,7 @@
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
+		"src/vs/platform/agentHost/common/state/protocol/**": true,
 		"test/integration/browser/out/**": true,
 		// "src/vs/sessions/**": true
 	},
@@ -209,4 +209,9 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
+	"chat.agentSkillsLocations": {
+		".github/skills/.local": true,
+		".agents/skills/.local": true,
+		".claude/skills/.local": true,
+	}
 }

@@ -136,7 +136,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const menuBlock = document.createElement('div');
 		const block = element.appendChild(menuBlock);
 		block.classList.add('context-view-block');
-		renderDisposables.add(dom.addDisposableListener(block, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
 		// Invisible div to block mouse interaction with the menu
 		const pointerBlockDiv = document.createElement('div');
@@ -145,7 +145,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		// Removes block on click INSIDE widget or ANY mouse movement
 		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.MOUSE_DOWN, () => pointerBlock.remove()));
+		renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
 
 		// Action bar
 		let actionBarWidth = 0;
@@ -174,9 +174,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if focus moved to a hover that belongs to this action widget
+			// Don't hide if focus moved to a hover or submenu that belongs to this action widget
 			const activeElement = dom.getActiveElement();
-			if (activeElement?.closest('.action-widget-hover')) {
+			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel')) {
 				return;
 			}
 			this.hide(true);

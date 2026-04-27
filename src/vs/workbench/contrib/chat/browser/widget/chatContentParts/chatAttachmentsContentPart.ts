@@ -11,14 +11,16 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly modelId?: string;
 	readonly domNode?: HTMLElement;
 	readonly limit?: number;
 }
@@ -32,6 +34,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 	private _variables: readonly IChatRequestVariableEntry[];
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	private readonly modelId?: string;
 	private readonly limit?: number;
 	public readonly domNode: HTMLElement | undefined;
 
@@ -40,11 +43,13 @@ export class ChatAttachmentsContentPart extends Disposable {
 	constructor(
 		options: IChatAttachmentsContentPartOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatAttachmentWidgetRegistry private readonly chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 	) {
 		super();
 		this._variables = options.variables;
 		this.contentReferences = options.contentReferences ?? [];
+		this.modelId = options.modelId;
 		this.limit = options.limit;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
@@ -73,6 +78,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const visibleAttachments = this.getVisibleAttachments();
 		const hasMoreAttachments = this.limit && this._variables.length > this.limit && !this._showingAll;
 
+		this.markImageLimitExceeded(this._variables);
+
 		for (const attachment of visibleAttachments) {
 			this.renderAttachment(attachment, container);
 		}
@@ -87,6 +94,55 @@ export class ChatAttachmentsContentPart extends Disposable {
 			return this._variables;
 		}
 		return this._variables.slice(0, this.limit);
+	}
+
+	/**
+	 * When the total number of image attachments exceeds the model-specific
+	 * per-request limit, mark the oldest images (those dropped by the backend)
+	 * with {@link OmittedState.ImageLimitExceeded}.
+	 */
+	private markImageLimitExceeded(attachments: readonly IChatRequestVariableEntry[]): void {
+		const imageAttachments = attachments.filter(isImageVariableEntry);
+		const maxImagesPerRequest = this.getImageLimitForCurrentModel();
+
+		// If we can't determine the model's limit (e.g. historical request whose
+		// model is no longer available), leave existing ImageLimitExceeded flags
+		// alone so we don't lose information about images that were actually dropped.
+		if (maxImagesPerRequest === undefined) {
+			return;
+		}
+
+		if (imageAttachments.length <= maxImagesPerRequest) {
+			for (const attachment of imageAttachments) {
+				if (attachment.omittedState === OmittedState.ImageLimitExceeded) {
+					attachment.omittedState = OmittedState.NotOmitted;
+				}
+			}
+			return;
+		}
+
+		// The backend keeps the most-recent images, so mark the oldest ones as exceeded.
+		// Only overwrite NotOmitted or ImageLimitExceeded to avoid clobbering other states (e.g. Partial for GIFs).
+		const excessCount = imageAttachments.length - maxImagesPerRequest;
+		for (let i = 0; i < excessCount; i++) {
+			if (imageAttachments[i].omittedState === OmittedState.NotOmitted || imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
+				imageAttachments[i].omittedState = OmittedState.ImageLimitExceeded;
+			}
+		}
+
+		for (let i = excessCount; i < imageAttachments.length; i++) {
+			if (imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
+				imageAttachments[i].omittedState = OmittedState.NotOmitted;
+			}
+		}
+	}
+
+	private getImageLimitForCurrentModel(): number | undefined {
+		if (!this.modelId) {
+			return undefined;
+		}
+
+		return getImageAttachmentLimit(this.languageModelsService.lookupLanguageModel(this.modelId));
 	}
 
 	private renderShowMoreButton(container: HTMLElement) {

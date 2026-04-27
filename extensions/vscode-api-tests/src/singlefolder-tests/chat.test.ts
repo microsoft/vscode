@@ -10,6 +10,7 @@ import 'mocha';
 import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
+// TODO: this now became flaky with built-in copilot
 suite('chat', () => {
 
 	let disposables: Disposable[] = [];
@@ -60,6 +61,7 @@ suite('chat', () => {
 
 	test('participant and slash command history', async () => {
 		const onRequest = setupParticipant();
+		await commands.executeCommand('workbench.action.chat.newChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		const deferred = new DeferredPromise<void>();

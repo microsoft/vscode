@@ -90,7 +90,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const shellConfig = JSON.stringify({ shell, shellArgs });
+			const shellConfig = JSON.stringify({ shell, shellArgs, cwd: args.cwd });
 			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;

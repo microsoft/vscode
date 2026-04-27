@@ -261,6 +261,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		forceAutoUpdate: false,
 		private: !!metadata.private,
 		isWorkspaceScoped: false,
 		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource'),

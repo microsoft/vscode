@@ -142,6 +142,15 @@ suite('Annotations', function () {
 			assert.strictEqual(result.isEdit, true);
 		});
 
+		test('returns undefined for invalid URI content inside codeblock uri tag', () => {
+			// When content contains backticks and a colon, URI.parse extracts
+			// the text before the colon as the scheme. Backticks are illegal
+			// scheme characters, causing URI.parse to throw.
+			const invalidTag = '<vscode_codeblock_uri>```typescript\nconst uri: string\n```</vscode_codeblock_uri>';
+			const result = extractCodeblockUrisFromText(invalidTag);
+			assert.strictEqual(result, undefined);
+		});
+
 		test('round-trip encoding/decoding with special characters', () => {
 			const subAgentId = 'agent/with spaces&special=chars?more';
 			const uri = URI.parse('file:///path/to/file.ts');

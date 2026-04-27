@@ -85,6 +85,9 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 
+	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen on.") },
+	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen on.") },
+
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
 	'reconnection-grace-time': { type: 'string', cat: 'o', args: 'seconds', description: nls.localize('reconnection-grace-time', "Override the reconnection grace time window in seconds. Defaults to 10800 (3 hours).") },
@@ -214,6 +217,9 @@ export interface ServerParsedArgs {
 	'enable-remote-auto-shutdown'?: boolean;
 	'remote-auto-shutdown-without-delay'?: boolean;
 	'inspect-ptyhost'?: string;
+
+	'agent-host-port'?: string;
+	'agent-host-path'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;

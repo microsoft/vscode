@@ -6,8 +6,9 @@
 import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export interface IStreamingToolCallOptions {
@@ -27,13 +28,26 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public confirmationMessages: IToolConfirmationMessages | undefined;
 	public presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
+	public readonly icon?: ThemeIcon;
 	public source: ToolDataSource;
 	public readonly subAgentInvocationId: string | undefined;
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
+	public isAttachedToThinking: boolean = false;
 
-	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
+	private _toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
+	private readonly _toolSpecificDataKind = observableValue<string | undefined>(this, undefined);
+	public readonly toolSpecificDataKind: IObservable<string | undefined> = this._toolSpecificDataKind;
+
+	public get toolSpecificData() {
+		return this._toolSpecificData;
+	}
+
+	public set toolSpecificData(value: typeof this._toolSpecificData) {
+		this._toolSpecificData = value;
+		this._toolSpecificDataKind.set(value?.kind, undefined);
+	}
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
@@ -74,7 +88,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// For streaming invocations, use a default message until handleToolStream provides one
 		let defaultMessage: string | IMarkdownString = '';
 		if (startOptions.startInStreaming) {
-			defaultMessage = localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName);
+			defaultMessage = toolData.displayName;
 		} else if (startOptions.startInCancelled) {
 			defaultMessage = startOptions.cancelReasonMessage ?? localize('toolDeniedMessage', "Tool \"{0}\" was denied", toolData.displayName);
 		}
@@ -85,6 +99,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.presentation = preparedInvocation?.presentation;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
+		this.icon = preparedInvocation?.icon ?? (toolData.icon && ThemeIcon.isThemeIcon(toolData.icon) ? toolData.icon : undefined);
 		this.source = toolData.source;
 		this.subAgentInvocationId = subAgentInvocationId;
 		this.parameters = parameters;
@@ -160,6 +175,16 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return; // Only update in streaming state
 		}
 		this._streamingMessage.set(message, undefined);
+	}
+
+	/**
+	 * Notifies state observers that `toolSpecificData` has been mutated.
+	 * Since `toolSpecificData` isn't observable, this re-sets the internal
+	 * state to trigger autoruns that need to re-read tool metadata.
+	 */
+	public notifyToolSpecificDataChanged(): void {
+		const current = this._state.get();
+		this._state.set({ ...current }, undefined);
 	}
 
 	/**

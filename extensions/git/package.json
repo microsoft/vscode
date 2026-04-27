@@ -38,6 +38,7 @@
     "scmTextDocument",
     "scmValidation",
     "statusBarItemTooltip",
+    "taskRunOptions",
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
@@ -2769,7 +2770,7 @@
         {
           "command": "git.openChange",
           "group": "navigation@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges && !isSessionsWindow"
         },
         {
           "command": "git.stashApplyEditor",
@@ -2785,37 +2786,37 @@
         {
           "command": "git.stage",
           "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges && !isSessionsWindow"
         },
         {
           "command": "git.unstage",
           "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges && !isSessionsWindow"
         },
         {
           "command": "git.stage",
           "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         },
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         },
         {
           "command": "git.unstage",
           "group": "2_git@3",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git && !isSessionsWindow"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@4",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git && !isSessionsWindow"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@5",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         }
       ],
       "editor/context": [
@@ -3693,7 +3694,7 @@
         "git.detectWorktrees": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%config.detectWorktrees%"
         },
         "git.detectWorktreesLimit": {
@@ -3739,7 +3740,7 @@
             "%config.addAICoAuthor.all%"
           ],
           "scope": "resource",
-          "default": "off",
+          "default": "all",
           "description": "%config.addAICoAuthor%"
         },
         "git.ignoreSubmodules": {
@@ -4346,9 +4347,10 @@
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
     "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
-    "file-type": "16.5.4",
-    "picomatch": "2.3.1",
+    "file-type": "21.3.2",
+    "picomatch": "2.3.2",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"
   },

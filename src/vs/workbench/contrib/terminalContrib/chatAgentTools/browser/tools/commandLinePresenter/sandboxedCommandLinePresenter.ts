@@ -8,8 +8,9 @@ import type { ICommandLinePresenter, ICommandLinePresenterOptions, ICommandLineP
 
 /**
  * Command line presenter for sandboxed commands.
- * Extracts the original command from the sandbox wrapper for cleaner display,
- * while the actual sandboxed command runs unchanged.
+ * Returns the display form of the command (provided via {@link ICommandLineRewriterResult.forDisplay}
+ * from the rewriter pipeline) for cleaner presentation, while the actual sandboxed command runs
+ * unchanged.
  */
 export class SandboxedCommandLinePresenter implements ICommandLinePresenter {
 	constructor(
@@ -22,7 +23,7 @@ export class SandboxedCommandLinePresenter implements ICommandLinePresenter {
 			return undefined;
 		}
 		return {
-			commandLine: options.commandLine.original ?? options.commandLine.forDisplay,
+			commandLine: options.commandLine.forDisplay,
 			processOtherPresenters: true
 		};
 	}

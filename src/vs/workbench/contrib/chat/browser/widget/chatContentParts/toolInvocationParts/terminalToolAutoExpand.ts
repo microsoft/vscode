@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 
 /**
@@ -20,9 +19,14 @@ import { disposableTimeout } from '../../../../../../../base/common/async.js';
  */
 export interface ITerminalToolAutoExpandOptions {
 	/**
-	 * The command detection capability to listen for command events.
+	 * Event fired when a command starts executing.
 	 */
-	readonly commandDetection: ICommandDetectionCapability;
+	readonly onCommandExecuted: Event<unknown>;
+
+	/**
+	 * Event fired when a command finishes executing.
+	 */
+	readonly onCommandFinished: Event<unknown>;
 
 	/**
 	 * Event fired when data is received from the terminal.
@@ -74,9 +78,7 @@ export class TerminalToolAutoExpand extends Disposable {
 	private _setupListeners(): void {
 		const store = this._register(new DisposableStore());
 
-		const commandDetection = this._options.commandDetection;
-
-		store.add(commandDetection.onCommandExecuted(() => {
+		store.add(this._options.onCommandExecuted(() => {
 			// Auto-expand for long-running commands:
 			if (this._options.shouldAutoExpand() && !this._noDataTimeout) {
 				this._noDataTimeout = disposableTimeout(() => {
@@ -122,7 +124,7 @@ export class TerminalToolAutoExpand extends Disposable {
 			}
 		}));
 
-		store.add(commandDetection.onCommandFinished(() => {
+		store.add(this._options.onCommandFinished(() => {
 			this._commandFinished = true;
 			this._clearAutoExpandTimeouts();
 		}));

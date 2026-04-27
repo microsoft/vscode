@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatDebugShape, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from './extHost.protocol.js';
-import { ChatDebugMessageContentType, ChatDebugSubagentStatus, ChatDebugToolCallResult } from './extHostTypes.js';
+import { ChatDebugGenericEvent, ChatDebugHookResult, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent, ChatDebugEventHookContent } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShape {
@@ -20,6 +21,12 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 	private _nextHandle: number = 0;
 	/** Progress pipelines keyed by `${handle}:${sessionResource}` so multiple sessions can stream concurrently. */
 	private readonly _activeProgress = new Map<string, DisposableStore>();
+
+	private readonly _onDidAddCoreEvent = this._register(new Emitter<vscode.ChatDebugEvent>({
+		onWillAddFirstListener: () => this._proxy.$subscribeToCoreDebugEvents(),
+		onDidRemoveLastListener: () => this._proxy.$unsubscribeFromCoreDebugEvents(),
+	}));
+	readonly onDidAddCoreEvent = this._onDidAddCoreEvent.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -286,9 +293,141 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
 				};
 			}
+			case 'hookContent': {
+				const hk = result as unknown as ChatDebugEventHookContent;
+				return {
+					kind: 'hook',
+					hookType: hk.hookType,
+					command: hk.command,
+					result: hk.result === ChatDebugHookResult.Success ? 'success'
+						: hk.result === ChatDebugHookResult.Error ? 'error'
+							: hk.result === ChatDebugHookResult.NonBlockingError ? 'nonBlockingError'
+								: undefined,
+					durationInMillis: hk.durationInMillis,
+					input: hk.input,
+					output: hk.output,
+					exitCode: hk.exitCode,
+					errorMessage: hk.errorMessage,
+				};
+			}
 			default:
 				return undefined;
 		}
+	}
+
+	private _deserializeEvent(dto: IChatDebugEventDto): vscode.ChatDebugEvent | undefined {
+		const created = new Date(dto.created);
+		const sessionResource = dto.sessionResource ? URI.revive(dto.sessionResource) : undefined;
+		switch (dto.kind) {
+			case 'toolCall': {
+				const evt = new ChatDebugToolCallEvent(dto.toolName, created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.toolCallId = dto.toolCallId;
+				evt.input = dto.input;
+				evt.output = dto.output;
+				evt.result = dto.result === 'success' ? ChatDebugToolCallResult.Success
+					: dto.result === 'error' ? ChatDebugToolCallResult.Error
+						: undefined;
+				evt.durationInMillis = dto.durationInMillis;
+				return evt;
+			}
+			case 'modelTurn': {
+				const evt = new ChatDebugModelTurnEvent(created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.model = dto.model;
+				evt.inputTokens = dto.inputTokens;
+				evt.outputTokens = dto.outputTokens;
+				evt.totalTokens = dto.totalTokens;
+				evt.durationInMillis = dto.durationInMillis;
+				return evt;
+			}
+			case 'generic': {
+				const evt = new ChatDebugGenericEvent(dto.name, dto.level as ChatDebugLogLevel, created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.details = dto.details;
+				evt.category = dto.category;
+				return evt;
+			}
+			case 'subagentInvocation': {
+				const evt = new ChatDebugSubagentInvocationEvent(dto.agentName, created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.description = dto.description;
+				evt.status = dto.status === 'running' ? ChatDebugSubagentStatus.Running
+					: dto.status === 'completed' ? ChatDebugSubagentStatus.Completed
+						: dto.status === 'failed' ? ChatDebugSubagentStatus.Failed
+							: undefined;
+				evt.durationInMillis = dto.durationInMillis;
+				evt.toolCallCount = dto.toolCallCount;
+				evt.modelTurnCount = dto.modelTurnCount;
+				return evt;
+			}
+			case 'userMessage': {
+				const evt = new ChatDebugUserMessageEvent(dto.message, created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.sections = dto.sections.map(s => new ChatDebugMessageSection(s.name, s.content));
+				return evt;
+			}
+			case 'agentResponse': {
+				const evt = new ChatDebugAgentResponseEvent(dto.message, created);
+				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
+				evt.parentEventId = dto.parentEventId;
+				evt.sections = dto.sections.map(s => new ChatDebugMessageSection(s.name, s.content));
+				return evt;
+			}
+			default:
+				return undefined;
+		}
+	}
+
+	$onCoreDebugEvent(dto: IChatDebugEventDto): void {
+		const event = this._deserializeEvent(dto);
+		if (event) {
+			this._onDidAddCoreEvent.fire(event);
+		}
+	}
+
+	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, coreEventDtos: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined> {
+		if (!this._provider?.provideChatDebugLogExport) {
+			return undefined;
+		}
+		const sessionUri = URI.revive(sessionResource);
+		const coreEvents = coreEventDtos.map(dto => this._deserializeEvent(dto)).filter((e): e is vscode.ChatDebugEvent => e !== undefined);
+		const options: vscode.ChatDebugLogExportOptions = { coreEvents, sessionTitle };
+		const result = await this._provider.provideChatDebugLogExport(sessionUri, options, token);
+		if (!result) {
+			return undefined;
+		}
+		return VSBuffer.wrap(result);
+	}
+
+	async $importChatDebugLog(_handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined> {
+		if (!this._provider?.resolveChatDebugLogImport) {
+			return undefined;
+		}
+		const result = await this._provider.resolveChatDebugLogImport(data.buffer, token);
+		if (!result) {
+			return undefined;
+		}
+		return { uri: result.uri, sessionTitle: result.sessionTitle };
+	}
+
+	async $getAvailableDebugSessionResources(_handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]> {
+		if (!this._provider?.provideAvailableDebugSessionResources) {
+			return [];
+		}
+		const result = await this._provider.provideAvailableDebugSessionResources(token);
+		return result ?? [];
 	}
 
 	override dispose(): void {

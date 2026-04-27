@@ -279,6 +279,121 @@ const completionSpec: Fig.Spec = {
 							],
 						},
 						{
+							name: ['monitor'],
+							description: 'Monitor logs from a hosted agent container.',
+							options: [
+								{
+									name: ['--account-name', '-a'],
+									description: 'Cognitive Services account name',
+									args: [
+										{
+											name: 'account-name',
+										},
+									],
+								},
+								{
+									name: ['--follow', '-f'],
+									description: 'Stream logs in real-time',
+								},
+								{
+									name: ['--name', '-n'],
+									description: 'Name of the hosted agent (required)',
+									args: [
+										{
+											name: 'name',
+										},
+									],
+								},
+								{
+									name: ['--project-name', '-p'],
+									description: 'AI Foundry project name',
+									args: [
+										{
+											name: 'project-name',
+										},
+									],
+								},
+								{
+									name: ['--tail', '-l'],
+									description: 'Number of trailing log lines to fetch (1-300)',
+									args: [
+										{
+											name: 'tail',
+										},
+									],
+								},
+								{
+									name: ['--type', '-t'],
+									description: 'Type of logs: \'console\' (stdout/stderr) or \'system\' (container events)',
+									args: [
+										{
+											name: 'type',
+										},
+									],
+								},
+								{
+									name: ['--version', '-v'],
+									description: 'Version of the hosted agent (required)',
+									args: [
+										{
+											name: 'version',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['show'],
+							description: 'Show the status of a hosted agent deployment.',
+							options: [
+								{
+									name: ['--account-name', '-a'],
+									description: 'Cognitive Services account name',
+									args: [
+										{
+											name: 'account-name',
+										},
+									],
+								},
+								{
+									name: ['--name', '-n'],
+									description: 'Name of the hosted agent (required)',
+									args: [
+										{
+											name: 'name',
+										},
+									],
+								},
+								{
+									name: ['--output', '-o'],
+									description: 'Output format (json or table)',
+									args: [
+										{
+											name: 'output',
+										},
+									],
+								},
+								{
+									name: ['--project-name', '-p'],
+									description: 'AI Foundry project name',
+									args: [
+										{
+											name: 'project-name',
+										},
+									],
+								},
+								{
+									name: ['--version', '-v'],
+									description: 'Version of the hosted agent (required)',
+									args: [
+										{
+											name: 'version',
+										},
+									],
+								},
+							],
+						},
+						{
 							name: ['version'],
 							description: 'Prints the version of the application',
 						},
@@ -750,6 +865,363 @@ const completionSpec: Fig.Spec = {
 						},
 					],
 				},
+				{
+					name: ['models'],
+					description: 'Extension for managing custom models in Azure AI Foundry. (Preview)',
+					subcommands: [
+						{
+							name: ['custom'],
+							description: 'Manage custom models in Azure AI Foundry',
+							subcommands: [
+								{
+									name: ['create'],
+									description: 'Upload and register a custom model',
+									options: [
+										{
+											name: ['--azcopy-path'],
+											description: 'Path to azcopy binary (auto-detected if not provided)',
+											args: [
+												{
+													name: 'azcopy-path',
+												},
+											],
+										},
+										{
+											name: ['--base-model'],
+											description: 'Base model identifier (e.g., FW-GPT-OSS-120B or full azureml:// URI)',
+											args: [
+												{
+													name: 'base-model',
+												},
+											],
+										},
+										{
+											name: ['--blob-uri'],
+											description: 'Already-uploaded blob URI (skips upload, registers directly)',
+											args: [
+												{
+													name: 'blob-uri',
+												},
+											],
+										},
+										{
+											name: ['--description'],
+											description: 'Model description',
+											args: [
+												{
+													name: 'description',
+												},
+											],
+										},
+										{
+											name: ['--name', '-n'],
+											description: 'Model name (required)',
+											args: [
+												{
+													name: 'name',
+												},
+											],
+										},
+										{
+											name: ['--project-endpoint', '-e'],
+											description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+											args: [
+												{
+													name: 'project-endpoint',
+												},
+											],
+										},
+										{
+											name: ['--publisher'],
+											description: 'Model publisher ID for catalog info',
+											args: [
+												{
+													name: 'publisher',
+												},
+											],
+										},
+										{
+											name: ['--source'],
+											description: 'Local path or remote URL to model files',
+											args: [
+												{
+													name: 'source',
+												},
+											],
+										},
+										{
+											name: ['--source-file'],
+											description: 'Path to a file containing the source URL (useful for URLs with special characters)',
+											args: [
+												{
+													name: 'source-file',
+												},
+											],
+										},
+										{
+											name: ['--subscription', '-s'],
+											description: 'Azure subscription ID',
+											args: [
+												{
+													name: 'subscription',
+												},
+											],
+										},
+										{
+											name: ['--version'],
+											description: 'Model version',
+											args: [
+												{
+													name: 'version',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['delete'],
+									description: 'Delete a custom model',
+									options: [
+										{
+											name: ['--force', '-f'],
+											description: 'Skip confirmation prompt',
+											isDangerous: true,
+										},
+										{
+											name: ['--name', '-n'],
+											description: 'Model name (required)',
+											args: [
+												{
+													name: 'name',
+												},
+											],
+										},
+										{
+											name: ['--project-endpoint', '-e'],
+											description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+											args: [
+												{
+													name: 'project-endpoint',
+												},
+											],
+										},
+										{
+											name: ['--subscription', '-s'],
+											description: 'Azure subscription ID',
+											args: [
+												{
+													name: 'subscription',
+												},
+											],
+										},
+										{
+											name: ['--version'],
+											description: 'Model version',
+											args: [
+												{
+													name: 'version',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['list'],
+									description: 'List all custom models',
+									options: [
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (table, json)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--project-endpoint', '-e'],
+											description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+											args: [
+												{
+													name: 'project-endpoint',
+												},
+											],
+										},
+										{
+											name: ['--subscription', '-s'],
+											description: 'Azure subscription ID',
+											args: [
+												{
+													name: 'subscription',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['show'],
+									description: 'Show details of a custom model',
+									options: [
+										{
+											name: ['--name', '-n'],
+											description: 'Model name (required)',
+											args: [
+												{
+													name: 'name',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (table, json)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--project-endpoint', '-e'],
+											description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+											args: [
+												{
+													name: 'project-endpoint',
+												},
+											],
+										},
+										{
+											name: ['--subscription', '-s'],
+											description: 'Azure subscription ID',
+											args: [
+												{
+													name: 'subscription',
+												},
+											],
+										},
+										{
+											name: ['--version'],
+											description: 'Model version',
+											args: [
+												{
+													name: 'version',
+												},
+											],
+										},
+									],
+								},
+							],
+							options: [
+								{
+									name: ['--project-endpoint', '-e'],
+									description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+									args: [
+										{
+											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--subscription', '-s'],
+									description: 'Azure subscription ID',
+									args: [
+										{
+											name: 'subscription',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['init'],
+							description: 'Initialize a new AI models project. (Preview)',
+							options: [
+								{
+									name: ['--environment', '-n'],
+									description: 'The name of the azd environment to use',
+									args: [
+										{
+											name: 'environment',
+										},
+									],
+								},
+								{
+									name: ['--project-endpoint', '-e'],
+									description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
+									args: [
+										{
+											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--project-resource-id', '-p'],
+									description: 'ARM resource ID of the Foundry project',
+									args: [
+										{
+											name: 'project-resource-id',
+										},
+									],
+								},
+								{
+									name: ['--subscription', '-s'],
+									description: 'Azure subscription ID',
+									args: [
+										{
+											name: 'subscription',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['version'],
+							description: 'Prints the version of the application',
+						},
+					],
+				},
+			],
+		},
+		{
+			name: ['appservice'],
+			description: 'Extension for managing Azure App Service resources.',
+			subcommands: [
+				{
+					name: ['swap'],
+					description: 'Swap deployment slots for an App Service.',
+					options: [
+						{
+							name: ['--dst'],
+							description: 'The destination slot name. Use @main for production.',
+							args: [
+								{
+									name: 'dst',
+								},
+							],
+						},
+						{
+							name: ['--service'],
+							description: 'The name of the service to swap slots for.',
+							args: [
+								{
+									name: 'service',
+								},
+							],
+						},
+						{
+							name: ['--src'],
+							description: 'The source slot name. Use @main for production.',
+							args: [
+								{
+									name: 'src',
+								},
+							],
+						},
+					],
+				},
+				{
+					name: ['version'],
+					description: 'Display the version of the extension.',
+				},
 			],
 		},
 		{
@@ -1001,8 +1473,26 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: ['demo'],
-			description: 'This extension provides examples of the AZD extension framework.',
+			description: 'This extension provides examples of the azd extension framework.',
 			subcommands: [
+				{
+					name: ['ai'],
+					description: 'Interactive AI model discovery, deployment, and quota demos.',
+					subcommands: [
+						{
+							name: ['deployment'],
+							description: 'Select model/version/SKU/capacity and resolve a valid deployment configuration.',
+						},
+						{
+							name: ['models'],
+							description: 'Browse available AI models interactively.',
+						},
+						{
+							name: ['quota'],
+							description: 'View usage meters and limits for a selected location.',
+						},
+					],
+				},
 				{
 					name: ['colors', 'colours'],
 					description: 'Displays all ASCII colors with their standard and high-intensity variants.',
@@ -1013,7 +1503,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['context'],
-					description: 'Get the context of the AZD project & environment.',
+					description: 'Get the context of the azd project & environment.',
 				},
 				{
 					name: ['gh-url-parse'],
@@ -1226,7 +1716,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--subscription'],
-							description: 'Name or ID of an Azure subscription to use for the new environment',
+							description: 'ID of an Azure subscription to use for the new environment',
 							args: [
 								{
 									name: 'subscription',
@@ -1493,6 +1983,19 @@ const completionSpec: Fig.Spec = {
 								name: 'name',
 							},
 						},
+						{
+							name: ['validate'],
+							description: 'Validate an extension source\'s registry.json file.',
+							options: [
+								{
+									name: ['--strict'],
+									description: 'Enable strict validation (require checksums)',
+								},
+							],
+							args: {
+								name: 'name-or-path-or-url',
+							},
+						},
 					],
 				},
 				{
@@ -1683,7 +2186,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['--subscription', '-s'],
-					description: 'Name or ID of an Azure subscription to use for the new environment',
+					description: 'ID of an Azure subscription to use for the new environment',
 					args: [
 						{
 							name: 'subscription',
@@ -1692,7 +2195,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['--template', '-t'],
-					description: 'Initializes a new application from a template. You can use Full URI, <owner>/<repository>, or <repository> if it\'s part of the azure-samples organization.',
+					description: 'Initializes a new application from a template. You can use a Full URI, <owner>/<repository>, <repository> if it\'s part of the azure-samples organization, or a local directory path (./dir, ../dir, or absolute path).',
 					args: [
 						{
 							name: 'template',
@@ -2060,12 +2563,30 @@ const completionSpec: Fig.Spec = {
 					],
 				},
 				{
+					name: ['--location', '-l'],
+					description: 'Azure location for the new environment',
+					args: [
+						{
+							name: 'location',
+						},
+					],
+				},
+				{
 					name: ['--no-state'],
 					description: '(Bicep only) Forces a fresh deployment based on current Bicep template files, ignoring any stored deployment state.',
 				},
 				{
 					name: ['--preview'],
 					description: 'Preview changes to Azure resources.',
+				},
+				{
+					name: ['--subscription'],
+					description: 'ID of an Azure subscription to use for the new environment',
+					args: [
+						{
+							name: 'subscription',
+						},
+					],
 				},
 			],
 			args: {
@@ -2267,6 +2788,24 @@ const completionSpec: Fig.Spec = {
 						},
 					],
 				},
+				{
+					name: ['--location', '-l'],
+					description: 'Azure location for the new environment',
+					args: [
+						{
+							name: 'location',
+						},
+					],
+				},
+				{
+					name: ['--subscription'],
+					description: 'ID of an Azure subscription to use for the new environment',
+					args: [
+						{
+							name: 'subscription',
+						},
+					],
+				},
 			],
 		},
 		{
@@ -2275,7 +2814,7 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: ['x'],
-			description: 'This extension provides a set of tools for AZD extension developers to test and debug their extensions.',
+			description: 'This extension provides a set of tools for azd extension developers to test and debug their extensions.',
 			subcommands: [
 				{
 					name: ['build'],
@@ -2302,7 +2841,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['init'],
-					description: 'Initialize a new AZD extension project',
+					description: 'Initialize a new azd extension project',
 					options: [
 						{
 							name: ['--capabilities'],
@@ -2506,7 +3045,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['watch'],
-					description: 'Watches the AZD extension project for file changes and rebuilds it.',
+					description: 'Watches the azd extension project for file changes and rebuilds it.',
 				},
 			],
 		},
@@ -2529,6 +3068,14 @@ const completionSpec: Fig.Spec = {
 								{
 									name: ['init'],
 									description: 'Initialize a new AI agent project. (Preview)',
+								},
+								{
+									name: ['monitor'],
+									description: 'Monitor logs from a hosted agent container.',
+								},
+								{
+									name: ['show'],
+									description: 'Show the status of a hosted agent deployment.',
 								},
 								{
 									name: ['version'],
@@ -2583,6 +3130,56 @@ const completionSpec: Fig.Spec = {
 									description: 'Prints the version of the application',
 								},
 							],
+						},
+						{
+							name: ['models'],
+							description: 'Extension for managing custom models in Azure AI Foundry. (Preview)',
+							subcommands: [
+								{
+									name: ['custom'],
+									description: 'Manage custom models in Azure AI Foundry',
+									subcommands: [
+										{
+											name: ['create'],
+											description: 'Upload and register a custom model',
+										},
+										{
+											name: ['delete'],
+											description: 'Delete a custom model',
+										},
+										{
+											name: ['list'],
+											description: 'List all custom models',
+										},
+										{
+											name: ['show'],
+											description: 'Show details of a custom model',
+										},
+									],
+								},
+								{
+									name: ['init'],
+									description: 'Initialize a new AI models project. (Preview)',
+								},
+								{
+									name: ['version'],
+									description: 'Prints the version of the application',
+								},
+							],
+						},
+					],
+				},
+				{
+					name: ['appservice'],
+					description: 'Extension for managing Azure App Service resources.',
+					subcommands: [
+						{
+							name: ['swap'],
+							description: 'Swap deployment slots for an App Service.',
+						},
+						{
+							name: ['version'],
+							description: 'Display the version of the extension.',
 						},
 					],
 				},
@@ -2694,8 +3291,26 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['demo'],
-					description: 'This extension provides examples of the AZD extension framework.',
+					description: 'This extension provides examples of the azd extension framework.',
 					subcommands: [
+						{
+							name: ['ai'],
+							description: 'Interactive AI model discovery, deployment, and quota demos.',
+							subcommands: [
+								{
+									name: ['deployment'],
+									description: 'Select model/version/SKU/capacity and resolve a valid deployment configuration.',
+								},
+								{
+									name: ['models'],
+									description: 'Browse available AI models interactively.',
+								},
+								{
+									name: ['quota'],
+									description: 'View usage meters and limits for a selected location.',
+								},
+							],
+						},
 						{
 							name: ['colors', 'colours'],
 							description: 'Displays all ASCII colors with their standard and high-intensity variants.',
@@ -2706,7 +3321,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['context'],
-							description: 'Get the context of the AZD project & environment.',
+							description: 'Get the context of the azd project & environment.',
 						},
 						{
 							name: ['gh-url-parse'],
@@ -2835,6 +3450,10 @@ const completionSpec: Fig.Spec = {
 								{
 									name: ['remove'],
 									description: 'Remove an extension source with the specified name',
+								},
+								{
+									name: ['validate'],
+									description: 'Validate an extension source\'s registry.json file.',
 								},
 							],
 						},
@@ -2976,7 +3595,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['x'],
-					description: 'This extension provides a set of tools for AZD extension developers to test and debug their extensions.',
+					description: 'This extension provides a set of tools for azd extension developers to test and debug their extensions.',
 					subcommands: [
 						{
 							name: ['build'],
@@ -2984,7 +3603,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['init'],
-							description: 'Initialize a new AZD extension project',
+							description: 'Initialize a new azd extension project',
 						},
 						{
 							name: ['pack'],
@@ -3004,7 +3623,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['watch'],
-							description: 'Watches the AZD extension project for file changes and rebuilds it.',
+							description: 'Watches the azd extension project for file changes and rebuilds it.',
 						},
 					],
 				},

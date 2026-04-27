@@ -5,8 +5,8 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
 import { PromptsStorage } from '../service/promptsService.js';
 
 /**
@@ -116,11 +116,6 @@ export namespace PromptsConfig {
 	export const USE_CLAUDE_HOOKS = 'chat.useClaudeHooks';
 
 	/**
-	 * Configuration key for enabling hooks defined in custom agent frontmatter.
-	 */
-	export const USE_CUSTOM_AGENT_HOOKS = 'chat.useCustomAgentHooks';
-
-	/**
 	 * Configuration key for enabling stronger skill adherence prompt (experimental).
 	 */
 	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
@@ -134,6 +129,11 @@ export namespace PromptsConfig {
 	 * Configuration key for including referenced instructions.
 	 */
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+
+	/**
+	 * Search for configuration files in parent repositories of the workspace folder
+	 */
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
@@ -198,7 +198,7 @@ export namespace PromptsConfig {
 
 				// determine location type in the general case
 				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
-				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigWorkspace : PromptFileSource.ConfigPersonal, storage });
 			}
 
 			return paths;

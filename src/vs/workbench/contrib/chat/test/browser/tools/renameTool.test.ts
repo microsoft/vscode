@@ -12,10 +12,13 @@ import { RenameProvider, WorkspaceEdit, Rejection } from '../../../../../../edit
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
-import { RenameTool, RenameToolId } from '../../../browser/tools/renameTool.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { RenameTool } from '../../../browser/tools/renameTool.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -100,13 +103,19 @@ suite('RenameTool', () => {
 	const noopCountTokens = async () => 0;
 	const noopProgress: ToolProgress = { report() { } };
 
-	function createTool(textModelService: ITextModelService, options?: { bulkEditService?: IBulkEditService }): RenameTool {
+	function createMockLanguageService(): ILanguageService {
+		return { getLanguageName: (id: string) => id } as unknown as ILanguageService;
+	}
+
+	function createTool(textModelService: ITextModelService, options?: { bulkEditService?: IBulkEditService; configurationService?: TestConfigurationService }): RenameTool {
 		return new RenameTool(
 			langFeatures,
+			createMockLanguageService(),
 			textModelService,
 			createMockWorkspaceService(),
 			createMockChatService(),
 			options?.bulkEditService ?? createMockBulkEditService(),
+			options?.configurationService ?? new TestConfigurationService(),
 		);
 	}
 
@@ -124,9 +133,7 @@ suite('RenameTool', () => {
 
 		test('reports no providers when none registered', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(null!)));
-			const data = tool.getToolData();
-			assert.strictEqual(data.id, RenameToolId);
-			assert.ok(data.modelDescription.includes('No languages currently have rename providers'));
+			assert.strictEqual(tool.getToolData(), undefined);
 		});
 
 		test('lists registered language ids', () => {
@@ -136,7 +143,7 @@ suite('RenameTool', () => {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('typescript'));
+			assert.ok(data?.modelDescription.includes('typescript'));
 		});
 
 		test('reports all languages for wildcard', () => {
@@ -145,7 +152,56 @@ suite('RenameTool', () => {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('all languages'));
+			assert.ok(data?.modelDescription.includes('all languages'));
+		});
+
+		suite('cache-stable mode', () => {
+			function createCacheStableTool(textModelService: ITextModelService) {
+				const configurationService = new TestConfigurationService();
+				configurationService.setUserConfiguration(ChatConfiguration.SymbolToolsCacheStable, true);
+				return disposables.add(createTool(textModelService, { configurationService }));
+			}
+
+			test('returns tool data even when no providers are registered', () => {
+				const tool = createCacheStableTool(createMockTextModelService(null!));
+				const data = tool.getToolData();
+				assert.ok(data, 'expected getToolData() to return data with no providers registered');
+			});
+
+			test('description does not include a per-language list', () => {
+				const model = disposables.add(createTextModel('', 'typescript', undefined, testUri));
+				const tool = createCacheStableTool(createMockTextModelService(model));
+				disposables.add(langFeatures.renameProvider.register('typescript', {
+					provideRenameEdits: () => ({ edits: [] }),
+				}));
+				const data = tool.getToolData();
+				assert.ok(data, 'expected getToolData() to return data');
+				assert.ok(!data!.modelDescription.includes('Currently supported for'),
+					`expected modelDescription to not list languages, got: ${data!.modelDescription}`);
+				assert.ok(!data!.modelDescription.includes('typescript'),
+					'expected modelDescription to not include any specific language id');
+				assert.ok(!data!.modelDescription.includes('all languages'),
+					'expected modelDescription to not mention "all languages"');
+			});
+
+			test('description is identical regardless of which providers are registered', () => {
+				const tool1 = createCacheStableTool(createMockTextModelService(null!));
+				const data1 = tool1.getToolData();
+
+				const model = disposables.add(createTextModel('', 'typescript', undefined, testUri));
+				const tool2 = createCacheStableTool(createMockTextModelService(model));
+				disposables.add(langFeatures.renameProvider.register('typescript', {
+					provideRenameEdits: () => ({ edits: [] }),
+				}));
+				disposables.add(langFeatures.renameProvider.register('python', {
+					provideRenameEdits: () => ({ edits: [] }),
+				}));
+				const data2 = tool2.getToolData();
+
+				assert.ok(data1 && data2);
+				assert.strictEqual(data1!.modelDescription, data2!.modelDescription,
+					'expected modelDescription to be byte-stable across provider registrations');
+			});
 		});
 	});
 

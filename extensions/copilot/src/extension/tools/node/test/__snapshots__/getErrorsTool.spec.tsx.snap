@@ -1,0 +1,171 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - diagnostic on empty line is still reported 1`] = `
+"<errors path="/test/workspace/emptyLineError.ts">
+At line 3
+has the problem reported:
+<compileError>
+Syntax error, '}' expected.
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - filePath with no diagnostics still has a <errors> entry 1`] = `
+"<errors path="/test/workspace/src/noErrorFile.ts">
+No errors found
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - filePath with range has a <compileError> entry 1`] = `
+"<errors path="/test/workspace/eslint/eslint_unexpected_constant_condition_1.ts">
+This code at line 2
+\`\`\`
+  console.log("This is a constant condition");
+\`\`\`
+has the problem reported:
+<compileError>
+Unexpected constant condition.
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - with filePath and range filters diagnostics to that range 1`] = `
+"<errors path="/test/workspace/src/file1.ts">
+This code at line 2
+\`\`\`
+  const x = 1;
+\`\`\`
+has the problem reported:
+<compileError>
+Variable is declared but never used
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - with folder path includes diagnostics from contained files 1`] = `
+"<errors path="/test/workspace/src/file1.ts">
+This code at line 2
+\`\`\`
+  const x = 1;
+\`\`\`
+has the problem reported:
+<compileError>
+Variable is declared but never used
+</compileError>
+This code at line 1
+\`\`\`
+function test() {
+\`\`\`
+has the problem reported:
+<compileError>
+Missing return type annotation
+</compileError>
+
+</errors>
+<errors path="/test/workspace/src/file2.ts">
+This code at line 3
+\`\`\`
+  age: number;
+\`\`\`
+has the problem reported:
+<compileError>
+Property age should be optional
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - with no filePaths aggregates all diagnostics and formats workspace message 1`] = `
+"<errors path="/test/workspace/src/file1.ts">
+This code at line 2
+\`\`\`
+  const x = 1;
+\`\`\`
+has the problem reported:
+<compileError>
+Variable is declared but never used
+</compileError>
+This code at line 1
+\`\`\`
+function test() {
+\`\`\`
+has the problem reported:
+<compileError>
+Missing return type annotation
+</compileError>
+
+</errors>
+<errors path="/test/workspace/src/file2.ts">
+This code at line 3
+\`\`\`
+  age: number;
+\`\`\`
+has the problem reported:
+<compileError>
+Property age should be optional
+</compileError>
+
+</errors>
+<errors path="/test/workspace/lib/file.js">
+This code at line 2
+\`\`\`
+  var y = 2;
+\`\`\`
+has the problem reported:
+<compileError>
+Use const instead of var
+</compileError>
+
+</errors>
+<errors path="/test/workspace/eslint/eslint_unexpected_constant_condition_1.ts">
+This code at line 2
+\`\`\`
+  console.log("This is a constant condition");
+\`\`\`
+has the problem reported:
+<compileError>
+Unexpected constant condition.
+</compileError>
+
+</errors>
+<errors path="/test/workspace/emptyLineError.ts">
+At line 3
+has the problem reported:
+<compileError>
+Syntax error, '}' expected.
+</compileError>
+
+</errors>
+"
+`;
+
+exports[`GetErrorsTool - Tool Invocation > Tool invocation - with single filePath limits diagnostics and message to that file 1`] = `
+"<errors path="/test/workspace/src/file1.ts">
+This code at line 2
+\`\`\`
+  const x = 1;
+\`\`\`
+has the problem reported:
+<compileError>
+Variable is declared but never used
+</compileError>
+This code at line 1
+\`\`\`
+function test() {
+\`\`\`
+has the problem reported:
+<compileError>
+Missing return type annotation
+</compileError>
+
+</errors>
+"
+`;

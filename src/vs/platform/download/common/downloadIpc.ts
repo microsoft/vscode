@@ -19,7 +19,7 @@ export class DownloadServiceChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'download': return this.service.download(URI.revive(args[0]), URI.revive(args[1]));
+			case 'download': return this.service.download(URI.revive(args[0]), URI.revive(args[1]), args[2] ?? 'downloadIpc');
 		}
 		throw new Error('Invalid call');
 	}
@@ -31,7 +31,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer | null) { }
 
-	async download(from: URI, to: URI): Promise<void> {
+	async download(from: URI, to: URI, _callSite?: string): Promise<void> {
 		const uriTransformer = this.getUriTransformer();
 		if (uriTransformer) {
 			from = uriTransformer.transformOutgoingURI(from);

@@ -92,6 +92,12 @@ declare module 'vscode' {
 		followSymlinks?: boolean;
 
 		/**
+		 * Whether glob patterns should be matched case-insensitively.
+		 * Defaults to `false`.
+		 */
+		caseInsensitive?: boolean;
+
+		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
