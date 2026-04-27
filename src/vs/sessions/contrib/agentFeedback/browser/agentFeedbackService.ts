@@ -391,13 +391,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	private _changeContainsResource(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
-			return change.uri.fsPath === resourceUri.fsPath
-				|| change.originalUri?.fsPath === resourceUri.fsPath
-				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
+			return isEqual(change.uri, resourceUri)
+				|| isEqual(change.originalUri, resourceUri)
+				|| isEqual(change.modifiedUri, resourceUri);
 		}
 
-		return change.modifiedUri.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
+		return isEqual(change.modifiedUri, resourceUri)
+			|| isEqual(change.originalUri, resourceUri);
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
