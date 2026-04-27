@@ -5,6 +5,7 @@
 
 import '../media/agentHostSessionConfigPicker.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -109,10 +110,13 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
-		disposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			onOpen();
-		}));
+		disposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(trigger, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				onOpen();
+			}));
+		}
 		disposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
