@@ -6,14 +6,33 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionFileDiff, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+
+/**
+ * Resolves a project URI from a value that may be a URI object or a serialized
+ * URI string (as received over the agent host protocol wire format).
+ */
+function resolveProjectUri(value: unknown): URI | undefined {
+	if (URI.isUri(value)) {
+		return value;
+	}
+	if (typeof value === 'string') {
+		try {
+			return URI.parse(value);
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
 
 function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
 	if (!diffs || diffs.length === 0) {
@@ -190,12 +209,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					workingDirectory: s.workingDirectory?.toString(),
+					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,
 					status,
 					activity: s.activity,
 					workingDirectory: s.workingDirectory,
+					project: s.project?.uri,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					diffs: s.diffs,
@@ -211,11 +232,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary, diffs: readonly ISessionFileDiff[] | undefined): IChatSessionItem {
 		const workingDir = typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : summary.workingDirectory;
+		const projectUri = resolveProjectUri(summary.project?.uri);
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,
 			activity: summary.activity,
 			workingDirectory: workingDir,
+			project: projectUri,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
 			diffs,
@@ -227,6 +250,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		status?: SessionStatus;
 		activity?: string;
 		workingDirectory?: URI;
+		project?: URI;
 		createdAt: number;
 		modifiedAt: number;
 		diffs?: readonly ISessionFileDiff[];
@@ -240,7 +264,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
-			metadata: this._buildMetadata(opts.workingDirectory),
+			metadata: this._buildMetadata(opts.workingDirectory, opts.project),
 			timing: {
 				created: opts.createdAt,
 				lastRequestStarted: opts.modifiedAt,
@@ -250,13 +274,22 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		};
 	}
 
-	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
-		if (!this._description && !workingDirectory) {
+	private _buildMetadata(workingDirectory: URI | undefined, projectUri?: URI): { readonly [key: string]: unknown } | undefined {
+		if (!this._description && !workingDirectory && !projectUri) {
 			return undefined;
 		}
 		const result: { [key: string]: unknown } = {};
 		if (this._description) {
 			result.remoteAgentHost = this._description;
+		}
+		if (projectUri?.scheme === Schemas.file) {
+			result.repositoryPath = projectUri.fsPath;
+		} else if (projectUri?.scheme === AGENT_HOST_SCHEME) {
+			// Remote session: unwrap the vscode-agent-host:// wrapper to get
+			// the original remote file path. Using the repo root (not the
+			// worktree-specific working directory) ensures all worktrees from
+			// the same remote repository collapse into a single group.
+			result.repositoryPath = fromAgentHostUri(projectUri).fsPath;
 		}
 		if (workingDirectory) {
 			result.workingDirectoryPath = workingDirectory.fsPath;
