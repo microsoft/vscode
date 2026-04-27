@@ -246,10 +246,12 @@
     },
     "configurationDefaults": {
       "[html]": {
-        "editor.suggest.insertMode": "replace"
+        "editor.suggest.insertMode": "replace",
+        "editor.wrappingIndent": "indent"
       },
       "[handlebars]": {
-        "editor.suggest.insertMode": "replace"
+        "editor.suggest.insertMode": "replace",
+        "editor.wrappingIndent": "indent"
       }
     },
     "jsonValidation": [
