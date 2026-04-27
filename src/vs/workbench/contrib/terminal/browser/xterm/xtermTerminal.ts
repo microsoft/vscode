@@ -12,7 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IXtermCore } from '../xterm-private.js';
+import { IXtermCore, IXtermThemeColors } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
@@ -1050,7 +1050,49 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
-		this.raw.options.theme = this.getXtermTheme(theme);
+		const newTheme = this.getXtermTheme(theme);
+		const themeService = this._core._themeService;
+
+		if (themeService) {
+			// Save color objects before _setTheme() mutates them, since
+			// themeService.colors returns the same mutable reference.
+			const currentBackground = themeService.colors.background;
+			const currentForeground = themeService.colors.foreground;
+			const currentCursor = themeService.colors.cursor;
+			const restoreBackground = themeService._restoreColors.background.css;
+			const restoreForeground = themeService._restoreColors.foreground.css;
+			const restoreCursor = themeService._restoreColors.cursor.css;
+
+			const preservedColors: { background?: typeof currentBackground; foreground?: typeof currentForeground; cursor?: typeof currentCursor } = {};
+
+			if (currentBackground.css !== restoreBackground) {
+				preservedColors.background = currentBackground;
+			}
+			if (currentForeground.css !== restoreForeground) {
+				preservedColors.foreground = currentForeground;
+			}
+			if (currentCursor.css !== restoreCursor) {
+				preservedColors.cursor = currentCursor;
+			}
+
+			this.raw.options.theme = newTheme;
+
+			if (preservedColors.background || preservedColors.foreground || preservedColors.cursor) {
+				themeService.modifyColors((colors: IXtermThemeColors) => {
+					if (preservedColors.background) {
+						colors.background = preservedColors.background;
+					}
+					if (preservedColors.foreground) {
+						colors.foreground = preservedColors.foreground;
+					}
+					if (preservedColors.cursor) {
+						colors.cursor = preservedColors.cursor;
+					}
+				});
+			}
+		} else {
+			this.raw.options.theme = newTheme;
+		}
 	}
 
 	/**

@@ -22,6 +22,7 @@ import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/termin
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
+import { IXtermCore } from '../../../browser/xterm-private.js';
 
 registerColors();
 
@@ -376,6 +377,85 @@ suite('XtermTerminal', () => {
 				brightCyan: '#15000f',
 				brightWhite: '#16000f',
 			});
+		});
+		test('should preserve OSC 10/11/12 colors on theme update', () => {
+			themeService.setTheme(new TestColorTheme({
+				[TERMINAL_BACKGROUND_COLOR]: '#000100',
+				[TERMINAL_FOREGROUND_COLOR]: '#000200',
+				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#000300',
+				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#000400',
+			}));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(0, 1, 0)) },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+				disableOverviewRuler: true
+			}, undefined));
+
+			// _themeService is only created after open()
+			xterm.raw.open(document.createElement('div'));
+
+			const core = (xterm as unknown as { _core: IXtermCore })._core;
+			strictEqual(core._themeService.colors.background.css, '#000100');
+			strictEqual(core._themeService.colors.foreground.css, '#000200');
+			strictEqual(core._themeService.colors.cursor.css, '#000300');
+
+			// Simulate OSC 10, OSC 11, and OSC 12
+			core._themeService.modifyColors((colors) => {
+				colors.background = { css: '#ff0000', rgba: 0xFF0000FF };
+				colors.foreground = { css: '#00ff00', rgba: 0x00FF00FF };
+				colors.cursor = { css: '#0000ff', rgba: 0x0000FFFF };
+			});
+			strictEqual(core._themeService.colors.background.css, '#ff0000');
+			strictEqual(core._themeService.colors.foreground.css, '#00ff00');
+			strictEqual(core._themeService.colors.cursor.css, '#0000ff');
+
+			// Trigger theme update (simulates tab switch or theme change)
+			xterm.refresh();
+
+			// The OSC colors should be preserved
+			strictEqual(core._themeService.colors.background.css, '#ff0000');
+			strictEqual(core._themeService.colors.foreground.css, '#00ff00');
+			strictEqual(core._themeService.colors.cursor.css, '#0000ff');
+		});
+		test('should reset to theme color when OSC color is restored', () => {
+			themeService.setTheme(new TestColorTheme({
+				[TERMINAL_BACKGROUND_COLOR]: '#000100',
+				[TERMINAL_FOREGROUND_COLOR]: '#000200',
+				[TERMINAL_CURSOR_FOREGROUND_COLOR]: '#000300',
+				[TERMINAL_CURSOR_BACKGROUND_COLOR]: '#000400',
+			}));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(0, 1, 0)) },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+				disableOverviewRuler: true
+			}, undefined));
+
+			// _themeService is only created after open()
+			xterm.raw.open(document.createElement('div'));
+
+			const core = (xterm as unknown as { _core: IXtermCore })._core;
+
+			// Simulate OSC 11
+			core._themeService.modifyColors((colors) => {
+				colors.background = { css: '#ff0000', rgba: 0xFF0000FF };
+			});
+
+			// Restore color (simulates OSC 111)
+			core._themeService.restoreColor(257); // SpecialColorIndex.BACKGROUND
+
+			// Trigger theme update
+			xterm.refresh();
+
+			// Should use the theme color, not the OSC color
+			strictEqual(core._themeService.colors.background.css, '#000100');
 		});
 	});
 });
