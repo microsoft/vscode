@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
@@ -19,8 +19,13 @@ const DEFAULT_POLL_INTERVAL_MS = 60_000;
  */
 export class GitHubPullRequestModel extends Disposable {
 
+	private _pullRequestEtag: string | undefined = undefined;
 	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>(this, undefined);
 	readonly pullRequest: IObservable<IGitHubPullRequest | undefined> = this._pullRequest;
+
+	private _reviewsEtag: string | undefined = undefined;
+	private readonly _reviews = observableValue<readonly IGitHubPullRequestReview[] | undefined>(this, undefined);
+	readonly reviews: IObservable<readonly IGitHubPullRequestReview[] | undefined> = this._reviews;
 
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
@@ -112,15 +117,33 @@ export class GitHubPullRequestModel extends Disposable {
 	private async _refreshPullRequestAndMergeability(): Promise<void> {
 		try {
 			const [pr, reviews] = await Promise.all([
-				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber),
-				this._fetcher.getReviews(this.owner, this.repo, this.prNumber),
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._reviewsEtag),
 			]);
 
-			const mergeability = computeMergeability(pr, reviews);
-
 			transaction(tx => {
-				this._pullRequest.set(pr, tx);
-				this._mergeability.set(mergeability, tx);
+				if (pr.statusCode === 200 && pr.data) {
+					this._pullRequestEtag = pr.etag;
+					this._pullRequest.set(pr.data, tx);
+				}
+
+				if (reviews.statusCode === 200 && reviews.data) {
+					this._reviewsEtag = reviews.etag;
+					this._reviews.set(reviews.data, tx);
+				}
+
+				// Recompute mergeability if either the pull request or reviews changed. Both
+				// are needed to compute mergeability, so we wait until both requests complete
+				// before updating.
+				if (pr.statusCode === 200 || reviews.statusCode === 200) {
+					const prData = pr.data ?? this._pullRequest.get();
+					const reviewsData = reviews.data ?? this._reviews.get();
+
+					if (prData && reviewsData) {
+						const mergeability = computeMergeability(prData, reviewsData);
+						this._mergeability.set(mergeability, tx);
+					}
+				}
 			});
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);

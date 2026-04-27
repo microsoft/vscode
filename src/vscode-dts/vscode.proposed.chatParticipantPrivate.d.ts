@@ -256,6 +256,15 @@ declare module 'vscode' {
 
 		isRateLimited?: boolean;
 
+		/**
+		 * If true, the error is an expected operational condition (e.g. user-actionable
+		 * configuration, network connectivity, missing dependency) and should not be
+		 * logged as a `chatAgentError` telemetry event. The error is still surfaced to
+		 * the user. Throwing an `Error` whose `name` is `'ChatExpectedError'` from a
+		 * chat participant handler will set this flag automatically.
+		 */
+		isExpectedError?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;

@@ -670,5 +670,11 @@
 		"addLabel": "accessibility-sla",
 		"removeLabel": "~accessibility-sla",
 		"comment": "The Visual Studio and VS Code teams have an agreement with the Accessibility team that 3:1 contrast is enough for inside the editor."
+	},
+	{
+		"type": "comment",
+		"name": "requires-eval-assessment",
+		"action": "updateLabels",
+		"addLabel": "~requires-eval-assessment"
 	}
 ]

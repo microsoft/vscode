@@ -3,9 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GenAiAttr } from '../../../platform/otel/common/genAiAttributes';
+import type { ICompletedSpanData } from '../../../platform/otel/common/otelService';
+
 /**
  * Helpers for extracting file paths and refs from tool calls.
  */
+
+/**
+ * Extract tool arguments from an OTel span.
+ * Parses the serialized JSON from gen_ai.tool.call.arguments attribute.
+ * @internal Exported for testing.
+ */
+export function extractToolArgs(span: ICompletedSpanData): Record<string, unknown> {
+	const serialized = span.attributes[GenAiAttr.TOOL_CALL_ARGUMENTS];
+	if (typeof serialized === 'string') {
+		try {
+			return JSON.parse(serialized) as Record<string, unknown>;
+		} catch {
+			// ignore parse errors
+		}
+	}
+	return {};
+}
 
 /** Tools whose arguments contain a file path being modified or read. */
 const FILE_TRACKING_TOOLS = new Set([

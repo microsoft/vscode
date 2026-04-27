@@ -14,7 +14,7 @@ import {
 	MergeBlockerKind,
 	IGitHubPullRequestReviewThread,
 } from '../../common/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
 //#region GitHub API response types
 
@@ -159,22 +159,38 @@ export class GitHubPRFetcher {
 		private readonly _apiClient: GitHubApiClient,
 	) { }
 
-	async getPullRequest(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequest> {
-		const data = await this._apiClient.request<IGitHubPRResponse>(
+	async getPullRequest(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<IGitHubPullRequest>> {
+		const response = await this._apiClient.request2<IGitHubPRResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`,
-			'githubApi.getPullRequest'
+			'githubApi.getPullRequest',
+			undefined,
+			etag
 		);
-		return mapPullRequest(data);
+
+		return {
+			...response,
+			data: response.data
+				? mapPullRequest(response.data)
+				: undefined
+		};
 	}
 
-	async getReviews(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubPullRequestReview[]> {
-		const data = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
+	async getReviews(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubPullRequestReview[]>> {
+		const response = await this._apiClient.request2<readonly IGitHubReviewResponse[]>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
 			'githubApi.getReviews',
+			undefined,
+			etag
 		);
-		return data.map(mapReview);
+
+		return {
+			...response,
+			data: response.data
+				? response.data.map(mapReview)
+				: undefined
+		};
 	}
 
 	async getReviewThreads(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {

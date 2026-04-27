@@ -37,6 +37,14 @@ class MockApiClient {
 		return this._nextResponse as T;
 	}
 
+	async request2<T>(_method: string, _path: string, _callSite: string, _body?: unknown, _etag?: string): Promise<{ data: T | undefined; statusCode: number; etag?: string }> {
+		this.requestCalls.push({ method: _method, path: _path, body: _body });
+		if (this._nextError) {
+			throw this._nextError;
+		}
+		return { data: this._nextResponse as T, statusCode: 200 };
+	}
+
 	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
 		this.graphqlCalls.push({ query, variables });
 		if (this._nextError) {
@@ -125,25 +133,25 @@ suite('GitHubPRFetcher', () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Open);
-		assert.strictEqual(pr.isDraft, false);
-		assert.strictEqual(pr.number, 1);
-		assert.strictEqual(pr.title, 'Test PR');
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Open);
+		assert.strictEqual(pr.data?.isDraft, false);
+		assert.strictEqual(pr.data?.number, 1);
+		assert.strictEqual(pr.data?.title, 'Test PR');
 	});
 
 	test('getPullRequest maps merged PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: true, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Merged);
-		assert.ok(pr.mergedAt);
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Merged);
+		assert.ok(pr.data?.mergedAt);
 	});
 
 	test('getPullRequest maps closed PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Closed);
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Closed);
 	});
 
 	test('getReviewThreads returns GraphQL thread metadata', async () => {
@@ -205,7 +213,7 @@ suite('GitHubPRFetcher', () => {
 		]);
 
 		const reviews = await fetcher.getReviews('owner', 'repo', 1);
-		assert.deepStrictEqual(reviews, [
+		assert.deepStrictEqual(reviews.data, [
 			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
 			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);

@@ -20,6 +20,7 @@ import {
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
 	extractRepoFromMcpTool,
+	extractToolArgs,
 	isGitHubMcpTool,
 } from '../common/sessionStoreTracking';
 
@@ -70,6 +71,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	/** Per-session turn counter to avoid collisions between buffered writes and DB state. */
 	private readonly _turnCounters = new Map<string, number>();
 
+	/** Tool spans received before session was initialized, keyed by session ID. */
+	private readonly _pendingToolSpans = new Map<string, ICompletedSpanData[]>();
+
 	constructor(
 		@ISessionStore private readonly _sessionStore: ISessionStore,
 		@IOTelService private readonly _otelService: IOTelService,
@@ -102,7 +106,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 "sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
-"opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." }
+"opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." },
+"filesCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of files tracked in first write." },
+"refsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of refs tracked in first write." },
+"pendingSpansProcessed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of pending tool spans processed on session init." }
 }
 */
 				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.localStore', {
@@ -126,6 +133,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				this._initializedSessions.delete(sessionId);
 				this._lastSessionTimestamp.delete(sessionId);
 				this._turnCounters.delete(sessionId);
+				this._pendingToolSpans.delete(sessionId);
 			}));
 		}));
 	}
@@ -153,6 +161,17 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			// Only track sessions that have an invoke_agent span (real user interactions).
 			// Skip internal LLM calls (title generation, progress messages, etc.)
 			if (!this._initializedSessions.has(sessionId)) {
+				// Queue tool spans to process after session initialization
+				// (tool spans complete before their parent invoke_agent span)
+				if (operationName === GenAiOperationName.EXECUTE_TOOL) {
+					let pending = this._pendingToolSpans.get(sessionId);
+					if (!pending) {
+						pending = [];
+						this._pendingToolSpans.set(sessionId, pending);
+					}
+					pending.push(span);
+					return;
+				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
 					return;
 				}
@@ -197,10 +216,22 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			this._firstWriteSessionSource = sessionSource;
 		}
 
+		// Process any tool spans that arrived before session was initialized
+		const pendingSpans = this._pendingToolSpans.get(sessionId);
+		const pendingCount = pendingSpans?.length ?? 0;
+		if (pendingSpans) {
+			this._pendingToolSpans.delete(sessionId);
+			for (const toolSpan of pendingSpans) {
+				this._handleToolSpan(sessionId, toolSpan);
+			}
+		}
+
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 			operation: 'sessionInit',
 			sessionSource,
-		}, {});
+		}, {
+			pendingSpansProcessed: pendingCount,
+		});
 	}
 
 	private _backfillFromSpanAttributes(sessionId: string, span: ICompletedSpanData): void {
@@ -229,7 +260,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		}
 
 		const turnIndex = span.attributes[CopilotChatAttr.TURN_INDEX] as number | undefined;
-		const toolArgs = this._extractToolArgs(span);
+		const toolArgs = extractToolArgs(span);
 
 		// Extract file path
 		const filePath = extractFilePath(toolName, toolArgs);
@@ -407,7 +438,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 					operation: 'firstWrite',
 					sessionSource: this._firstWriteSessionSource ?? 'unknown',
-				}, {});
+				}, {
+					filesCount: filesToFlush.length,
+					refsCount: refsToFlush.length,
+				});
 			}
 		} catch (err) {
 
@@ -417,25 +451,5 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 			}, { opsCount: totalOps });
 		}
-	}
-
-	// ── Utilities ────────────────────────────────────────────────────────
-
-	private _extractToolArgs(span: ICompletedSpanData): Record<string, unknown> {
-		const args: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(span.attributes)) {
-			if (key.startsWith('gen_ai.tool.input.')) {
-				args[key.slice('gen_ai.tool.input.'.length)] = value;
-			}
-		}
-		const serialized = span.attributes['gen_ai.tool.input'];
-		if (typeof serialized === 'string') {
-			try {
-				return JSON.parse(serialized);
-			} catch {
-				// ignore parse errors
-			}
-		}
-		return args;
 	}
 }

@@ -195,7 +195,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Always show the welcome title/subtitle with sign-in buttons,
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
@@ -283,7 +283,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
