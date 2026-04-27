@@ -61,11 +61,12 @@ export class StoreMemoryTool implements ICopilotTool<StoreMemoryParams> {
 			};
 
 			const scope = 'scope' in input ? input.scope : 'repo';
+			const baseModel = options.model?.id;
 			let success: boolean;
 			if (scope === 'user') {
-				success = await this.agentMemoryService.storeUserMemory(memory);
+				success = await this.agentMemoryService.storeUserMemory(memory, baseModel);
 			} else {
-				success = await this.agentMemoryService.storeRepoMemory(memory);
+				success = await this.agentMemoryService.storeRepoMemory(memory, baseModel);
 			}
 
 			if (success) {

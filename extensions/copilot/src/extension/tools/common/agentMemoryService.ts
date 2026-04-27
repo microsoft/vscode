@@ -36,12 +36,12 @@ export interface IAgentMemoryService {
 	/**
 	 * Store a repo memory to Copilot Memory service.
 	 */
-	storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean>;
+	storeRepoMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean>;
 
 	/**
 	 * Store a user-scoped memory to Copilot Memory service.
 	 */
-	storeUserMemory(memory: StoreMemoryRequest): Promise<boolean>;
+	storeUserMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean>;
 
 
 	/**
@@ -151,7 +151,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		};
 	}
 
-	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
+	async storeRepoMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean> {
 		try {
 			if (!this.isCAPIMemorySyncConfigEnabled()) {
 				return false;
@@ -177,6 +177,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				integrationId: INTEGRATION_ID,
 				baseUrl: this.getBaseUrl(),
 				agent: 'vscode',
+				baseModel,
 				logger: this.makeLogger(),
 			};
 
@@ -193,7 +194,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		}
 	}
 
-	async storeUserMemory(memory: StoreMemoryRequest): Promise<boolean> {
+	async storeUserMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean> {
 		try {
 			if (!this.isCAPIMemorySyncConfigEnabled()) {
 				return false;
@@ -211,6 +212,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				integrationId: INTEGRATION_ID,
 				baseUrl: this.getBaseUrl(),
 				agent: 'vscode',
+				baseModel,
 				logger: this.makeLogger(),
 			};
 
