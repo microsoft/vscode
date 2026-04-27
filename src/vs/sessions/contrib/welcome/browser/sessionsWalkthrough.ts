@@ -239,7 +239,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
 		this._isShowingWelcome = true;
-		this.disclaimerElement.classList.add('hidden');
+		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
 		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
@@ -253,7 +253,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this.complete();
 		}));
 
-		this.currentFocusableElements = [getStartedBtn];
+		this.currentFocusableElements = [getStartedBtn, ...this.disclaimerLinks];
 
 		disposableTimeout(() => {
 			if (this.overlay.isConnected) {
