@@ -802,16 +802,22 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				let response: UserInputResponse;
 				if (this._mcState) {
 					const userInputResolutionTokenSource = new CancellationTokenSource(token);
+					const localQuestionPromise = this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, userInputResolutionTokenSource.token, event.data.toolCallId);
+					const remoteQuestionPromise = this._waitForMcUserInputResponse(this._mcState, event.data.requestId, event.data.toolCallId, userInputResolutionTokenSource.token);
 					try {
-						response = await Promise.race([
-							this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, userInputResolutionTokenSource.token).then(toSdkUserInputResponse),
-							this._waitForMcUserInputResponse(this._mcState, event.data.requestId, event.data.toolCallId, userInputResolutionTokenSource.token).then(result => result ?? { answer: '', wasFreeform: false }),
+						const result = await Promise.race([
+							localQuestionPromise.then(answer => ({ source: 'local' as const, response: toSdkUserInputResponse(answer) })),
+							remoteQuestionPromise.then(result => ({ source: 'remote' as const, response: result })),
 						]);
+						if (result.source === 'remote' && result.response && event.data.toolCallId) {
+							await this._userQuestionHandler.notifyQuestionCarouselAnswer?.(event.data.toolCallId, userInputRequest, result.response);
+						}
+						response = result.response ?? { answer: '', wasFreeform: false };
 					} finally {
 						userInputResolutionTokenSource.dispose(true);
 					}
 				} else {
-					response = toSdkUserInputResponse(await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token));
+					response = toSdkUserInputResponse(await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token, event.data.toolCallId));
 				}
 				flushPendingInvocationMessages();
 				this._sdkSession.respondToUserInput(event.data.requestId, response);

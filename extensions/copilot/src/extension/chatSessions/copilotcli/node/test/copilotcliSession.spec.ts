@@ -27,7 +27,7 @@ import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
-import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 
@@ -245,7 +245,7 @@ describe('CopilotCLISession', () => {
 	async function createSession(): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
-			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
 				return userQuestionAnswer;
 			}
 		}
@@ -809,6 +809,7 @@ describe('CopilotCLISession', () => {
 
 	it('uses remote ask user responses when Mission Control is active', async () => {
 		let userInputResult: unknown;
+		const notifiedAnswers: Array<{ toolCallId: string; question: IQuestion; response: UserInputResponse }> = [];
 		sdkSession.send = async () => {
 			userInputResult = await sdkSession.emitUserInputRequest({
 				question: 'What is your favorite VS Code feature or extension?',
@@ -821,11 +822,14 @@ describe('CopilotCLISession', () => {
 		Object.defineProperty(session, '_userQuestionHandler', {
 			value: {
 				_serviceBrand: undefined,
-				async askUserQuestion(_question: IQuestion, _toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+				async askUserQuestion(_question: IQuestion, _toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, _toolCallId?: string): Promise<IQuestionAnswer | undefined> {
 					localPromptToken = token;
 					return await new Promise<IQuestionAnswer | undefined>(resolve => {
 						token.onCancellationRequested(() => resolve(undefined));
 					});
+				},
+				async notifyQuestionCarouselAnswer(toolCallId: string, question: IQuestion, response: UserInputResponse): Promise<void> {
+					notifiedAnswers.push({ toolCallId, question, response });
 				},
 			} satisfies IUserQuestionHandler,
 			configurable: true,
@@ -873,6 +877,16 @@ describe('CopilotCLISession', () => {
 		await requestPromise;
 
 		expect(userInputResult).toEqual({ answer: 'none', wasFreeform: true });
+		expect(notifiedAnswers).toEqual([{
+			toolCallId: 'ask-user-tool',
+			question: {
+				question: 'What is your favorite VS Code feature or extension?',
+				options: [],
+				allowFreeformInput: true,
+				header: 'What is your favorite VS Code feature or extension?',
+			},
+			response: { answer: 'none', wasFreeform: true },
+		}]);
 		expect(localPromptToken?.isCancellationRequested).toBe(true);
 		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-ask-user']);
 	});
