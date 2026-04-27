@@ -212,6 +212,7 @@
 	border: 1px solid var(--vscode-dropdown-border, transparent);
 	border-radius: 6px;
 	color: var(--vscode-dropdown-foreground);
+	background: transparent;
 	cursor: pointer;
 	font-size: 12px;
 	text-align: left;
