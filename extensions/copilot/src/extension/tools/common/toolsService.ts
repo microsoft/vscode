@@ -202,7 +202,7 @@ export abstract class BaseToolsService extends Disposable implements IToolsServi
 	abstract getEnabledTools(request: vscode.ChatRequest, endpoint: IChatEndpoint, filter?: (tool: vscode.LanguageModelToolInformation) => boolean | undefined): vscode.LanguageModelToolInformation[];
 
 	constructor(
-		@ILogService protected readonly logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
