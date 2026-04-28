@@ -123,44 +123,23 @@ export class ChatInputNotificationWidget extends Disposable {
 					const action = notification.actions[i];
 					const isLast = i === notification.actions.length - 1;
 
-					if (isLast) {
-						// Primary action as a button
-						const button = this._contentDisposables.add(new Button(actionsContainer, {
-							...defaultButtonStyles,
-							supportIcons: true,
-							secondary: false,
-						}));
-						button.element.classList.add('chat-input-notification-action-button');
-						button.label = action.label;
-						button.element.ariaLabel = `${notification.message} ${action.label}`;
+					const button = this._contentDisposables.add(new Button(actionsContainer, {
+						...defaultButtonStyles,
+						...(!isLast ? { buttonSecondaryBorder: undefined } : {}),
+						supportIcons: true,
+						secondary: !isLast,
+					}));
+					button.element.classList.add('chat-input-notification-action-button');
+					button.label = action.label;
+					button.element.ariaLabel = `${notification.message} ${action.label}`;
 
-						this._contentDisposables.add(button.onDidClick(async () => {
-							this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-								id: action.commandId,
-								from: 'chatInputNotification',
-							});
-							await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
-						}));
-					} else {
-						// Non-primary actions as secondary (ghost) buttons
-						const button = this._contentDisposables.add(new Button(actionsContainer, {
-							...defaultButtonStyles,
-							buttonSecondaryBorder: undefined,
-							supportIcons: true,
-							secondary: true,
-						}));
-						button.element.classList.add('chat-input-notification-action-button');
-						button.label = action.label;
-						button.element.ariaLabel = `${notification.message} ${action.label}`;
-
-						this._contentDisposables.add(button.onDidClick(async () => {
-							this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-								id: action.commandId,
-								from: 'chatInputNotification',
-							});
-							await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
-						}));
-					}
+					this._contentDisposables.add(button.onDidClick(async () => {
+						this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+							id: action.commandId,
+							from: 'chatInputNotification',
+						});
+						await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
+					}));
 				}
 			}
 		}
