@@ -141,7 +141,7 @@ import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inli
 import { WorkspaceMutationManager } from '../../testing/node/setupTestsFileManager';
 import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
-import { AgentMemoryCachePrimer, IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
+import { AgentMemoryCachePrimer, IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryCachePrimer';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
 import { IToolsService } from '../../tools/common/toolsService';
 import { ToolsService } from '../../tools/vscode-node/toolsService';

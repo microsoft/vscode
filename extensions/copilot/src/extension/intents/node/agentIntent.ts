@@ -60,7 +60,7 @@ import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
-import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryCachePrimer';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { extractSessionId } from '../../tools/node/memoryTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';

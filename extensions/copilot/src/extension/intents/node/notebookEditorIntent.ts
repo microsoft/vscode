@@ -35,7 +35,7 @@ import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperServ
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { getToolName, ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
-import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryCachePrimer';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { EditCodeIntent, EditCodeIntentOptions } from './editCodeIntent';
 import { EditCode2IntentInvocation } from './editCodeIntent2';
