@@ -146,7 +146,14 @@ export class ChatMLFetcherTelemetrySender {
 				"connectivityTestErrorGitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id of the connectivity test request if available" },
 				"retryAfterFilterCategory": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "If the response was filtered and this is a retry attempt, this contains the original filtered content category." },
 				"suspendEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system suspend event was seen during the request", "isMeasurement": true },
-				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
+				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true },
+				"subType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sub-type of the request" },
+				"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Unique identifier for this model call" },
+				"parentRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Request ID of the parent request for subagent calls" },
+				"parentToolCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tool call ID of the parent that spawned this subagent call" },
+				"parentHeaderRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Header request ID of the parent request for subagent calls" },
+				"parentModelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model call ID of the parent request for subagent calls" },
+				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Iteration number within the tool calling loop" }
 			}
 		*/
 		telemetryService.sendTelemetryEvent('response.success', { github: true, microsoft: true }, {
@@ -163,6 +170,13 @@ export class ChatMLFetcherTelemetrySender {
 			associatedRequestId: baseTelemetry?.properties.associatedRequestId,
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
 			reasoningSummary: requestBody.reasoning?.summary,
+			modelCallId,
+			...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType } : {}),
+			...(baseTelemetry?.properties.parentRequestId ? { parentRequestId: baseTelemetry.properties.parentRequestId } : {}),
+			...(baseTelemetry?.properties.parentToolCallId ? { parentToolCallId: baseTelemetry.properties.parentToolCallId } : {}),
+			...(baseTelemetry?.properties.parentHeaderRequestId ? { parentHeaderRequestId: baseTelemetry.properties.parentHeaderRequestId } : {}),
+			...(baseTelemetry?.properties.parentModelCallId ? { parentModelCallId: baseTelemetry.properties.parentModelCallId } : {}),
+			...(baseTelemetry?.properties.iterationNumber ? { iterationNumber: baseTelemetry.properties.iterationNumber } : {}),
 			...(fetcher ? { fetcher } : {}),
 			transport,
 			...(baseTelemetry?.properties.retryAfterError ? { retryAfterError: baseTelemetry.properties.retryAfterError } : {}),
