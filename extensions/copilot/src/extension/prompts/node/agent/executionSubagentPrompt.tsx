@@ -87,14 +87,9 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 					toolCallResults={toolCallResults}
 					toolCallMode={CopilotToolMode.FullContext}
 				/>
-				{isLastTurn && (
+				{(isLastTurn || this.props.hasTimedOutCommand) && (
 					<UserMessage priority={900}>
 						OK, your allotted iterations are finished. Show the &lt;final_answer&gt;.
-					</UserMessage>
-				)}
-				{!isLastTurn && this.props.hasTimedOutCommand && (
-					<UserMessage priority={900}>
-						A previous {ToolName.CoreRunInTerminal} call timed out. Do not call any more tools. Show the &lt;final_answer&gt;.
 					</UserMessage>
 				)}
 			</>
