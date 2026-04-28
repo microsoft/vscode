@@ -1251,13 +1251,14 @@ export class Repository implements Disposable {
 				commands.executeCommand('_chat.editSessions.accept', resources);
 			},
 			() => {
-				const resourcePaths = resources.map(r => r.fsPath);
-				const indexGroupResourcePaths = this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath);
+				// ⚡ Bolt: Convert arrays to Sets to optimize O(N*M) lookups to O(N+M)
+				const resourcePaths = new Set(resources.map(r => r.fsPath));
+				const indexGroupResourcePaths = new Set(this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath));
 
 				// Collect added resources
 				const addedResourceStates: Resource[] = [];
 				for (const resource of [...this.mergeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.workingTreeGroup.resourceStates]) {
-					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
+					if (resourcePaths.has(resource.resourceUri.fsPath) && !indexGroupResourcePaths.has(resource.resourceUri.fsPath)) {
 						addedResourceStates.push(resource.clone(ResourceGroupType.Index));
 					}
 				}
@@ -1267,15 +1268,15 @@ export class Repository implements Disposable {
 
 				// Remove resource(s) from merge group
 				const mergeGroup = this.mergeGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				// Remove resource(s) from working group
 				const workingTreeGroup = this.workingTreeGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				// Remove resource(s) from untracked group
 				const untrackedGroup = this.untrackedGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				return { indexGroup, mergeGroup, workingTreeGroup, untrackedGroup };
 			});
@@ -1318,14 +1319,15 @@ export class Repository implements Disposable {
 				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
-				const resourcePaths = resources.length === 0 ?
-					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
+				// ⚡ Bolt: Convert arrays to Sets to optimize O(N*M) lookups to O(N+M)
+				const resourcePaths = new Set(resources.length === 0 ?
+					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath));
 
 				// Collect removed resources
 				const trackedResources: Resource[] = [];
 				const untrackedResources: Resource[] = [];
 				for (const resource of this.indexGroup.resourceStates) {
-					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
+					if (resourcePaths.has(resource.resourceUri.fsPath)) {
 						if (resource.type === Status.INDEX_ADDED) {
 							untrackedResources.push(resource.clone(untrackedChangesResourceGroupType));
 						} else {
@@ -1336,7 +1338,7 @@ export class Repository implements Disposable {
 
 				// Remove resource(s) from index group
 				const indexGroup = this.indexGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				// Add resource(s) to working group
 				const workingTreeGroup = untrackedChanges === 'mixed' ?
@@ -1570,15 +1572,16 @@ export class Repository implements Disposable {
 				commands.executeCommand('_aiEdits.clearAiContributions', resources);
 			},
 			() => {
-				const resourcePaths = resources.map(r => r.fsPath);
+				// ⚡ Bolt: Convert arrays to Sets to optimize O(N*M) lookups to O(N+M)
+				const resourcePaths = new Set(resources.map(r => r.fsPath));
 
 				// Remove resource(s) from working group
 				const workingTreeGroup = this.workingTreeGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				// Remove resource(s) from untracked group
 				const untrackedGroup = this.untrackedGroup.resourceStates
-					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+					.filter(r => !resourcePaths.has(r.resourceUri.fsPath));
 
 				return { workingTreeGroup, untrackedGroup };
 			});
