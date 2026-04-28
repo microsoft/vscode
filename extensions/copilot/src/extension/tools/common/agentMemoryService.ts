@@ -95,7 +95,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		@IChatSessionService private readonly chatSessionService: IChatSessionService,
 	) {
 		super();
-		
+
 		// Clear cache when conversations end to ensure fresh data for new conversations
 		this._register(this.chatSessionService.onDidDisposeChatSession(sessionId => {
 			this.clearCache(sessionId);
@@ -283,7 +283,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			const response = await fetchMemoryPrompts(options);
 			if (response) {
 				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
-				if (sessionId) {
+				if (sessionId && this._inflightPrompts.has(sessionId)) {
 					this._conversationMemoryCache.set(sessionId, response);
 				}
 			}
@@ -300,11 +300,13 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	clearCache(sessionId?: string): void {
 		if (sessionId) {
 			const deleted = this._conversationMemoryCache.delete(sessionId);
+			this._inflightPrompts.delete(sessionId);
 			this.logService.debug(`[AgentMemoryService] Cleared cache for conversation: ${sessionId} (found: ${deleted})`);
 		} else {
 			// Clear all conversations
 			const count = this._conversationMemoryCache.size;
 			this._conversationMemoryCache.clear();
+			this._inflightPrompts.clear();
 			this.logService.debug(`[AgentMemoryService] Cleared all conversation caches (${count} entries)`);
 		}
 	}

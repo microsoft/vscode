@@ -37,6 +37,14 @@ export class AgentMemoryCachePrimer implements IAgentMemoryCachePrimer {
 		}
 		// Call with sessionId but let service auto-determine repoNwo to match original working behavior
 		const response = await this.agentMemoryService.getMemoryPrompt(undefined, sessionId);
-		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache for session ${sessionId || 'default'}, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
+		if (!sessionId) {
+			this.logService.debug('[AgentMemoryCachePrimer] fetched memory prompt without caching because no sessionId was provided');
+			return;
+		}
+		if (!response) {
+			this.logService.debug(`[AgentMemoryCachePrimer] did not prime memory prompt cache for session ${sessionId} because no prompt response was returned`);
+			return;
+		}
+		this.logService.info(`[AgentMemoryCachePrimer] primed memory prompt cache for session ${sessionId}, definitionVersion=${response.storeToolDefinition?.definitionVersion ?? 'none'}`);
 	}
 }

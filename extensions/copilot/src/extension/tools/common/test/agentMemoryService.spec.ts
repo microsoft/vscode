@@ -103,6 +103,17 @@ describe('AgentMemoryService', () => {
 			expect(vi.mocked(fetchMemoryPrompts)).toHaveBeenCalledTimes(2);
 		});
 
+		it('deduplicates concurrent calls with the same sessionId', async () => {
+			const svc = makeService();
+			const [r1, r2] = await Promise.all([
+				svc.getMemoryPrompt(undefined, 'session-1'),
+				svc.getMemoryPrompt(undefined, 'session-1'),
+			]);
+			expect(r1).toBe(mockResponse);
+			expect(r2).toBe(mockResponse);
+			expect(vi.mocked(fetchMemoryPrompts)).toHaveBeenCalledTimes(1);
+		});
+
 		it('does not cache when no sessionId is provided', async () => {
 			const svc = makeService();
 			await svc.getMemoryPrompt(undefined, undefined);
