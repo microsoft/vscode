@@ -258,7 +258,8 @@ export class MemoryInstructionsPrompt extends PromptElement<MemoryInstructionsPr
 				Memory is organized into the scopes defined below:<br />
 				{enableMemoryTool && <>- **User memory** (`/memories/`): Persistent notes that survive across all workspaces and conversations. Store user preferences, common patterns, frequently used commands, and general insights here. First {MAX_USER_MEMORY_LINES} lines are loaded into your context automatically.<br /></>}
 				{enableMemoryTool && <>- **Session memory** (`/memories/session/`): Notes for the current conversation only. Store task-specific context, in-progress notes, and temporary working state here. Session files are listed in your context but not loaded automatically — use the memory tool to read them when needed.<br /></>}
-				{enableCopilotMemory && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored via Copilot Memory. Only the `create` command is supported. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
+				{enableCopilotMemory && enableMemoryTool && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored via Copilot Memory. Use the `{ToolName.Memory}` tool to view any existing local repo memory files. Only the `create` command is supported for writing new facts. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
+				{enableCopilotMemory && !enableMemoryTool && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored via Copilot Memory. Only the `create` command is supported. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
 				{enableMemoryTool && !enableCopilotMemory && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
 			</Tag>
 			<br />
@@ -273,6 +274,15 @@ export class MemoryInstructionsPrompt extends PromptElement<MemoryInstructionsPr
 					Guidelines for session memory (`/memories/session/`):<br />
 					- Use session memory to keep plans up to date and reviewing historical summaries.<br />
 					- Do not create unnecessary session memory files. You should only view and update existing session files.<br />
+					{!enableCopilotMemory && <>Guidelines for repository memory (`/memories/repo/`):<br />
+					- Use the `create` command to store codebase facts. File content should be a JSON object with fields: `subject`, `fact`, `citations`, `reason`.<br />
+					- Only `create` is supported — use `view` to read existing entries.<br />
+					- Store facts that are unlikely to change and will help with future tasks across this repository.<br />
+					</>}
+					{enableCopilotMemory && <>Guidelines for local repository memory (`/memories/repo/`):<br />
+					- Use the `{ToolName.Memory}` tool to `view`, `str_replace`, `delete`, or `rename` existing local repo memory files.<br />
+					- New repository facts should be stored via Copilot Memory (see instructions below) rather than creating new local files.<br />
+					</>}
 				</Tag>
 			</>}
 			<br />
