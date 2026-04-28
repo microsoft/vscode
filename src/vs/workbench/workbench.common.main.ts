@@ -295,6 +295,9 @@ import './contrib/customEditor/browser/customEditor.contribution.js';
 // External Uri Opener
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
+// test-workbench_change - TSCode default settings
+import './contrib/tscode/browser/tscodeDefaultSettings.js';
+
 // Extensions Management
 import './contrib/extensions/browser/extensions.contribution.js';
 import './contrib/extensions/browser/extensionsViewlet.js';

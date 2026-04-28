@@ -163,6 +163,9 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 // Browser
 import './contrib/browserView/electron-browser/browserView.contribution.js';
 
+// test-workbench_change - TSCode use integrated browser by default
+import './contrib/tscode/browser/tscodeExternalUriOpener.js';
+
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
 
