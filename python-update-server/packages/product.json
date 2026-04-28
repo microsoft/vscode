@@ -24,14 +24,6 @@
 	"win32ShellNameShort": "TSCode",
 	"win32TunnelServiceMutex": "tscode-tunnelservice",
 	"win32TunnelMutex": "tscode-tunnel",
-	"win32ContextMenu": {
-		"x64": {
-			"clsid": "{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}"
-		},
-		"arm64": {
-			"clsid": "{D1ACE434-89C5-48D1-88D3-E2991DF85475}"
-		}
-	},
 	"darwinBundleIdentifier": "com.teststudio.code",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
@@ -41,9 +33,7 @@
 	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "tscode",
 	"enableTelemetry": true,
-	"updateUrl": "http://tscode-update-service.paasuat.cmbchina.cn",
-	"quality": "test",
-	"version": "1.116.0",
+	"updateUrl": "http://localhost:3000",
 	"aiConfig": {
 		"ariaKey": "tscode-telemetry-key"
 	},
@@ -297,7 +287,20 @@
 		"GitHub.copilot-chat"
 	],
 	"tsCodeAuthMockEnabled": false,
-	"gitVersion": "v1.0.2",
 	"commit": "9c521649abc582aa7064480374c5b04e3449da6e",
-	"date": "2026-04-21T15:19:02+08:00"
+	"date": "2026-04-21T15:19:02+08:00",
+	"checksums": {
+		"vs/base/parts/sandbox/electron-browser/preload.js": "pEnkU8mcIZ0DvnCkVCVdSC12xeGMu3MUXKKluNx/Lnk",
+		"vs/workbench/workbench.desktop.main.js": "gWjPO5OmZoPsrSQflm0UlwkPJ3ffxc2y4etzXRboHf0",
+		"vs/workbench/workbench.desktop.main.css": "fpXCCy7xh1xbTd6ik2Ia3hJ1Qdwidw0T6h6lOmm8oGQ",
+		"vs/workbench/api/node/extensionHostProcess.js": "MRpiic8VDN9TWDIpmMYXOmgqzXdDPEDFICQjHMnT974",
+		"vs/code/electron-browser/workbench/workbench.html": "8c0bGWwXJKNtlmNJ1j5WooudWUswncOaFgEF829ebvE",
+		"vs/code/electron-browser/workbench/workbench.js": "IrfAEkiIw1xVTORZ34s6qeZrtgsiWN/yIPBnzGwLAIU",
+		"vs/sessions/sessions.desktop.main.js": "fQ7LKUkAoa5teDevUy68f5Pf7eX4+KRKwHYsaoewB7Y",
+		"vs/sessions/sessions.desktop.main.css": "f9OlRPt07HEOoml46cclwrtJH4MAFFQ9WP/H65QJd7c",
+		"vs/sessions/electron-browser/sessions.html": "M6vdKEAjvbzHg9R8JhATIXfgn0QcVmkHwZjYmImn5z4",
+		"vs/sessions/electron-browser/sessions.js": "v8qN9gXLa18fCnOtSCqcoaqRH4CJpIB/rxnNJQHHrVw"
+	},
+	"version": "1.116.0",
+	"target": "user"
 }

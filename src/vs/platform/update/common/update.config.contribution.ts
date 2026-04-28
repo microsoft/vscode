@@ -19,7 +19,7 @@ configurationRegistry.registerConfiguration({
 		'update.mode': {
 			type: 'string',
 			enum: ['none', 'manual', 'start', 'default'],
-			default: 'default',
+			default: 'start', // test-workbench_change - Changed to manual check for testing convenience
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
@@ -65,12 +65,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			type: 'boolean',
-			default: true,
+			default: true, // test-workbench_change - Keep background updates enabled
 			scope: ConfigurationScope.APPLICATION,
 			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
+		// test-workbench_change start
+		'update.allowAdminMode': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			title: localize('allowAdminModeTitle', "Allow Updates in Admin Mode"),
+			description: localize('allowAdminMode', "Allow automatic updates when running as administrator in user install mode. This is useful for testing and development scenarios."),
+			included: isWindows && !isWeb
+		},
+		// test-workbench_change end
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,

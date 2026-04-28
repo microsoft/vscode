@@ -213,5 +213,10 @@
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
+	},
+	// test-workbench_change - 默认使用内置浏览器打开所有链接
+	"workbench.externalUriOpeners": {
+	  "http://*": "vscode.open",
+	  "https://*": "vscode.open"
 	}
 }

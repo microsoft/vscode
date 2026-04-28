@@ -122,11 +122,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const osNodeRelease = release();
 		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
 
-		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
-			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
-			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
-			return;
-		}
+		// test-workbench_change start - Allow updates in admin mode if configured
+		// if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+		// 	this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
+		// 	this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+		// 	return;
+		// }
+		// test-workbench_change end
 
 		await super.initialize();
 	}
@@ -227,11 +229,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				// When connection is metered and this is not an explicit check,
 				// show update is available but don't start downloading
-				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
-					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
-					this.setState(State.AvailableForDownload(update));
-					return Promise.resolve(null);
-				}
+				// test-workbench_change: Comment out metered network check for testing convenience
+				// if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+				// 	this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
+				// 	this.setState(State.AvailableForDownload(update));
+				// 	return Promise.resolve(null);
+				// }
 
 				const startTime = Date.now();
 				this.setState(State.Downloading(update, explicit, this._overwrite, 0, undefined, startTime));

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  update-server:
+    build: .
+    container_name: vscode-update-server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./packages:/app/packages:ro
+      - ./versions-config.json:/app/versions-config.json:ro
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - BASE_URL=http://localhost:8000
+      - PACKAGES_DIR=/app/packages
+      - CONFIG_FILE=/app/versions-config.json
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -169,3 +169,36 @@ function updateIcon(executablePath: string): task.CallbackTask {
 
 gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
 gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
+
+// test-workbench_change start - Update git version before build
+function updateGitVersion(): task.CallbackTask {
+	return (cb) => {
+		const updateScript = path.join(repoPath, 'build', 'update-git-version.cjs');
+		cp.exec(`node "${updateScript}"`, (err, stdout, stderr) => {
+			if (stdout) {
+				console.log(stdout);
+			}
+			if (stderr) {
+				console.error(stderr);
+			}
+			if (cb) {
+				cb(err || undefined);
+			}
+		});
+	};
+}
+
+// Combined build and setup tasks with git version update
+function defineWin32CombinedTasks(arch: string, target: string) {
+	const updateVersionTask = updateGitVersion();
+	const vscodeBuildTask = gulp.task(`vscode-${arch === 'x64' ? 'win32-x64' : 'win32-arm64'}-min`) as task.Task;
+	const innoUpdaterTask = gulp.task(`vscode-win32-${arch}-inno-updater`) as task.Task;
+	const setupTask = gulp.task(`vscode-win32-${arch}-${target}-setup`) as task.Task;
+	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup-full`, task.series(updateVersionTask, vscodeBuildTask, innoUpdaterTask, setupTask)));
+}
+
+defineWin32CombinedTasks('x64', 'user');
+defineWin32CombinedTasks('x64', 'system');
+defineWin32CombinedTasks('arm64', 'user');
+defineWin32CombinedTasks('arm64', 'system');
+// test-workbench_change end
