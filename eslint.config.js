@@ -1528,7 +1528,6 @@ export default tseslint.config(
 						'undici-types',
 						'url',
 						'util',
-						'v8-inspect-profiler',
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
@@ -1544,7 +1543,8 @@ export default tseslint.config(
 						'@xterm/xterm',
 						'yauzl',
 						'yazl',
-						'zlib'
+						'zlib',
+						'chrome-remote-interface'
 					]
 				},
 				{

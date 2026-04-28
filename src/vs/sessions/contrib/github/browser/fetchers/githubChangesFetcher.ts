@@ -26,7 +26,7 @@ export class GitHubChangesFetcher {
 	) { }
 
 	async getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
-		const response = await this._apiClient.request2<IGitHubCompareResponse>(
+		const response = await this._apiClient.request<IGitHubCompareResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/compare/${e(base)}...${e(head)}`,
 			'githubApi.getChangedFiles'

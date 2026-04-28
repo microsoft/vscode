@@ -6,7 +6,7 @@
 import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
-import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { startProfiling, ProfilingSession, Target } from '../../base/node/profiling.js';
 import { Event } from '../../base/common/event.js';
 import { isAbsolute, resolve, join, dirname } from '../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../base/common/platform.js';
@@ -406,11 +406,10 @@ export async function main(argv: string[]): Promise<void> {
 
 				class Profiler {
 					static async start(name: string, filenamePrefix: string, opts: { port: number; tries?: number; target?: (targets: Target[]) => Target }) {
-						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
 						try {
-							session = await profiler.startProfiling({ ...opts, host: profileHost });
+							session = await startProfiling({ ...opts, host: profileHost });
 						} catch (err) {
 							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
 						}
