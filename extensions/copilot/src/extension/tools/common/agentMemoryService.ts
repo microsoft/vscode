@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType } from '@vscode/copilot-api';
+import {
+	fetchMemoryPrompts,
+	storeMemory,
+	type MemoryApiOptions,
+	type MemoryPromptResponse,
+	type StoreMemoryRequest,
+} from '@github/copilot-agentic-tools/memory';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
@@ -14,98 +21,68 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
-/**
- * Repository memory entry format aligned with CAPI service contract.
- * Supports both new format (citations as string[]) and legacy format (citations as string).
- */
-export interface RepoMemoryEntry {
-	subject: string;
-	fact: string;
-	citations?: string | string[];
-	reason?: string;
-	category?: string;
-}
+const INTEGRATION_ID = 'vscode-chat';
 
 /**
- * Type guard to validate if an object is a valid RepoMemoryEntry.
- * Accepts both new format (citations: string[]) and legacy format (citations: string).
- */
-export function isRepoMemoryEntry(obj: unknown): obj is RepoMemoryEntry {
-	if (typeof obj !== 'object' || obj === null) {
-		return false;
-	}
-	const entry = obj as Record<string, unknown>;
-
-	// Required fields
-	if (typeof entry.subject !== 'string' || typeof entry.fact !== 'string') {
-		return false;
-	}
-
-	// Optional fields
-	if (entry.citations !== undefined) {
-		const isString = typeof entry.citations === 'string';
-		const isStringArray = Array.isArray(entry.citations) && entry.citations.every(c => typeof c === 'string');
-		if (!isString && !isStringArray) {
-			return false;
-		}
-	}
-
-	if (entry.reason !== undefined && typeof entry.reason !== 'string') {
-		return false;
-	}
-
-	if (entry.category !== undefined && typeof entry.category !== 'string') {
-		return false;
-	}
-
-	return true;
-}
-
-/**
- * Normalize citations field to string[] format.
- * Handles backward compatibility for legacy string format.
- */
-export function normalizeCitations(citations: string | string[] | undefined): string[] | undefined {
-	if (citations === undefined) {
-		return undefined;
-	}
-	if (typeof citations === 'string') {
-		return citations.split(',').map(c => c.trim()).filter(c => c.length > 0);
-	}
-	return citations;
-}
-
-/**
- * Service for managing repository memories via the Copilot Memory service (CAPI).
- * Memories are stored in the cloud and available when Copilot Memory is enabled for the repository.
+ * Service for managing memories via the Copilot Memory service (CAPI).
+ * Delegates to @github/copilot-agentic-tools/memory for all API calls.
  */
 export interface IAgentMemoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Check if Copilot Memory is enabled for the current repository.
-	 * Makes a lightweight API call to the enablement check endpoint.
-	 * Returns false if not enabled or if the check fails.
-	 */
-	checkMemoryEnabled(): Promise<boolean>;
-
-	/**
-	 * Get repo memories from Copilot Memory service.
-	 * Returns undefined if Copilot Memory is not enabled or if fetching fails.
-	 */
-	getRepoMemories(limit?: number): Promise<RepoMemoryEntry[] | undefined>;
-
-	/**
 	 * Store a repo memory to Copilot Memory service.
-	 * Returns true if stored successfully, false if Copilot Memory is not enabled or if storing fails.
 	 */
-	storeRepoMemory(memory: RepoMemoryEntry): Promise<boolean>;
+	storeRepoMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean>;
+
+	/**
+	 * Store a user-scoped memory to Copilot Memory service.
+	 */
+	storeUserMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean>;
+
+
+	/**
+	 * Fetch the unified memory prompt from the /prompt endpoint.
+	 * Returns the full MemoryPromptResponse including storeToolDefinition,
+	 * or undefined on failure. Caches the result per conversation.
+	 */
+	getMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined>;
+
+	/**
+	 * Returns the cached MemoryPromptResponse for a specific session, or undefined if
+	 * getMemoryPrompt() has not yet been called successfully for that session.
+	 */
+	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined;
+
+	/**
+	 * Clear cached memory prompts for a specific session or all sessions.
+	 */
+	clearCache(sessionId?: string): void;
 }
 
 export const IAgentMemoryService = createServiceIdentifier<IAgentMemoryService>('IAgentMemoryService');
 
 export class AgentMemoryService extends Disposable implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
+
+	// Conversation-scoped cache - one entry per conversation, cleared on conversation end
+	private _conversationMemoryCache = new Map<string, MemoryPromptResponse>();
+	// Deduplicates concurrent getMemoryPrompt calls for the same session
+	private _inflightPrompts = new Map<string, Promise<MemoryPromptResponse | undefined>>();
+
+	override dispose(): void {
+		this._conversationMemoryCache.clear();
+		this._inflightPrompts.clear();
+		super.dispose();
+	}
+
+	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined {
+		if (!sessionId) {
+			const responses = Array.from(this._conversationMemoryCache.values());
+			return responses.length > 0 ? responses[0] : undefined;
+		}
+		return this._conversationMemoryCache.get(sessionId);
+	}
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -114,16 +91,18 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IChatSessionService private readonly chatSessionService: IChatSessionService,
 	) {
 		super();
+		
+		// Clear cache when conversations end to ensure fresh data for new conversations
+		this._register(this.chatSessionService.onDidDisposeChatSession(sessionId => {
+			this.clearCache(sessionId);
+		}));
 	}
 
-	/**
-	 * Get the GitHub repository NWO (name with owner) for the current workspace.
-	 * Returns the NWO in lowercase format (e.g., "microsoft/vscode").
-	 */
-	private async getRepoNwo(): Promise<string | undefined> {
+	async getRepoNwo(): Promise<string | undefined> {
 		try {
 			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
 			if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -135,7 +114,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return undefined;
 			}
 
-			// Try to get GitHub repo info from remote URLs
 			for (const remoteUrl of getOrderedRemoteUrlsFromContext(repo)) {
 				const repoId = getGithubRepoIdFromFetchUrl(remoteUrl);
 				if (repoId) {
@@ -150,17 +128,28 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		}
 	}
 
-	/**
-	 * Check if the chat.copilotMemory.enabled config is enabled.
-	 * Uses experiment-based configuration for gradual rollout.
-	 */
 	private isCAPIMemorySyncConfigEnabled(): boolean {
 		return this.configService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 	}
 
-	async checkMemoryEnabled(): Promise<boolean> {
+	private getBaseUrl(): string {
+		return new URL('.', this.capiClientService.capiPingURL).toString().replace(/\/$/, '');
+	}
+
+	private async getToken(): Promise<string | undefined> {
+		const session = await this.authenticationService.getGitHubSession('any', { silent: true });
+		return session?.accessToken;
+	}
+
+	private makeLogger() {
+		return {
+			info: (msg: string) => this.logService.info(`[AgentMemoryService] ${msg}`),
+			error: (msg: string) => this.logService.error(`[AgentMemoryService] ${msg}`),
+		};
+	}
+
+	async storeRepoMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean> {
 		try {
-			// Check if CAPI sync is enabled via config
 			if (!this.isCAPIMemorySyncConfigEnabled()) {
 				return false;
 			}
@@ -170,164 +159,154 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return false;
 			}
 
-			// Get OAuth token for API call
-			const session = await this.authenticationService.getGitHubSession('any', { silent: true });
-			if (!session) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for memory enablement check');
+			const token = await this.getToken();
+			if (!token) {
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for storing memory');
 				return false;
 			}
 
-			// Make API call to check enablement
-			const response = await this.capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					'Authorization': `Bearer ${session.accessToken}`
-				}
-			}, {
-				type: RequestType.CopilotAgentMemory,
-				repo: repoNwo,
-				action: 'enabled'
-			});
+			const [owner, repo] = repoNwo.split('/');
+			const options = {
+				scope: 'repository' as const,
+				owner,
+				repo,
+				token,
+				integrationId: INTEGRATION_ID,
+				baseUrl: this.getBaseUrl(),
+				agent: 'vscode',
+				baseModel,
+				logger: this.makeLogger(),
+			};
 
-			if (!response.ok) {
-				this.logService.warn(`[AgentMemoryService] Memory enablement check failed: ${response.statusText}`);
-				return false;
+			const result = await storeMemory(memory, options);
+			if (!result.success) {
+				this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${result.error}`);
+			} else {
+				this.logService.debug(`[AgentMemoryService] Successfully stored repo memory`);
 			}
-
-			const data = await response.json() as { enabled?: boolean };
-			const enabled = data?.enabled ?? false;
-
-			this.logService.info(`[AgentMemoryService] Copilot Memory enabled for ${repoNwo}: ${enabled}`);
-			return enabled;
-		} catch (error) {
-			this.logService.warn(`[AgentMemoryService] Failed to check memory enablement: ${error}`);
-			return false;
-		}
-	}
-
-	async getRepoMemories(limit: number = 10): Promise<RepoMemoryEntry[] | undefined> {
-		try {
-			// Check if Copilot Memory is enabled
-			const enabled = await this.checkMemoryEnabled();
-			if (!enabled) {
-				this.logService.debug('[AgentMemoryService] Copilot Memory not enabled, skipping repo memory fetch');
-				return undefined;
-			}
-
-			const repoNwo = await this.getRepoNwo();
-			if (!repoNwo) {
-				return undefined;
-			}
-
-			// Get OAuth token for API call
-			const session = await this.authenticationService.getGitHubSession('any', { silent: true });
-			if (!session) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for fetching memories');
-				return undefined;
-			}
-
-			// Fetch memories from Copilot Memory service
-			const response = await this.capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					'Authorization': `Bearer ${session.accessToken}`
-				}
-			}, {
-				type: RequestType.CopilotAgentMemory,
-				repo: repoNwo,
-				action: 'recent',
-				limit
-			});
-
-			if (!response.ok) {
-				this.logService.warn(`[AgentMemoryService] Failed to fetch memories: ${response.statusText}`);
-				return undefined;
-			}
-
-			const data = await response.json() as Array<{
-				subject: string;
-				fact: string;
-				citations?: string[];
-				reason?: string;
-				category?: string;
-			}>;
-
-			if (!data || !Array.isArray(data)) {
-				return undefined;
-			}
-
-			// Transform response to RepoMemoryEntry format
-			const memories: RepoMemoryEntry[] = data
-				.filter(isRepoMemoryEntry)
-				.map(entry => ({
-					subject: entry.subject,
-					fact: entry.fact,
-					citations: entry.citations,
-					reason: entry.reason,
-					category: entry.category
-				}));
-
-			this.logService.info(`[AgentMemoryService] Fetched ${memories.length} repo memories for ${repoNwo}`);
-			return memories.length > 0 ? memories : undefined;
-		} catch (error) {
-			this.logService.warn(`[AgentMemoryService] Failed to fetch repo memories: ${error}`);
-			return undefined;
-		}
-	}
-
-	async storeRepoMemory(memory: RepoMemoryEntry): Promise<boolean> {
-		try {
-			// Check if Copilot Memory is enabled
-			const enabled = await this.checkMemoryEnabled();
-			if (!enabled) {
-				this.logService.debug('[AgentMemoryService] Copilot Memory not enabled, skipping repo memory store');
-				return false;
-			}
-
-			const repoNwo = await this.getRepoNwo();
-			if (!repoNwo) {
-				return false;
-			}
-
-			// Normalize citations to array format for CAPI
-			const citations = normalizeCitations(memory.citations) ?? [];
-
-			// Get OAuth token for API call
-			const session = await this.authenticationService.getGitHubSession('any', { silent: true });
-			if (!session) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for storing memory');
-				return false;
-			}
-
-			// Store memory to Copilot Memory service
-			const response = await this.capiClientService.makeRequest<Response>({
-				method: 'PUT',
-				headers: {
-					'Authorization': `Bearer ${session.accessToken}`
-				},
-				json: {
-					subject: memory.subject,
-					fact: memory.fact,
-					citations,
-					reason: memory.reason,
-					category: memory.category,
-					source: { agent: 'vscode' }
-				}
-			}, {
-				type: RequestType.CopilotAgentMemory,
-				repo: repoNwo
-			});
-
-			if (!response.ok) {
-				this.logService.warn(`[AgentMemoryService] Failed to store memory: ${response.statusText}`);
-				return false;
-			}
-
-			this.logService.info(`[AgentMemoryService] Stored repo memory for ${repoNwo}: ${memory.subject}`);
-			return true;
+			return result.success;
 		} catch (error) {
 			this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${error}`);
 			return false;
 		}
 	}
+
+	async storeUserMemory(memory: StoreMemoryRequest, baseModel?: string): Promise<boolean> {
+		try {
+			if (!this.isCAPIMemorySyncConfigEnabled()) {
+				return false;
+			}
+
+			const token = await this.getToken();
+			if (!token) {
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for storing user memory');
+				return false;
+			}
+
+			const options = {
+				scope: 'user' as const,
+				token,
+				integrationId: INTEGRATION_ID,
+				baseUrl: this.getBaseUrl(),
+				agent: 'vscode',
+				baseModel,
+				logger: this.makeLogger(),
+			};
+
+			const result = await storeMemory(memory, options);
+			if (!result.success) {
+				this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${result.error}`);
+			} else {
+				this.logService.debug(`[AgentMemoryService] Successfully stored user memory`);
+			}
+			return result.success;
+		} catch (error) {
+			this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${error}`);
+			return false;
+		}
+	}
+
+
+	async getMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined> {
+		if (!this.isCAPIMemorySyncConfigEnabled()) {
+			return undefined;
+		}
+
+		if (sessionId) {
+			const cached = this._conversationMemoryCache.get(sessionId);
+			if (cached) {
+				this.logService.debug(`[AgentMemoryService] Using cached memory prompt for conversation: ${sessionId}`);
+				return cached;
+			}
+			const inflight = this._inflightPrompts.get(sessionId);
+			if (inflight) {
+				return inflight;
+			}
+			this.logService.debug(`[AgentMemoryService] Cache miss for conversation: ${sessionId}, cache size: ${this._conversationMemoryCache.size}`);
+		} else {
+			this.logService.debug(`[AgentMemoryService] No sessionId provided, skipping cache lookup`);
+		}
+
+		const promise = this._fetchMemoryPrompt(repoNwo, sessionId);
+		if (sessionId) {
+			this._inflightPrompts.set(sessionId, promise);
+			void promise.finally(() => this._inflightPrompts.delete(sessionId));
+		}
+		return promise;
+	}
+
+	private async _fetchMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined> {
+		try {
+			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
+
+			const token = await this.getToken();
+			if (!token) {
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for fetching memory prompt');
+				return undefined;
+			}
+
+			const baseOptions = {
+				token,
+				integrationId: INTEGRATION_ID,
+				baseUrl: this.getBaseUrl(),
+				logger: this.makeLogger(),
+			};
+
+			let options: MemoryApiOptions;
+			if (resolvedRepoNwo) {
+				const [owner, repo] = resolvedRepoNwo.split('/');
+				options = { scope: 'repository', owner, repo, ...baseOptions };
+			} else {
+				options = { scope: 'user', ...baseOptions };
+			}
+
+			const response = await fetchMemoryPrompts(options);
+			if (response) {
+				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
+				if (sessionId) {
+					this._conversationMemoryCache.set(sessionId, response);
+				}
+			}
+			return response;
+		} catch (error) {
+			this.logService.warn(`[AgentMemoryService] Failed to fetch memory prompt: ${error}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Clear cached memory for a specific conversation (called when conversation ends)
+	 */
+	clearCache(sessionId?: string): void {
+		if (sessionId) {
+			const deleted = this._conversationMemoryCache.delete(sessionId);
+			this.logService.debug(`[AgentMemoryService] Cleared cache for conversation: ${sessionId} (found: ${deleted})`);
+		} else {
+			// Clear all conversations
+			const count = this._conversationMemoryCache.size;
+			this._conversationMemoryCache.clear();
+			this.logService.debug(`[AgentMemoryService] Cleared all conversation caches (${count} entries)`);
+		}
+	}
+
 }
