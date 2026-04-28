@@ -32,7 +32,7 @@ import { IIntent, IIntentInvocationContext, IntentLinkificationOptions } from '.
 import { AgentPrompt } from '../../prompts/node/agent/agentPrompt';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { IToolsService } from '../../tools/common/toolsService';
-import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { AgentIntentInvocation } from './agentIntent';
 
@@ -130,10 +130,10 @@ export class AskAgentIntentInvocation extends AgentIntentInvocation {
 		@IExperimentationService expService: IExperimentationService,
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
-		@IAgentMemoryToolRegistrar agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
+		@IAgentMemoryCachePrimer agentMemoryCachePrimer: IAgentMemoryCachePrimer,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
 	) {
-		super(intent, location, endpoint, request, { processCodeblocks: true }, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryToolRegistrar, sessionTranscriptService);
+		super(intent, location, endpoint, request, { processCodeblocks: true }, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryCachePrimer, sessionTranscriptService);
 	}
 
 	public override async getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

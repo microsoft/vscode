@@ -60,7 +60,7 @@ import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
-import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { extractSessionId } from '../../tools/node/memoryTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -69,6 +69,11 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
+
+function getSessionIdFromToken(token: unknown): string | undefined {
+	const sessionResource = (token as any)?.sessionResource as string | undefined;
+	return sessionResource ? extractSessionId(sessionResource) : undefined;
+}
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -148,8 +153,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.MultiReplaceString] = true;
 	}
 
-	const sessionResource = (request.toolInvocationToken as any)?.sessionResource as string | undefined;
-	const sessionId = sessionResource ? extractSessionId(sessionResource) : undefined;
+	const sessionId = getSessionIdFromToken(request.toolInvocationToken);
 	let cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt(sessionId);
 	if (!cachedMemoryPrompt && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
 		cachedMemoryPrompt = await agentMemoryService.getMemoryPrompt(undefined, sessionId);
@@ -402,7 +406,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService override readonly otelService: IOTelService,
-		@IAgentMemoryToolRegistrar private readonly agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
+		@IAgentMemoryCachePrimer private readonly agentMemoryCachePrimer: IAgentMemoryCachePrimer,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
@@ -419,9 +423,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
-		if (promptContext.history?.length === 0) {
-			const sessionResource = (promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
-			await this.agentMemoryToolRegistrar.registerMemoryTools(sessionResource ? extractSessionId(sessionResource) : undefined);
+		if (!promptContext.history || promptContext.history.length === 0) {
+			await this.agentMemoryCachePrimer.primeCache(getSessionIdFromToken(promptContext.tools?.toolInvocationToken));
 		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);

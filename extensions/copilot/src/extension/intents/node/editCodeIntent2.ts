@@ -29,7 +29,7 @@ import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
-import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
 import { AgentIntentInvocation } from './agentIntent';
 import { EditCodeIntentOptions } from './editCodeIntent';
 
@@ -91,10 +91,10 @@ export class EditCode2IntentInvocation extends AgentIntentInvocation {
 		@IExperimentationService expService: IExperimentationService,
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
-		@IAgentMemoryToolRegistrar agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
+		@IAgentMemoryCachePrimer agentMemoryCachePrimer: IAgentMemoryCachePrimer,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryToolRegistrar, sessionTranscriptService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryCachePrimer, sessionTranscriptService);
 	}
 
 	public override async getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

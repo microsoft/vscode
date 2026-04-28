@@ -35,7 +35,7 @@ import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperServ
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { getToolName, ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
-import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
+import { IAgentMemoryCachePrimer } from '../../tools/node/agentMemoryToolRegistrar';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { EditCodeIntent, EditCodeIntentOptions } from './editCodeIntent';
 import { EditCode2IntentInvocation } from './editCodeIntent2';
@@ -109,10 +109,10 @@ export class NotebookEditorIntentInvocation extends EditCode2IntentInvocation {
 		@IExperimentationService expService: IExperimentationService,
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
-		@IAgentMemoryToolRegistrar agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
+		@IAgentMemoryCachePrimer agentMemoryCachePrimer: IAgentMemoryCachePrimer,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryToolRegistrar, sessionTranscriptService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryCachePrimer, sessionTranscriptService);
 	}
 
 	protected override prompt = NotebookInlinePrompt;

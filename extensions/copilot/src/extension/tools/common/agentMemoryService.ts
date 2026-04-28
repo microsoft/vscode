@@ -67,9 +67,12 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 	// Conversation-scoped cache - one entry per conversation, cleared on conversation end
 	private _conversationMemoryCache = new Map<string, MemoryPromptResponse>();
+	// Deduplicates concurrent getMemoryPrompt calls for the same session
+	private _inflightPrompts = new Map<string, Promise<MemoryPromptResponse | undefined>>();
 
 	override dispose(): void {
 		this._conversationMemoryCache.clear();
+		this._inflightPrompts.clear();
 		super.dispose();
 	}
 
@@ -225,25 +228,35 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 
 	async getMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined> {
+		if (!this.isCAPIMemorySyncConfigEnabled()) {
+			return undefined;
+		}
+
+		if (sessionId) {
+			const cached = this._conversationMemoryCache.get(sessionId);
+			if (cached) {
+				this.logService.debug(`[AgentMemoryService] Using cached memory prompt for conversation: ${sessionId}`);
+				return cached;
+			}
+			const inflight = this._inflightPrompts.get(sessionId);
+			if (inflight) {
+				return inflight;
+			}
+			this.logService.debug(`[AgentMemoryService] Cache miss for conversation: ${sessionId}, cache size: ${this._conversationMemoryCache.size}`);
+		} else {
+			this.logService.debug(`[AgentMemoryService] No sessionId provided, skipping cache lookup`);
+		}
+
+		const promise = this._fetchMemoryPrompt(repoNwo, sessionId);
+		if (sessionId) {
+			this._inflightPrompts.set(sessionId, promise);
+			void promise.finally(() => this._inflightPrompts.delete(sessionId));
+		}
+		return promise;
+	}
+
+	private async _fetchMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined> {
 		try {
-			if (!this.isCAPIMemorySyncConfigEnabled()) {
-				return undefined;
-			}
-
-			// For conversation-scoped caching, use sessionId as the cache key
-			// If no sessionId provided, we don't cache (for backward compatibility)
-			if (sessionId) {
-				const cachedResponse = this._conversationMemoryCache.get(sessionId);
-				if (cachedResponse) {
-					this.logService.debug(`[AgentMemoryService] Using cached memory prompt for conversation: ${sessionId}`);
-					return cachedResponse;
-				} else {
-					this.logService.debug(`[AgentMemoryService] Cache miss for conversation: ${sessionId}, cache size: ${this._conversationMemoryCache.size}`);
-				}
-			} else {
-				this.logService.debug(`[AgentMemoryService] No sessionId provided, skipping cache lookup`);
-			}
-
 			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
 
 			const token = await this.getToken();

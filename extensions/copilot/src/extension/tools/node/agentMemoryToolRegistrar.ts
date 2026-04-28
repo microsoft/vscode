@@ -9,18 +9,18 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { createServiceIdentifier } from '../../../util/common/services';
 import { IAgentMemoryService } from '../common/agentMemoryService';
 
-export interface IAgentMemoryToolRegistrar {
+export interface IAgentMemoryCachePrimer {
 	readonly _serviceBrand: undefined;
 	/**
 	 * Called at the start of each new agent conversation. Fetches and caches the
 	 * /prompt response so that tool schema and instructions are available for rendering.
 	 */
-	registerMemoryTools(sessionId?: string): Promise<void>;
+	primeCache(sessionId?: string): Promise<void>;
 }
 
-export const IAgentMemoryToolRegistrar = createServiceIdentifier<IAgentMemoryToolRegistrar>('IAgentMemoryToolRegistrar');
+export const IAgentMemoryCachePrimer = createServiceIdentifier<IAgentMemoryCachePrimer>('IAgentMemoryCachePrimer');
 
-export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
+export class AgentMemoryCachePrimer implements IAgentMemoryCachePrimer {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -30,7 +30,7 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async registerMemoryTools(sessionId?: string): Promise<void> {
+	async primeCache(sessionId?: string): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 		if (!enabled) {
 			return;
