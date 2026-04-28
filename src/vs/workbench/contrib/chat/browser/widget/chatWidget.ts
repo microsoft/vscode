@@ -476,7 +476,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this.updateWorkingProgressBorder()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
+			this.updateWorkingProgressBorder();
+			if (this.visible) {
+				this.listWidget.rerender();
+			}
+		}));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
