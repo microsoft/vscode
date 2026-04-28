@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterAll, beforeAll, beforeEach, describe, expect, suite, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, suite, test, vi } from 'vitest';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
@@ -468,6 +469,14 @@ suite('MemoryTool', () => {
 	// --- Repo path routing ---
 
 	describe('repo path operations', () => {
+		beforeEach(() => {
+			vi.spyOn(accessor.get(IConfigurationService), 'getExperimentBasedConfig').mockReturnValue(true);
+		});
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
 		test('view is not supported for repo paths', async () => {
 			const result = await invokeMemoryTool(tool, {
 				command: 'view',
@@ -619,30 +628,40 @@ suite('MemoryTool', () => {
 		});
 
 		test('emits memoryRepoToolInvoked for repo create', async () => {
-			await invokeMemoryTool(tool, {
-				command: 'create',
-				path: '/memories/repo/fact.json',
-				file_text: JSON.stringify({ subject: 'test', fact: 'fact' }),
-			});
-			const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
-			expect(events.length).toBe(1);
-			expect(events[0].properties).toMatchObject({
-				command: 'create',
-				toolOutcome: 'success',
-			});
+			vi.spyOn(accessor.get(IConfigurationService), 'getExperimentBasedConfig').mockReturnValue(true);
+			try {
+				await invokeMemoryTool(tool, {
+					command: 'create',
+					path: '/memories/repo/fact.json',
+					file_text: JSON.stringify({ subject: 'test', fact: 'fact' }),
+				});
+				const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
+				expect(events.length).toBe(1);
+				expect(events[0].properties).toMatchObject({
+					command: 'create',
+					toolOutcome: 'success',
+				});
+			} finally {
+				vi.restoreAllMocks();
+			}
 		});
 
 		test('emits memoryRepoToolInvoked with error for unsupported command', async () => {
-			await invokeMemoryTool(tool, {
-				command: 'view',
-				path: '/memories/repo',
-			});
-			const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
-			expect(events.length).toBe(1);
-			expect(events[0].properties).toMatchObject({
-				command: 'view',
-				toolOutcome: 'error',
-			});
+			vi.spyOn(accessor.get(IConfigurationService), 'getExperimentBasedConfig').mockReturnValue(true);
+			try {
+				await invokeMemoryTool(tool, {
+					command: 'view',
+					path: '/memories/repo',
+				});
+				const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
+				expect(events.length).toBe(1);
+				expect(events[0].properties).toMatchObject({
+					command: 'view',
+					toolOutcome: 'error',
+				});
+			} finally {
+				vi.restoreAllMocks();
+			}
 		});
 
 		test('emits memoryToolInvoked with repo scope when CAPI memory disabled (local fallback)', async () => {

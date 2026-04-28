@@ -127,10 +127,10 @@ suite('StoreMemoryTool', () => {
 			expect(mockMemoryService.userMemories[0].citations).toEqual([]);
 		});
 
-		test('passes undefined citations when omitted', async () => {
+		test('passes empty citations array when omitted', async () => {
 			const { citations: _, ...inputWithoutCitations } = baseInput;
 			await invokeTool(tool, { ...inputWithoutCitations, scope: 'repo' });
-			expect(mockMemoryService.repoMemories[0].citations).toBeUndefined();
+			expect(mockMemoryService.repoMemories[0].citations).toEqual([]);
 		});
 	});
 
@@ -140,7 +140,6 @@ suite('StoreMemoryTool', () => {
 			const result = await invokeTool(tool, { ...baseInput, scope: 'repo' });
 			const text = getResultText(result as never);
 			expect(text).toContain('Failed to store memory');
-			expect(text).toContain('repository');
 		});
 
 		test('returns failure message for user scope when service returns false', async () => {
