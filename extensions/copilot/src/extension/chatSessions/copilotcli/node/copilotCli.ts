@@ -198,7 +198,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
-				multiplier,
+				pricing: multiplier,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
