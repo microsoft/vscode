@@ -11,7 +11,8 @@ import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/ch
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
-import { CopilotChatAttr, GenAiAttr, IOTelService, type ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
+import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -33,6 +34,7 @@ import { resolvePromptToContentBlocks } from './claudePromptResolver';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
 import { ParsedClaudeModelId } from '../common/claudeModelId';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
+import { ClaudeOTelTracker } from './claudeOTelTracker';
 
 // Manages Claude Code agent interactions and language model server lifecycle
 export class ClaudeAgentManager extends Disposable {
@@ -169,6 +171,7 @@ export class ClaudeCodeSession extends Disposable {
 	private _currentToolNames: ReadonlySet<string> | undefined;
 	private _gateway: vscode.McpGateway | undefined;
 	private _gatewayIdleTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _otelTracker: ClaudeOTelTracker | undefined;
 
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
@@ -223,6 +226,7 @@ export class ClaudeCodeSession extends Disposable {
 		this._currentModelId = initialModelId;
 		this._currentPermissionMode = initialPermissionMode;
 		this._isResumed = !isNewSession;
+		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService);
 		this._debugFileLogger.startSession(this.sessionId).catch(err => {
 			this.logService.error('[ClaudeCodeSession] Failed to start debug log session', err);
 		});
@@ -476,7 +480,9 @@ export class ClaudeCodeSession extends Disposable {
 					ANTHROPIC_AUTH_TOKEN: `${this.serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`
+					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`,
+					// Forward OTel configuration to the Claude SDK subprocess
+					...deriveClaudeOTelEnv(this._otelService.config),
 				},
 				attribution: {
 					commit: '',
@@ -546,20 +552,12 @@ export class ClaudeCodeSession extends Disposable {
 				new CapturingToken(promptLabel, 'claude', undefined, undefined, this.sessionId)
 			);
 
-			// Emit a user_message span event for the debug panel
-			// Use a non-standard operation name so completedSpanToDebugEvent ignores this span
-			// (avoids a "Model Turn · 0 tokens" entry); only the user_message event is rendered.
-			const userMsgSpan = this._otelService.startSpan('user_message', {
-				kind: SpanKind.INTERNAL,
-				attributes: {
-					[GenAiAttr.OPERATION_NAME]: 'user_message',
-					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
-				},
-			});
-			const userContent = truncateForOTel(promptLabel);
-			userMsgSpan.setAttribute(CopilotChatAttr.USER_REQUEST, userContent);
-			userMsgSpan.addEvent('user_message', { content: userContent, [CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId });
-			userMsgSpan.end();
+			// Start OTel tracking for this request
+			const modelId = this._currentModelId.toEndpointModelId();
+			this._otelTracker!.startRequest(modelId);
+
+			// Emit user_message span event for the debug panel
+			this._otelTracker!.emitUserMessage(promptLabel);
 
 			yield {
 				type: 'user',
@@ -600,6 +598,7 @@ export class ClaudeCodeSession extends Disposable {
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
 		const otelHookSpans = new Map<string, ISpanHandle>();
+		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			for await (const message of this._queryGenerator!) {
@@ -625,7 +624,11 @@ export class ClaudeCodeSession extends Disposable {
 					continue;
 				}
 
+				// Track OTel metrics from SDK messages
+				this._otelTracker!.onMessage(message, subagentTraceContexts);
+
 				this.logService.trace(`claude-agent-sdk Message: ${JSON.stringify(message, null, 2)}`);
+
 				const result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 					stream: this._currentRequest.stream,
 					toolInvocationToken: this._currentRequest.toolInvocationToken,
@@ -635,9 +638,13 @@ export class ClaudeCodeSession extends Disposable {
 					unprocessedToolCalls,
 					otelToolSpans,
 					otelHookSpans,
+					parentTraceContext: this._otelTracker!.traceContext,
+					subagentTraceContexts,
 				});
 
 				if (result?.requestComplete) {
+					// End the invoke_agent span for this request
+					this._otelTracker!.endRequest();
 					// Clear the capturing token so subsequent requests get their own
 					this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
 					// Resolve and remove the completed request
@@ -647,6 +654,7 @@ export class ClaudeCodeSession extends Disposable {
 					}
 					this._currentRequest = undefined;
 					this._startGatewayIdleTimer();
+					subagentTraceContexts.clear();
 				}
 			}
 			// Generator ended normally - clean up so next invoke starts fresh
@@ -665,12 +673,16 @@ export class ClaudeCodeSession extends Disposable {
 				span.end();
 			}
 			otelHookSpans.clear();
+			// End any lingering invoke_agent span
+			this._otelTracker!.endRequestWithError('session ended');
 		}
 	}
 
 	private _cleanup(error: Error): void {
 		// Clear the capturing token so it doesn't leak across sessions or error boundaries
 		this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
+		// End invoke_agent span with error if still open
+		this._otelTracker!.endRequestWithError(error.message);
 		this._resetSessionState();
 
 		const wasYielding = this._yieldInProgress;

@@ -15,6 +15,8 @@ import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IExtensionContribution } from '../../common/contributions';
 import {
+	MAX_ASSISTANT_RESPONSE_LENGTH,
+	MAX_SUMMARY_LENGTH,
 	extractAssistantResponse,
 	extractFilePath,
 	extractRefsFromMcpTool,
@@ -22,6 +24,8 @@ import {
 	extractRepoFromMcpTool,
 	extractToolArgs,
 	isGitHubMcpTool,
+	isTerminalTool,
+	truncateForStore,
 } from '../common/sessionStoreTracking';
 
 /** How often to flush buffered writes to SQLite (ms). */
@@ -240,9 +244,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const userRequest = span.attributes[CopilotChatAttr.USER_REQUEST] as string | undefined;
 
 		if (branch || remoteUrl || userRequest) {
-			const summary = userRequest
-				? (userRequest.length > 100 ? userRequest.slice(0, 100).trim() + '...' : userRequest)
-				: undefined;
+			const summary = truncateForStore(userRequest, MAX_SUMMARY_LENGTH);
 
 			this._bufferSessionUpsert({
 				id: sessionId,
@@ -287,7 +289,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		}
 
 		// Track refs from terminal/shell tool
-		if (toolName === 'runInTerminal' || toolName === 'run_in_terminal') {
+		if (isTerminalTool(toolName)) {
 			const resultText = span.attributes['gen_ai.tool.result'] as string | undefined;
 			const refs = extractRefsFromTerminal(toolArgs, resultText);
 			for (const ref of refs) {
@@ -321,17 +323,15 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const existingSession = this._buffer.sessions.get(sessionId);
 		if (!existingSession?.summary) {
 			const firstMessage = userMessages[0]?.content ?? userRequest;
-			if (firstMessage) {
-				const summary = firstMessage.length > 100 ? firstMessage.slice(0, 100).trim() + '...' : firstMessage;
+			const summary = truncateForStore(firstMessage, MAX_SUMMARY_LENGTH);
+			if (summary) {
 				this._bufferSessionUpsert({ id: sessionId, summary });
 			}
 		}
 
 		// Extract assistant response from OUTPUT_MESSAGES attribute, truncated for storage
 		const fullResponse = extractAssistantResponse(span.attributes[GenAiAttr.OUTPUT_MESSAGES] as string | undefined);
-		const assistantResponse = fullResponse
-			? (fullResponse.length > 1000 ? fullResponse.slice(0, 1000).trim() + '...' : fullResponse)
-			: undefined;
+		const assistantResponse = truncateForStore(fullResponse, MAX_ASSISTANT_RESPONSE_LENGTH);
 
 		// Use in-memory turn counter to avoid collisions with buffered-but-unflushed turns.
 		// Initialize from DB on first use, then increment in memory.

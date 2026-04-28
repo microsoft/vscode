@@ -16,10 +16,10 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -52,6 +52,8 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agen
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { IChatWidgetService } from '../../../browser/chat.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -77,7 +79,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	// Track live subscriptions so fireAction can route to them
-	private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
+	private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
 
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -232,7 +234,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 
 		// Register in live subscriptions so fireAction can route to it
-		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState> };
+		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState>, onWillApply, onDidApply };
 		this._liveSubscriptions.set(resourceStr, entry);
 
 		const self = this;
@@ -240,8 +242,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			onDidChange: emitter.event,
-			onWillApplyAction: onWillApply.event,
-			onDidApplyAction: onDidApply.event,
+			onWillApplyAction: entry.onWillApply.event,
+			onDidApplyAction: entry.onDidApply.event,
 		};
 		return {
 			object: sub,
@@ -263,8 +265,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			onDidChange: entry.emitter.event as unknown as Event<T>,
-			onWillApplyAction: Event.None,
-			onDidApplyAction: Event.None,
+			onWillApplyAction: entry.onWillApply.event,
+			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
 	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
@@ -292,8 +294,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			const entry = this._liveSubscriptions.get(sessionUri);
 			if (entry) {
 				const noop = () => { };
+				entry.onWillApply.fire(envelope);
 				entry.state = sessionReducer(entry.state, envelope.action as Parameters<typeof sessionReducer>[1], noop);
 				entry.emitter.fire(entry.state);
+				entry.onDidApply.fire(envelope);
 			}
 		}
 	}
@@ -322,6 +326,28 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 	}
 }
 
+class MockChatWidgetService extends mock<IChatWidgetService>() {
+	declare readonly _serviceBrand: undefined;
+
+	readonly clearQuestionCarouselCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
+	private readonly _widgets = new Map<string, ReturnType<IChatWidgetService['getWidgetBySessionResource']>>();
+
+	setWidgetForSession(sessionResource: URI): void {
+		// eslint-disable-next-line local/code-no-any-casts
+		this._widgets.set(sessionResource.toString(), {
+			input: {
+				clearQuestionCarousel: (responseId?: string, resolveId?: string) => {
+					this.clearQuestionCarouselCalls.push({ sessionResource, responseId, resolveId });
+				},
+			},
+		} as any);
+	}
+
+	override getWidgetBySessionResource(sessionResource: URI): ReturnType<IChatWidgetService['getWidgetBySessionResource']> {
+		return this._widgets.get(sessionResource.toString());
+	}
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }, authServiceOverride?: Partial<IAuthenticationService>) {
@@ -331,11 +357,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	disposables.add(toDisposable(() => agentHostService.dispose()));
 
 	const chatAgentService = new MockChatAgentService();
+	const chatWidgetService = new MockChatWidgetService();
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(IChatAgentService, chatAgentService);
+	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ILabelService, MockLabelService);
 	instantiationService.stub(IChatSessionsService, {
@@ -408,11 +436,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 
-	return { instantiationService, agentHostService, chatAgentService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService };
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined } }) {
-	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -426,7 +454,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService };
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
@@ -1027,6 +1055,186 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
+		}));
+
+		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}, {
+						kind: SessionInputQuestionKind.SingleSelect,
+						id: 'question-2',
+						message: 'Which color?',
+						options: [{ id: 'blue', label: 'Blue' }],
+					}],
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+			assert.strictEqual(carousel.resolveId, 'input-1');
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Accept,
+				answers: {
+					'question-1': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Text, value: 'from another client' },
+					},
+					'question-2': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Selected, value: 'blue', freeformValues: ['cerulean'] },
+					},
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'input-1' },
+			]);
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {
+				'question-1': 'from another client',
+				'question-2': { selectedValue: 'blue', freeformValue: 'cerulean' },
+			});
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+			assert.deepStrictEqual((await carousel.completion.p).answers, {
+				'question-1': 'from another client',
+				'question-2': { selectedValue: 'blue', freeformValue: 'cerulean' },
+			});
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('input request completion echo applies authoritative answers after local submit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-local-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}],
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+
+			const submittedAnswers = { 'question-1': 'local answer' };
+			carousel.data = submittedAnswers;
+			carousel.isUsed = true;
+			carousel.completion.complete({ answers: submittedAnswers });
+			await timeout(10);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Accept,
+				answers: {
+					'question-1': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Text, value: 'accepted answer' },
+					},
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(carousel.data, { 'question-1': 'accepted answer' });
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls, []);
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('input request cancellation does not show draft answers as submitted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-cancelled-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}],
+					answers: {
+						'question-1': {
+							state: SessionInputAnswerState.Draft,
+							value: { kind: SessionInputAnswerValueKind.Text, value: 'draft answer' },
+						},
+					},
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Cancel,
+			});
+			await timeout(10);
+
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {});
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+			assert.strictEqual((await carousel.completion.p).answers, undefined);
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'input-1' },
+			]);
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
 		}));
 	});
 

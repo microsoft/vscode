@@ -1573,6 +1573,11 @@
 						"when": "github.copilot.sessionSearch.enabled"
 					},
 					{
+						"name": "chronicle:reindex",
+						"description": "%copilot.chronicle.reindex.description%",
+						"when": "github.copilot.sessionSearch.enabled"
+					},
+					{
 						"name": "explain",
 						"description": "%copilot.workspace.explain.description%"
 					},

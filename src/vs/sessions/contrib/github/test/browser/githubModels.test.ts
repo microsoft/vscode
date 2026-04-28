@@ -20,11 +20,11 @@ import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHub
 class MockRepositoryFetcher {
 	nextResult: IGitHubRepository | undefined;
 
-	async getRepository(_owner: string, _repo: string): Promise<IGitHubRepository> {
+	async getRepository(_owner: string, _repo: string, _etag?: string): Promise<{ data: IGitHubRepository | undefined; statusCode: number; etag?: string }> {
 		if (!this.nextResult) {
 			throw new Error('No mock result');
 		}
-		return this.nextResult;
+		return { data: this.nextResult, statusCode: 200 };
 	}
 }
 
@@ -68,8 +68,8 @@ class MockPRFetcher {
 class MockCIFetcher {
 	nextChecks: IGitHubCICheck[] = [];
 
-	async getCheckRuns(_owner: string, _repo: string, _ref: string): Promise<IGitHubCICheck[]> {
-		return this.nextChecks;
+	async getCheckRuns(_owner: string, _repo: string, _ref: string, _etag?: string): Promise<{ data: readonly IGitHubCICheck[] | undefined; statusCode: number; etag?: string }> {
+		return { data: this.nextChecks, statusCode: 200 };
 	}
 
 	async getCheckRunAnnotations(_owner: string, _repo: string, _checkRunId: number): Promise<string> {

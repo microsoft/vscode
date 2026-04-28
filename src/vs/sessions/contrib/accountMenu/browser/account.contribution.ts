@@ -10,7 +10,7 @@ import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.c
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -34,19 +34,21 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, isMacintosh } from '../../../../base/common/platform.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
-import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 // --- Account Menu Items --- //
-const AccountMenu = new MenuId('SessionsAccountMenu');
+const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
@@ -218,12 +220,13 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Settings
+// Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
 		id: 'workbench.action.openSettings',
 		title: localize('settings', "Settings"),
 	},
+	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
 	order: 1,
 });
@@ -258,6 +261,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -273,6 +277,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
+		this._register(this.authenticationService.onDidChangeSessions(() => this.refreshAccount()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
@@ -316,14 +321,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.isAccountLoading = true;
 		this.renderState();
 
-		const account = await this.defaultAccountService.getDefaultAccount();
+		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
 		if (requestId !== this.accountRequestCounter) {
 			return;
 		}
 
-		this.accountName = account?.accountName;
-		this.accountProviderId = account?.authenticationProvider.id;
-		this.accountProviderLabel = account?.authenticationProvider.name;
+		this.accountName = info?.accountName;
+		this.accountProviderId = info?.accountProviderId;
+		this.accountProviderLabel = info?.accountProviderLabel;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -334,11 +339,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
+		// When we have a session but entitlement hasn't resolved yet,
+		// treat as Unresolved to avoid showing "Agents Signed Out".
+		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
+			? ChatEntitlement.Unresolved
+			: this.chatEntitlementService.entitlement;
+
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
 			accountProviderLabel: this.accountProviderLabel,
-			entitlement: this.chatEntitlementService.entitlement,
+			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
 		});
@@ -785,3 +796,32 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.BlockRestore);
+
+// --- Chat Dashboard Service (real implementation for mobile account sheet) --- //
+
+class ChatDashboardServiceImpl implements IChatDashboardService {
+	readonly _serviceBrand: undefined;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	createDashboardElement(store: DisposableStore): HTMLElement | undefined {
+		const dashboardElement = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, {
+			disableInlineSuggestionsSettings: true,
+			disableModelSelection: true,
+			disableProviderOptions: true,
+			disableCompletionsSnooze: true,
+		});
+
+		store.add(disposableWindowInterval(mainWindow, () => {
+			if (!dashboardElement.isConnected) {
+				store.dispose();
+			}
+		}, 2000));
+
+		return dashboardElement;
+	}
+}
+
+registerSingleton(IChatDashboardService, ChatDashboardServiceImpl, InstantiationType.Delayed);

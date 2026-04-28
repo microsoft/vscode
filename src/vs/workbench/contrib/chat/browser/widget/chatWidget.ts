@@ -2095,9 +2095,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
-		this._chatSessionSupportsForkContextKey.set(supportsFork);
-		this.listWidget?.updateRendererOptions({ supportsFork });
+		const updateSupportsFork = () => {
+			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
+			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			this.listWidget?.updateRendererOptions({ supportsFork });
+		};
+		updateSupportsFork();
+		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSupportsFork()));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
