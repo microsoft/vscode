@@ -8,6 +8,7 @@
 	display: none;
 }
 
+/* Counteract the `.interactive-input-part` `gap: 4px` so the notification attaches to the input. */
 .interactive-session .interactive-input-part > .chat-input-notification-container {
 	margin-bottom: -4px;
 }
