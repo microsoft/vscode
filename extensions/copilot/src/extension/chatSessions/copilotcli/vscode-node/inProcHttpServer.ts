@@ -117,13 +117,12 @@ export class InProcHttpServer extends Disposable {
 
 			// MCP requests like open_diff include full file contents which can exceed the default ~100KB limit
 			app.use(expressApp.json({ limit: '10mb' }));
-			app.use((req: express.Request, res: express.Response, next: express.NextFunction) =>
-				this._authMiddleware(nonce, req, res, next),
-			);
+			const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+				this._authMiddleware(nonce, req, res, next);
 
-			app.post('/mcp', (req: express.Request, res: express.Response) => this._handlePost(mcpOptions, req, res));
-			app.get('/mcp', (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
-			app.delete('/mcp', (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
+			app.post('/mcp', authMiddleware, (req: express.Request, res: express.Response) => this._handlePost(mcpOptions, req, res));
+			app.get('/mcp', authMiddleware, (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
+			app.delete('/mcp', authMiddleware, (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
 
 			const httpServer = app.listen(socketPath);
 			this._logger.debug('HTTP server listening on socket');
