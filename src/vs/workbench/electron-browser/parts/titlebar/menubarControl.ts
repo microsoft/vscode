@@ -26,6 +26,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
 import { isICommandActionToggleInfo } from '../../../../platform/action/common/action.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js'; // test-workbench_change
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -46,6 +47,7 @@ export class NativeMenubarControl extends MenubarControl {
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ICommandService commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService, // test-workbench_change
 	) {
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
@@ -54,6 +56,10 @@ export class NativeMenubarControl extends MenubarControl {
 
 			this.doUpdateMenubar();
 		})();
+
+		// test-workbench_change start
+		this._register(this.layoutService.onDidChangeConciseMode(() => this.doUpdateMenubar()));
+		// test-workbench_change end
 
 		this.registerListeners();
 	}
@@ -77,7 +83,7 @@ export class NativeMenubarControl extends MenubarControl {
 		}
 
 		// Send menus to main process to be rendered by Electron
-		const menubarData = { menus: {}, keybindings: {} };
+		const menubarData = { menus: {}, keybindings: {}, conciseMode: this.layoutService.isConciseModeActive() }; // test-workbench_change
 		if (this.getMenubarMenus(menubarData)) {
 			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
 		}
@@ -90,6 +96,11 @@ export class NativeMenubarControl extends MenubarControl {
 
 		menubarData.keybindings = this.getAdditionalKeybindings();
 		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
+			// test-workbench_change start: In concise mode, only show File and Run menus
+			if (this.layoutService.isConciseModeActive() && topLevelMenuName !== 'File' && topLevelMenuName !== 'Run') {
+				continue;
+			}
+			// test-workbench_change end
 			const menu = this.menus[topLevelMenuName];
 			if (menu) {
 				const menubarMenu: IMenubarMenu = { items: [] };

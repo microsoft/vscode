@@ -173,6 +173,24 @@ export class ActivitybarPart extends Part {
 		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
 	}
 
+	// test-workbench_change start
+	pinPaneComposite(id: string): void {
+		this.compositeBar.value?.pinComposite(id);
+	}
+
+	unpinPaneComposite(id: string): void {
+		this.compositeBar.value?.unpinComposite(id);
+	}
+
+	setExtensionsVisible(visible: boolean): void {
+		this.compositeBar.value?.setCompositeVisible('workbench.view.extensions', visible);
+	}
+
+	setGlobalCompositeBarVisible(visible: boolean): void {
+		(this.compositeBar.value as ActivityBarCompositeBar | undefined)?.setGlobalCompositeBarVisible(visible);
+	}
+	// test-workbench_change end
+
 	focus(): void {
 		this.compositeBar.value?.focus();
 	}
@@ -445,6 +463,12 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		return actions;
 	}
+
+	// test-workbench_change start
+	setGlobalCompositeBarVisible(visible: boolean): void {
+		this.globalCompositeBar?.setVisible(visible);
+	}
+	// test-workbench_change end
 
 }
 

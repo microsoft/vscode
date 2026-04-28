@@ -154,6 +154,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
+	 * Emits when the concise mode is enabled or disabled.
+	 */ // test-workbench_change start
+	readonly onDidChangeConciseMode: Event<boolean>;
+	// test-workbench_change end
+
+	/**
 	 * Emits when the target window is maximized or unmaximized.
 	 */
 	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;
@@ -317,6 +323,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Toggles the workbench in and out of concise mode - status bar hidden, menu bar shows only File.
+	 */ // test-workbench_change start
+	toggleConciseMode(): void;
+
+	/**
+	 * Returns whether concise mode is currently active.
+	 */
+	isConciseModeActive(): boolean;
+	// test-workbench_change end
 
 	/**
 	 * Returns whether the centered editor layout is active on the main editor part.

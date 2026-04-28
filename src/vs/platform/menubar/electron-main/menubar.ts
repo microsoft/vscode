@@ -64,6 +64,8 @@ export class Menubar extends Disposable {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
+	private conciseMode: boolean = false; // test-workbench_change
+
 	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BaseWindow | undefined, event: KeyboardEvent) => void } = Object.create(null);
 
 	constructor(
@@ -116,6 +118,8 @@ export class Menubar extends Disposable {
 			if (menubarData.keybindings) {
 				this.keybindings = menubarData.keybindings;
 			}
+
+			this.conciseMode = menubarData.conciseMode ?? false; // test-workbench_change
 		}
 	}
 
@@ -206,6 +210,7 @@ export class Menubar extends Disposable {
 	updateMenu(menubarData: IMenubarData, windowId: number) {
 		this.menubarMenus = menubarData.menus;
 		this.keybindings = menubarData.keybindings;
+		this.conciseMode = menubarData.conciseMode ?? false; // test-workbench_change
 
 		// Save off new menu and keybindings
 		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
@@ -483,6 +488,12 @@ export class Menubar extends Disposable {
 		if (!isMacintosh && !this.showNativeMenu) {
 			return false; // We need to draw an empty menu to override the electron default
 		}
+
+		// test-workbench_change start: In concise mode, only show File and Run menus
+		if (this.conciseMode && menuId !== 'File' && menuId !== 'Run') {
+			return false;
+		}
+		// test-workbench_change end
 
 		switch (menuId) {
 			case 'File':

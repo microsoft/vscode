@@ -131,6 +131,12 @@ export class GlobalCompositeBar extends Disposable {
 		return this.globalActivityActionBar.viewItems.length;
 	}
 
+	// test-workbench_change start
+	setVisible(visible: boolean): void {
+		this.element.style.display = visible ? '' : 'none';
+	}
+	// test-workbench_change end
+
 	getContextMenuActions(): IAction[] {
 		return [toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference })];
 	}

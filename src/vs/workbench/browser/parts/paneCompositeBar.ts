@@ -503,6 +503,28 @@ export class PaneCompositeBar extends Disposable {
 			.map(v => v.id);
 	}
 
+	// test-workbench_change start
+	pinComposite(compositeId: string): void {
+		this.compositeBar.pin(compositeId);
+	}
+
+	unpinComposite(compositeId: string): void {
+		this.compositeBar.unpin(compositeId);
+	}
+
+	isPinnedComposite(compositeId: string): boolean {
+		return this.compositeBar.isPinned(compositeId);
+	}
+
+	/**
+	 * Directly show or hide a composite in the activity bar without changing its pinned state.
+	 * Use this instead of pin/unpin when you want to temporarily hide an icon.
+	 */
+	setCompositeVisible(compositeId: string, visible: boolean): void {
+		this.compositeBar.setItemVisible(compositeId, visible);
+	}
+	// test-workbench_change end
+
 	getContextMenuActions(): IAction[] {
 		return this.compositeBar.getContextMenuActions();
 	}

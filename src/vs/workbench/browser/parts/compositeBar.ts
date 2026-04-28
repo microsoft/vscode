@@ -498,6 +498,26 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return item?.activityAction;
 	}
 
+	// test-workbench_change start
+	/**
+	 * Visually show or hide a composite item using CSS only.
+	 * Does NOT change pin state or write to storage.
+	 */
+	setItemVisible(compositeId: string, visible: boolean): void {
+		if (!this.compositeSwitcherBar) {
+			return;
+		}
+		const index = this.visibleComposites.indexOf(compositeId);
+		if (index === -1) {
+			return;
+		}
+		const listItem = this.compositeSwitcherBar.actionsList.children[index] as HTMLElement | undefined;
+		if (listItem) {
+			listItem.style.display = visible ? '' : 'none';
+		}
+	}
+	// test-workbench_change end
+
 	private computeSizes(items: ICompositeBarModelItem[]): void {
 		const size = this.options.compositeSize;
 		if (size) {

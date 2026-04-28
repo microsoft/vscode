@@ -428,6 +428,30 @@ export class MenuBar extends Disposable {
 		}
 	}
 
+	// test-workbench_change start
+	removeMenu(label: string): void {
+		const index = this.menus.findIndex(menuBarMenu => menuBarMenu.label === label);
+		if (index === -1) {
+			return;
+		}
+
+		const menu = this.menus[index];
+		menu.titleElement?.remove();
+		menu.buttonElement?.remove();
+		this.menus.splice(index, 1);
+
+		// Re-register mnemonics for remaining menus
+		this.mnemonics.clear();
+		this.menus.forEach((m, i) => {
+			const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(m.label ?? '');
+			if (mnemonicMatches) {
+				const mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+				this.registerMnemonic(i, mnemonic);
+			}
+		});
+	}
+	// test-workbench_change end
+
 	override dispose(): void {
 		super.dispose();
 
