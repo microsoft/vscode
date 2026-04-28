@@ -778,8 +778,8 @@ class ConversationHistorySummarizer {
 	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, promptTypes?: string): Promise<FetchSuccess<string>> {
 		if (response.type !== ChatFetchResponseType.Success) {
 			const outcome = response.type;
-			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason);
-			this.logInfo(`Summarization request failed. ${response.type} ${response.reason}`, mode);
+			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason ?? response.type);
+			this.logInfo(`Summarization request failed. ${response.type} ${response.reason ?? response.type}`, mode);
 			if (response.type === ChatFetchResponseType.Canceled) {
 				throw new CancellationError();
 			}

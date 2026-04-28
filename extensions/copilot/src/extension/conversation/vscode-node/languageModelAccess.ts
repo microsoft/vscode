@@ -42,7 +42,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { getModelCapabilitiesDescription } from '../common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -258,7 +258,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				name: endpoint instanceof AutoChatEndpoint ? 'Auto' : endpoint.name,
 				family: endpoint.family,
 				tooltip: modelTooltip,
-				multiplier: endpoint instanceof AutoChatEndpoint ? modelDetail : multiplier,
+				pricing: endpoint instanceof AutoChatEndpoint ? undefined : (multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined)),
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				detail: modelDetail,
 				category: modelCategory,

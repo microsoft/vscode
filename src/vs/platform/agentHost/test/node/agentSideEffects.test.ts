@@ -19,15 +19,18 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
+import { CustomizationStatus } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
@@ -35,14 +38,15 @@ import { MockAgent } from './mockAgent.js';
 /**
  * Constructs an {@link AgentSideEffects} with a minimal local instantiation
  * scope that satisfies its {@link IAgentConfigurationService} /
- * {@link ILogService} dependencies.
+ * {@link ILogService} / {@link IAgentHostGitService} dependencies.
  */
-function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions): AgentSideEffects {
+function createTestSideEffects(disposables: DisposableStore, stateManager: AgentHostStateManager, options: IAgentSideEffectsOptions, gitService?: IAgentHostGitService): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
+		[IAgentHostGitService, gitService ?? createNoopGitService()],
 	), /*strict*/ true));
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
 }
@@ -97,6 +101,7 @@ suite('AgentSideEffects', () => {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
+			onTurnComplete: () => { },
 		});
 	});
 
@@ -122,7 +127,26 @@ suite('AgentSideEffects', () => {
 			// sendMessage is async but fire-and-forget; wait a tick
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world' }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined }]);
+		});
+
+		test('parses protocol attachment URI strings before passing them to the agent', () => {
+			setupSession();
+			const fileUri = URI.file('/workspace/test.ts');
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hello world', attachments: [{ type: AttachmentType.File, uri: fileUri.toString(), displayName: 'test.ts' }] },
+			};
+
+			sideEffects.handleAction(action);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'hello world',
+				attachments: [{ type: AttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'test.ts' }],
+			}]);
 		});
 
 		test('dispatches session/error when no agent is found', async () => {
@@ -132,6 +156,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => undefined,
 				agents: emptyAgents,
 				sessionDataService: {} as ISessionDataService,
+				onTurnComplete: () => { },
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -462,6 +487,27 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'queued message');
 		});
 
+		test('parses queued protocol attachment URI strings before passing them to the agent', () => {
+			setupSession();
+			const fileUri = URI.file('/workspace/queued.ts');
+			const action: SessionAction = {
+				type: ActionType.SessionPendingMessageSet as const,
+				session: sessionUri.toString(),
+				kind: PendingMessageKind.Queued,
+				id: 'q-uri',
+				userMessage: { text: 'queued message', attachments: [{ type: AttachmentType.File, uri: fileUri.toString(), displayName: 'queued.ts' }] },
+			};
+
+			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(action);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'queued message',
+				attachments: [{ type: AttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'queued.ts' }],
+			}]);
+		});
+
 		test('syncs on SessionPendingMessageRemoved', () => {
 			setupSession();
 
@@ -638,6 +684,18 @@ suite('AgentSideEffects', () => {
 
 		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
 			setupSession();
+			agent.getSessionCustomizations = async () => [
+				{
+					customization: { uri: 'file:///plugin-a', displayName: 'Plugin A' },
+					enabled: true,
+					status: CustomizationStatus.Loaded,
+				},
+				{
+					customization: { uri: 'file:///plugin-b', displayName: 'Plugin B' },
+					enabled: true,
+					status: CustomizationStatus.Loaded,
+				},
+			];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -672,7 +730,7 @@ suite('AgentSideEffects', () => {
 			assert.ok(customizationActions.length >= 1, 'should dispatch at least one customizationsChanged');
 		});
 
-		test('skips when activeClient has no customizations', () => {
+		test('clears client customizations when activeClient has no customizations', () => {
 			setupSession();
 
 			const envelopes: ActionEnvelope[] = [];
@@ -688,13 +746,16 @@ suite('AgentSideEffects', () => {
 			};
 			sideEffects.handleAction(action);
 
-			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
+				clientId: 'test-client',
+				customizations: [],
+			}]);
 			const customizationActions = envelopes
 				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
 			assert.strictEqual(customizationActions.length, 0);
 		});
 
-		test('skips when activeClient is null', () => {
+		test('clears client customizations when activeClient is null', () => {
 			setupSession();
 
 			const action: SessionAction = {
@@ -704,7 +765,106 @@ suite('AgentSideEffects', () => {
 			};
 			sideEffects.handleAction(action);
 
-			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
+				clientId: '',
+				customizations: [],
+			}]);
+		});
+	});
+
+	// ---- handleAction: root/configChanged --------------------------------
+
+	suite('handleAction - root/configChanged', () => {
+
+		test('republishes agent and session customizations for existing sessions', async () => {
+			setupSession('file:///workspace');
+			const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+			agent.customizations = [customization];
+			agent.getSessionCustomizations = async () => [{
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}];
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const action: RootConfigChangedAction = {
+				type: ActionType.RootConfigChanged,
+				config: { customizations: [customization] },
+			};
+
+			stateManager.dispatchServerAction(action);
+			sideEffects.handleAction(action);
+			await new Promise(resolve => setTimeout(resolve, 10));
+
+			const agentInfoAction = envelopes.filter(e => e.action.type === ActionType.RootAgentsChanged).at(-1);
+			assert.ok(agentInfoAction && hasKey(agentInfoAction.action, { agents: true }));
+			assert.deepStrictEqual(agentInfoAction.action.agents[0]?.customizations, [customization]);
+
+			const sessionCustomizationAction = envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged).at(-1);
+			assert.ok(sessionCustomizationAction && hasKey(sessionCustomizationAction.action, { customizations: true }));
+			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [{
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}]);
+		});
+	});
+
+	// ---- onDidCustomizationsChange integration --------------------------
+
+	suite('onDidCustomizationsChange', () => {
+
+		test('republishes agent info and session customizations when agent fires onDidCustomizationsChange', async () => {
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setupSession('file:///workspace');
+
+			const customization = { uri: 'file:///plugin-b', displayName: 'Plugin B' };
+			agent.customizations = [customization];
+			agent.getSessionCustomizations = async () => [{
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}];
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireCustomizationsChange();
+			await new Promise(resolve => setTimeout(resolve, 10));
+
+			const agentInfoAction = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
+			assert.ok(agentInfoAction && hasKey(agentInfoAction.action, { agents: true }));
+			assert.deepStrictEqual(agentInfoAction.action.agents[0]?.customizations, [customization]);
+
+			const sessionCustomizationAction = envelopes.find(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.ok(sessionCustomizationAction && hasKey(sessionCustomizationAction.action, { customizations: true }));
+			assert.deepStrictEqual(sessionCustomizationAction.action.customizations, [{
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			}]);
+		});
+
+		test('does not republish when registerProgressListener is disposed', async () => {
+			const listener = sideEffects.registerProgressListener(agent);
+			setupSession('file:///workspace');
+
+			agent.customizations = [{ uri: 'file:///plugin-c', displayName: 'Plugin C' }];
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			listener.dispose();
+			agent.fireCustomizationsChange();
+			await new Promise(resolve => setTimeout(resolve, 10));
+
+			assert.strictEqual(
+				envelopes.filter(e => e.action.type === ActionType.SessionCustomizationsChanged).length,
+				0,
+				'should not republish session customizations after listener disposed',
+			);
 		});
 	});
 
@@ -1188,6 +1348,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
+				onTurnComplete: () => { },
 			});
 
 			localStateManager.createSession({
@@ -1216,7 +1377,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend
@@ -1236,7 +1397,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend
@@ -1269,6 +1430,7 @@ suite('AgentSideEffects', () => {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
+				onTurnComplete: () => { },
 			});
 
 			const session = localStateManager.createSession({
@@ -1861,6 +2023,137 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-perm-1', approved: true },
 			]);
+		});
+	});
+
+	// ---- Session diff computation ----------------------------------------------
+
+	suite('session diff computation', () => {
+
+		test('git-driven path is preferred when a git service is provided and the working dir is a git work tree', async () => {
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+
+			const gitDiffs = [{
+				after: { uri: 'file:///wd/new.ts', content: { uri: 'file:///wd/new.ts' } },
+				diff: { added: 1, removed: 0 },
+			}];
+			const computeCalls: { workingDirectory: string; sessionUri: string; baseBranch: string | undefined }[] = [];
+			const stubGit = {
+				computeSessionFileDiffs: async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+					computeCalls.push({ workingDirectory: wd.toString(), sessionUri: opts.sessionUri, baseBranch: opts.baseBranch });
+					return gitDiffs;
+				},
+			} as unknown as import('../../node/agentHostGitService.js').IAgentHostGitService;
+
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+				onTurnComplete: () => { },
+			}, stubGit);
+
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'main');
+			disposables.add(localSideEffects.registerProgressListener(localAgent));
+
+			const envelopes: ActionEnvelope[] = [];
+			let resolveDiffs: (() => void) | undefined;
+			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
+			disposables.add(localStateManager.onDidEmitEnvelope(e => {
+				envelopes.push(e);
+				if (e.action.type === ActionType.SessionDiffsChanged) {
+					resolveDiffs?.();
+				}
+			}));
+
+			// Trigger a turn-complete (which fires the immediate diff path).
+			localSideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hi' },
+			});
+			localAgent.fireProgress({ session: URI.parse(sessionUri.toString()), type: 'idle' });
+
+			// Wait deterministically for the SessionDiffsChanged envelope rather
+			// than sleeping a fixed amount.
+			await diffsEmitted;
+
+			assert.deepStrictEqual(computeCalls, [{ workingDirectory: 'file:///wd', sessionUri: sessionUri.toString(), baseBranch: 'main' }]);
+			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
+			assert.ok(diffsAction, 'expected a SessionDiffsChanged action');
+			assert.deepStrictEqual((diffsAction as { diffs: unknown }).diffs, gitDiffs);
+		});
+
+		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+
+			const stubGit = {
+				computeSessionFileDiffs: async () => undefined,
+			} as unknown as import('../../node/agentHostGitService.js').IAgentHostGitService;
+
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+				onTurnComplete: () => { },
+			}, stubGit);
+
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+			disposables.add(localSideEffects.registerProgressListener(localAgent));
+
+			const envelopes: ActionEnvelope[] = [];
+			let resolveDiffs: (() => void) | undefined;
+			const diffsEmitted = new Promise<void>(r => { resolveDiffs = r; });
+			disposables.add(localStateManager.onDidEmitEnvelope(e => {
+				envelopes.push(e);
+				if (e.action.type === ActionType.SessionDiffsChanged) {
+					resolveDiffs?.();
+				}
+			}));
+
+			localSideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hi' },
+			});
+			localAgent.fireProgress({ session: URI.parse(sessionUri.toString()), type: 'idle' });
+
+			await diffsEmitted;
+
+			// With no recorded edits, the edit-tracker aggregator returns an empty array — the
+			// important assertion is that we still produced a SessionDiffsChanged envelope, which
+			// proves the fallback path executed without throwing.
+			const diffsAction = envelopes.map(e => e.action).find(a => a.type === ActionType.SessionDiffsChanged);
+			assert.ok(diffsAction, 'expected a SessionDiffsChanged action from the fallback path');
+			assert.deepStrictEqual((diffsAction as { diffs: unknown[] }).diffs, []);
 		});
 	});
 });

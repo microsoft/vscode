@@ -77,6 +77,8 @@ export interface NativeParsedArgs {
 	'builtin-extensions-dir'?: string;
 	'shared-data-dir'?: string;
 	'agent-plugins-dir'?: string;
+	'agents-user-data-dir'?: string;
+	'agents-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	extensionDevelopmentKind?: string[];

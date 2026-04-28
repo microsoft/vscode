@@ -19,6 +19,7 @@ const DEFAULT_POLL_INTERVAL_MS = 60_000;
  */
 export class GitHubPullRequestCIModel extends Disposable {
 
+	private _checksEtag: string | undefined = undefined;
 	private readonly _checks = observableValue<readonly IGitHubCICheck[]>(this, []);
 	readonly checks: IObservable<readonly IGitHubCICheck[]> = this._checks;
 
@@ -45,9 +46,12 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 */
 	async refresh(): Promise<void> {
 		try {
-			const checks = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef);
-			this._checks.set(checks, undefined);
-			this._overallStatus.set(computeOverallCIStatus(checks), undefined);
+			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef, this._checksEtag);
+			if (response.statusCode === 200 && response.data) {
+				this._checksEtag = response.etag;
+				this._checks.set(response.data, undefined);
+				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
+			}
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}@${this.headRef}:`, err);
 		}

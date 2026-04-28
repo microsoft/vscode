@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { AttachmentType, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
@@ -33,6 +33,7 @@ import { createSessionDataService, createZeroDiffComputeService } from '../commo
  */
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	readonly sendRequests: unknown[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 
@@ -58,7 +59,7 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send() { return ''; }
+	async send(request: unknown) { this.sendRequests.push(request); return ''; }
 	async abort() { }
 	async setModel() { }
 	async getMessages() { return []; }
@@ -82,7 +83,7 @@ class CapturingLogService extends NullLogService {
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
  * handler implementation actually returns.
  */
-function invokeClientToolHandler(tool: { name: string; handler: (args: any, invocation: any) => unknown }, toolCallId: string): Promise<ToolResultObject> {
+function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string): Promise<ToolResultObject> {
 	return Promise.resolve(tool.handler({}, {
 		sessionId: 'test-session-1',
 		toolCallId,
@@ -190,6 +191,25 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const fileUri = URI.file('/workspace/file.ts');
+		const selectionUri = URI.file('/workspace/selection.ts');
+
+		await session.send('hello', [
+			{ type: AttachmentType.File, uri: fileUri, displayName: 'file.ts' },
+			{ type: AttachmentType.Selection, uri: selectionUri, displayName: 'selection.ts' },
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'hello',
+			attachments: [
+				{ type: 'file', path: fileUri.fsPath, displayName: 'file.ts' },
+				{ type: 'selection', filePath: selectionUri.fsPath, displayName: 'selection.ts', text: undefined, selection: undefined },
+			],
+		}]);
+	});
 
 	// ---- permission handling ----
 
@@ -717,9 +737,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 1);
 			const event = progressEvents[0];
 			assertUserInputEvent(event);
-			assert.strictEqual(event.request.message, 'What is your name?');
 			const requestId = event.request.id;
 			assert.ok(event.request.questions);
+			assert.strictEqual(event.request.questions[0].message, 'What is your name?');
 			const questionId = event.request.questions[0].id;
 
 			// Respond to unblock the promise
@@ -862,7 +882,12 @@ suite('CopilotAgentSession', () => {
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPreToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				capturedCallbacks.current!.hooks.onPreToolUse({
+					timestamp: 0,
+					cwd: '/tmp',
+					toolName: 'edit',
+					toolArgs: { path: '/tmp/file.ts' },
+				}),
 				/pre tool boom/,
 			);
 
@@ -883,7 +908,13 @@ suite('CopilotAgentSession', () => {
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPostToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				capturedCallbacks.current!.hooks.onPostToolUse({
+					timestamp: 0,
+					cwd: '/tmp',
+					toolName: 'edit',
+					toolArgs: { path: '/tmp/file.ts' },
+					toolResult: { textResultForLlm: '', resultType: 'success' },
+				}),
 				/post tool boom/,
 			);
 

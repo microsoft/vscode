@@ -1,0 +1,105 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Mobile Host Picker Dropdown ---- */
+
+.host-picker-dropdown-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	background: rgba(0, 0, 0, 0.1);
+}
+
+.host-picker-dropdown {
+	position: fixed;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
+	border-radius: 8px;
+	padding: 4px 0;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+	max-height: 60vh;
+	max-width: calc(100vw - 16px);
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	animation: host-picker-dropdown-in 150ms ease-out;
+}
+
+.host-picker-dropdown.dismissing {
+	animation: host-picker-dropdown-out 120ms ease-in forwards;
+}
+
+@keyframes host-picker-dropdown-in {
+	from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+	to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes host-picker-dropdown-out {
+	from { opacity: 1; transform: translateX(-50%) translateY(0); }
+	to { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+}
+
+.host-picker-dropdown-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	padding: 6px 12px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	font-size: 14px;
+	font-weight: 400;
+	font-family: inherit;
+	cursor: pointer;
+	touch-action: manipulation;
+	text-align: left;
+	width: 100%;
+}
+
+.host-picker-dropdown-item:active {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.host-picker-dropdown-item:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.host-picker-dropdown-item.selected {
+	color: var(--vscode-textLink-foreground);
+}
+
+.host-picker-dropdown-item-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.host-picker-dropdown-item-icon .codicon {
+	font-size: 16px;
+}
+
+.host-picker-dropdown-item-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 400;
+}
+
+.host-picker-dropdown-item-check {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	color: var(--vscode-textLink-foreground);
+}
+
+.host-picker-dropdown-item-check .codicon {
+	font-size: 14px;
+}

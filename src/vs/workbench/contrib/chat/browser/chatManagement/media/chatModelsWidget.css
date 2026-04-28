@@ -155,7 +155,7 @@
 
 /** Cost column styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-multiplier {
+.models-widget .models-table-container .monaco-table-td .model-pricing {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

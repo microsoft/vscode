@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, Dimension, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, $, getWindow } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -78,6 +78,22 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		showInHiddenAreas: true,
 		ordinal: 50000,
 	};
+
+	static readonly #instances = new Set<InlineChatZoneWidget>();
+	static readonly #statusDidChange = new Emitter<void>();
+	static #factoryRegistration: IDisposable | undefined;
+
+	static #findByDom(element: HTMLElement): InlineChatZoneWidget | undefined {
+		const widgetDom = element.closest('.inline-chat-widget');
+		if (widgetDom) {
+			for (const instance of InlineChatZoneWidget.#instances) {
+				if (instance.domNode === widgetDom) {
+					return instance;
+				}
+			}
+		}
+		return undefined;
+	}
 
 	readonly widget: EditorBasedInlineChatWidget;
 
@@ -146,21 +162,54 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			this.#ctxHasStatus.set(!!this.status.read(r));
 		}));
 
-		this._disposables.add(actionViewItemService.register(MenuId.ChatInput, StatusPlaceholder.Id, (action, options) => {
-			const that = this;
-			const item = new class extends ActionViewItem {
-				override render(container: HTMLElement): void {
-					super.render(container);
-					container.classList.add('status-placeholder');
-					this._store.add(autorun(r => {
-						const value = that.status.read(r);
-						this.action.label = value ?? '';
-						this.updateLabel();
-					}));
-				}
-			}(undefined, action, { ...options, icon: false, label: true });
-			return item;
-		}, Event.fromObservable(this.status, this._disposables)));
+		// Track this instance so the singleton factory can dispatch by DOM containment
+		InlineChatZoneWidget.#instances.add(this);
+		this._disposables.add(toDisposable(() => {
+			InlineChatZoneWidget.#instances.delete(this);
+			if (InlineChatZoneWidget.#instances.size === 0) {
+				InlineChatZoneWidget.#factoryRegistration?.dispose();
+				InlineChatZoneWidget.#factoryRegistration = undefined;
+			}
+		}));
+		this._disposables.add(autorun(r => {
+			this.status.read(r);
+			InlineChatZoneWidget.#statusDidChange.fire();
+		}));
+
+		// Register a single factory for the status placeholder action. Multiple zone widget
+		// instances can coexist (one per editor) so the factory uses DOM containment to find
+		// the owning widget and observe its status.
+		if (!InlineChatZoneWidget.#factoryRegistration) {
+			InlineChatZoneWidget.#factoryRegistration = actionViewItemService.register(MenuId.ChatInput, StatusPlaceholder.Id, (action, options) => {
+				const item = new class extends ActionViewItem {
+					override render(container: HTMLElement): void {
+						super.render(container);
+						container.classList.add('status-placeholder');
+						// Defer the DOM-based widget lookup to the next animation frame
+						// because actionbar calls render() before appending the element
+						// to the DOM, so closest() would fail during render().
+						const targetWindow = getWindow(container);
+						let handle = targetWindow.requestAnimationFrame(() => {
+							handle = 0;
+							const widget = InlineChatZoneWidget.#findByDom(container);
+							if (widget) {
+								this._store.add(autorun(r => {
+									const value = widget.status.read(r) ?? '';
+									this.action.label = value;
+									this.updateLabel();
+								}));
+							}
+						});
+						this._store.add(toDisposable(() => {
+							if (handle) {
+								targetWindow.cancelAnimationFrame(handle);
+							}
+						}));
+					}
+				}(undefined, action, { ...options, icon: false, label: true });
+				return item;
+			}, InlineChatZoneWidget.#statusDidChange.event);
+		}
 
 		this.widget = instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			statusMenuId: {

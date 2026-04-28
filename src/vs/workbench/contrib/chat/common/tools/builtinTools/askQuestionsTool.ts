@@ -206,10 +206,11 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		// In autopilot mode or when auto-reply is enabled, the user is not available —
 		// auto-respond instead of blocking. Still append a completed carousel so the
 		// user can see what was skipped.
+		const resolveId = invocation.chatStreamToolCallId ?? invocation.callId;
 		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
 			const reason = request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot ? 'Autopilot mode' : 'Auto-reply enabled';
 			this.logService.info(`[AskQuestionsTool] ${reason}: auto-responding to questions`);
-			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions, resolveId);
 			carousel.terminalId = this.extractTerminalId(request);
 			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
 			carousel.isUsed = true;
@@ -217,12 +218,50 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			return this.createAutopilotResult(questions);
 		}
 
-		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions, resolveId);
 		carousel.terminalId = this.extractTerminalId(request);
 		this.logService.trace(`[AskQuestionsTool] request=${request.id} terminalExecutionId=${request.terminalExecutionId ?? 'undefined'} carousel.terminalId=${carousel.terminalId ?? 'undefined'}`);
 		this.chatService.appendProgress(request, carousel);
+		const externalAnswerListener = this.chatService.onDidReceiveQuestionCarouselAnswer(event => {
+			if (event.resolveId !== carousel.resolveId || carousel.isUsed) {
+				return;
+			}
 
-		const answerResult = await raceCancellation(carousel.completion.p, token);
+			carousel.data = event.answers ?? {};
+			carousel.isUsed = true;
+			carousel.draftAnswers = undefined;
+			carousel.draftCurrentIndex = undefined;
+			carousel.draftCollapsed = undefined;
+			void carousel.completion.complete({ answers: event.answers });
+		});
+
+		let answerResult: { answers: IChatQuestionAnswers | undefined } | undefined;
+		try {
+			answerResult = await raceCancellation(carousel.completion.p, token);
+		} catch (error) {
+			if (error instanceof CancellationError && !carousel.isUsed) {
+				carousel.data = {};
+				carousel.isUsed = true;
+				carousel.draftAnswers = undefined;
+				carousel.draftCurrentIndex = undefined;
+				carousel.draftCollapsed = undefined;
+				await carousel.completion.complete({ answers: undefined });
+			}
+			throw error;
+		} finally {
+			externalAnswerListener.dispose();
+		}
+		if (!answerResult) {
+			if (!carousel.isUsed) {
+				carousel.data = {};
+				carousel.isUsed = true;
+				carousel.draftAnswers = undefined;
+				carousel.draftCurrentIndex = undefined;
+				carousel.draftCollapsed = undefined;
+				await carousel.completion.complete({ answers: undefined });
+			}
+			throw new CancellationError();
+		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -356,16 +395,17 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return undefined;
 	}
 
-	private toQuestionCarousel(questions: IQuestion[]): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {
+	private toQuestionCarousel(questions: IQuestion[], resolveId?: string): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {
 		const idToHeaderMap = new Map<string, string>();
-		const mappedQuestions = questions.map(question => this.toChatQuestion(question, idToHeaderMap));
+		const carouselResolveId = resolveId ?? generateUuid();
+		const mappedQuestions = questions.map((question, index) => this.toChatQuestion(question, idToHeaderMap, carouselResolveId, index));
 		return {
-			carousel: new ChatQuestionCarouselData(mappedQuestions, true, generateUuid()),
+			carousel: new ChatQuestionCarouselData(mappedQuestions, true, carouselResolveId),
 			idToHeaderMap
 		};
 	}
 
-	private toChatQuestion(question: IQuestion, idToHeaderMap: Map<string, string>): IChatQuestion {
+	private toChatQuestion(question: IQuestion, idToHeaderMap: Map<string, string>, resolveId: string, index: number): IChatQuestion {
 		let type: IChatQuestion['type'];
 		if (!question.options || question.options.length === 0) {
 			type = 'text';
@@ -385,7 +425,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 		// Use a stable UUID as the internal ID to avoid collisions when truncating headers
 		// The original header is preserved in idToHeaderMap for answer correlation
-		const internalId = generateUuid();
+		const internalId = `${resolveId}:${index}`;
 		idToHeaderMap.set(internalId, question.header);
 
 		// Truncate header for display only

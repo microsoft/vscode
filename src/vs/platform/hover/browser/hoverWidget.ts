@@ -187,6 +187,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
 
+			// Watch for size changes from dynamic HTML content (e.g. collapsible regions).
+			const resizeObserver = new ResizeObserver(() => {
+				this.layout();
+				this._onRequestLayout.fire();
+			});
+			resizeObserver.observe(contentsElement);
+			this._register(toDisposable(() => resizeObserver.disconnect()));
+
 		} else {
 			const markdown = options.content;
 

@@ -19,6 +19,7 @@ import { IChatSessionsService, SessionType } from '../../../../contrib/chat/comm
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -62,6 +63,9 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
+		override async findAgentSkills() { return []; }
+		override async getPromptSlashCommands() { return []; }
+		override async getHooks() { return undefined; }
 		override async getInstructionFiles() {
 			return instructionFiles.map(f => ({
 				uri: f.promptPath.uri,
@@ -108,6 +112,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
 		override getStorageSourceFilter() { return defaultFilter; }
+		override getSkillUIIntegrations() { return new Map(); }
 	}();
 }
 
@@ -184,6 +189,10 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 				override userHome(): Promise<URI>;
 				override userHome(): URI | Promise<URI> { return URI.file('/home/dev'); }
 			}());
+			// AICustomizationItemsModel is the single source of truth for items
+			// in the editor. Register the real implementation — it will resolve
+			// items via the mock prompts service / harness service above.
+			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
 		},
 	});
 

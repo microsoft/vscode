@@ -9,10 +9,10 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentSubagentStartedEvent, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentProgressEvent, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type SessionHistoryEvent } from '../../common/agentService.js';
 import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type ToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type SessionCustomization, type ToolCallResult } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -35,7 +35,7 @@ export class MockAgent implements IAgent {
 	private _nextId = 1;
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
+	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly IAgentAttachment[] }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -46,9 +46,12 @@ export class MockAgent implements IAgent {
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: CustomizationRef[] = [];
+	private readonly _onDidCustomizationsChange = new Emitter<void>();
+	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
+	getSessionCustomizations?: (session: URI) => Promise<readonly SessionCustomization[]>;
 
 	/** Configurable return value for getSessionMessages. */
-	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
+	sessionMessages: SessionHistoryEvent[] = [];
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -77,9 +80,9 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const rawId = `${this.id}-session-${this._nextId++}`;
-		const session = AgentSession.uri(this.id, rawId);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
+		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
 		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
@@ -92,15 +95,15 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt });
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
+		this.sendMessageCalls.push({ session, prompt, attachments });
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
+	async getSessionMessages(_session: URI): Promise<SessionHistoryEvent[]> {
 		return this.sessionMessages;
 	}
 
@@ -161,8 +164,13 @@ export class MockAgent implements IAgent {
 		this._onDidSessionProgress.fire(event);
 	}
 
+	fireCustomizationsChange(): void {
+		this._onDidCustomizationsChange.fire();
+	}
+
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidCustomizationsChange.dispose();
 	}
 }
 
@@ -190,7 +198,7 @@ export class ScriptedMockAgent implements IAgent {
 	 * Message history for the pre-existing session: a single user→assistant
 	 * turn with a tool call.
 	 */
-	private readonly _preExistingMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [
+	private readonly _preExistingMessages: SessionHistoryEvent[] = [
 		{ type: 'message', role: 'user', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-1', content: 'What files are here?' },
 		{ type: 'tool_start', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', toolName: 'list_files', displayName: 'List Files', invocationMessage: 'Listing files...' },
 		{ type: 'tool_complete', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', result: { pastTenseMessage: 'Listed files', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } satisfies ToolCallResult },
@@ -240,9 +248,9 @@ export class ScriptedMockAgent implements IAgent {
 		}));
 	}
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const rawId = `mock-session-${this._nextId++}`;
-		const session = AgentSession.uri('mock', rawId);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		const session = config?.session ?? AgentSession.uri('mock', `mock-session-${this._nextId++}`);
+		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
 		return { session, project: mockProject(this.id) };
 	}
@@ -569,6 +577,29 @@ export class ScriptedMockAgent implements IAgent {
 			}
 
 			default:
+				if (prompt.startsWith('terminal-edit:')) {
+					// Test prompt: simulate a terminal command that edits a file on disk
+					// without emitting any ToolResultFileEditContent. The test relies on the
+					// git-driven diff path to pick this up. Format: `terminal-edit:<absPath>`.
+					const filePath = prompt.slice('terminal-edit:'.length);
+					void (async () => {
+						this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-term-edit-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Edit file via shell' });
+						const fs = await import('fs/promises');
+						await fs.writeFile(filePath, 'edited-from-terminal\n');
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-term-edit-1', result: { pastTenseMessage: 'Edited file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'idle', session },
+						]);
+					})().catch(err => {
+						// Surface failures deterministically — an unhandled rejection
+						// would make the test suite flaky.
+						this._fireSequence(session, [
+							{ type: 'delta', session, messageId: 'msg-err', content: 'terminal-edit failed: ' + (err instanceof Error ? err.message : String(err)) },
+							{ type: 'idle', session },
+						]);
+					});
+					break;
+				}
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
 					{ type: 'idle', session },
@@ -611,7 +642,7 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(session: URI): Promise<SessionHistoryEvent[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return this._preExistingMessages;
 		}

@@ -383,9 +383,26 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return undefined;
 		}
 
+		// If the model produced a substantive text response with no tool calls, treat it
+		// as a final summary and let the loop stop. Nudging in this case typically just
+		// wastes a turn — the model considers itself done. The user can always continue
+		// the conversation if it wasn't.
+		if (result.round.toolCalls.length === 0 && result.round.response.trim().length > 0) {
+			this._logService.info('[ToolCallingLoop] Autopilot: model produced a text-only response, treating as done');
+			return undefined;
+		}
+
 		// safety valve — only give up after exhausting all continuation attempts
 		if (this.autopilotIterationCount >= ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS) {
 			this._logService.info(`[ToolCallingLoop] Autopilot: hit max iterations (${ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS}), letting it stop`);
+			return undefined;
+		}
+
+		// If we already nudged once and the model still produced no tool calls, the model
+		// is effectively done — further nudges just waste tokens. Bail out and let the
+		// loop stop.
+		if (this.autopilotStopHookActive && result.round.toolCalls.length === 0) {
+			this._logService.info('[ToolCallingLoop] Autopilot: prior nudge produced no tool calls, stopping to avoid wasted requests');
 			return undefined;
 		}
 
@@ -822,6 +839,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// Accumulate token usage across all LLM turns per GenAI agent span spec
 				let totalInputTokens = 0;
 				let totalOutputTokens = 0;
+				let totalCacheReadTokens = 0;
+				let totalCacheCreationTokens = 0;
 				let lastResolvedModel: string | undefined;
 				let turnIndex = 0;
 				const tokenListener = this.onDidReceiveResponse(({ response }) => {
@@ -830,6 +849,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					if (response.type === ChatFetchResponseType.Success && response.usage) {
 						totalInputTokens += turnInputTokens;
 						totalOutputTokens += turnOutputTokens;
+						totalCacheReadTokens += (response.usage.prompt_tokens_details?.cached_tokens || 0);
+						totalCacheCreationTokens += (response.usage.prompt_tokens_details?.cache_creation_input_tokens || 0);
 					}
 					if (response.type === ChatFetchResponseType.Success && response.resolvedModel) {
 						lastResolvedModel = response.resolvedModel;
@@ -844,6 +865,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						[CopilotChatAttr.TURN_COUNT]: result.toolCallRounds.length,
 						[GenAiAttr.USAGE_INPUT_TOKENS]: totalInputTokens,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: totalOutputTokens,
+						...(totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: totalCacheReadTokens } : {}),
+						...(totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: totalCacheCreationTokens } : {}),
 						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: lastResolvedModel } : {}),
 					});
 					// Always capture agent output message and tool definitions for the debug panel
@@ -900,7 +923,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				const permLevel = this.options.request.permissionLevel;
 				if (permLevel === 'autopilot' && this.options.toolCallLimit < 200) {
 					this.options.toolCallLimit = Math.min(Math.round(this.options.toolCallLimit * 3 / 2), 200);
-					this.showAutopilotProgress(outputStream, l10n.t('Extending tool call limit with Autopilot...'), l10n.t('Extended tool call limit with Autopilot'));
+					this.showAutopilotProgress(outputStream, l10n.t('Autopilot: extending tool call limit\u2026'), l10n.t('Autopilot extended tool call limit'));
 				} else {
 					lastResult = this.hitToolCallLimit(outputStream, lastResult);
 					break;
@@ -951,9 +974,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						this.autopilotRetryCount++;
 						this._logService.info(`[ToolCallingLoop] Auto-retrying on error (attempt ${this.autopilotRetryCount}/${ToolCallingLoop.MAX_AUTOPILOT_RETRIES}): ${result.response.type}`);
 						if (this.options.request.permissionLevel === 'autopilot') {
-							this.showAutopilotProgress(outputStream, l10n.t('Request failed, retrying with Autopilot...'), l10n.t('Request failed, retried with Autopilot'));
+							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: recovering from a request error\u2026'), l10n.t('Autopilot recovered from a request error'));
 						} else {
-							this.showAutopilotProgress(outputStream, l10n.t('Request failed, retrying request...'), l10n.t('Request failed, retried request'));
+							this.showAutopilotProgress(outputStream, l10n.t('Recovering from a request error\u2026'), l10n.t('Recovered from a request error'));
 						}
 						await timeout(1000, token);
 						continue;
@@ -1003,7 +1026,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						const autopilotContinue = this.shouldAutopilotContinue(result);
 						if (autopilotContinue) {
 							this._logService.info(`[ToolCallingLoop] Autopilot internal stop hook: continuing because task may not be complete`);
-							this.showAutopilotProgress(outputStream, l10n.t('Continuing with Autopilot: Task not yet complete'), l10n.t('Continued with Autopilot: Task not yet complete'));
+							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: verifying task is done\u2026'), l10n.t('Autopilot continued working'));
 							this.stopHookReason = autopilotContinue;
 							result.round.hookContext = formatHookContext([autopilotContinue]);
 							this.autopilotStopHookActive = true;
