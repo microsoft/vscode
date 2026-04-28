@@ -18,10 +18,15 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 		version = `${version} (Universal)`;
 	}
 
+	// test-workbench_change start
 	const getDetails = (useAgo: boolean): string => {
+		// If gitVersion exists, display it as TSCode Version
+		const gitVersion = (productService as Record<string, unknown>).gitVersion;
+		const versionLine = gitVersion ? `Version: ${version}\nTSCode Version: ${gitVersion}` : `Version: ${version}`;
+
 		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
-			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\nOS: {8}",
-			version,
+			"{0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\nOS: {8}",
+			versionLine,
 			productService.commit || 'Unknown',
 			productService.date ? `${productService.date}${useAgo ? ' (' + fromNow(new Date(productService.date), true) + ')' : ''}` : 'Unknown',
 			process.versions['electron'],
@@ -32,6 +37,7 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 			`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 		);
 	};
+	// test-workbench_change end
 
 	const details = getDetails(true);
 	const detailsToCopy = getDetails(false);

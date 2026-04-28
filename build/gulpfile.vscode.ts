@@ -45,6 +45,28 @@ const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
+// test-workbench_change start - Update git version task
+function updateGitVersion(): task.CallbackTask {
+	return (cb) => {
+		const updateScript = path.join(root, 'build', 'update-git-version.cjs');
+		cp.exec(`node "${updateScript}"`, (err, stdout, stderr) => {
+			if (stdout) {
+				console.log(stdout);
+			}
+			if (stderr) {
+				console.error(stderr);
+			}
+			if (cb) {
+				cb(err || undefined);
+			}
+		});
+	};
+}
+
+const updateGitVersionTask = task.define('update-git-version', updateGitVersion());
+gulp.task(updateGitVersionTask);
+// test-workbench_change end
+
 // Build
 const vscodeEntryPoints = [
 	buildfile.workerEditor,
@@ -782,7 +804,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 					minified && useCdnSourceMapsForPackagingTasks ? `${sourceMappingURLBase}/core` : undefined
 				)
 			);
+			// test-workbench_change - Add git version update before build
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				updateGitVersionTask,
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
@@ -793,7 +817,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 				vscodeTaskCI
 			));
 		} else {
+			// test-workbench_change - Add git version update before build
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				updateGitVersionTask,
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
