@@ -104,15 +104,15 @@ class GitHubPullRequestUserMessage extends PromptElement<GitHubPullRequestUserMe
 		const escapedCompareBranch = normalizedCompareBranch ? JSON.stringify(normalizedCompareBranch) : undefined;
 		return (
 			<>
+				These are the commits that will be included in the pull request you are about to make:<br />
+				{formattedCommitMessages}<br />
+				Below is a list of git patches that contain the file changes for all the files that will be included in the pull request:<br />
+				{formattedPatches}<br />
 				{escapedCompareBranch && (
 					<>
 						The pull request branch name is: {escapedCompareBranch}.<br />
 					</>
 				)}
-				These are the commits that will be included in the pull request you are about to make:<br />
-				{formattedCommitMessages}<br />
-				Below is a list of git patches that contain the file changes for all the files that will be included in the pull request:<br />
-				{formattedPatches}<br />
 				{this.props.template && (
 					<>
 						The pull request description should match the following template:<br />
