@@ -21,9 +21,6 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
-// Re-export package types that callers depend on
-export type { MemoryPromptResponse };
-
 const INTEGRATION_ID = 'vscode-chat';
 
 /**
