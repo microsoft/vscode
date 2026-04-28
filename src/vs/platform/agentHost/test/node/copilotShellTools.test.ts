@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -14,7 +15,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import type { TerminalClaim, TerminalInfo } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
+import { getShellExecutable, ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
@@ -85,5 +86,44 @@ suite('CopilotShellTools', () => {
 	test('prefixForHistorySuppression prepends a space for POSIX shells, no-op for PowerShell', () => {
 		assert.strictEqual(prefixForHistorySuppression('bash'), ' ');
 		assert.strictEqual(prefixForHistorySuppression('powershell'), '');
+	});
+
+	test('PowerShellShellResolver-WhenPwshIsAvailableOnWindows-UsesPowerShellCore', async () => {
+		const powerShellInstallationResolver = async () => ({ displayName: 'PowerShell', exePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' });
+
+		assert.strictEqual(
+			await getShellExecutable('powershell', {}, powerShellInstallationResolver, OperatingSystem.Windows),
+			'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+		);
+	});
+
+	test('PowerShellShellResolver-WhenPwshIsUnavailableOnWindows-UsesWindowsPowerShell', async () => {
+		const powerShellInstallationResolver = async () => ({ displayName: 'Windows PowerShell', exePath: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' });
+
+		assert.strictEqual(
+			await getShellExecutable('powershell', {}, powerShellInstallationResolver, OperatingSystem.Windows),
+			'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+		);
+	});
+
+	test('PowerShellShellResolver-WhenRunningInThirtyTwoBitProcessOnWindows-UsesSysnativePowerShell', async () => {
+		const powerShellInstallationResolver = async () => ({ displayName: 'Windows PowerShell', exePath: 'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe' });
+
+		assert.strictEqual(
+			await getShellExecutable('powershell', {}, powerShellInstallationResolver, OperatingSystem.Windows),
+			'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe'
+		);
+	});
+
+	test('PowerShellShellResolver-WhenRunningOutsideWindows-UsesExistingPowerShellCoreName', async () => {
+		const powerShellInstallationResolver = async () => assert.fail('PowerShell installation should not be resolved outside Windows');
+
+		assert.strictEqual(await getShellExecutable('powershell', {}, powerShellInstallationResolver, OperatingSystem.Macintosh), 'pwsh');
+	});
+
+	test('ShellResolver-WhenRunningOutsideWindows-UsesConfiguredPosixShell', async () => {
+		const env = { SHELL: '/bin/zsh' };
+
+		assert.strictEqual(await getShellExecutable('bash', env, undefined, OperatingSystem.Macintosh), '/bin/zsh');
 	});
 });

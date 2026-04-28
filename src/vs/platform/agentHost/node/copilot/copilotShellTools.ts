@@ -10,6 +10,8 @@ import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import * as platform from '../../../../base/common/platform.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { getFirstAvailablePowerShellInstallation, type IPowerShellExeDetails } from '../../../../base/node/powershell.js';
+import { getSystemShell } from '../../../../base/node/shell.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -41,11 +43,21 @@ interface IManagedShell {
 
 export type ShellType = 'bash' | 'powershell';
 
-function getShellExecutable(shellType: ShellType): string {
+type PowerShellInstallationResolver = () => Promise<IPowerShellExeDetails | null>;
+
+export async function getShellExecutable(
+	shellType: ShellType,
+	env: typeof process.env = process.env,
+	powerShellInstallationResolver: PowerShellInstallationResolver = getFirstAvailablePowerShellInstallation,
+	os = platform.OS,
+): Promise<string> {
 	if (shellType === 'powershell') {
-		return 'powershell.exe';
+		if (os === platform.OperatingSystem.Windows) {
+			return (await powerShellInstallationResolver())?.exePath ?? 'powershell.exe';
+		}
+		return 'pwsh';
 	}
-	return process.env['SHELL'] || '/bin/bash';
+	return getSystemShell(os, env);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,12 +116,14 @@ export class ShellManager {
 
 		const shellDisplayName = shellType === 'bash' ? 'Bash' : 'PowerShell';
 
+		const shellExecutable = await getShellExecutable(shellType);
+
 		await this._terminalManager.createTerminal({
 			terminal: terminalUri,
 			claim,
 			name: shellDisplayName,
 			cwd: cwd ?? this._workingDirectory?.fsPath,
-		}, { shell: getShellExecutable(shellType), preventShellHistory: true, nonInteractive: true });
+		}, { shell: shellExecutable, preventShellHistory: true, nonInteractive: true });
 
 		const shell: IManagedShell = { id, terminalUri, shellType };
 		this._shells.set(id, shell);
@@ -445,7 +459,7 @@ export function createShellTools(
 
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
-		description: shellType === 'bash' ? createBashModelDescription(false) : createPowerShellModelDescription(shellType, 'pwsh.exe', false),
+		description: shellType === 'bash' ? createBashModelDescription(false) : createPowerShellModelDescription(shellType, false),
 		parameters: {
 			type: 'object',
 			properties: {
@@ -571,19 +585,15 @@ interface ITerminalSandboxResolvedNetworkDomains {
 	deniedDomains: string[];
 }
 
-function isWindowsPowerShell(envShell: string): boolean {
-	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
-}
-
-function createPowerShellModelDescription(shellType: string, shellPath: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
-	const isWinPwsh = isWindowsPowerShell(shellPath);
+function createPowerShellModelDescription(shellType: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const parts = [
-		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
+		'This tool allows you to execute PowerShell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
+		'On Windows, PowerShell Core is preferred when available and Windows PowerShell may be used as a fallback.',
 		'',
 		'Command Execution:',
-		// IMPORTANT: PowerShell 5 does not support `&&` so always re-write them to `;`. Note that
-		// the behavior of `&&` differs a little from `;` but in general it's fine
-		isWinPwsh ? '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly' : '- Prefer ; when chaining commands on one line',
+		// IMPORTANT: Windows PowerShell 5.1 does not support `&&`, and agent shells can
+		// fall back to it when PowerShell Core is unavailable.
+		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
 		'- Prefer pipelines | for object-based data flow',
 		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
 		'',
