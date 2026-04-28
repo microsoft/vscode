@@ -11,8 +11,17 @@ import { SafetyRules } from '../base/safetyRules';
 import { TerminalStatePromptElement } from '../base/terminalState';
 import { ChatToolCalls } from '../panel/toolCalling';
 
+export interface ITimedOutCommand {
+	readonly command: string;
+	readonly termId: string;
+	readonly timeoutMs?: number;
+}
+
 export interface ExecutionSubagentPromptProps extends GenericBasePromptElementProps {
 	readonly maxExecutionTurns: number;
+	/** True if a previous {@link ToolName.CoreRunInTerminal} call timed out; the
+	 * model is told to stop calling tools and emit its `<final_answer>`. */
+	readonly hasTimedOutCommand?: boolean;
 }
 
 /**
@@ -81,6 +90,11 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 				{isLastTurn && (
 					<UserMessage priority={900}>
 						OK, your allotted iterations are finished. Show the &lt;final_answer&gt;.
+					</UserMessage>
+				)}
+				{!isLastTurn && this.props.hasTimedOutCommand && (
+					<UserMessage priority={900}>
+						A previous {ToolName.CoreRunInTerminal} call timed out. Do not call any more tools. Show the &lt;final_answer&gt;.
 					</UserMessage>
 				)}
 			</>

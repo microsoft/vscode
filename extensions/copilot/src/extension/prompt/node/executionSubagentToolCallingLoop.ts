@@ -20,10 +20,11 @@ import { IRequestLogger } from '../../../platform/requestLogger/common/requestLo
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
+import { ChatResponseProgressPart, ChatResponseReferencePart, LanguageModelToolResult2 } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
-import { ExecutionSubagentPrompt } from '../../prompts/node/agent/executionSubagentPrompt';
+import { ExecutionSubagentPrompt, ITimedOutCommand } from '../../prompts/node/agent/executionSubagentPrompt';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
+import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
@@ -42,6 +43,14 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecutionSubagentToolCallingLoopOptions> {
 
 	public static readonly ID = 'executionSubagentTool';
+
+	/** Terminal calls from previous rounds that timed out, deduped by toolCallId. */
+	private readonly _timedOutCommands: ITimedOutCommand[] = [];
+	private readonly _seenTimedOutCallIds = new Set<string>();
+
+	public get timedOutCommands(): readonly ITimedOutCommand[] {
+		return this._timedOutCommands;
+	}
 
 	constructor(
 		options: IExecutionSubagentToolCallingLoopOptions,
@@ -114,16 +123,102 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
 		const maxExecutionTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolCallLimit, this._experimentationService);
+
+		// If the previous render observed any timed-out terminal commands, tell the
+		// prompt to nudge the model to stop issuing tool calls and produce its
+		// <final_answer>. The natural "no tool calls" exit then ends the loop.
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,
 			ExecutionSubagentPrompt,
 			{
 				promptContext: buildpromptContext,
-				maxExecutionTurns
+				maxExecutionTurns,
+				hasTimedOutCommand: this._timedOutCommands.length > 0,
 			}
 		);
-		return await renderer.render(progress, token);
+		const result = await renderer.render(progress, token);
+
+		// After rendering, scan the rendered tool results for timeouts. Every tool
+		// call rendered into the prompt (including those executed just now during
+		// this render) emits a ToolResultMetadata entry on `result.metadata`.
+		this.collectTimedOutCommands(buildpromptContext, result);
+
+		return result;
+	}
+
+	private collectTimedOutCommands(buildpromptContext: IBuildPromptContext, result: IBuildPromptResult): void {
+		const lastRound = buildpromptContext.toolCallRounds?.at(-1);
+		if (!lastRound) {
+			return;
+		}
+
+		// Index only this round's terminal calls. Calls from earlier rounds were
+		// already evaluated on prior iterations.
+		const terminalCallsById = new Map<string, string>();
+		for (const tc of lastRound.toolCalls) {
+			if (tc.name !== ToolName.CoreRunInTerminal || this._seenTimedOutCallIds.has(tc.id)) {
+				continue;
+			}
+			let command = '';
+			try {
+				const args = JSON.parse(tc.arguments) as { command?: unknown };
+				if (typeof args?.command === 'string') {
+					command = args.command;
+				}
+			} catch {
+				// arguments may not be valid JSON on partial rounds; skip command extraction
+			}
+			terminalCallsById.set(tc.id, command);
+		}
+		if (terminalCallsById.size === 0) {
+			return;
+		}
+
+		for (const meta of result.metadata.getAll(ToolResultMetadata)) {
+			const command = terminalCallsById.get(meta.toolCallId);
+			if (command === undefined) {
+				continue;
+			}
+			const timeoutInfo = this.getTerminalTimeoutInfo(meta.result);
+			if (!timeoutInfo) {
+				continue;
+			}
+			this._seenTimedOutCallIds.add(meta.toolCallId);
+			this._timedOutCommands.push({
+				command,
+				termId: timeoutInfo.termId,
+				timeoutMs: timeoutInfo.timeoutMs,
+			});
+		}
+	}
+
+	/**
+	 * Returns timeout details if `toolResult` is a `run_in_terminal` result that
+	 * timed out and was moved to the background, otherwise `undefined`.
+	 *
+	 * `run_in_terminal` sets a structured `timedOut: true` flag on `toolMetadata`
+	 * (along with `id` and `timeoutMs`) when a sync command exceeds its timeout.
+	 * See vscode core: runInTerminalTool.ts. `toolMetadata` is exposed on tool
+	 * results via the chatParticipantPrivate proposed API and is not on the public
+	 * LanguageModelToolResult2 type, so we narrow with an `in` check.
+	 */
+	private getTerminalTimeoutInfo(toolResult: LanguageModelToolResult2): { termId: string; timeoutMs?: number } | undefined {
+		if (!('toolMetadata' in toolResult)) {
+			return undefined;
+		}
+		const metadata = (toolResult as { toolMetadata?: unknown }).toolMetadata;
+		if (!metadata || typeof metadata !== 'object') {
+			return undefined;
+		}
+		const m = metadata as { timedOut?: unknown; id?: unknown; timeoutMs?: unknown };
+		if (m.timedOut !== true) {
+			return undefined;
+		}
+		return {
+			termId: typeof m.id === 'string' ? m.id : '',
+			timeoutMs: typeof m.timeoutMs === 'number' ? m.timeoutMs : undefined,
+		};
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
@@ -131,10 +226,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		const allTools = this.toolsService.getEnabledTools(this.options.request, endpoint);
 
 		const allowedExecutionTools = new Set([
-			ToolName.CoreRunInTerminal,
-			ToolName.CoreGetTerminalOutput,
-			ToolName.CoreSendToTerminal,
-			ToolName.CoreKillTerminal,
+			ToolName.CoreRunInTerminal
 		]);
 
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));
