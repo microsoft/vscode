@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { promises as fs } from 'fs';
 import path from 'path';
 import type { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto.ts';
@@ -14,6 +15,7 @@ import { StringEnumPolicy } from '../policies/stringEnumPolicy.ts';
 import { StringPolicy } from '../policies/stringPolicy.ts';
 import type { Policy, ProductJson } from '../policies/types.ts';
 import { renderGP, renderMacOSPolicy, renderJsonPolicies } from '../policies/render.ts';
+import * as JSONC from 'jsonc-parser';
 
 const PolicyTypes = [
 	BooleanPolicy,
@@ -503,6 +505,19 @@ suite('Policy E2E conversion', () => {
 
 		// Compare the rendered JSON with the fixture
 		assert.deepStrictEqual(result, expectedJson, 'Linux policy JSON should match the fixture');
+	});
+
+	test('should successfully parse the checked-in policyData.jsonc', async () => {
+		const policyDataPath = path.join(import.meta.dirname, '..', 'policies', 'policyData.jsonc');
+		const raw = await fs.readFile(policyDataPath, 'utf-8');
+		const errors: JSONC.ParseError[] = [];
+		const policyData: ExportedPolicyDataDto = JSONC.parse(raw, errors);
+
+		assert.strictEqual(errors.length, 0, `policyData.jsonc should be valid JSONC: ${JSON.stringify(errors)}`);
+		// This exercises StringEnumPolicy.from() validation, which requires
+		// enumDescriptions to exist and match enum length for string enum policies.
+		const parsed = parsePolicies(policyData);
+		assert.ok(parsed.length > 0, 'Should parse at least one policy from policyData.jsonc');
 	});
 
 });

@@ -5,8 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -14,9 +13,8 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -33,11 +31,12 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		super();
 		this._register(autorun(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			activeSession?.workspace.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}
 
-	private async updateWorkspaceFoldersForSession(session: IActiveSessionItem | undefined): Promise<void> {
+	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
 		await this.manageTrustWorkspaceForSession(session);
 		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
@@ -61,50 +60,50 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
 	}
 
-	private getActiveSessionFolderData(session: IActiveSessionItem | undefined): IWorkspaceFolderCreationData | undefined {
+	private getActiveSessionFolderData(session: ISession | undefined): IWorkspaceFolderCreationData | undefined {
 		if (!session) {
 			return undefined;
 		}
 
-		if (session.worktree) {
+		const workspace = session.workspace.get();
+		const repo = workspace?.repositories[0];
+		const repository = repo?.uri;
+		const worktree = repo?.workingDirectory;
+		const branchName = repo?.detail;
+
+		if (worktree) {
 			return {
-				uri: session.worktree,
-				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${session.worktreeBranchName ?? this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
+				uri: worktree,
+				name: repository ? `${this.uriIdentityService.extUri.basename(repository)} (${branchName ?? this.uriIdentityService.extUri.basename(worktree)})` : this.uriIdentityService.extUri.basename(worktree)
 			};
 		}
 
-		if (session.repository) {
-			// Remote agent host sessions use a read-only FS provider that
-			// should not be added as a workspace folder.
-			if (session.repository.scheme === AGENT_HOST_SCHEME) {
-				return undefined;
-			}
-
-			if (session.providerType === AgentSessionProviders.Background) {
-				return { uri: session.repository };
-			}
-			if (session.providerType === AgentSessionProviders.Cloud) {
-				return {
-					uri: session.repository,
-					name: getGitHubRemoteFileDisplayName(session.repository),
-				};
-			}
+		if (repository) {
+			return {
+				uri: repository,
+				name: workspace?.label,
+			};
 		}
 
 		return undefined;
 	}
 
-	private async manageTrustWorkspaceForSession(session: IActiveSessionItem | undefined): Promise<void> {
-		if (session?.providerType !== AgentSessionProviders.Background) {
+	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<void> {
+		const workspace = session?.workspace.get();
+		if (!workspace?.requiresWorkspaceTrust) {
 			return;
 		}
 
-		if (!session.repository || !session.worktree) {
+		const repo = workspace?.repositories[0];
+		const repository = repo?.uri;
+		const worktree = repo?.workingDirectory;
+
+		if (!repository || !worktree) {
 			return;
 		}
 
-		if (!this.isUriTrusted(session.worktree)) {
-			await this.workspaceTrustManagementService.setUrisTrust([session.worktree], true);
+		if (!this.isUriTrusted(worktree)) {
+			await this.workspaceTrustManagementService.setUrisTrust([worktree], true);
 		}
 	}
 

@@ -8,48 +8,45 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPRReviewThread, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubRepository } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
 
 //#region Mock Fetchers
 
 class MockRepositoryFetcher {
 	nextResult: IGitHubRepository | undefined;
 
-	async getRepository(_owner: string, _repo: string): Promise<IGitHubRepository> {
+	async getRepository(_owner: string, _repo: string, _etag?: string): Promise<{ data: IGitHubRepository | undefined; statusCode: number; etag?: string }> {
 		if (!this.nextResult) {
 			throw new Error('No mock result');
 		}
-		return this.nextResult;
+		return { data: this.nextResult, statusCode: 200 };
 	}
 }
 
 class MockPRFetcher {
 	nextPR: IGitHubPullRequest | undefined;
-	nextMergeability: IGitHubPullRequestMergeability | undefined;
-	nextThreads: IGitHubPRReviewThread[] = [];
+	nextReviews: IGitHubPullRequestReview[] = [];
+	nextThreads: IGitHubPullRequestReviewThread[] = [];
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 
-	async getPullRequest(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequest> {
+	async getPullRequest(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: IGitHubPullRequest | undefined; statusCode: number; etag?: string }> {
 		if (!this.nextPR) {
 			throw new Error('No mock PR');
 		}
-		return this.nextPR;
+		return { data: this.nextPR, statusCode: 200 };
 	}
 
-	async getMergeability(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestMergeability> {
-		if (!this.nextMergeability) {
-			throw new Error('No mock mergeability');
-		}
-		return this.nextMergeability;
+	async getReviews(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: readonly IGitHubPullRequestReview[] | undefined; statusCode: number; etag?: string }> {
+		return { data: this.nextReviews, statusCode: 200 };
 	}
 
-	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPRReviewThread[]> {
+	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 		return this.nextThreads;
 	}
 
@@ -71,8 +68,8 @@ class MockPRFetcher {
 class MockCIFetcher {
 	nextChecks: IGitHubCICheck[] = [];
 
-	async getCheckRuns(_owner: string, _repo: string, _ref: string): Promise<IGitHubCICheck[]> {
-		return this.nextChecks;
+	async getCheckRuns(_owner: string, _repo: string, _ref: string, _etag?: string): Promise<{ data: readonly IGitHubCICheck[] | undefined; statusCode: number; etag?: string }> {
+		return { data: this.nextChecks, statusCode: 200 };
 	}
 
 	async getCheckRunAnnotations(_owner: string, _repo: string, _checkRunId: number): Promise<string> {
@@ -148,7 +145,7 @@ suite('GitHubPullRequestModel', () => {
 	test('refresh populates all observables', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		mockFetcher.nextPR = makePR();
-		mockFetcher.nextMergeability = { canMerge: true, blockers: [] };
+		mockFetcher.nextReviews = [];
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
 
 		await model.refresh();
@@ -231,6 +228,33 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 });
 
+suite('parseWorkflowRunId', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('extracts run ID from GitHub Actions URL', () => {
+		assert.strictEqual(
+			parseWorkflowRunId('https://github.com/microsoft/vscode/actions/runs/12345/job/67890'),
+			12345,
+		);
+	});
+
+	test('extracts run ID from URL without job segment', () => {
+		assert.strictEqual(
+			parseWorkflowRunId('https://github.com/owner/repo/actions/runs/99999'),
+			99999,
+		);
+	});
+
+	test('returns undefined for non-Actions URL', () => {
+		assert.strictEqual(parseWorkflowRunId('https://example.com/check/1'), undefined);
+	});
+
+	test('returns undefined for undefined input', () => {
+		assert.strictEqual(parseWorkflowRunId(undefined), undefined);
+	});
+});
+
 
 //#region Test Helpers
 
@@ -253,7 +277,7 @@ function makePR(): IGitHubPullRequest {
 	};
 }
 
-function makeThread(id: string, path: string): IGitHubPRReviewThread {
+function makeThread(id: string, path: string): IGitHubPullRequestReviewThread {
 	return {
 		id,
 		isResolved: false,

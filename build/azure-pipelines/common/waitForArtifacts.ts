@@ -16,13 +16,13 @@ async function main(artifacts: string[]): Promise<void> {
 		throw new Error(`Usage: node waitForArtifacts.ts <artifactName1> <artifactName2> ...`);
 	}
 
-	// This loop will run for 30 minutes and waits to the x64 and arm64 artifacts
+	// This loop will run for 60 minutes and waits to the x64 and arm64 artifacts
 	// to be uploaded to the pipeline by the `macOS` and `macOSARM64` jobs. As soon
 	// as these artifacts are found, the loop completes and the `macOSUnivesrsal`
 	// job resumes.
-	for (let index = 0; index < 60; index++) {
+	for (let index = 0; index < 120; index++) {
 		try {
-			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/60)...`);
+			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/120)...`);
 			const allArtifacts = await retry(() => getPipelineArtifacts());
 			console.log(`  * Artifacts attached to the pipelines: ${allArtifacts.length > 0 ? allArtifacts.map(a => a.name).join(', ') : 'none'}`);
 
@@ -40,7 +40,7 @@ async function main(artifacts: string[]): Promise<void> {
 		await new Promise(c => setTimeout(c, 30_000));
 	}
 
-	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 30 minutes.`);
+	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 60 minutes.`);
 }
 
 main(process.argv.splice(2)).then(() => {

@@ -100,6 +100,12 @@
 	font-size: 11px;
 	font-weight: 500;
 }
+.chat-debug-home-show-more {
+	margin-top: 8px;
+	width: auto;
+	max-width: 400px;
+	align-self: center;
+}
 
 @keyframes chat-debug-shimmer {
 	0% { background-position: 120% 0; }
@@ -358,6 +364,18 @@
 .chat-debug-list-container {
 	flex: 1;
 	overflow: hidden;
+}
+.chat-debug-logs-show-more {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 6px 0;
+	flex-shrink: 0;
+}
+.chat-debug-logs-show-more-status {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-log-row {
 	display: flex;

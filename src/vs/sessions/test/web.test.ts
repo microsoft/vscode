@@ -93,6 +93,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -100,13 +101,14 @@ class MockChatEntitlementService implements IChatEntitlementService {
 
 	readonly quotas = {};
 
-	readonly sentiment: IChatSentiment = { installed: true, registered: true };
-	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { installed: true, registered: true });
+	readonly sentiment: IChatSentiment = { completed: true, registered: true };
+	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { completed: true, registered: true });
 
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
 	markAnonymousRateLimited(): void { }
+	setForceHidden(_hidden: boolean): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }
 
@@ -121,6 +123,7 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 
@@ -243,7 +246,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
@@ -252,7 +254,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
 		this.registerMockTerminalBackend();
-		this.preseedFolder();
 	}
 
 	/**
@@ -509,11 +510,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		} as unknown as ITerminalBackend;
 	}
 
-	private preseedFolder(): void {
-		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' }).toString();
-		this.storageService.store('agentSessions.lastPickedFolder', mockFolderUri, StorageScope.PROFILE, StorageTarget.MACHINE);
-		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri}`);
-	}
+
 }
 
 // Register the contribution so it runs during workbench startup
@@ -579,9 +576,22 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 		return workbench;
 	}
 
+	private preseedFolder(storageService: IStorageService): void {
+		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
+		const providerId = 'default-copilot';
+
+		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
+		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId, checked: true }]);
+		storageService.store('sessions.recentlyPickedWorkspaces', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
+	}
+
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
 		// Register mock-fs:// provider so all services can resolve workspace files
 		registerMockFileSystemProvider(serviceCollection);
+
+		this.preseedFolder(serviceCollection.get(IStorageService) as IStorageService);
 
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}

@@ -10,8 +10,11 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
-import { JSON_RPC_PARSE_ERROR, type IAhpServerNotification, type IJsonRpcResponse, type IProtocolMessage } from '../common/state/sessionProtocol.js';
+import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import type * as wsTypes from 'ws';
+import type * as httpTypes from 'http';
+import type * as urlTypes from 'url';
 
 /**
  * Options for creating a {@link WebSocketProtocolServer}.
@@ -39,22 +42,22 @@ export interface IWebSocketServerOptions {
  */
 export class WebSocketProtocolTransport extends Disposable implements IProtocolTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
 	constructor(
-		private readonly _ws: import('ws').WebSocket,
-		private readonly _WebSocket: typeof import('ws').WebSocket,
+		private readonly _ws: wsTypes.WebSocket,
+		private readonly _WebSocket: typeof wsTypes.WebSocket,
 	) {
 		super();
 
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text) as IProtocolMessage;
+				const message = JSON.parse(text) as ProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
 				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
@@ -71,7 +74,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {
 			this._ws.send(JSON.stringify(message));
 		}
@@ -94,9 +97,9 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
  */
 export class WebSocketProtocolServer extends Disposable implements IProtocolServer {
 
-	private readonly _wss: import('ws').WebSocketServer;
-	private readonly _httpServer: import('http').Server | undefined;
-	private readonly _WebSocket: typeof import('ws').WebSocket;
+	private readonly _wss: wsTypes.WebSocketServer;
+	private readonly _httpServer: httpTypes.Server | undefined;
+	private readonly _WebSocket: typeof wsTypes.WebSocket;
 
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
@@ -128,9 +131,9 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private constructor(
 		options: IWebSocketServerOptions | number,
 		private readonly _logService: ILogService,
-		ws: typeof import('ws'),
-		http: typeof import('http'),
-		url: typeof import('url'),
+		ws: typeof wsTypes,
+		http: typeof httpTypes,
+		url: typeof urlTypes,
 	) {
 		super();
 
@@ -141,7 +144,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		const host = opts.host ?? '127.0.0.1';
 
 		const verifyClient = opts.connectionTokenValidate
-			? (info: { req: import('http').IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
+			? (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
 				const parsedUrl = url.parse(info.req.url ?? '', true);
 				const token = parsedUrl.query[connectionTokenQueryName];
 				if (!opts.connectionTokenValidate!(token)) {

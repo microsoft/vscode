@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {
@@ -32,7 +37,63 @@ export function registerChatDeveloperActions() {
 	registerAction2(LogChatInputHistoryAction);
 	registerAction2(LogChatIndexAction);
 	registerAction2(InspectChatModelAction);
+	registerAction2(InspectChatModelReferencesAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
+	registerAction2(ResetChatPermissionWarningDialogsAction);
+}
+
+function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
+	const debugInfo = chatService.getChatModelReferenceDebugInfo();
+	const referencedModels = debugInfo.models.filter(model => model.referenceCount > 0);
+	const pendingEditModels = debugInfo.models.filter(model => model.hasPendingEdits);
+	const pendingDisposalModels = debugInfo.models.filter(model => model.pendingDisposal);
+
+	let output = '# Chat Model References\n\n';
+	output += `- Live models: ${debugInfo.totalModels}\n`;
+	output += `- Live references: ${debugInfo.totalReferences}\n`;
+	output += `- Models with active references: ${referencedModels.length}\n`;
+	output += `- Models with pending edits: ${pendingEditModels.length}\n`;
+	output += `- Models pending disposal: ${pendingDisposalModels.length}\n\n`;
+	output += 'Created by shows who loaded or created the model. Holders shows who currently keeps the model alive.\n\n';
+
+	if (!debugInfo.models.length) {
+		output += 'No live chat models.\n';
+		return output;
+	}
+
+	for (const model of debugInfo.models) {
+		const liveModel = chatService.getSession(model.sessionResource);
+		const agentSession = agentSessionsService.getSession(model.sessionResource);
+		const archived = agentSession ? agentSession.isArchived() : 'unknown';
+		const age = liveModel ? fromNow(liveModel.timing.created, true, true, true) : 'unknown';
+
+		output += `## ${model.title || '(untitled)'}\n\n`;
+		output += `- Session: ${model.sessionResource.toString()}\n`;
+		output += `- Created by: ${model.createdBy}\n`;
+		output += `- Archived: ${archived}\n`;
+		output += `- Age: ${age}\n`;
+		output += `- Initial location: ${model.initialLocation}\n`;
+		output += `- Imported: ${model.isImported}\n`;
+		output += `- Pending edits: ${model.hasPendingEdits}\n`;
+		output += `- Background keep-alive enabled: ${model.willKeepAlive}\n`;
+		output += `- Pending disposal: ${model.pendingDisposal}\n`;
+		output += `- Reference count: ${model.referenceCount}\n`;
+
+		if (model.holders.length) {
+			output += '- Holders:\n';
+			for (const holder of model.holders) {
+				output += `  - ${holder.holder}: ${holder.count}\n`;
+			}
+		} else {
+			output += '- Holders: none\n';
+		}
+
+		output += '\n';
+	}
+
+	return output;
 }
 
 class LogChatInputHistoryAction extends Action2 {
@@ -129,6 +190,35 @@ class InspectChatModelAction extends Action2 {
 	}
 }
 
+class InspectChatModelReferencesAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.inspectChatModelReferences';
+
+	constructor() {
+		super({
+			id: InspectChatModelReferencesAction.ID,
+			title: localize2('workbench.action.chat.inspectChatModelReferences.label', "Inspect Chat Model References"),
+			icon: Codicon.inspect,
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: instantiationService.invokeFunction(formatChatModelReferenceInspection),
+			languageId: 'markdown',
+			options: {
+				pinned: true
+			}
+		});
+	}
+}
+
 class ClearRecentlyUsedLanguageModelsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.clearRecentlyUsedLanguageModels';
 
@@ -144,5 +234,25 @@ class ClearRecentlyUsedLanguageModelsAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
+	}
+}
+
+class ResetChatPermissionWarningDialogsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.resetPermissionWarningDialogs';
+
+	constructor() {
+		super({
+			id: ResetChatPermissionWarningDialogsAction.ID,
+			title: localize2('workbench.action.chat.resetPermissionWarningDialogs.label', "Reset Permission Warning Dialogs (Autopilot, Bypass Approvals)"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		storageService.remove(AUTOPILOT_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
+		storageService.remove(AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
 	}
 }

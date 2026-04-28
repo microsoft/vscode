@@ -887,7 +887,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Don't create a streaming invocation for tools that don't implement handleToolStream.
 		// These tools will have their invocation created directly in invokeToolInternal.
-		if (!toolEntry.impl?.handleToolStream) {
+		// Callers that need a handle regardless (e.g. to observe confirmation state) can pass `force`.
+		if (!options.force && !toolEntry.impl?.handleToolStream) {
 			return undefined;
 		}
 
@@ -1621,6 +1622,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string {
+		for (const [item, toolFullReferenceName] of this.toolsWithFullReferenceName.get()) {
+			if (item === tool) {
+				return toolFullReferenceName;
+			}
+		}
+
 		if (isToolSet(tool)) {
 			return getToolSetFullReferenceName(tool);
 		}

@@ -3,81 +3,232 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import * as fs from 'fs/promises';
+import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
-import { delimiter, dirname } from '../../../../base/common/path.js';
+import { equals } from '../../../../base/common/objects.js';
+import { observableValue } from '../../../../base/common/observable.js';
+import { basename, delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
-import { ILogService } from '../../../log/common/log.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
+import { IParsedPlugin, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { ILogService } from '../../../log/common/log.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, SessionHistoryEvent } from '../../common/agentService.js';
+import { AutoApproveLevel, ISchemaProperty, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { CustomizationStatus, CustomizationRef, SessionInputResponseKind, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { CopilotAgentSession, SessionWrapperFactory, type IActiveClientSnapshot } from './copilotAgentSession.js';
+import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
+import { parsedPluginsEqual, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
-import { FileEditTracker } from './fileEditTracker.js';
+import { createShellTools, ShellManager } from './copilotShellTools.js';
 
-function tryStringify(value: unknown): string | undefined {
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return undefined;
+interface ICreatedWorktree {
+	readonly repositoryRoot: URI;
+	readonly worktree: URI;
+}
+
+const ThinkingLevelConfigKey = 'thinkingLevel';
+const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
+type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
+
+interface ISerializedModelSelection {
+	id?: unknown;
+	config?: unknown;
+}
+
+/**
+ * Narrow surface of {@link CopilotClient} used by this provider. The SDK class
+ * has private members, so tests use this structural type to inject a fake.
+ */
+export interface ICopilotClient {
+	start(): Promise<void>;
+	stop: CopilotClient['stop'];
+	listSessions: CopilotClient['listSessions'];
+	listModels: () => Promise<ICopilotModelInfo[]>;
+	createSession: CopilotClient['createSession'];
+	resumeSession: CopilotClient['resumeSession'];
+	getSessionMetadata: CopilotClient['getSessionMetadata'];
+	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
+}
+
+/**
+ * Corrected shape of {@link CopilotClient.listModels} entries.
+ *
+ * The SDK's `ModelInfo` type declares `capabilities`, `capabilities.limits`,
+ * and `capabilities.limits.max_context_window_tokens` as required, but at
+ * runtime synthetic entries (e.g. the `auto` router) ship with an empty
+ * `capabilities: {}` object. We mirror the SDK fields we consume but mark the
+ * unreliable parts as optional so callers must defensively handle them.
+ */
+export interface ICopilotModelInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly capabilities?: {
+		readonly supports?: { readonly vision?: boolean };
+		readonly limits?: { readonly max_context_window_tokens?: number };
+	};
+	readonly policy?: { readonly state?: string };
+	readonly supportedReasoningEfforts?: readonly string[];
+	readonly defaultReasoningEffort?: string;
+}
+
+function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
+	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
+}
+
+export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
+	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
+}
+
+export function getCopilotWorktreeName(branchName: string): string {
+	return branchName.replace(/\//g, '-');
+}
+
+export function getCopilotWorktreeBranchName(sessionId: string, branchNameHint: string | undefined): string {
+	return `agents/${branchNameHint ? `${branchNameHint}-${sessionId.substring(0, 8)}` : sessionId}`;
+}
+
+/**
+ * Builds the localized "Created isolated worktree for branch X" markdown
+ * shown at the top of the first response in worktree-isolated sessions.
+ * The branch name is wrapped as inline code so the localized template
+ * doesn't have to embed markdown punctuation. The trailing blank line
+ * keeps the announcement visually separated when it gets merged into the
+ * same markdown part as the model's reply.
+ */
+function buildWorktreeAnnouncementText(branchName: string): string {
+	return localize(
+		'copilotAgent.worktreeCreated',
+		"Created isolated worktree for branch {0}",
+		appendEscapedMarkdownInlineCode(branchName)
+	) + '\n\n';
+}
+
+type AgentMessageOrEvent = SessionHistoryEvent;
+
+/**
+ * Returns a copy of `messages` where `announcement` has been prepended to
+ * the first top-level assistant message's content. Subagent inner messages
+ * (those with a `parentToolCallId`) are skipped so the announcement lands
+ * on the parent turn. If no assistant message exists yet, returns the
+ * messages unchanged — the live announcement path is responsible for the
+ * very first turn before any reply has been recorded.
+ */
+function prependAnnouncementToFirstAssistantMessage(
+	messages: readonly AgentMessageOrEvent[],
+	announcement: string,
+): readonly AgentMessageOrEvent[] {
+	const firstAssistantIdx = messages.findIndex(m => m.type === 'message' && m.role === 'assistant' && !m.parentToolCallId);
+	if (firstAssistantIdx === -1) {
+		return messages;
 	}
+	const target = messages[firstAssistantIdx] as IAgentMessageEvent;
+	const updated: IAgentMessageEvent = { ...target, content: announcement + target.content };
+	return [
+		...messages.slice(0, firstAssistantIdx),
+		updated,
+		...messages.slice(firstAssistantIdx + 1),
+	];
 }
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
 export class CopilotAgent extends Disposable implements IAgent {
-	readonly id = 'copilot' as const;
+	readonly id = 'copilotcli' as const;
+	private static readonly _BRANCH_COMPLETION_LIMIT = 25;
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
+	readonly models = this._models;
 
-	private _client: CopilotClient | undefined;
-	private _clientStarting: Promise<CopilotClient> | undefined;
+	private _client: ICopilotClient | undefined;
+	private _clientStarting: Promise<ICopilotClient> | undefined;
 	private _githubToken: string | undefined;
-	private readonly _sessions = this._register(new DisposableMap<string, CopilotSessionWrapper>());
-	/** Tracks active tool invocations so we can produce past-tense messages on completion. Keyed by `sessionId:toolCallId`. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
-	/** Pending permission requests awaiting a renderer-side decision. Keyed by requestId. */
-	private readonly _pendingPermissions = new Map<string, { sessionId: string; deferred: DeferredPromise<boolean> }>();
-	/** Working directory per session, used when resuming. */
-	private readonly _sessionWorkingDirs = new Map<string, string>();
-	/** File edit trackers per session, keyed by raw session ID. */
-	private readonly _editTrackers = new Map<string, FileEditTracker>();
+	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
+	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
+	/**
+	 * Per-session announcement (markdown string) that should be emitted as
+	 * a synthetic streaming `delta` event the first time {@link sendMessage}
+	 * is called for the session. Currently used to surface the "Created
+	 * isolated worktree for branch X" message live during the first turn.
+	 * The same announcement is also injected on restore via
+	 * {@link getSessionMessages} by prepending to the first assistant
+	 * message's content so it stays visible after the session is reopened.
+	 */
+	private readonly _pendingFirstTurnAnnouncements = new Map<string, string>();
+	private readonly _sessionSequencer = new SequencerByKey<string>();
+	private _shutdownPromise: Promise<void> | undefined;
+	private readonly _plugins: PluginController;
+	readonly onDidCustomizationsChange: Event<void>;
+	/** Per-session active client state for tools + plugin snapshot tracking. */
+	private readonly _activeClients = new ResourceMap<ActiveClient>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
+		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
+		this.onDidCustomizationsChange = this._plugins.onDidChange;
+	}
+
+	protected _createCopilotClient(options: CopilotClientOptions): ICopilotClient {
+		return new CopilotClient(options);
 	}
 
 	// ---- auth ---------------------------------------------------------------
 
 	getDescriptor(): IAgentDescriptor {
 		return {
-			provider: 'copilot',
-			displayName: 'Agent Host - Copilot',
+			provider: 'copilotcli',
+			displayName: 'Copilot CLI',
 			description: 'Copilot SDK agent running in a dedicated process',
-			requiresAuth: true,
 		};
 	}
 
-	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+	getProtectedResources(): ProtectedResourceMetadata[] {
 		return [{
 			resource: 'https://api.github.com',
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
+			required: true,
 		}];
+	}
+
+	getCustomizations(): readonly CustomizationRef[] {
+		return this._plugins.getConfiguredHostCustomizations();
+	}
+
+	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
+		const entry = this._sessions.get(AgentSession.id(session));
+		const metadata = entry ? undefined : await this._readSessionMetadata(session);
+		return this._plugins.getSessionCustomizations(entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory);
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -89,25 +240,55 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
-			const client = this._client;
-			this._client = undefined;
-			this._clientStarting = undefined;
-			await client.stop();
+			await this._stopClient();
+		}
+		if (tokenChanged) {
+			void this._refreshModels();
 		}
 		return true;
 	}
 
+	private async _refreshModels(): Promise<void> {
+		const tokenAtRefreshStart = this._githubToken;
+		if (!tokenAtRefreshStart) {
+			this._models.set([], undefined);
+			return;
+		}
+		try {
+			const models = await this._listModels();
+			if (this._githubToken === tokenAtRefreshStart) {
+				this._models.set(models, undefined);
+			}
+		} catch (err) {
+			this._logService.error(err, '[Copilot] Failed to refresh models');
+			if (this._githubToken === tokenAtRefreshStart) {
+				this._models.set([], undefined);
+			}
+		}
+	}
+
+	private async _stopClient(): Promise<void> {
+		const client = this._client;
+		this._client = undefined;
+		this._clientStarting = undefined;
+		await client?.stop();
+	}
+
 	// ---- client lifecycle ---------------------------------------------------
 
-	private async _ensureClient(): Promise<CopilotClient> {
+	private async _ensureClient(): Promise<ICopilotClient> {
+		const tokenAtStartup = this._githubToken;
+		if (!tokenAtStartup) {
+			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication is required to use Copilot', this.getProtectedResources());
+		}
 		if (this._client) {
 			return this._client;
 		}
 		if (this._clientStarting) {
 			return this._clientStarting;
 		}
-		this._clientStarting = (async () => {
-			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}`);
+		const clientStarting = (async () => {
+			this._logService.info('[Copilot] Starting CopilotClient... (with token)');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
@@ -125,7 +306,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
-			env['USE_BUILTIN_RIPGREP'] = '0';
+			env['USE_BUILTIN_RIPGREP'] = 'false';
 
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
@@ -143,154 +324,534 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
-			const client = new CopilotClient({
-				githubToken: this._githubToken,
-				useLoggedInUser: !this._githubToken,
+			const client = this._createCopilotClient({
+				githubToken: tokenAtStartup,
+				useLoggedInUser: false,
 				useStdio: true,
 				autoStart: true,
 				env,
 				cliPath,
 			});
 			await client.start();
+			if (this._githubToken !== tokenAtStartup) {
+				await client.stop();
+				throw new Error('Copilot authentication changed while the client was starting');
+			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
 			this._clientStarting = undefined;
 			return client;
 		})();
-		return this._clientStarting;
+		this._clientStarting = clientStarting;
+		void clientStarting.catch(() => {
+			this._clientStarting = undefined;
+		});
+		return clientStarting;
 	}
 
 	// ---- session management -------------------------------------------------
+
+	private _createThinkingLevelConfigSchema(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined): ConfigSchema | undefined {
+		if (!supportedReasoningEfforts?.length) {
+			return undefined;
+		}
+
+		const enumLabels = supportedReasoningEfforts.map(value => {
+			switch (value) {
+				case 'low': return localize('copilot.modelThinkingLevel.low', "Low");
+				case 'medium': return localize('copilot.modelThinkingLevel.medium', "Medium");
+				case 'high': return localize('copilot.modelThinkingLevel.high', "High");
+				case 'xhigh': return localize('copilot.modelThinkingLevel.xhigh', "Extra High");
+				default: return value;
+			}
+		});
+
+		return {
+			type: 'object',
+			properties: {
+				[ThinkingLevelConfigKey]: {
+					type: 'string',
+					title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
+					description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
+					default: defaultReasoningEffort,
+					enum: [...supportedReasoningEfforts],
+					enumLabels,
+				},
+			},
+		};
+	}
+
+	private _getReasoningEffort(model: ModelSelection | undefined): SessionConfig['reasoningEffort'] {
+		const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
+		return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	}
+
+	private _serializeModelSelection(model: ModelSelection): string {
+		return JSON.stringify(model);
+	}
+
+	private _parseModelSelection(raw: string | undefined): ModelSelection | undefined {
+		if (!raw) {
+			return undefined;
+		}
+
+		try {
+			const value: ISerializedModelSelection | string | number | boolean | null = JSON.parse(raw);
+			if (value && typeof value === 'object' && typeof value.id === 'string') {
+				const modelSelection: ModelSelection = { id: value.id };
+				if (value.config && typeof value.config === 'object') {
+					const config: Record<string, string> = {};
+					for (const [key, configValue] of Object.entries(value.config)) {
+						if (typeof configValue === 'string') {
+							config[key] = configValue;
+						}
+					}
+					if (Object.keys(config).length > 0) {
+						modelSelection.config = config;
+					}
+				}
+				return modelSelection;
+			}
+		} catch {
+			// Older session metadata stored the raw model id as a plain string.
+		}
+
+		return { id: raw };
+	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.info('[Copilot] Listing sessions...');
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
-		const result: IAgentSessionMetadata[] = sessions.map(s => ({
-			session: AgentSession.uri(this.id, s.sessionId),
-			startTime: s.startTime.getTime(),
-			modifiedTime: s.modifiedTime.getTime(),
-			summary: s.summary,
-			workingDirectory: typeof s.context?.cwd === 'string' ? s.context.cwd : undefined,
+		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
+		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
+		const mapped = await Promise.all(sessions.map(async s => {
+			const session = AgentSession.uri(this.id, s.sessionId);
+			const metadata = await this._readStoredSessionMetadata(session);
+			if (!metadata) {
+				return undefined;
+			}
+			let { project, resolved } = metadata;
+			if (!resolved) {
+				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
+				void this._storeSessionProjectResolution(session, project);
+			}
+			const workingDirectory = metadata.workingDirectory ?? (typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined);
+			const result: IAgentSessionMetadata = {
+				session,
+				startTime: s.startTime.getTime(),
+				modifiedTime: s.modifiedTime.getTime(),
+				project,
+				summary: s.summary,
+				model: metadata.model,
+				workingDirectory,
+				customizationDirectory: metadata.customizationDirectory,
+			};
+			return result;
 		}));
+		const result = mapped.filter((s): s is IAgentSessionMetadata => s !== undefined);
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
 		return result;
 	}
 
-	async listModels(): Promise<IAgentModelInfo[]> {
+	private async _listModels(): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const models = await client.listModels();
-		const result = models.map(m => ({
+		const result = models.map((m): IAgentModelInfo => ({
 			provider: this.id,
 			id: m.id,
 			name: m.name,
-			maxContextWindow: m.capabilities.limits.max_context_window_tokens,
-			supportsVision: m.capabilities.supports.vision,
-			supportsReasoningEffort: m.capabilities.supports.reasoningEffort,
-			supportedReasoningEfforts: m.supportedReasoningEfforts,
-			defaultReasoningEffort: m.defaultReasoningEffort,
+			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
+			// no fixed context window — surface them with maxContextWindow undefined.
+			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+			supportsVision: !!m.capabilities?.supports?.vision,
+			configSchema: this._createThinkingLevelConfigSchema(m.supportedReasoningEfforts, m.defaultReasoningEffort),
 			policyState: m.policy?.state as PolicyState | undefined,
-			billingMultiplier: m.billing?.multiplier,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
 		return result;
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		if (!config?.workingDirectory) {
+			throw new Error('workingDirectory is required to create a Copilot session');
+		}
+
+		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model.id}` : ''}`);
 		const client = await this._ensureClient();
-		const raw = await client.createSession({
-			model: config?.model,
-			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
-			streaming: true,
-			workingDirectory: config?.workingDirectory,
-			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
-			hooks: this._createSessionHooks(),
-		});
 
-		const wrapper = this._trackSession(raw);
-		const session = AgentSession.uri(this.id, wrapper.sessionId);
-		if (config?.workingDirectory) {
-			this._sessionWorkingDirs.set(wrapper.sessionId, config.workingDirectory);
+		// When forking, use the SDK's sessions.fork RPC.
+		if (config?.fork) {
+			const sourceSessionId = AgentSession.id(config.fork.session);
+
+			// Serialize against the source session to prevent concurrent
+			// modifications while we read its state.
+			return this._sessionSequencer.queue(sourceSessionId, async () => {
+				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${config.fork!.turnId}`);
+
+				// Ensure the source session is loaded so we can read its event IDs
+				const sourceEntry = this._sessions.get(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
+
+				// Look up the SDK event ID for the turn *after* the fork point.
+				// toEventId is exclusive — events before it are included.
+				// If there's no next turn, omit toEventId to include all events.
+				const toEventId = await sourceEntry.getNextTurnEventId(config.fork!.turnId);
+
+				const forkResult = await client.rpc.sessions.fork({
+					sessionId: sourceSessionId,
+					...(toEventId ? { toEventId } : {}),
+				});
+				const newSessionId = forkResult.sessionId;
+
+				// Copy the source session's database using VACUUM INTO so the
+				// forked session inherits turn event IDs and file-edit snapshots.
+				// VACUUM INTO is safe even while the source DB is open.
+				const targetDbDir = this._sessionDataService.getSessionDataDirById(newSessionId);
+				const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
+				try {
+					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(config.fork!.session);
+					if (sourceDbRef) {
+						try {
+							await fs.mkdir(targetDbDir.fsPath, { recursive: true });
+							await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
+						} finally {
+							sourceDbRef.dispose();
+						}
+					}
+				} catch (err) {
+					this._logService.warn(`[Copilot] Failed to copy session database for fork: ${err instanceof Error ? err.message : String(err)}`);
+				}
+
+				// Resume the forked session so the SDK loads the forked history
+				const agentSession = await this._resumeSession(newSessionId);
+
+				// Remap turn IDs to match the new protocol turn IDs
+				if (config.fork!.turnIdMapping) {
+					await agentSession.remapTurnIds(config.fork!.turnIdMapping);
+				}
+
+				const session = agentSession.sessionUri;
+				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
+				const project = await projectFromCopilotContext({ cwd: config.workingDirectory?.fsPath }, this._gitService);
+				await this._storeSessionMetadata(session, config.model, config.workingDirectory, config.workingDirectory, project, true);
+				return { session, workingDirectory: config.workingDirectory, ...(project ? { project } : {}) };
+			});
 		}
-		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
-		return session;
-	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
-		const sessionId = AgentSession.id(session);
-		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
-		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
-		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
-
-		const sdkAttachments = attachments?.map(a => {
-			if (a.type === 'selection') {
-				return { type: 'selection' as const, filePath: a.path, displayName: a.displayName ?? a.path, text: a.text, selection: a.selection };
+		const sessionId = config?.session ? AgentSession.id(config.session) : generateUuid();
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		const customizationDirectory = config?.workingDirectory;
+		let seededActiveClient = false;
+		if (config?.activeClient) {
+			const ac = this._getOrCreateActiveClient(sessionUri);
+			seededActiveClient = true;
+			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
+			if (config.activeClient.customizations !== undefined) {
+				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
 			}
-			return { type: a.type, path: a.path, displayName: a.displayName };
-		});
-		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
 		}
+		const activeClient = this._activeClients.get(sessionUri);
+		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
+		const workingDirectory = await this._resolveSessionWorkingDirectory(config, sessionId);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
 
-		await entry.session.send({ prompt, attachments: sdkAttachments });
-		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
+		const factory: SessionWrapperFactory = async callbacks => {
+			const raw = await client.createSession({
+				model: config?.model?.id,
+				reasoningEffort: this._getReasoningEffort(config?.model),
+				sessionId,
+				streaming: true,
+				workingDirectory: workingDirectory?.fsPath,
+				...await sessionConfig(callbacks),
+			});
+			return new CopilotSessionWrapper(raw);
+		};
+
+		let agentSession: CopilotAgentSession;
+		try {
+			agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
+			await agentSession.initializeSession();
+		} catch (error) {
+			if (seededActiveClient) {
+				this._activeClients.delete(sessionUri);
+			}
+			await this._removeCreatedWorktree(sessionId);
+			throw error;
+		}
+		const session = agentSession.sessionUri;
+		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
+		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
+		// Persist model, working directory, and project so we can recreate the
+		// session if the SDK loses it and avoid rediscovering git metadata.
+		await this._storeSessionMetadata(agentSession.sessionUri, config?.model, workingDirectory, customizationDirectory, project, true);
+		return { session, workingDirectory, ...(project ? { project } : {}) };
 	}
 
-	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		const gitInfo = params.workingDirectory ? await this._getGitInfo(params.workingDirectory) : undefined;
+
+		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
+			type: 'string',
+			title: localize('agentHost.sessionConfig.isolation', "Isolation"),
+			description: localize('agentHost.sessionConfig.isolationDescription', "Where the agent should make changes"),
+			enum: gitInfo ? ['folder', 'worktree'] : ['folder'],
+			enumLabels: gitInfo ? [localize('agentHost.sessionConfig.isolation.folder', "Folder"), localize('agentHost.sessionConfig.isolation.worktree', "Worktree")] : [localize('agentHost.sessionConfig.isolation.folder', "Folder")],
+			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
+			default: gitInfo ? 'worktree' : 'folder',
+			readOnly: !gitInfo,
+		});
+
+		// Resolve isolation first — downstream schema shapes (branch's
+		// read-only mode + enum restriction) depend on the effective value.
+		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
+		const isolationValue = isolationProperty.validate(params.config?.[SessionConfigKey.Isolation])
+			? params.config[SessionConfigKey.Isolation] as 'folder' | 'worktree'
+			: isolationDefault;
+
+		let branchProperty: ISchemaProperty<string> | undefined;
+		let branchDefault: string | undefined;
+		if (gitInfo) {
+			const branchReadOnly = isolationValue === 'folder';
+			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
+			branchProperty = schemaProperty<string>({
+				type: 'string',
+				title: localize('agentHost.sessionConfig.branch', "Branch"),
+				description: localize('agentHost.sessionConfig.branchDescription', "Base branch to work from"),
+				enum: [branchDefault],
+				enumLabels: [branchDefault],
+				default: branchDefault,
+				enumDynamic: !branchReadOnly,
+				readOnly: branchReadOnly,
+			});
+		}
+
+		const sessionSchema = createSchema({
+			[SessionConfigKey.Isolation]: isolationProperty,
+			...platformSessionSchema.definition,
+			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
+		});
+
+		const values = sessionSchema.validateOrDefault(params.config, {
+			[SessionConfigKey.Isolation]: isolationValue,
+			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
+			// Permissions intentionally omitted — leave unset so auto-approval
+			// falls through to the host-level `permissions` default, and only
+			// materializes on the session once the user hits "Allow in this
+			// Session".
+			...(branchDefault !== undefined ? { [SessionConfigKey.Branch]: branchDefault } : {}),
+		});
+
+		return {
+			schema: sessionSchema.toProtocol(),
+			values,
+		};
+	}
+
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		if (params.property !== 'branch' || !params.workingDirectory) {
+			return { items: [] };
+		}
+
+		const branches = await this._getBranches(params.workingDirectory, params.query);
+		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+	}
+
+	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		return this._plugins.sync(clientId, customizations, progress);
+	}
+
+	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
 		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(() => undefined);
+		const activeClient = this._getOrCreateActiveClient(session);
+		const hasCachedEntry = this._sessions.has(sessionId);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
+		activeClient.updateTools(clientId, tools);
+	}
+
+	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
+		const entry = this._sessions.get(AgentSession.id(session));
+		entry?.handleClientToolCallComplete(toolCallId, result);
+	}
+
+	setCustomizationEnabled(uri: string, enabled: boolean): void {
+		this._plugins.setEnabled(uri, enabled);
+	}
+
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+
+			// If the active client's config changed (tools or plugins),
+			// dispose this session so it gets resumed with the updated config.
+			let entry = this._sessions.get(sessionId);
+			const activeClient = this._activeClients.get(session);
+			const hadCachedEntry = !!entry;
+			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
+			if (entry && activeClient && await activeClient.isOutdated(entry.appliedSnapshot, entry.customizationDirectory)) {
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (isOutdated=true), refreshing session. snapshotClientId=${entry.appliedSnapshot.clientId}`);
+				this._sessions.deleteAndDispose(sessionId);
+				entry = undefined;
+			}
+
+			if (!entry) {
+				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by isOutdated)' : ''}, calling _resumeSession`);
+			}
+			entry ??= await this._resumeSession(sessionId);
+
+			// Emit any pending first-turn announcements (e.g. worktree
+			// created) as a synthetic streaming delta before delegating to
+			// the SDK. The mapper treats it like any other assistant text —
+			// the SDK's subsequent deltas append to the same markdown part.
+			// The active turn has already been started by the state manager
+			// at this point, so the event mapper can attach the delta to it.
+			const pending = this._pendingFirstTurnAnnouncements.get(sessionId);
+			if (pending) {
+				this._pendingFirstTurnAnnouncements.delete(sessionId);
+				const messageId = `copilot-announcement-${generateUuid()}`;
+				const event: IAgentDeltaEvent = { type: 'delta', session, messageId, content: pending };
+				this._onDidSessionProgress.fire(event);
+			}
+
+			try {
+				await entry.send(prompt, attachments, turnId);
+			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.error(`[Copilot:${sessionId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
+				throw err;
+			}
+		});
+	}
+
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (!entry) {
+			this._logService.warn(`[Copilot:${sessionId}] setPendingMessages: session not found`);
+			return;
+		}
+
+		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
+		if (steeringMessage) {
+			entry.sendSteering(steeringMessage);
+		}
+
+		// Queued messages are consumed by the server (AgentSideEffects)
+		// which dispatches SessionTurnStarted and calls sendMessage directly.
+		// No SDK-level enqueue is needed.
+	}
+
+	async getSessionMessages(session: URI): Promise<SessionHistoryEvent[]> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
+			return undefined;
+		});
 		if (!entry) {
 			return [];
 		}
+		const rawMessages = await entry.getMessages();
 
-		const events = await entry.session.getMessages();
-		return this._mapSessionEvents(session, events);
+		// If a worktree was created for this session at create-time, prepend
+		// the announcement to the first assistant message's content so it
+		// appears at the top of the first response when the session is
+		// reopened. The live path (sendMessage) handles the very first turn
+		// when the session is fresh; this path takes over on subsequent
+		// loads, where _pendingFirstTurnAnnouncements is empty.
+		const branchName = await this._readWorktreeBranchMetadata(session).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to read worktree branch metadata`, err);
+			return undefined;
+		});
+		if (!branchName) {
+			return rawMessages;
+		}
+		return [...prependAnnouncementToFirstAssistantMessage(rawMessages, buildWorktreeAnnouncementText(branchName))];
 	}
 
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		this._sessions.deleteAndDispose(sessionId);
-		this._clearToolCallsForSession(sessionId);
-		this._sessionWorkingDirs.delete(sessionId);
-		this._denyPendingPermissionsForSession(sessionId);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			await this._destroyAndDisposeSession(sessionId);
+		});
 	}
 
 	async abortSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId);
-		if (entry) {
-			this._logService.info(`[Copilot:${sessionId}] Aborting session...`);
-			this._denyPendingPermissionsForSession(sessionId);
-			await entry.session.abort();
-		}
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const entry = this._sessions.get(sessionId);
+			if (entry) {
+				await entry.abort();
+			}
+		});
 	}
 
-	async changeModel(session: URI, model: string): Promise<void> {
+	async truncateSession(session: URI, turnId?: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			this._logService.info(`[Copilot:${sessionId}] Truncating session${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
+
+			// Ensure the session is loaded so we can use the SDK RPC
+			const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
+
+			// Look up the SDK event ID for the truncation boundary.
+			// The protocol semantics: turnId is the last turn to KEEP.
+			// The SDK semantics: eventId and all events after it are removed.
+			// So we need the event ID of the *next* turn after turnId.
+			// For "remove all", we need the first turn's event ID.
+			let eventId: string | undefined;
+			if (turnId) {
+				eventId = await entry.getNextTurnEventId(turnId);
+			} else {
+				eventId = await entry.getFirstTurnEventId();
+			}
+
+			if (eventId) {
+				await entry.truncateAtEventId(eventId, turnId);
+			} else {
+				this._logService.info(`[Copilot:${sessionId}] No event ID found for truncation, nothing to truncate`);
+			}
+
+			this._logService.info(`[Copilot:${sessionId}] Session truncated`);
+		});
+	}
+
+	async changeModel(session: URI, model: ModelSelection): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			this._logService.info(`[Copilot:${sessionId}] Changing model to: ${model}`);
-			await entry.session.setModel(model);
+			await entry.setModel(model.id, this._getReasoningEffort(model));
 		}
+		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
 	}
 
 	async shutdown(): Promise<void> {
-		this._logService.info('[Copilot] Shutting down...');
-		this._sessions.clearAndDisposeAll();
-		this._activeToolCalls.clear();
-		this._sessionWorkingDirs.clear();
-		this._denyPendingPermissions();
-		await this._client?.stop();
-		this._client = undefined;
+		this._shutdownPromise ??= (async () => {
+			this._logService.info('[Copilot] Shutting down...');
+			const sessionIds = new Set([...this._sessions.keys(), ...this._createdWorktrees.keys()]);
+			for (const sessionId of sessionIds) {
+				await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
+			}
+			await this._client?.stop();
+			this._client = undefined;
+		})();
+		return this._shutdownPromise;
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		const entry = this._pendingPermissions.get(requestId);
-		if (entry) {
-			this._pendingPermissions.delete(requestId);
-			entry.deferred.complete(approved);
+		for (const [, session] of this._sessions) {
+			if (session.respondToPermissionRequest(requestId, approved)) {
+				return;
+			}
+		}
+	}
+
+	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void {
+		for (const [, session] of this._sessions) {
+			if (session.respondToUserInputRequest(requestId, response, answers)) {
+				return;
+			}
 		}
 	}
 
@@ -303,542 +864,629 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- helpers ------------------------------------------------------------
 
-	/**
-	 * Handles a permission request from the SDK by firing a `tool_ready` event
-	 * (which transitions the tool to PendingConfirmation) and waiting for the
-	 * side-effects layer to respond via respondToPermissionRequest.
-	 */
-	private async _handlePermissionRequest(
-		request: { kind: string; toolCallId?: string;[key: string]: unknown },
-		invocation: { sessionId: string },
-	): Promise<{ kind: 'approved' | 'denied-interactively-by-user' }> {
-		const session = AgentSession.uri(this.id, invocation.sessionId);
-
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}`);
-
-		// Auto-approve reads inside the working directory
-		if (request.kind === 'read') {
-			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			const workingDir = this._sessionWorkingDirs.get(invocation.sessionId);
-			if (requestPath && workingDir && requestPath.startsWith(workingDir)) {
-				this._logService.trace(`[Copilot:${invocation.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
-				return { kind: 'approved' };
-			}
+	private _getOrCreateActiveClient(session: URI): ActiveClient {
+		let client = this._activeClients.get(session);
+		if (!client) {
+			client = new ActiveClient(directory => this._plugins.getAppliedPlugins(directory));
+			this._activeClients.set(session, client);
 		}
-
-		const toolCallId = request.toolCallId;
-		if (!toolCallId) {
-			// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
-			this._logService.warn(`[Copilot:${invocation.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
-			return { kind: 'denied-interactively-by-user' };
-		}
-
-		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
-
-		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(toolCallId, { sessionId: invocation.sessionId, deferred });
-
-		// Derive display information from the permission request kind
-		const { confirmationTitle, invocationMessage, toolInput } = this._getPermissionDisplay(request);
-
-		// Fire a tool_ready event to transition the tool to PendingConfirmation
-		this._onDidSessionProgress.fire({
-			session,
-			type: 'tool_ready',
-			toolCallId,
-			invocationMessage,
-			toolInput,
-			confirmationTitle,
-		});
-
-		const approved = await deferred.p;
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
-		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+		return client;
 	}
 
 	/**
-	 * Derives display fields from a permission request for the tool confirmation UI.
+	 * Creates a {@link CopilotAgentSession}, registers it in the sessions map,
+	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
+	 * to wire up the SDK session.
 	 */
-	private _getPermissionDisplay(request: { kind: string;[key: string]: unknown }): {
-		confirmationTitle: string;
-		invocationMessage: string;
-		toolInput?: string;
-	} {
-		const path = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
-		const fullCommandText = typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined;
-		const intention = typeof request.intention === 'string' ? request.intention : undefined;
-		const serverName = typeof request.serverName === 'string' ? request.serverName : undefined;
-		const toolName = typeof request.toolName === 'string' ? request.toolName : undefined;
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, snapshot?: IActiveClientSnapshot): CopilotAgentSession {
+		const sessionUri = AgentSession.uri(this.id, sessionId);
 
-		switch (request.kind) {
-			case 'shell':
-				return {
-					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
-					invocationMessage: intention ?? localize('copilot.permission.shell.message', "Run command"),
-					toolInput: fullCommandText,
-				};
-			case 'write':
-				return {
-					confirmationTitle: localize('copilot.permission.write.title', "Write file"),
-					invocationMessage: path ? localize('copilot.permission.write.message', "Edit {0}", path) : localize('copilot.permission.write.messageGeneric', "Edit file"),
-					toolInput: tryStringify(path ? { path } : request) ?? undefined,
-				};
-			case 'mcp': {
-				const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
-				return {
-					confirmationTitle: serverName ? `${serverName}: ${title}` : title,
-					invocationMessage: serverName ? `${serverName}: ${title}` : title,
-					toolInput: tryStringify({ serverName, toolName }) ?? undefined,
-				};
-			}
-			case 'read':
-				return {
-					confirmationTitle: localize('copilot.permission.read.title', "Read file"),
-					invocationMessage: intention ?? localize('copilot.permission.read.message', "Read file"),
-					toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
-				};
-			default:
-				return {
-					confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
-					invocationMessage: localize('copilot.permission.default.message', "Permission request"),
-					toolInput: tryStringify(request) ?? undefined,
-				};
-		}
-	}
-
-	private _clearToolCallsForSession(sessionId: string): void {
-		const prefix = `${sessionId}:`;
-		for (const key of this._activeToolCalls.keys()) {
-			if (key.startsWith(prefix)) {
-				this._activeToolCalls.delete(key);
-			}
-		}
-	}
-
-	private _getOrCreateEditTracker(rawSessionId: string): FileEditTracker {
-		let tracker = this._editTrackers.get(rawSessionId);
-		if (!tracker) {
-			tracker = new FileEditTracker(rawSessionId, this._sessionDataService, this._fileService, this._logService);
-			this._editTrackers.set(rawSessionId, tracker);
-		}
-		return tracker;
-	}
-
-	/**
-	 * Creates SDK session hooks for pre/post tool use. The `onPreToolUse`
-	 * hook snapshots files before edit tools run. The `onPostToolUse` hook
-	 * snapshots the after-content so that it's ready synchronously when
-	 * `onToolComplete` fires.
-	 */
-	private _createSessionHooks() {
-		return {
-			onPreToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
-				if (isEditTool(input.toolName)) {
-					const filePath = getEditFilePath(input.toolArgs);
-					if (filePath) {
-						const tracker = this._getOrCreateEditTracker(invocation.sessionId);
-						await tracker.trackEditStart(filePath);
-					}
-				}
+		const agentSession = this._instantiationService.createInstance(
+			CopilotAgentSession,
+			{
+				sessionUri,
+				rawSessionId: sessionId,
+				onDidSessionProgress: this._onDidSessionProgress,
+				wrapperFactory,
+				shellManager,
+				workingDirectory,
+				customizationDirectory,
+				clientSnapshot: snapshot,
 			},
-			onPostToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
-				if (isEditTool(input.toolName)) {
-					const filePath = getEditFilePath(input.toolArgs);
-					if (filePath) {
-						const tracker = this._editTrackers.get(invocation.sessionId);
-						await tracker?.completeEdit(filePath);
-					}
-				}
-			},
+		);
+
+		this._sessions.set(sessionId, agentSession);
+		return agentSession;
+	}
+
+	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
+		const entry = this._sessions.get(sessionId);
+		if (entry) {
+			try {
+				await entry.destroySession();
+			} catch (error) {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		this._sessions.deleteAndDispose(sessionId);
+		await this._removeCreatedWorktree(sessionId);
+	}
+
+	/**
+	 * Builds the common session configuration (plugins + shell tools) shared
+	 * by both {@link createSession} and {@link _resumeSession}.
+	 *
+	 * Returns an async function that resolves the final config given the
+	 * session's permission/hook callbacks, so it can be called lazily
+	 * inside the {@link SessionWrapperFactory}.
+	 */
+	private _buildSessionConfig(snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
+		const shellTools = createShellTools(shellManager, this._terminalManager, this._logService);
+		const plugins = snapshot?.plugins ?? [];
+
+		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
+			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
+			return {
+				onPermissionRequest: callbacks.onPermissionRequest,
+				onUserInputRequest: callbacks.onUserInputRequest,
+				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
+				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
+				customAgents,
+				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				tools: [...shellTools, ...callbacks.clientTools],
+			};
 		};
 	}
 
-	private _trackSession(raw: CopilotSession, sessionIdOverride?: string): CopilotSessionWrapper {
-		const wrapper = new CopilotSessionWrapper(raw);
-		const rawId = sessionIdOverride ?? wrapper.sessionId;
-		const session = AgentSession.uri(this.id, rawId);
-
-		wrapper.onMessageDelta(e => {
-			this._logService.trace(`[Copilot:${rawId}] delta: ${e.data.deltaContent}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'delta',
-				messageId: e.data.messageId,
-				content: e.data.deltaContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onMessage(e => {
-			this._logService.info(`[Copilot:${rawId}] Full message received: ${e.data.content.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'message',
-				role: 'assistant',
-				messageId: e.data.messageId,
-				content: e.data.content,
-				toolRequests: e.data.toolRequests?.map(tr => ({
-					toolCallId: tr.toolCallId,
-					name: tr.name,
-					arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
-					type: tr.type,
-				})),
-				reasoningOpaque: e.data.reasoningOpaque,
-				reasoningText: e.data.reasoningText,
-				encryptedContent: e.data.encryptedContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onToolStart(e => {
-			if (isHiddenTool(e.data.toolName)) {
-				this._logService.trace(`[Copilot:${rawId}] Tool started (hidden): ${e.data.toolName}`);
-				return;
-			}
-			this._logService.info(`[Copilot:${rawId}] Tool started: ${e.data.toolName}`);
-			const toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
-			let parameters: Record<string, unknown> | undefined;
-			if (toolArgs) {
-				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
-			}
-			const displayName = getToolDisplayName(e.data.toolName);
-			const trackingKey = `${rawId}:${e.data.toolCallId}`;
-			this._activeToolCalls.set(trackingKey, { toolName: e.data.toolName, displayName, parameters });
-			const toolKind = getToolKind(e.data.toolName);
-
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_start',
-				toolCallId: e.data.toolCallId,
-				toolName: e.data.toolName,
-				displayName,
-				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
-				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
-				toolKind,
-				language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined,
-				toolArguments: toolArgs,
-				mcpServerName: e.data.mcpServerName,
-				mcpToolName: e.data.mcpToolName,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onToolComplete(e => {
-			const trackingKey = `${rawId}:${e.data.toolCallId}`;
-			const tracked = this._activeToolCalls.get(trackingKey);
-			if (!tracked) {
-				return;
-			}
-			this._logService.info(`[Copilot:${rawId}] Tool completed: ${e.data.toolCallId}`);
-			this._activeToolCalls.delete(trackingKey);
-			const displayName = tracked.displayName;
-			const toolOutput = e.data.error?.message ?? e.data.result?.content;
-
-			const content: IToolResultContent[] = [];
-			if (toolOutput !== undefined) {
-				content.push({ type: ToolResultContentType.Text, text: toolOutput });
-			}
-
-			// File edit data was already prepared by the onPostToolUse hook
-			const tracker = this._editTrackers.get(rawId);
-			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
-			if (tracker && filePath) {
-				const fileEdit = tracker.takeCompletedEdit(filePath);
-				if (fileEdit) {
-					content.push(fileEdit);
-				}
-			}
-
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_complete',
-				toolCallId: e.data.toolCallId,
-				result: {
-					success: e.data.success,
-					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success),
-					content: content.length > 0 ? content : undefined,
-					error: e.data.error,
-				},
-				isUserRequested: e.data.isUserRequested,
-				toolTelemetry: e.data.toolTelemetry !== undefined ? tryStringify(e.data.toolTelemetry) : undefined,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onIdle(() => {
-			this._logService.info(`[Copilot:${rawId}] Session idle`);
-			this._onDidSessionProgress.fire({ session, type: 'idle' });
-		});
-
-		wrapper.onSessionError(e => {
-			this._logService.error(`[Copilot:${rawId}] Session error: ${e.data.errorType} - ${e.data.message}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'error',
-				errorType: e.data.errorType,
-				message: e.data.message,
-				stack: e.data.stack,
-			});
-		});
-
-		wrapper.onUsage(e => {
-			this._logService.trace(`[Copilot:${rawId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'usage',
-				inputTokens: e.data.inputTokens,
-				outputTokens: e.data.outputTokens,
-				model: e.data.model,
-				cacheReadTokens: e.data.cacheReadTokens,
-			});
-		});
-
-		wrapper.onReasoningDelta(e => {
-			this._logService.trace(`[Copilot:${rawId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'reasoning',
-				content: e.data.deltaContent,
-			});
-		});
-
-		this._subscribeForLogging(wrapper, rawId);
-
-		this._sessions.set(rawId, wrapper);
-		return wrapper;
-	}
-
-	private _subscribeForLogging(wrapper: CopilotSessionWrapper, sessionId: string): void {
-		wrapper.onSessionStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session started: model=${e.data.selectedModel ?? 'default'}, producer=${e.data.producer}`);
-		});
-
-		wrapper.onSessionResume(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session resumed: eventCount=${e.data.eventCount}`);
-		});
-
-		wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
-		});
-
-		wrapper.onSessionModelChange(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
-		});
-
-		wrapper.onSessionHandoff(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session handoff: sourceType=${e.data.sourceType}, remoteSessionId=${e.data.remoteSessionId ?? '(none)'}`);
-		});
-
-		wrapper.onSessionTruncation(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session truncation: removed ${e.data.tokensRemovedDuringTruncation} tokens, ${e.data.messagesRemovedDuringTruncation} messages`);
-		});
-
-		wrapper.onSessionSnapshotRewind(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Snapshot rewind: upTo=${e.data.upToEventId}, eventsRemoved=${e.data.eventsRemoved}`);
-		});
-
-		wrapper.onSessionShutdown(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, premiumRequests=${e.data.totalPremiumRequests}, apiDuration=${e.data.totalApiDurationMs}ms`);
-		});
-
-		wrapper.onSessionUsageInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Usage info: ${e.data.currentTokens}/${e.data.tokenLimit} tokens, ${e.data.messagesLength} messages`);
-		});
-
-		wrapper.onSessionCompactionStart(() => {
-			this._logService.trace(`[Copilot:${sessionId}] Compaction started`);
-		});
-
-		wrapper.onSessionCompactionComplete(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Compaction complete: success=${e.data.success}, tokensRemoved=${e.data.tokensRemoved ?? '?'}`);
-		});
-
-		wrapper.onUserMessage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] User message: ${e.data.content.length} chars, ${e.data.attachments?.length ?? 0} attachments`);
-		});
-
-		wrapper.onPendingMessagesModified(() => {
-			this._logService.trace(`[Copilot:${sessionId}] Pending messages modified`);
-		});
-
-		wrapper.onTurnStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
-		});
-
-		wrapper.onIntent(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
-		});
-
-		wrapper.onReasoning(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
-		});
-
-		wrapper.onTurnEnd(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
-		});
-
-		wrapper.onAbort(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
-		});
-
-		wrapper.onToolUserRequested(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool user-requested: ${e.data.toolName} (${e.data.toolCallId})`);
-		});
-
-		wrapper.onToolPartialResult(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
-		});
-
-		wrapper.onToolProgress(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool progress: ${e.data.toolCallId} - ${e.data.progressMessage}`);
-		});
-
-		wrapper.onSkillInvoked(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
-		});
-
-		wrapper.onSubagentStarted(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent started: ${e.data.agentName} (${e.data.agentDisplayName})`);
-		});
-
-		wrapper.onSubagentCompleted(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
-		});
-
-		wrapper.onSubagentFailed(e => {
-			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
-		});
-
-		wrapper.onSubagentSelected(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent selected: ${e.data.agentName}`);
-		});
-
-		wrapper.onHookStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
-		});
-
-		wrapper.onHookEnd(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
-		});
-
-		wrapper.onSystemMessage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] System message [${e.data.role}]: ${e.data.content.length} chars`);
-		});
-	}
-
-	private async _resumeSession(sessionId: string): Promise<CopilotSessionWrapper> {
-		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
+	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
-		const raw = await client.resumeSession(sessionId, {
-			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
-			workingDirectory: this._sessionWorkingDirs.get(sessionId),
-			hooks: this._createSessionHooks(),
+
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		const storedMetadata = await this._readSessionMetadata(sessionUri);
+		const customizationDirectory = storedMetadata.customizationDirectory ?? storedMetadata.workingDirectory;
+		const activeClient = this._activeClients.get(sessionUri);
+		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
+		const sessionMetadata = await client.getSessionMetadata(sessionId).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
+			return undefined;
 		});
-		return this._trackSession(raw, sessionId);
+		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
+		if (!workingDirectory) {
+			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
+		}
+
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
+
+		const factory: SessionWrapperFactory = async callbacks => {
+			const config = await sessionConfig(callbacks);
+			try {
+				this._logService.info(`[Copilot:${sessionId}] Calling SDK resumeSession...`);
+				const raw = await client.resumeSession(sessionId, {
+					...config,
+					workingDirectory: workingDirectory?.fsPath,
+				});
+				this._logService.info(`[Copilot:${sessionId}] SDK resumeSession succeeded`);
+				return new CopilotSessionWrapper(raw);
+			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.warn(`[Copilot:${sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
+				// The SDK fails to resume sessions that have no messages.
+				// Fall back to creating a new session with the same ID,
+				// seeding model & working directory from stored metadata.
+				if (!err || errCode !== -32603) {
+					throw err;
+				}
+
+				this._logService.warn(`[Copilot:${sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
+				const raw = await client.createSession({
+					...config,
+					sessionId,
+					streaming: true,
+					model: storedMetadata.model?.id,
+					reasoningEffort: this._getReasoningEffort(storedMetadata.model),
+					workingDirectory: workingDirectory?.fsPath,
+				});
+				this._logService.info(`[Copilot:${sessionId}] Fallback createSession succeeded`);
+
+				return new CopilotSessionWrapper(raw);
+			}
+		};
+
+		const agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
+		await agentSession.initializeSession();
+
+		return agentSession;
 	}
 
-	private _mapSessionEvents(session: URI, events: readonly SessionEvent[]): (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] {
-		const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
-		const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined }>();
-
-		for (const e of events) {
-			if (e.type === 'assistant.message' || e.type === 'user.message') {
-				const d = (e as SessionEventPayload<'assistant.message'>).data;
-				result.push({
-					session,
-					type: 'message',
-					role: e.type === 'user.message' ? 'user' : 'assistant',
-					messageId: d?.messageId ?? '',
-					content: d?.content ?? '',
-					toolRequests: d?.toolRequests?.map((tr: { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }) => ({
-						toolCallId: tr.toolCallId,
-						name: tr.name,
-						arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
-						type: tr.type,
-					})),
-					reasoningOpaque: d?.reasoningOpaque,
-					reasoningText: d?.reasoningText,
-					encryptedContent: d?.encryptedContent,
-					parentToolCallId: d?.parentToolCallId,
-				});
-			} else if (e.type === 'tool.execution_start') {
-				const d = (e as SessionEventPayload<'tool.execution_start'>).data;
-				if (isHiddenTool(d.toolName)) {
-					continue;
-				}
-				const toolArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
-				let parameters: Record<string, unknown> | undefined;
-				if (toolArgs) {
-					try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
-				}
-				toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters });
-				const displayName = getToolDisplayName(d.toolName);
-				const toolKind = getToolKind(d.toolName);
-				result.push({
-					session,
-					type: 'tool_start',
-					toolCallId: d.toolCallId,
-					toolName: d.toolName,
-					displayName,
-					invocationMessage: getInvocationMessage(d.toolName, displayName, parameters),
-					toolInput: getToolInputString(d.toolName, parameters, toolArgs),
-					toolKind,
-					language: toolKind === 'terminal' ? getShellLanguage(d.toolName) : undefined,
-					toolArguments: toolArgs,
-					mcpServerName: d.mcpServerName,
-					mcpToolName: d.mcpToolName,
-					parentToolCallId: d.parentToolCallId,
-				});
-			} else if (e.type === 'tool.execution_complete') {
-				const d = (e as SessionEventPayload<'tool.execution_complete'>).data;
-				const info = toolInfoByCallId.get(d.toolCallId);
-				if (!info) {
-					continue;
-				}
-				toolInfoByCallId.delete(d.toolCallId);
-				const displayName = getToolDisplayName(info.toolName);
-				const toolOutput = d.error?.message ?? d.result?.content;
-				const content: IToolResultContent[] = [];
-				if (toolOutput !== undefined) {
-					content.push({ type: ToolResultContentType.Text, text: toolOutput });
-				}
-				result.push({
-					session,
-					type: 'tool_complete',
-					toolCallId: d.toolCallId,
-					result: {
-						success: d.success,
-						pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
-						content: content.length > 0 ? content : undefined,
-						error: d.error,
-					},
-					isUserRequested: d.isUserRequested,
-					toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
-				});
-			}
+	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
+		if (!await this._gitService.isInsideWorkTree(workingDirectory)) {
+			return undefined;
 		}
-		return result;
+
+		const currentBranch = await this._gitService.getCurrentBranch(workingDirectory) ?? 'HEAD';
+		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory) ?? currentBranch;
+		return { currentBranch, defaultBranch };
+	}
+
+	private async _getBranches(workingDirectory: URI, query?: string): Promise<string[]> {
+		return this._gitService.getBranches(workingDirectory, { query, limit: CopilotAgent._BRANCH_COMPLETION_LIMIT });
+	}
+
+	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string): Promise<URI | undefined> {
+		if (config?.config?.isolation !== 'worktree' || !config.workingDirectory || typeof config.config.branch !== 'string') {
+			return config?.workingDirectory;
+		}
+
+		const repositoryRoot = await this._gitService.getRepositoryRoot(config.workingDirectory);
+		if (!repositoryRoot) {
+			return config.workingDirectory;
+		}
+
+		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
+		const branchNameHintRaw = config.config[SessionConfigKey.BranchNameHint];
+		const branchNameHint = typeof branchNameHintRaw === 'string' ? branchNameHintRaw : undefined;
+		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
+		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
+		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
+		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
+		// `addWorktree`'s signature requires a startPoint, but historically the
+		// runtime accepted undefined when `branch` was not set in config. Preserve
+		// that behavior by passing through whatever value (or undefined) was set.
+		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
+		// Queue the worktree announcement so the first turn (live) and any
+		// subsequent restore (history) both surface the message in the chat.
+		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		try {
+			await this._writeWorktreeBranchMetadata(sessionUri, branchName, baseBranch);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to persist worktree branch metadata: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		return worktree;
+	}
+
+	private async _removeCreatedWorktree(sessionId: string): Promise<void> {
+		const worktree = this._createdWorktrees.get(sessionId);
+		if (!worktree) {
+			return;
+		}
+		try {
+			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to remove worktree '${worktree.worktree.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			this._createdWorktrees.delete(sessionId);
+		}
+	}
+
+	// ---- session metadata persistence --------------------------------------
+
+	private static readonly _META_MODEL = 'copilot.model';
+	private static readonly _META_CWD = 'copilot.workingDirectory';
+	private static readonly _META_CUSTOMIZATION_DIRECTORY = 'copilot.customizationDirectory';
+	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
+	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
+	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
+	private static readonly _META_WORKTREE_BRANCH = 'copilot.worktree.branchName';
+
+	private async _writeWorktreeBranchMetadata(session: URI, branchName: string, baseBranch: string | undefined): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(session);
+		try {
+			const work: Promise<void>[] = [dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName)];
+			if (baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			}
+			await Promise.all(work);
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
+	private async _readWorktreeBranchMetadata(session: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const value = await ref.object.getMetadata(CopilotAgent._META_WORKTREE_BRANCH);
+			return value ?? undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(session);
+		const db = dbRef.object;
+		try {
+			const work: Promise<void>[] = [];
+			if (model) {
+				work.push(db.setMetadata(CopilotAgent._META_MODEL, this._serializeModelSelection(model)));
+			}
+			if (workingDirectory) {
+				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));
+			}
+			if (customizationDirectory) {
+				work.push(db.setMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY, customizationDirectory.toString()));
+			}
+			if (projectResolved) {
+				work.push(db.setMetadata(CopilotAgent._META_PROJECT_RESOLVED, 'true'));
+			}
+			if (project) {
+				work.push(db.setMetadata(CopilotAgent._META_PROJECT_URI, project.uri.toString()));
+				work.push(db.setMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME, project.displayName));
+			}
+			await Promise.all(work);
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return {};
+		}
+		try {
+			const [model, cwd, customizationDirectory] = await Promise.all([
+				ref.object.getMetadata(CopilotAgent._META_MODEL),
+				ref.object.getMetadata(CopilotAgent._META_CWD),
+				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
+			]);
+			return {
+				model: this._parseModelSelection(model),
+				workingDirectory: cwd ? URI.parse(cwd) : undefined,
+				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+			};
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const [model, cwd, customizationDirectory, resolved, uri, displayName] = await Promise.all([
+				ref.object.getMetadata(CopilotAgent._META_MODEL),
+				ref.object.getMetadata(CopilotAgent._META_CWD),
+				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
+				ref.object.getMetadata(CopilotAgent._META_PROJECT_RESOLVED),
+				ref.object.getMetadata(CopilotAgent._META_PROJECT_URI),
+				ref.object.getMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME),
+			]);
+			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
+			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
+			return {
+				model: this._parseModelSelection(model),
+				workingDirectory,
+				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+				project,
+				resolved: resolved === 'true' || project !== undefined,
+			};
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _storeSessionProjectResolution(session: URI, project: IAgentSessionProjectInfo | undefined): Promise<void> {
+		await this._storeSessionMetadata(session, undefined, undefined, undefined, project, true);
+	}
+
+	private _resolveSessionProject(context: ICopilotSessionContext | undefined, limiter: Limiter<IAgentSessionProjectInfo | undefined>, projectByContext: Map<string, Promise<IAgentSessionProjectInfo | undefined>>): Promise<IAgentSessionProjectInfo | undefined> {
+		const key = this._projectContextKey(context);
+		if (!key) {
+			return Promise.resolve(undefined);
+		}
+
+		let project = projectByContext.get(key);
+		if (!project) {
+			project = limiter.queue(() => projectFromCopilotContext(context, this._gitService));
+			projectByContext.set(key, project);
+		}
+		return project;
+	}
+
+	private _projectContextKey(context: ICopilotSessionContext | undefined): string | undefined {
+		if (context?.cwd) {
+			return `cwd:${context.cwd}`;
+		}
+		if (context?.gitRoot) {
+			return `gitRoot:${context.gitRoot}`;
+		}
+		if (context?.repository) {
+			return `repository:${context.repository}`;
+		}
+		return undefined;
 	}
 
 	override dispose(): void {
-		this._denyPendingPermissions();
-		this._client?.stop().catch(() => { /* best-effort */ });
-		super.dispose();
+		this.shutdown().catch(err => {
+			this._logService.warn('[Copilot] Shutdown failed during dispose', err);
+		}).finally(() => super.dispose());
+	}
+}
+
+interface IResolvedCustomization {
+	readonly customization: SessionCustomization;
+	readonly pluginDir?: URI;
+	readonly plugin?: IParsedPlugin;
+}
+
+class PluginController extends Disposable {
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _enablement = new Map<string, boolean>();
+	private _clientCustomizations: readonly IResolvedCustomization[] = [];
+	private _hostCustomizations: readonly IResolvedCustomization[] = [];
+	private _clientSync: Promise<readonly IResolvedCustomization[]> = Promise.resolve([]);
+	private _hostSync: Promise<readonly IResolvedCustomization[]> = Promise.resolve([]);
+	private _clientRevision = 0;
+	private _hostRevision = 0;
+	private _lastAppliedRefs: readonly CustomizationRef[] = [];
+
+	constructor(
+		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
+		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+	) {
+		super();
+
+		// Seed from current root config and subscribe to future changes.
+		this._applyHostCustomizations();
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			this._applyHostCustomizations();
+		}));
 	}
 
-	private _denyPendingPermissions(): void {
-		for (const [, entry] of this._pendingPermissions) {
-			entry.deferred.complete(false);
+	public getConfiguredHostCustomizations(): readonly CustomizationRef[] {
+		return this._hostCustomizations.map(item => item.customization.customization);
+	}
+
+	public getSessionCustomizations(directory: URI | undefined): readonly SessionCustomization[] {
+		return [
+			...this._hostCustomizations.map(item => this._applyEnablement(item.customization)),
+			...this._clientCustomizations.map(item => this._applyEnablement(item.customization)),
+		];
+	}
+
+	/**
+	 * Returns the current parsed plugins, awaiting any pending sync.
+	 */
+	public async getAppliedPlugins(directory: URI | undefined): Promise<readonly IParsedPlugin[]> {
+		const [host, client] = await Promise.all([
+			this._hostSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Host customization update failed', err);
+				return this._hostCustomizations;
+			}),
+			this._clientSync.catch(err => {
+				this._logService.warn('[Copilot:PluginController] Customization sync failed', err);
+				return this._clientCustomizations;
+			}),
+		]);
+
+		return [
+			...host.filter(item =>
+				!!item.plugin
+				&& this._isEnabled(item.customization)
+			).map(item => item.plugin!),
+			...client.filter(item =>
+				!!item.plugin
+				&& this._isEnabled(item.customization)
+			).map(item => item.plugin!),
+		];
+	}
+
+	public setEnabled(pluginProtocolUri: string, enabled: boolean) {
+		this._enablement.set(pluginProtocolUri, enabled);
+	}
+
+	/**
+	 * Reads the current host customizations from the root config and
+	 * resolves them. Skips the update when the configured refs have not
+	 * changed since the last application.
+	 */
+	private _applyHostCustomizations(): void {
+		const customizations = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.Customizations) ?? [];
+		if (equals(customizations, this._lastAppliedRefs)) {
+			return;
 		}
-		this._pendingPermissions.clear();
+		this._lastAppliedRefs = customizations;
+
+		const revision = ++this._hostRevision;
+		this._hostCustomizations = customizations.map(customization => ({
+			customization: {
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loading,
+			},
+		}));
+		this._onDidChange.fire();
+		this._hostSync = Promise.all(customizations.map(customization => this._resolveConfiguredCustomization(customization))).then(resolved => {
+			if (revision === this._hostRevision) {
+				this._hostCustomizations = resolved;
+			}
+			return resolved;
+		}).finally(() => {
+			if (revision === this._hostRevision) {
+				this._onDidChange.fire();
+			}
+		});
 	}
 
-	private _denyPendingPermissionsForSession(sessionId: string): void {
-		for (const [requestId, entry] of this._pendingPermissions) {
-			if (entry.sessionId === sessionId) {
-				entry.deferred.complete(false);
-				this._pendingPermissions.delete(requestId);
+	public sync(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void) {
+		const revision = ++this._clientRevision;
+		this._clientCustomizations = customizations.map(customization => ({
+			customization: {
+				customization,
+				clientId,
+				enabled: true,
+				status: CustomizationStatus.Loading,
+			},
+		}));
+		progress?.(this._clientCustomizations.map(item => ({ customization: this._applyEnablement(item.customization) })));
+
+		const prev = this._clientSync;
+		const promise = this._clientSync = prev.catch(err => {
+			this._logService.warn('[Copilot:PluginController] Previous customization sync failed', err);
+		}).then(async () => {
+			const result = await this._pluginManager.syncCustomizations(clientId, customizations, status => {
+				if (revision !== this._clientRevision) {
+					return;
+				}
+
+				this._clientCustomizations = status.map(customization => ({
+					customization: {
+						...customization,
+						clientId,
+					},
+				}));
+				progress?.(this._clientCustomizations.map(item => ({ customization: this._applyEnablement(item.customization) })));
+			});
+
+			const resolved = await Promise.all(result.map(item => this._resolveSyncedCustomization(item, clientId)));
+			if (revision === this._clientRevision) {
+				this._clientCustomizations = resolved;
+			}
+			return resolved;
+		});
+
+		return promise.then(results => results.map(item => ({
+			customization: this._applyEnablement(item.customization),
+			...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
+		})));
+	}
+
+	private _isEnabled(customization: SessionCustomization): boolean {
+		return this._enablement.get(customization.customization.uri) ?? customization.enabled;
+	}
+
+	private _applyEnablement(customization: SessionCustomization): SessionCustomization {
+		const enabled = this._isEnabled(customization);
+		return customization.enabled === enabled ? customization : { ...customization, enabled };
+	}
+
+	private async _resolveConfiguredCustomization(customization: CustomizationRef): Promise<IResolvedCustomization> {
+		const pluginDir = URI.parse(customization.uri);
+		const parsed = await this._tryParsePlugin(pluginDir);
+		if (!parsed) {
+			return {
+				customization: {
+					customization,
+					enabled: true,
+					status: CustomizationStatus.Error,
+					statusMessage: localize('copilotAgent.pluginParseError', "Error parsing plugin."),
+				},
+			};
+		}
+
+		return {
+			customization: {
+				customization,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			},
+			pluginDir,
+			plugin: parsed,
+		};
+	}
+
+	private async _resolveSyncedCustomization(item: ISyncedCustomization, clientId: string): Promise<IResolvedCustomization> {
+		if (!item.pluginDir) {
+			return {
+				customization: {
+					...item.customization,
+					clientId,
+				},
+			};
+		}
+
+		const parsed = await this._tryParsePlugin(item.pluginDir);
+		if (!parsed) {
+			return {
+				customization: {
+					...item.customization,
+					clientId,
+					status: CustomizationStatus.Error,
+					statusMessage: localize('copilotAgent.pluginParseError', "Error parsing plugin."),
+				},
+			};
+		}
+
+		return {
+			customization: {
+				...item.customization,
+				clientId,
+			},
+			pluginDir: item.pluginDir,
+			plugin: parsed,
+		};
+	}
+
+	private async _tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
+		try {
+			return await parsePlugin(pluginDir, this._fileService, undefined, this._getUserHome());
+		} catch (error) {
+			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	private _getUserHome(): string {
+		return process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
+	}
+}
+
+/**
+ * Tracks per-session active client contributions (tools and plugins).
+ * The {@link snapshot} captures the state at session creation time, and
+ * {@link isOutdated} detects when the session needs to be refreshed.
+ */
+class ActiveClient {
+	private _tools: readonly ToolDefinition[] = [];
+	private _clientId = '';
+
+	constructor(
+		/** Resolves the current set of applied plugins. May block while a sync is in progress. */
+		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly IParsedPlugin[]>,
+	) { }
+
+	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
+		this._clientId = clientId;
+		this._tools = tools;
+	}
+
+	async snapshot(directory: URI | undefined): Promise<IActiveClientSnapshot> {
+		return { clientId: this._clientId, tools: this._tools, plugins: await this._resolvePlugins(directory) };
+	}
+
+	async isOutdated(snap: IActiveClientSnapshot, directory: URI | undefined): Promise<boolean> {
+		const plugins = await this._resolvePlugins(directory);
+		if (!parsedPluginsEqual(snap.plugins, plugins)) {
+			return true;
+		}
+		if (snap.tools.length !== this._tools.length) {
+			return true;
+		}
+		// Compare tool definitions by name, description, and schema —
+		// not just names — so schema/description changes trigger a refresh.
+		const snapByName = new Map(snap.tools.map(t => [t.name, t]));
+		for (const tool of this._tools) {
+			const prev = snapByName.get(tool.name);
+			if (!prev
+				|| prev.description !== tool.description
+				|| !equals(prev.inputSchema, tool.inputSchema)) {
+				return true;
 			}
 		}
+		return false;
 	}
 }

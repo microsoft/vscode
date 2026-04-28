@@ -27,8 +27,23 @@ When changing harness descriptor interfaces or factory functions, verify both co
 - **`IHarnessDescriptor`** — drives all UI behavior declaratively (hidden sections, button overrides, file filters, agent gating). See spec for full field reference.
 - **`ISectionOverride`** — per-section button customization (command invocation, root file creation, type labels, file extensions).
 - **`IStorageSourceFilter`** — controls which storage sources and user roots are visible per harness/type.
+- **`IExternalCustomizationItemProvider`** / **`IExternalCustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
+
+## Extension API (`chatSessionCustomizationProvider`)
+
+The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `IExternalCustomizationItem` or `IExternalCustomizationItemProvider` must be kept in sync across the full chain:
+
+| Layer | File | Type |
+|-------|------|------|
+| Extension API | `vscode.proposed.chatSessionCustomizationProvider.d.ts` | `ChatSessionCustomizationItem` |
+| IPC DTO | `extHost.protocol.ts` | `IChatSessionCustomizationItemDto` |
+| ExtHost mapping | `extHostChatAgents2.ts` | `$provideChatSessionCustomizations()` |
+| MainThread mapping | `mainThreadChatAgents2.ts` | `provideChatSessionCustomizations` callback |
+| Internal interface | `customizationHarnessService.ts` | `IExternalCustomizationItem` |
+
+When adding fields to `IExternalCustomizationItem`, update all five layers. The proposed API `.d.ts` is additive-only (new optional fields are backward-compatible and do not require a version bump).
 
 ## Testing
 

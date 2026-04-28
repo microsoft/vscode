@@ -10,7 +10,7 @@ import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
 import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isMacintosh, INodeProcess, isWindows } from '../../../base/common/platform.js';
 import { basename, extUriBiasedIgnorePathCase, originalFSPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
@@ -107,7 +107,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 					// Add to recent documents (Windows only, macOS later)
 					// Skip in portable mode to avoid leaving traces on the machine
-					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable) {
+					// Skip in the sessions app to avoid polluting the jump list
+					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable && !(process as INodeProcess).isEmbeddedApp) {
 						app.addRecentDocument(recent.fileUri.fsPath);
 					}
 				}
@@ -251,7 +252,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -268,8 +269,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Wait for global storage to be ready
 		await this.applicationStorageMainService.whenReady;
 
-		// Store in global storage (but do not sync since this is mainly local paths)
-		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		// Store in application shared storage (but do not sync since this is mainly local paths)
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {
@@ -322,6 +323,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Skip in portable mode to avoid leaving traces on the machine
 		if (this.environmentMainService.isPortable) {
+			return;
+		}
+
+		// Skip in the sessions app to avoid polluting the jump list
+		if ((process as INodeProcess).isEmbeddedApp) {
 			return;
 		}
 
@@ -452,6 +458,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async updateMacOSRecentDocuments(): Promise<void> {
 		if (!isMacintosh) {
+			return;
+		}
+
+		// Skip in the sessions app to avoid polluting the dock
+		if ((process as INodeProcess).isEmbeddedApp) {
 			return;
 		}
 

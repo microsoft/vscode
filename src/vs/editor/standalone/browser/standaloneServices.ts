@@ -223,6 +223,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
+	readonly appSharedDataHome: URI = URI.from({ scheme: 'monaco', authority: 'appSharedDataHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
 	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });
@@ -803,6 +804,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
 	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 	publicLog() { }
 	publicLog2() { }
 	publicLogError() { }
@@ -1123,6 +1125,7 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
 	readonly onDidChangePolicyData: Event<IPolicyData | null> = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = null;
 	readonly copilotTokenInfo = null;
 	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
 

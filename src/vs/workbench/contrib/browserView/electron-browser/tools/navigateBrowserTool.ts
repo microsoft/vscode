@@ -5,10 +5,13 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const NavigateBrowserToolData: IToolData = {
@@ -49,25 +52,30 @@ interface INavigateBrowserToolParams {
 export class NavigateBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as INavigateBrowserToolParams;
+		const link = createBrowserPageLink(params.pageId);
 		switch (params.type) {
 			case 'reload':
 				return {
-					invocationMessage: localize('browser.reload.invocation', "Reloading browser page"),
-					pastTenseMessage: localize('browser.reload.past', "Reloaded browser page"),
+					invocationMessage: new MarkdownString(localize('browser.reload.invocation', "Reloading {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.reload.past', "Reloaded {0}", link)),
+					icon: Codicon.refresh,
 				};
 			case 'back':
 				return {
-					invocationMessage: localize('browser.goBack.invocation', "Going back in browser history"),
-					pastTenseMessage: localize('browser.goBack.past', "Went back in browser history"),
+					invocationMessage: new MarkdownString(localize('browser.goBack.invocation', "Navigating backward in {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goBack.past', "Navigated backward in {0}", link)),
+					icon: Codicon.arrowLeft,
 				};
 			case 'forward':
 				return {
-					invocationMessage: localize('browser.goForward.invocation', "Going forward in browser history"),
-					pastTenseMessage: localize('browser.goForward.past', "Went forward in browser history"),
+					invocationMessage: new MarkdownString(localize('browser.goForward.invocation', "Navigating forward in {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goForward.past', "Navigated forward in {0}", link)),
+					icon: Codicon.arrowRight,
 				};
 			default: {
 				if (!params.url) {
@@ -78,9 +86,14 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error('You must provide a complete, valid URL.');
 				}
 
+				const uri = URI.parse(params.url);
+				if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
+					throw new Error(this.agentNetworkFilterService.formatError(uri));
+				}
+
 				return {
-					invocationMessage: localize('browser.navigate.invocation', "Navigating browser to {0}", parsed.href),
-					pastTenseMessage: localize('browser.navigate.past', "Navigated browser to {0}", parsed.href),
+					invocationMessage: new MarkdownString(localize('browser.navigate.invocation', "Navigating to {0} in {1}", parsed.href, link)),
+					pastTenseMessage: new MarkdownString(localize('browser.navigate.past', "Navigated to {0} in {1}", parsed.href, link)),
 					confirmationMessages: {
 						title: localize('browser.navigate.confirmTitle', 'Navigate Browser?'),
 						message: localize('browser.navigate.confirmMessage', 'This will navigate the browser to {0} and allow the agent to access its contents.', parsed.href),

@@ -11,15 +11,18 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -139,11 +142,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -200,6 +204,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeNavigation.fire(sessionResource);
 
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+
+		logChangesViewReviewCommentAdded(this._telemetryService, {
+			hasExistingFeedback: hasExistingForFile,
+			hasSuggestion: !!suggestion,
+			isFromPRReview: !!sourcePRReviewCommentId,
+		});
 
 		return feedback;
 	}
@@ -290,14 +300,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		}
 
-		for (const session of this._agentSessionsService.model.sessions) {
-			if (!isEqual(session.resource, sessionResource)) {
-				continue;
-			}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		if (!session) {
+			return false;
+		}
 
-			if (agentSessionContainsResource(session, resourceUri)) {
-				return true;
-			}
+		const changes = session.changes.get();
+		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
+			return true;
 		}
 
 		return false;
@@ -315,7 +325,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
-		const sessionChange = this._getSessionChange(resourceUri, this._agentSessionsService.getSession(sessionResource)?.changes);
+		const sessionData = this._sessionsManagementService.getSession(sessionResource);
+		const sessionChange = this._getSessionChange(resourceUri, sessionData?.changes.get());
 
 		if (sessionChange?.isDeletion && sessionChange.originalUri) {
 			await this._editorService.openEditor({
@@ -353,16 +364,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this.setNavigationAnchor(sessionResource, commentId);
 	}
 
-	private _getSessionChange(resourceUri: URI, changes: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
-		readonly files: number;
-		readonly insertions: number;
-		readonly deletions: number;
-	} | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
+	private _getSessionChange(resourceUri: URI, changes: readonly ISessionFileChange[] | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
 		if (!(changes instanceof Array)) {
 			return undefined;
 		}
 
-		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		const matchingChange = changes.find(change => changeMatchesResource(change, resourceUri));
 		if (!matchingChange) {
 			return undefined;
 		}
@@ -380,17 +387,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			modifiedUri: matchingChange.modifiedUri,
 			isDeletion: false,
 		};
-	}
-
-	private _changeContainsResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
-		if (isIChatSessionFileChange2(change)) {
-			return change.uri.fsPath === resourceUri.fsPath
-				|| change.originalUri?.fsPath === resourceUri.fsPath
-				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
-		}
-
-		return change.modifiedUri.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {

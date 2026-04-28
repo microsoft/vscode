@@ -57,6 +57,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	#firstUpdate = true;
 	#currentVersion?: PreviewDocumentVersion;
 	#isScrolling = false;
+	#scrollingTimer?: NodeJS.Timeout;
 
 	#imageInfo: readonly ImageInfo[] = [];
 	readonly #fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
@@ -128,8 +129,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 			this._register(watcher.onDidChange(uri => {
 				if (this.isPreviewOf(uri)) {
-					// Only use the file system event when VS Code does not already know about the file
-					if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString())) {
+					// Only use the file system event when VS Code does not already know about the file.
+					// This is needed to avoid duplicate refreshes
+					if (!vscode.workspace.textDocuments.some(doc => areUrisEqual(doc.uri, uri))) {
 						this.refresh();
 					}
 				}
@@ -246,6 +248,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		});
 	}
 
+	public get isScrolling(): boolean {
+		return this.#isScrolling;
+	}
+
 	async #updatePreview(forceUpdate?: boolean): Promise<void> {
 		clearTimeout(this.#throttleTimer);
 		this.#throttleTimer = undefined;
@@ -313,6 +319,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 
 			this.#isScrolling = true;
+			if (this.#scrollingTimer) {
+				clearTimeout(this.#scrollingTimer);
+			}
+			this.#scrollingTimer = setTimeout(() => {
+				this.#isScrolling = false;
+			}, 200);
 			scrollEditorToLine(line, editor);
 		}
 	}
@@ -543,7 +555,9 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 
 		this._register(topmostLineMonitor.onDidChanged(event => {
 			if (this.#preview.isPreviewOf(event.resource)) {
-				this.#preview.scrollTo(event.line);
+				if (!this.#preview.isScrolling) {
+					this.#preview.scrollTo(event.line);
+				}
 			}
 		}));
 	}
@@ -690,7 +704,9 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 		this._register(this.#topmostLineMonitor.onDidChanged(event => {
 			if (this.#preview.isPreviewOf(event.resource)) {
-				this.#preview.scrollTo(event.line);
+				if (!this.#preview.isScrolling) {
+					this.#preview.scrollTo(event.line);
+				}
 			}
 		}));
 

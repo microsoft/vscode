@@ -273,8 +273,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
 		const textModel = textModelRef.object.textEditorModel;
 		if (!textModel) {
+			textModelRef.dispose();
 			return undefined;
 		}
+		this.cursorsDisposables.add(textModelRef);
 
 		const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
 		const converter = this.constructCoordinatesConverter();

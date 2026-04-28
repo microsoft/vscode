@@ -64,9 +64,10 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 		let primaryButtonLabel: string | undefined;
 		switch (chatEntitlementService.entitlement) {
+			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
-				primaryButtonLabel = localize('enableAdditionalUsage', "Manage Paid Premium Requests");
+				primaryButtonLabel = localize('enableAdditionalUsage', "Configure Additional Spend");
 				break;
 			case ChatEntitlement.Free:
 				primaryButtonLabel = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
@@ -116,7 +117,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			primaryButton.element.classList.add('chat-quota-error-button');
 
 			this._register(primaryButton.onDidClick(async () => {
-				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageOverages';
+				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageAdditionalSpend';
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 				await commandService.executeCommand(commandId);
 

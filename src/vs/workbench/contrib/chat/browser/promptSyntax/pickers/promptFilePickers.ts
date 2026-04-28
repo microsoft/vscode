@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentInstructionFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { basename, dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -475,7 +475,7 @@ export class PromptFilePickers {
 				// Don't show the folder path for files under .github folder (namely, copilot-instructions.md) since that is only defined once per repo.
 				return {
 					uri: agentInstructionFile.uri,
-					description: agentInstructionFile.type !== AgentFileType.copilotInstructionsMd ? folderName : undefined,
+					description: agentInstructionFile.type !== AgentInstructionFileType.copilotInstructionsMd ? folderName : undefined,
 					storage: PromptsStorage.local,
 					type: options.type
 				} satisfies IPromptPath;
@@ -532,13 +532,6 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
 		}
 
-		// Internal built-in files are read-only
-		const internals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.internal, token);
-		if (internals.length) {
-			const internalButtons: IQuickInputButton[] = [];
-			result.push({ type: 'separator', label: localize('separator.builtin', "Built-in") });
-			result.push(...sortByLabel(await Promise.all(internals.map(p => this._createPromptPickItem(p, internalButtons, getVisibility(p), token)))));
-		}
 		return result;
 	}
 
@@ -586,9 +579,6 @@ export class PromptFilePickers {
 				break;
 			case PromptsStorage.plugin:
 				tooltip = promptFile.name;
-				break;
-			case PromptsStorage.internal:
-				tooltip = undefined;
 				break;
 			default:
 				assertNever(promptFile);
