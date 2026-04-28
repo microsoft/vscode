@@ -123,8 +123,10 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 function compare(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = Object.keys(from);
 	const toKeys = Object.keys(to);
-	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const fromKeysSet = new Set(fromKeys);
+	const toKeysSet = new Set(toKeys);
+	const added = toKeys.filter(key => !fromKeysSet.has(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeysSet.has(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	for (const key of fromKeys) {

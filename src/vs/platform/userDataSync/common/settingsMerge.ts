@@ -298,8 +298,10 @@ export function isEmpty(content: string): boolean {
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
 	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
-	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const fromKeysSet = new Set(fromKeys);
+	const toKeysSet = new Set(toKeys);
+	const added = toKeys.filter(key => !fromKeysSet.has(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeysSet.has(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	if (from) {
