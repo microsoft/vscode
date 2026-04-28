@@ -9,7 +9,7 @@ export interface IQuotaSnapshotData {
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
-	readonly usage_based_billing?: boolean;
+	readonly token_based_billing?: boolean;
 }
 
 export interface ILegacyQuotaSnapshotData {

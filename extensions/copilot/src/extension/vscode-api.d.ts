@@ -20,6 +20,7 @@
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatPromptFiles.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatProvider.d.ts" />
+/// <reference path="../../../../src/vscode-dts/vscode.proposed.languageModelPricing.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatReferenceBinaryData.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatReferenceDiagnostic.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts" />
