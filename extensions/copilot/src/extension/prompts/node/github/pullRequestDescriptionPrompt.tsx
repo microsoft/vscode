@@ -106,7 +106,7 @@ class GitHubPullRequestUserMessage extends PromptElement<GitHubPullRequestUserMe
 			<>
 				{escapedCompareBranch && (
 					<>
-						The merged/compare/source branch name is the following literal string: {escapedCompareBranch}.<br />
+						The pull request branch name is: {escapedCompareBranch}.<br />
 					</>
 				)}
 				These are the commits that will be included in the pull request you are about to make:<br />
