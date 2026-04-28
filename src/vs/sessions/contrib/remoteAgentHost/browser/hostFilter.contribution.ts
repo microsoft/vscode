@@ -16,6 +16,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentHostFilterService } from '../common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
+import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
 
 /**
  * Context key that is `true` when at least one remote agent host is known
@@ -99,7 +100,7 @@ class AgentHostFilterContribution extends Disposable implements IWorkbenchContri
 		this._register(actionViewItemService.register(
 			Menus.MobileTitleBarCenter,
 			PICK_HOST_FILTER_ID,
-			(action, _options, instaService) => instaService.createInstance(HostFilterActionViewItem, action),
+			(action, _options, instaService) => instaService.createInstance(MobileHostFilterActionViewItem, action),
 			filterService.onDidChange,
 		));
 	}

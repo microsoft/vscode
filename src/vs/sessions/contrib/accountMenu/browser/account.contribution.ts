@@ -9,9 +9,8 @@ import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,23 +38,20 @@ import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { resetSessionsWelcome } from '../../welcome/browser/welcome.contribution.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 // --- Account Menu Items --- //
-const AccountMenu = new MenuId('SessionsAccountMenu');
+const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
-const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 280;
+const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
 function shouldHideSessionsTitleBarUpdateWidget(type: StateType): boolean {
 	return type === StateType.Uninitialized
@@ -158,22 +154,6 @@ async function runSessionsUpdateAction(
 	}
 }
 
-export async function showSessionsWelcomeAfterSignOut(
-	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
-	resetWelcome: () => void,
-): Promise<void> {
-	const waitForUnknownEntitlement = Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
-	try {
-		if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
-			await waitForUnknownEntitlement;
-		}
-	} finally {
-		waitForUnknownEntitlement.cancel();
-	}
-
-	resetWelcome();
-}
-
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
 	constructor() {
@@ -214,13 +194,6 @@ registerAction2(class extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
-		const chatEntitlementService = accessor.get(IChatEntitlementService);
-		const storageService = accessor.get(IStorageService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
-		const logService = accessor.get(ILogService);
 		const defaultAccount = await defaultAccountService.getDefaultAccount();
 		if (!defaultAccount) {
 			return;
@@ -244,16 +217,16 @@ registerAction2(class extends Action2 {
 		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
 		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
 		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
-		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => resetSessionsWelcome(storageService, instantiationService, layoutService, chatEntitlementService, contextKeyService, environmentService, logService));
 	}
 });
 
-// Settings
+// Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
 		id: 'workbench.action.openSettings',
 		title: localize('settings', "Settings"),
 	},
+	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
 	order: 1,
 });
@@ -288,6 +261,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -303,6 +277,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
+		this._register(this.authenticationService.onDidChangeSessions(() => this.refreshAccount()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
@@ -346,14 +321,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.isAccountLoading = true;
 		this.renderState();
 
-		const account = await this.defaultAccountService.getDefaultAccount();
+		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
 		if (requestId !== this.accountRequestCounter) {
 			return;
 		}
 
-		this.accountName = account?.accountName;
-		this.accountProviderId = account?.authenticationProvider.id;
-		this.accountProviderLabel = account?.authenticationProvider.name;
+		this.accountName = info?.accountName;
+		this.accountProviderId = info?.accountProviderId;
+		this.accountProviderLabel = info?.accountProviderLabel;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -364,11 +339,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
+		// When we have a session but entitlement hasn't resolved yet,
+		// treat as Unresolved to avoid showing "Agents Signed Out".
+		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
+			? ChatEntitlement.Unresolved
+			: this.chatEntitlementService.entitlement;
+
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
 			accountProviderLabel: this.accountProviderLabel,
-			entitlement: this.chatEntitlementService.entitlement,
+			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
 		});
@@ -815,3 +796,32 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(AccountWidgetContribution.ID, AccountWidgetContribution, WorkbenchPhase.BlockRestore);
+
+// --- Chat Dashboard Service (real implementation for mobile account sheet) --- //
+
+class ChatDashboardServiceImpl implements IChatDashboardService {
+	readonly _serviceBrand: undefined;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	createDashboardElement(store: DisposableStore): HTMLElement | undefined {
+		const dashboardElement = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, {
+			disableInlineSuggestionsSettings: true,
+			disableModelSelection: true,
+			disableProviderOptions: true,
+			disableCompletionsSnooze: true,
+		});
+
+		store.add(disposableWindowInterval(mainWindow, () => {
+			if (!dashboardElement.isConnected) {
+				store.dispose();
+			}
+		}, 2000));
+
+		return dashboardElement;
+	}
+}
+
+registerSingleton(IChatDashboardService, ChatDashboardServiceImpl, InstantiationType.Delayed);

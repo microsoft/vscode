@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatQuestionAnswers, IChatService } from '../../../../common/chatService/chatService.js';
 import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
 	public testConvertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined): IAnswerResult {
@@ -150,5 +155,114 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 		const result = tool.testConvertCarouselAnswers(questions, { Case: 'yes' });
 
 		assert.deepStrictEqual(result.answers['Case'], { selected: [], freeText: 'yes', skipped: false });
+	});
+});
+
+suite('AskQuestionsTool - invoke', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks the carousel used when invocation is cancelled after it is shown', async () => {
+		let appendedCarousel: ChatQuestionCarouselData | undefined;
+		const request = {
+			id: 'request-1',
+			message: { text: '' },
+			modeInfo: undefined,
+			response: undefined,
+			terminalExecutionId: undefined,
+		};
+		const chatService = {
+			getSession: () => ({
+				getRequests: () => [request],
+			}),
+			appendProgress: (_request: unknown, progress: ChatQuestionCarouselData) => {
+				appendedCarousel = progress;
+			},
+			onDidReceiveQuestionCarouselAnswer: Event.None,
+		} as unknown as IChatService;
+		const tool = store.add(new AskQuestionsTool(
+			chatService,
+			NullTelemetryService,
+			new NullLogService(),
+			new TestConfigurationService()
+		));
+		const tokenSource = new CancellationTokenSource();
+
+		const invokePromise = tool.invoke({
+			parameters: {
+				questions: [{ header: 'Theme', question: 'What is your favorite theme in VS Code?' }],
+			},
+			context: { sessionResource: URI.parse('test://session') },
+			chatRequestId: 'request-1',
+		} as never, undefined as never, { report: () => { } }, tokenSource.token);
+
+		assert.ok(appendedCarousel, 'expected question carousel to be appended before cancellation');
+		tokenSource.cancel();
+
+		await assert.rejects(invokePromise, error => error instanceof CancellationError);
+		assert.ok(appendedCarousel, 'expected appended carousel to remain available after cancellation');
+		assert.strictEqual(appendedCarousel.isUsed, true);
+		assert.deepStrictEqual(appendedCarousel.data, {});
+		assert.strictEqual(appendedCarousel.completion.isResolved, true);
+		assert.deepStrictEqual(appendedCarousel.completion.value, { answers: undefined });
+		assert.strictEqual(appendedCarousel.draftAnswers, undefined);
+		assert.strictEqual(appendedCarousel.draftCurrentIndex, undefined);
+		assert.strictEqual(appendedCarousel.draftCollapsed, undefined);
+	});
+
+	test('uses externally notified answers instead of showing skipped', async () => {
+		let appendedCarousel: ChatQuestionCarouselData | undefined;
+		const onDidReceiveQuestionCarouselAnswer = new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>();
+		const request = {
+			id: 'request-1',
+			message: { text: '' },
+			modeInfo: undefined,
+			response: undefined,
+			terminalExecutionId: undefined,
+		};
+		const chatService = {
+			getSession: () => ({
+				getRequests: () => [request],
+			}),
+			appendProgress: (_request: unknown, progress: ChatQuestionCarouselData) => {
+				appendedCarousel = progress;
+			},
+			onDidReceiveQuestionCarouselAnswer: onDidReceiveQuestionCarouselAnswer.event,
+		} as unknown as IChatService;
+		const tool = store.add(new AskQuestionsTool(
+			chatService,
+			NullTelemetryService,
+			new NullLogService(),
+			new TestConfigurationService()
+		));
+		const invokePromise = tool.invoke({
+			callId: 'tool-call',
+			chatStreamToolCallId: 'remote-tool-call',
+			parameters: {
+				questions: [{ header: 'Color', question: 'What is your favorite color?', options: [{ label: 'Blue' }, { label: 'Red' }] }],
+			},
+			context: { sessionResource: URI.parse('test://session') },
+			chatRequestId: 'request-1',
+			toolId: 'vscode_askQuestions',
+		} as never, undefined as never, { report: () => { } }, CancellationToken.None);
+
+		assert.ok(appendedCarousel, 'expected question carousel to be appended before external answer');
+		onDidReceiveQuestionCarouselAnswer.fire({
+			requestId: 'ignored',
+			resolveId: 'remote-tool-call',
+			answers: {
+				'remote-tool-call:0': { selectedValue: 'Blue' },
+			},
+		});
+
+		const result = await invokePromise;
+		assert.deepStrictEqual(JSON.parse(String(result.content[0].value)), {
+			answers: {
+				Color: { selected: ['Blue'], freeText: null, skipped: false },
+			},
+		});
+		assert.strictEqual(appendedCarousel.isUsed, true);
+		assert.deepStrictEqual(appendedCarousel.data, {
+			'remote-tool-call:0': { selectedValue: 'Blue' },
+		});
 	});
 });

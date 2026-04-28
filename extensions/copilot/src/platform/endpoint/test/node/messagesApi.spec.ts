@@ -9,8 +9,6 @@ import { beforeEach, describe, expect, suite, test } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -995,7 +993,6 @@ suite('addLastTwoMessagesCacheControl', function () {
 describe('createMessagesRequestBody reasoning effort', () => {
 	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
-	let mockConfig: InMemoryConfigurationService;
 
 	function createMockEndpoint(overrides: Partial<IChatEndpoint> = {}): IChatEndpoint {
 		return {
@@ -1050,7 +1047,6 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		});
 		const accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
-		mockConfig = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 	});
 
 	test('includes effort in output_config when model supports reasoning effort and thinking is adaptive', () => {
@@ -1135,7 +1131,6 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			minThinkingBudget: 1024,
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
-		mockConfig.setConfig(ConfigKey.AnthropicThinkingBudget, 10000);
 		const options = createMinimalOptions({
 			modelCapabilities: { enableThinking: true, reasoningEffort: 'low' },
 		});

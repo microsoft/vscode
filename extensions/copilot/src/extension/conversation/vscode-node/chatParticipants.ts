@@ -269,29 +269,6 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
-				const rateLimitWarning = this._chatQuotaService.consumeRateLimitWarning();
-				if (rateLimitWarning) {
-					const resetDate = rateLimitWarning.resetDate;
-					const now = new Date();
-					const includeYear = resetDate.getFullYear() !== now.getFullYear();
-					const dateStr = new Intl.DateTimeFormat(undefined, includeYear
-						? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
-						: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-					).format(resetDate);
-					stream.warning(new vscode.MarkdownString(
-						rateLimitWarning.type === 'session'
-							? vscode.l10n.t({
-								message: "You've used {0}% of your session rate limit. Your session rate limit will reset on {1}. [Learn More]({2})",
-								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
-								comment: [`{Locked=']({'}`]
-							})
-							: vscode.l10n.t({
-								message: "You've used {0}% of your weekly rate limit. Your weekly rate limit will reset on {1}. [Learn More]({2})",
-								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
-								comment: [`{Locked=']({'}`]
-							})
-					));
-				}
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}
@@ -305,7 +282,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
 			return request;
 		}
-		if (this._chatQuotaService.overagesEnabled || !this._chatQuotaService.quotaExhausted) {
+		if (this._chatQuotaService.additionalUsageEnabled || !this._chatQuotaService.quotaExhausted) {
 			return request;
 		}
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
@@ -318,14 +295,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. [Enable additional paid premium requests]({1}) to continue using premium models.',
-				args: [baseEndpoint.name, 'command:chat.enablePremiumOverages'],
+				message: 'You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure additional spend]({1}) to keep going.',
+				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
 			}));
-			messageString.isTrusted = { enabledCommands: ['chat.enablePremiumOverages'] };
+			messageString.isTrusted = { enabledCommands: ['chat.enableAdditionalUsage'] };
 		} else {
-			messageString = new vscode.MarkdownString(vscode.l10n.t('You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. To enable additional paid premium requests, contact your organization admin.', baseEndpoint.name));
+			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. To configure additional spend, contact your organization admin.', baseEndpoint.name));
 		}
 		stream.warning(messageString);
 		return request;

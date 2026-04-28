@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -68,6 +70,7 @@ suite('AgentService (node dispatcher)', () => {
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
+
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -118,6 +121,49 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	// ---- createSession --------------------------------------------------
+
+	suite('dispatchAction', () => {
+
+		test('applies and persists root config changes from clients', async () => {
+			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
+			try {
+				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				svc.registerProvider(agent);
+
+				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+				svc.dispatchAction({
+					type: ActionType.RootConfigChanged,
+					config: { customizations: [customization] },
+				}, 'test-client', 1);
+
+				let persisted = false;
+				for (let attempt = 0; attempt < 20; attempt++) {
+					try {
+						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
+						assert.deepStrictEqual(
+							parsed.customizations,
+							[customization],
+						);
+						persisted = true;
+						break;
+					} catch {
+						// Wait for the serialized root-config write to complete.
+					}
+					if (attempt === 19) {
+						break;
+					}
+					await new Promise(resolve => setTimeout(resolve, 5));
+				}
+
+				assert.ok(persisted, 'should persist the root config change');
+			} finally {
+				rmSync(tempDir.fsPath, { recursive: true, force: true });
+			}
+		});
+	});
 
 	suite('createSession', () => {
 

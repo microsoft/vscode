@@ -11,7 +11,8 @@ import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/ch
 import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
-import { CopilotChatAttr, GenAiAttr, IOTelService, type ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
+import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -28,11 +29,12 @@ import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
-import { ClaudeLanguageModelServer, IClaudeLanguageModelServerConfig } from './claudeLanguageModelServer';
+import { ClaudeLanguageModelServer } from './claudeLanguageModelServer';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
 import { ParsedClaudeModelId } from '../common/claudeModelId';
 import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
+import { ClaudeOTelTracker } from './claudeOTelTracker';
 
 // Manages Claude Code agent interactions and language model server lifecycle
 export class ClaudeAgentManager extends Disposable {
@@ -51,7 +53,6 @@ export class ClaudeAgentManager extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 	) {
 		super();
 	}
@@ -59,50 +60,32 @@ export class ClaudeAgentManager extends Disposable {
 	public async handleRequest(
 		claudeSessionId: string,
 		request: vscode.ChatRequest,
-		_context: vscode.ChatContext,
 		stream: vscode.ChatResponseStream,
 		token: vscode.CancellationToken,
 		isNewSession: boolean,
 		yieldRequested?: () => boolean
-	): Promise<vscode.ChatResult & { claudeSessionId?: string }> {
+	): Promise<vscode.ChatResult> {
 		try {
-			// Read UI state from session state service
-			const modelId = this.sessionStateService.getModelIdForSession(claudeSessionId);
-			const permissionMode = this.sessionStateService.getPermissionModeForSession(claudeSessionId);
-			const folderInfo = this.sessionStateService.getFolderInfoForSession(claudeSessionId);
-
-			if (!modelId || !folderInfo) {
-				throw new Error(`Session state not found for session ${claudeSessionId}. State must be committed before calling handleRequest.`);
-			}
-
-			// Get server config, start server if needed
 			const langModelServer = await this.getLangModelServer();
-			const serverConfig = langModelServer.getConfig();
 
-			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId.toEndpointModelId()}, permissionMode=${permissionMode}.`);
-			let session: ClaudeCodeSession;
-			if (this._sessions.has(claudeSessionId)) {
+			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}.`);
+			let session = this._sessions.get(claudeSessionId);
+			if (session) {
 				this.logService.trace(`[ClaudeAgentManager] Reusing Claude session ${claudeSessionId}.`);
-				session = this._sessions.get(claudeSessionId)!;
 			} else {
 				this.logService.trace(`[ClaudeAgentManager] Creating Claude session for sessionId=${claudeSessionId}.`);
-				const newSession = this.instantiationService.createInstance(ClaudeCodeSession, serverConfig, langModelServer, claudeSessionId, modelId, permissionMode, isNewSession);
-				this._sessions.set(claudeSessionId, newSession);
-				session = newSession;
+				session = this.instantiationService.createInstance(ClaudeCodeSession, langModelServer, claudeSessionId, isNewSession);
+				this._sessions.set(claudeSessionId, session);
 			}
 
 			await session.invoke(
 				request,
-				await resolvePromptToContentBlocks(request),
-				request.toolInvocationToken,
 				stream,
+				yieldRequested,
 				token,
-				yieldRequested
 			);
 
-			return {
-				claudeSessionId: session.sessionId
-			};
+			return {};
 		} catch (invokeError) {
 			// Check if this is an abort/cancellation error - don't show these as errors to the user
 			const isAbortError = invokeError instanceof Error && (
@@ -113,7 +96,7 @@ export class ClaudeAgentManager extends Disposable {
 			);
 			if (isAbortError) {
 				this.logService.trace('[ClaudeAgentManager] Request was aborted/cancelled');
-				return { claudeSessionId };
+				return {};
 			}
 
 			this.logService.error(invokeError as Error);
@@ -131,12 +114,10 @@ export class ClaudeAgentManager extends Disposable {
  * Represents a queued chat request waiting to be processed by the Claude session
  */
 interface QueuedRequest {
-	readonly prompt: Anthropic.ContentBlockParam[];
+	readonly request: vscode.ChatRequest;
 	readonly stream: vscode.ChatResponseStream;
-	readonly toolInvocationToken: vscode.ChatParticipantToolToken;
 	readonly token: vscode.CancellationToken;
 	readonly yieldRequested?: () => boolean;
-	readonly messageId: string;
 	readonly deferred: DeferredPromise<void>;
 }
 
@@ -160,8 +141,8 @@ export class ClaudeCodeSession extends Disposable {
 	private _abortController = new AbortController();
 	private _editTracker: ExternalEditTracker;
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
-	private _currentModelId: ParsedClaudeModelId;
-	private _currentPermissionMode: PermissionMode;
+	private _currentModelId: ParsedClaudeModelId | undefined;
+	private _currentPermissionMode: PermissionMode = 'acceptEdits';
 	private _currentEffort: EffortLevel | undefined;
 	private _isResumed: boolean;
 	private _yieldInProgress = false;
@@ -169,6 +150,7 @@ export class ClaudeCodeSession extends Disposable {
 	private _currentToolNames: ReadonlySet<string> | undefined;
 	private _gateway: vscode.McpGateway | undefined;
 	private _gatewayIdleTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _otelTracker: ClaudeOTelTracker | undefined;
 
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
@@ -200,11 +182,8 @@ export class ClaudeCodeSession extends Disposable {
 	}
 
 	constructor(
-		private readonly serverConfig: IClaudeLanguageModelServerConfig,
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
-		initialModelId: ParsedClaudeModelId,
-		initialPermissionMode: PermissionMode,
 		isNewSession: boolean,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -220,9 +199,8 @@ export class ClaudeCodeSession extends Disposable {
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 	) {
 		super();
-		this._currentModelId = initialModelId;
-		this._currentPermissionMode = initialPermissionMode;
 		this._isResumed = !isNewSession;
+		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService);
 		this._debugFileLogger.startSession(this.sessionId).catch(err => {
 			this.logService.error('[ClaudeCodeSession] Failed to start debug log session', err);
 		});
@@ -303,19 +281,15 @@ export class ClaudeCodeSession extends Disposable {
 	/**
 	 * Invokes the Claude Code session with a user prompt
 	 * @param request The full chat request
-	 * @param prompt The user's prompt as an array of content blocks
-	 * @param toolInvocationToken Token for invoking tools
 	 * @param stream Response stream for sending results back to VS Code
-	 * @param token Cancellation token for request cancellation
 	 * @param yieldRequested Function to check if the user has requested to interrupt
+	 * @param token Cancellation token for request cancellation
 	 */
 	public async invoke(
 		request: vscode.ChatRequest,
-		prompt: Anthropic.ContentBlockParam[],
-		toolInvocationToken: vscode.ChatParticipantToolToken,
 		stream: vscode.ChatResponseStream,
+		yieldRequested: (() => boolean) | undefined,
 		token: vscode.CancellationToken,
-		yieldRequested?: () => boolean
 	): Promise<void> {
 		if (this._store.isDisposed) {
 			throw new Error('Session disposed');
@@ -362,12 +336,10 @@ export class ClaudeCodeSession extends Disposable {
 		// Add this request to the queue and wait for completion
 		const deferred = new DeferredPromise<void>();
 		const queuedRequest: QueuedRequest = {
-			prompt,
+			request,
 			stream,
-			toolInvocationToken,
 			token,
 			yieldRequested,
-			messageId: request.id,
 			deferred
 		};
 
@@ -406,7 +378,11 @@ export class ClaudeCodeSession extends Disposable {
 	private async _doStartSession(token: vscode.CancellationToken): Promise<void> {
 		const folderInfo = this.sessionStateService.getFolderInfoForSession(this.sessionId);
 		if (!folderInfo) {
-			throw new Error(`No folder info found for session ${this.sessionId}`);
+			throw new Error(`No folder info found for session ${this.sessionId}. State must be committed before invoking.`);
+		}
+		const currentModelId = this._currentModelId;
+		if (!currentModelId) {
+			throw new Error(`Model not set for session ${this.sessionId}. State must be committed before invoking.`);
 		}
 		const { cwd, additionalDirectories } = folderInfo;
 
@@ -447,6 +423,7 @@ export class ClaudeCodeSession extends Disposable {
 			this.logService.warn(`[ClaudeCodeSession] Failed to resolve skill locations for plugins: ${errorMessage}`);
 		}
 
+		const serverConfig = this.langModelServer.getConfig();
 		const options: Options = {
 			cwd,
 			additionalDirectories,
@@ -464,7 +441,7 @@ export class ClaudeCodeSession extends Disposable {
 				? { resume: this.sessionId }
 				: { sessionId: this.sessionId }),
 			// Pass the model selection to the SDK
-			model: this._currentModelId.toSdkModelId(),
+			model: currentModelId.toSdkModelId(),
 			// Pass the permission mode to the SDK
 			permissionMode: this._currentPermissionMode,
 			includeHookEvents: true,
@@ -472,11 +449,13 @@ export class ClaudeCodeSession extends Disposable {
 			plugins,
 			settings: {
 				env: {
-					ANTHROPIC_BASE_URL: `http://localhost:${this.serverConfig.port}`,
-					ANTHROPIC_AUTH_TOKEN: `${this.serverConfig.nonce}.${this.sessionId}`,
+					ANTHROPIC_BASE_URL: `http://localhost:${serverConfig.port}`,
+					ANTHROPIC_AUTH_TOKEN: `${serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`
+					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`,
+					// Forward OTel configuration to the Claude SDK subprocess
+					...deriveClaudeOTelEnv(this._otelService.config),
 				},
 				attribution: {
 					commit: '',
@@ -529,49 +508,48 @@ export class ClaudeCodeSession extends Disposable {
 
 			this._currentRequest = {
 				stream: request.stream,
-				toolInvocationToken: request.toolInvocationToken,
+				toolInvocationToken: request.request.toolInvocationToken,
 				token: request.token,
 				yieldRequested: request.yieldRequested
 			};
 
+			const currentModelId = this._currentModelId;
+			if (!currentModelId) {
+				throw new Error(`Model not set for session ${this.sessionId}`);
+			}
+
 			// Increment user-initiated message count for this model
 			// This is used by the language model server to track which requests are user-initiated
-			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId.toEndpointModelId());
+			this.langModelServer.incrementUserInitiatedMessageCount(currentModelId.toEndpointModelId());
+
+			// Resolve the prompt content blocks now that this request is being handled
+			const prompt = await resolvePromptToContentBlocks(request.request);
 
 			// Create a capturing token for this request to group tool calls under the request
 			// we use the last text block in the prompt as the label for the token, since that is most representative of the user's intent
-			const promptLabel = request.prompt.filter(p => p.type === 'text').at(-1)?.text ?? 'Claude Session Prompt';
+			const promptLabel = prompt.filter(p => p.type === 'text').at(-1)?.text ?? 'Claude Session Prompt';
 			this.sessionStateService.setCapturingTokenForSession(
 				this.sessionId,
 				new CapturingToken(promptLabel, 'claude', undefined, undefined, this.sessionId)
 			);
 
-			// Emit a user_message span event for the debug panel
-			// Use a non-standard operation name so completedSpanToDebugEvent ignores this span
-			// (avoids a "Model Turn · 0 tokens" entry); only the user_message event is rendered.
-			const userMsgSpan = this._otelService.startSpan('user_message', {
-				kind: SpanKind.INTERNAL,
-				attributes: {
-					[GenAiAttr.OPERATION_NAME]: 'user_message',
-					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
-				},
-			});
-			const userContent = truncateForOTel(promptLabel);
-			userMsgSpan.setAttribute(CopilotChatAttr.USER_REQUEST, userContent);
-			userMsgSpan.addEvent('user_message', { content: userContent, [CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId });
-			userMsgSpan.end();
+			// Start OTel tracking for this request
+			this._otelTracker!.startRequest(currentModelId.toEndpointModelId());
+
+			// Emit user_message span event for the debug panel
+			this._otelTracker!.emitUserMessage(promptLabel);
 
 			yield {
 				type: 'user',
 				message: {
 					role: 'user',
-					content: request.prompt
+					content: prompt
 				},
 				parent_tool_use_id: null,
 				session_id: this.sessionId,
 				// NOTE: messageId seems to be in the format request_<uuid> but it doesn't seem
 				// to be a problem to use as the message ID for the SDK.
-				uuid: request.messageId as `${string}-${string}-${string}-${string}-${string}`
+				uuid: request.request.id as `${string}-${string}-${string}-${string}-${string}`
 			};
 
 			// Wait for this request to complete before yielding the next one
@@ -600,6 +578,7 @@ export class ClaudeCodeSession extends Disposable {
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
 		const otelHookSpans = new Map<string, ISpanHandle>();
+		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			for await (const message of this._queryGenerator!) {
@@ -625,7 +604,11 @@ export class ClaudeCodeSession extends Disposable {
 					continue;
 				}
 
+				// Track OTel metrics from SDK messages
+				this._otelTracker!.onMessage(message, subagentTraceContexts);
+
 				this.logService.trace(`claude-agent-sdk Message: ${JSON.stringify(message, null, 2)}`);
+
 				const result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 					stream: this._currentRequest.stream,
 					toolInvocationToken: this._currentRequest.toolInvocationToken,
@@ -635,9 +618,13 @@ export class ClaudeCodeSession extends Disposable {
 					unprocessedToolCalls,
 					otelToolSpans,
 					otelHookSpans,
+					parentTraceContext: this._otelTracker!.traceContext,
+					subagentTraceContexts,
 				});
 
 				if (result?.requestComplete) {
+					// End the invoke_agent span for this request
+					this._otelTracker!.endRequest();
 					// Clear the capturing token so subsequent requests get their own
 					this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
 					// Resolve and remove the completed request
@@ -647,6 +634,7 @@ export class ClaudeCodeSession extends Disposable {
 					}
 					this._currentRequest = undefined;
 					this._startGatewayIdleTimer();
+					subagentTraceContexts.clear();
 				}
 			}
 			// Generator ended normally - clean up so next invoke starts fresh
@@ -665,12 +653,16 @@ export class ClaudeCodeSession extends Disposable {
 				span.end();
 			}
 			otelHookSpans.clear();
+			// End any lingering invoke_agent span
+			this._otelTracker!.endRequestWithError('session ended');
 		}
 	}
 
 	private _cleanup(error: Error): void {
 		// Clear the capturing token so it doesn't leak across sessions or error boundaries
 		this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
+		// End invoke_agent span with error if still open
+		this._otelTracker!.endRequestWithError(error.message);
 		this._resetSessionState();
 
 		const wasYielding = this._yieldInProgress;

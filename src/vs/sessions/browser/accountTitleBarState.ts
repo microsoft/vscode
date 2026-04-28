@@ -3,10 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
-import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { localize } from '../../nls.js';
+import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { IAuthenticationService } from '../../workbench/services/authentication/common/authentication.js';
+
+export interface IResolvedAccountInfo {
+	readonly accountName: string;
+	readonly accountProviderId: string;
+	readonly accountProviderLabel: string;
+}
+
+/**
+ * Resolves the current account info by trying the default account service
+ * first, then falling back to raw GitHub sessions from the authentication
+ * service. The fallback covers the window between session creation and
+ * {@link IDefaultAccountService} initialization.
+ */
+export async function resolveAccountInfo(
+	defaultAccountService: IDefaultAccountService,
+	authenticationService: IAuthenticationService,
+): Promise<IResolvedAccountInfo | undefined> {
+	const account = await defaultAccountService.getDefaultAccount();
+	if (account) {
+		return {
+			accountName: account.accountName,
+			accountProviderId: account.authenticationProvider.id,
+			accountProviderLabel: account.authenticationProvider.name,
+		};
+	}
+
+	try {
+		const sessions = await authenticationService.getSessions('github');
+		if (sessions.length > 0) {
+			return {
+				accountName: sessions[0].account.label,
+				accountProviderId: 'github',
+				accountProviderLabel: 'GitHub',
+			};
+		}
+	} catch {
+		// Provider not available yet
+	}
+
+	return undefined;
+}
 
 export type AccountTitleBarStateSource = 'account' | 'copilot';
 export type AccountTitleBarStateKind = 'default' | 'accent' | 'warning' | 'prominent';
@@ -16,7 +59,7 @@ export interface IAccountTitleBarStateContext {
 	readonly accountName?: string;
 	readonly accountProviderLabel?: string;
 	readonly entitlement: ChatEntitlement;
-	readonly sentiment: Pick<IChatSentiment, 'hidden' | 'disabled' | 'untrusted'>;
+	readonly sentiment: IChatSentiment;
 	readonly quotas: {
 		readonly chat?: IQuotaSnapshot;
 		readonly completions?: IQuotaSnapshot;
@@ -91,7 +134,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 
 function getCopilotPresentation(
 	entitlement: ChatEntitlement,
-	sentiment: Pick<IChatSentiment, 'hidden' | 'disabled' | 'untrusted'>,
+	sentiment: IChatSentiment,
 	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot }
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {

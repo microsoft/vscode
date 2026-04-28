@@ -26,7 +26,6 @@
 	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
 	"win32TunnelMutex": "vscodeoss-tunnel",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"darwinSharedKeychainServiceName": "com.visualstudio.code.oss.shared-secrets",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
 	"linuxIconName": "code-oss",
@@ -97,7 +96,7 @@
 		"publicCodeMatchesUrl": "https://aka.ms/github-copilot-match-public-code",
 		"manageSettingsUrl": "https://aka.ms/github-copilot-settings",
 		"managePlanUrl": "https://aka.ms/github-copilot-manage-plan",
-		"manageOverageUrl": "https://aka.ms/github-copilot-manage-overage",
+		"manageAdditionalSpendUrl": "https://aka.ms/github-copilot-manage-overage",
 		"upgradePlanUrl": "https://aka.ms/github-copilot-upgrade-plan",
 		"signUpUrl": "https://aka.ms/github-sign-up",
 		"provider": {

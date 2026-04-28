@@ -12,7 +12,7 @@ import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentProgressEvent, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type SessionHistoryEvent } from '../../common/agentService.js';
 import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type ToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type SessionCustomization, type ToolCallResult } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -46,6 +46,9 @@ export class MockAgent implements IAgent {
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: CustomizationRef[] = [];
+	private readonly _onDidCustomizationsChange = new Emitter<void>();
+	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
+	getSessionCustomizations?: (session: URI) => Promise<readonly SessionCustomization[]>;
 
 	/** Configurable return value for getSessionMessages. */
 	sessionMessages: SessionHistoryEvent[] = [];
@@ -161,8 +164,13 @@ export class MockAgent implements IAgent {
 		this._onDidSessionProgress.fire(event);
 	}
 
+	fireCustomizationsChange(): void {
+		this._onDidCustomizationsChange.fire();
+	}
+
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidCustomizationsChange.dispose();
 	}
 }
 

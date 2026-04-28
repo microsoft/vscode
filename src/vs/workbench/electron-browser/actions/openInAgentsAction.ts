@@ -144,7 +144,6 @@ class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
-		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
@@ -155,7 +154,6 @@ class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
 
 		container.classList.add('open-in-agents-titlebar-widget');
 		container.setAttribute('role', 'button');
-		container.setAttribute('data-product-quality', this.productService.quality ?? 'stable');
 
 		const label = this.action.label || localize('openInAgentsLabel', "Open in Agents");
 		container.setAttribute('aria-label', label);

@@ -475,10 +475,10 @@ export function stripReminders(text: string): string {
 		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
 		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
 		.replace(/<userRequest>[\s\S]*?<\/userRequest>\s*/g, '')
+		.replace(/<user_query>[\s\S]*?<\/user_query>\s*/g, '')
 		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
 		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')
 		.replace(/<pr_metadata[^>]*\/?>\s*/g, '')
-		.replace(/<user_query[^>]*\/?>\s*/g, '')
 		.trim();
 }
 
