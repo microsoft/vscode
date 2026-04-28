@@ -92,7 +92,7 @@
 
 .monaco-workbench .open-in-vscode-titlebar-widget:hover,
 .monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
-	background-color: var(--vscode-button-secondaryBackground, var(--vscode-toolbar-hoverBackground));
+	background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
 	outline: none;
 }
 

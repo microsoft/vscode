@@ -124,10 +124,10 @@ The Run Script action:
 - Registered in `contrib/chat/browser/runScriptAction.ts`
 
 The Open... action:
-- Displayed as a split button via `Menus.OpenSubMenu` on `Menus.TitleBarRight`
+- Contributed on `Menus.TitleBarSessionMenu` and laid out on `Menus.TitleBarRightLayout`
 - Contains "Open Terminal" (opens terminal at session worktree) and "Open in VS Code" (opens worktree in new VS Code window)
 - The "Open in VS Code" titlebar widget mirrors the core "Open in Agents" affordance: the product icon is greyscale at rest, returns to full color on hover/focus while respecting reduced-motion preferences, uses secondary-button hover chrome, and draws a separator before the adjacent Run split button
-- Registered in `contrib/chat/browser/chat.contribution.ts`
+- "Open in VS Code" is contributed in `contrib/chat/browser/openInVSCode.contribution.ts`, and its custom titlebar widget is registered in `contrib/chat/browser/openInVSCodeWidget.ts` (imported from `contrib/chat/browser/chat.contribution.ts`)
 
 ### 3.5 Panel Title Actions
 

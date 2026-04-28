@@ -67,7 +67,7 @@
 	gap: 1px;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-dropdown-with-default {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-toolbar .actions-container > .action-item .monaco-dropdown-with-default {
 	margin: 0 0 0 5px;
 }
 
