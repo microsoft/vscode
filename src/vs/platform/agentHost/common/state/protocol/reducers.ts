@@ -8,7 +8,7 @@
 
 import { ActionType } from './actions.js';
 import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallCancellationReason, ResponsePartKind, PendingMessageKind, type RootState, type SessionInputRequest, type SessionState, type TerminalState, type TerminalContentPart, type ToolCallState, type ResponsePart, type ToolCallResponsePart, type Turn, type PendingMessage, type ConfirmationOption } from './state.js';
-import { IS_CLIENT_DISPATCHABLE, type RootAction, type SessionAction, type ClientSessionAction, type TerminalAction, type ClientTerminalAction } from './action-origin.generated.js';
+import { IS_CLIENT_DISPATCHABLE, type RootAction, type ClientRootAction, type SessionAction, type ClientSessionAction, type TerminalAction, type ClientTerminalAction } from './action-origin.generated.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -578,6 +578,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsArchived, action.isArchived) },
 			};
 
+		case ActionType.SessionActivityChanged:
+			return {
+				...state,
+				summary: { ...state.summary, activity: action.activity },
+			};
+
 		case ActionType.SessionDiffsChanged:
 			return {
 				...state,
@@ -599,6 +605,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					modifiedAt: Date.now(),
 				},
 			};
+
+		case ActionType.SessionMetaChanged:
+			return { ...state, _meta: action._meta };
 
 		case ActionType.SessionServerToolsChanged:
 			return { ...state, serverTools: action.tools };
@@ -864,11 +873,11 @@ export function terminalReducer(state: TerminalState, action: TerminalAction, lo
 // ─── Dispatch Validation ─────────────────────────────────────────────────────
 
 /**
- * Type guard that checks whether a session action may be dispatched by a client.
+ * Type guard that checks whether an action may be dispatched by a client.
  *
  * Servers SHOULD call this to validate incoming `dispatchAction` requests
  * and reject any action the client is not allowed to originate.
  */
-export function isClientDispatchable(action: SessionAction | TerminalAction): action is ClientSessionAction | ClientTerminalAction {
+export function isClientDispatchable(action: RootAction | SessionAction | TerminalAction): action is ClientRootAction | ClientSessionAction | ClientTerminalAction {
 	return IS_CLIENT_DISPATCHABLE[action.type];
 }

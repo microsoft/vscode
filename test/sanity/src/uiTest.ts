@@ -76,15 +76,15 @@ export class UITest {
 	 */
 	public async dismissWelcomeDialog(page: Page) {
 		this.context.log('Dismissing welcome dialog (if shown)');
-		const skipButton = page.getByRole('button', { name: 'Skip' });
+		const closeButton = page.locator('button.onboarding-a-close-btn');
 		try {
-			await skipButton.waitFor({ state: 'visible', timeout: 5_000 });
+			await closeButton.waitFor({ state: 'visible', timeout: 5_000 });
 		} catch {
 			this.context.log('Welcome dialog not shown, continuing');
 			return;
 		}
-		await skipButton.click();
-		await skipButton.waitFor({ state: 'hidden' });
+		await closeButton.click();
+		await closeButton.waitFor({ state: 'hidden' });
 	}
 
 	/**

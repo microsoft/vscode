@@ -753,6 +753,11 @@ declare module 'vscode' {
 	 */
 	export interface ChatSessionInputState {
 		/**
+		 * Fired when the input state is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
 		 * Fired when the input state is changed by the user.
 		 *
 		 * Move to controller?

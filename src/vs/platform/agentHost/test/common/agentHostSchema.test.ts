@@ -254,8 +254,28 @@ suite('agentHostSchema', () => {
 
 		test('ignores keys not in defaults', () => {
 			const schema = fixture();
+			// @ts-expect-error: test that extra keys not in the defaults are ignored, even if they pass validation.
 			const result = schema.validateOrDefault({ name: 'a', count: 1, ignored: true }, { name: 'd', count: 0 });
 			assert.deepStrictEqual(result, { name: 'a', count: 1 });
+		});
+
+		test('omits schema keys that are missing from both values and defaults', () => {
+			// Regression coverage for the partial-defaults contract that
+			// underpins host-level inheritance: if the caller doesn't supply
+			// a default and no incoming value is valid, the key is left out
+			// entirely so higher-scope defaults can fill in.
+			const schema = fixture();
+			const result = schema.validateOrDefault({ count: 9 }, { count: 0 });
+			assert.deepStrictEqual(result, { count: 9 });
+			assert.ok(!result.hasOwnProperty('name'), '`name` should be absent when neither values nor defaults supply it');
+		});
+
+		test('omits schema keys when value is invalid and no default is supplied', () => {
+			const schema = fixture();
+			// @ts-expect-error: test that invalid values are dropped even when the caller doesn't provide a default.
+			const result = schema.validateOrDefault({ name: 42, count: 3 }, { count: 0 });
+			// `name` has no default and the incoming value is invalid → dropped.
+			assert.deepStrictEqual(result, { count: 3 });
 		});
 	});
 

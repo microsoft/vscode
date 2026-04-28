@@ -13,9 +13,9 @@ import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolDefinition } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from './state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionInputRequest, type SessionMeta, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -84,9 +84,18 @@ export interface IAgentSessionMetadata {
 	readonly status?: SessionStatus;
 	readonly model?: ModelSelection;
 	readonly workingDirectory?: URI;
+	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
 	readonly diffs?: readonly FileEdit[];
+	/**
+	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
+	 * to clients via per-session state subscriptions.
+	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
+	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
+	 * `readSessionGitState`) for well-known slots.
+	 */
+	readonly _meta?: SessionMeta;
 }
 
 export interface IAgentSessionProjectInfo {
@@ -178,7 +187,7 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
 	readonly type: AttachmentType;
-	readonly path: string;
+	readonly uri: URI;
 	readonly displayName?: string;
 	/** For selections: the selected text. */
 	readonly text?: string;
@@ -340,6 +349,17 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/**
+ * The set of events returned by {@link IAgent.getSessionMessages} when
+ * reconstructing a session's history. Reasoning is carried inline on
+ * {@link IAgentMessageEvent.reasoningText} rather than as a separate event.
+ */
+export type SessionHistoryEvent =
+	| IAgentMessageEvent
+	| IAgentToolStartEvent
+	| IAgentToolCompleteEvent
+	| IAgentSubagentStartedEvent;
+
 /** A steering message was consumed (sent to the model). */
 export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
 	readonly type: 'steering_consumed';
@@ -452,7 +472,7 @@ export interface IAgent {
 	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]>;
+	getSessionMessages(session: URI): Promise<SessionHistoryEvent[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -480,6 +500,26 @@ export interface IAgent {
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): ProtectedResourceMetadata[];
+
+	/**
+	 * Fires when the agent's host-owned customizations change
+	 * (loading state, resolution results, etc.), so infrastructure
+	 * can republish {@link AgentInfo} and session customization state.
+	 */
+	readonly onDidCustomizationsChange?: Event<void>;
+
+	/**
+	 * Returns the host-owned customization refs this agent currently exposes.
+	 *
+	 * Used to publish baseline customization metadata on {@link AgentInfo}.
+	 */
+	getCustomizations?(): readonly CustomizationRef[];
+
+	/**
+	 * Returns the effective customization list for a session, including
+	 * source, enablement, and loading/error status.
+	 */
+	getSessionCustomizations?(session: URI): Promise<readonly SessionCustomization[]>;
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
@@ -615,7 +655,7 @@ export interface IAgentService {
 	 * it to state, triggers side effects, and echoes it back via
 	 * {@link onDidAction} with the client's origin for reconciliation.
 	 */
-	dispatchAction(action: SessionAction | TerminalAction, clientId: string, clientSeq: number): void;
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -668,7 +708,7 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
-	dispatch(action: SessionAction | TerminalAction): void;
+	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

@@ -138,17 +138,23 @@ jobs:
 
       - name: Diff screenshots against merge base
         id: diff
-        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
+        if: steps.oidc.outputs.token
         run: |
-          # We diff screenshots(checked-out commit) vs screenshots(merge-base of
-          # that commit with the target branch). This isolates the visual effect
-          # of just this PR's divergence from target. Using pull_request.base.sha
-          # would be wrong: it's the target-branch tip at PR creation time and can
-          # be stale, causing unrelated target-branch commits to show up as diffs.
-          TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
-          git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
-          BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
-          echo "Using base SHA: $BASE_SHA (merge-base of ${{ github.sha }} and $TARGET_REF)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PRs, diff against the merge-base with the target branch.
+            # This isolates the visual effect of just this PR's divergence
+            # from target. Using pull_request.base.sha would be wrong: it's
+            # the target-branch tip at PR creation time and can be stale,
+            # causing unrelated target-branch commits to show up as diffs.
+            TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
+            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+            BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+          else
+            # For push events, diff against the parent commit.
+            BASE_SHA=$(git rev-parse "${{ github.sha }}^")
+          fi
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Using base SHA: $BASE_SHA (base for ${{ github.sha }})"
           BODY=$(node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             ${{ github.repository_owner }} \
@@ -172,8 +178,25 @@ jobs:
         env:
           SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
 
+      - name: Write job summary
+        if: steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false'
+        run: |
+          BODY="${COMMENT_BODY}"
+          if [ -n "$BLOCKS_CI_CONTENT" ]; then
+            if [ -n "$BODY" ]; then BODY+=$'\n\n---\n\n'; fi
+            BODY+="### blocks-ci screenshots changed"$'\n\n'
+            BODY+="Replace the contents of \`test/componentFixtures/blocks-ci-screenshots.md\` with:"$'\n\n'
+            BODY+="<details>"$'\n'"<summary>Updated blocks-ci-screenshots.md</summary>"$'\n\n'
+            BODY+="\`\`\`md"$'\n'"${BLOCKS_CI_CONTENT}"$'\n'"\`\`\`"$'\n\n'
+            BODY+="</details>"
+          fi
+          echo "$BODY" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          COMMENT_BODY: ${{ steps.diff.outputs.body }}
+          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+
       - name: Post PR comment
-        if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
           script: |
@@ -190,7 +213,7 @@ jobs:
               body += '</details>';
             }
 
-            body = marker + '\n' + body;
+            const hasContent = body || blocksCiContent;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -199,6 +222,27 @@ jobs:
               per_page: 100,
             });
             const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (!hasContent) {
+              // No changes to report — update existing comment if present, otherwise do nothing
+              if (existing) {
+                const baseSha = (process.env.BASE_SHA || '').slice(0, 8);
+                const currentSha = (process.env.CURRENT_SHA || '').slice(0, 8);
+                let noChangesBody = '~No screenshot changes.~';
+                if (baseSha && currentSha) {
+                  noChangesBody = `**Base:** \`${baseSha}\` **Current:** \`${currentSha}\`\n\n` + noChangesBody;
+                }
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body: marker + '\n' + noChangesBody,
+                });
+              }
+              return;
+            }
+
+            body = marker + '\n' + body;
 
             if (existing) {
               await github.rest.issues.updateComment({
@@ -218,6 +262,8 @@ jobs:
         env:
           COMMENT_BODY: ${{ steps.diff.outputs.body }}
           BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+          BASE_SHA: ${{ steps.diff.outputs.base_sha }}
+          CURRENT_SHA: ${{ github.sha }}
 
       - name: Fail if blocks-ci hashes changed
         if: steps.blocks-ci.outputs.match == 'false'

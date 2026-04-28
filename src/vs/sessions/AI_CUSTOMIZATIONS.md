@@ -51,11 +51,10 @@ Sessions-specific overrides:
 ```
 src/vs/sessions/contrib/chat/browser/
 ├── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
-├── customizationHarnessService.ts              # Sessions harness service (CLI harness only)
+├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
 ├── aiCustomizationShortcutsWidget.ts           # Shortcuts widget
-├── customizationCounts.ts                      # Source count utilities (type-aware)
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
@@ -92,7 +91,14 @@ Available harnesses:
 | `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
 
 In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
-In sessions, only CLI is registered (single harness, toggle bar hidden).
+In sessions, harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). AHP remote servers register directly via `registerExternalHarness`.
+
+Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
+- an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
+- a `disableProvider` that lets users opt out individual files/plugins from auto-sync, and
+- `pluginActions` that replace the default local install/create buttons in the Plugins section toolbar with environment-specific commands such as "Add Remote Plugin".
+
+The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
 
 ### IHarnessDescriptor
 
@@ -101,7 +107,7 @@ Key properties on the harness descriptor:
 | Property | Purpose |
 |----------|--------|
 | `itemProvider` | `ICustomizationItemProvider` supplying items; when absent, falls back to `PromptsServiceCustomizationItemProvider` |
-| `syncProvider` | `ICustomizationSyncProvider` enabling local→remote sync checkboxes |
+| `disableProvider` | `ICustomizationDisableProvider` enabling opt-out of individual items from auto-sync |
 | `hiddenSections` | Sidebar sections to hide (e.g. Claude: `[Prompts, Plugins]`) |
 | `workspaceSubpaths` | Restrict file creation/display to directories (e.g. Claude: `['.claude']`) |
 | `hideGenerateButton` | Replace "Generate X" sparkle button with "New X" |
@@ -180,7 +186,7 @@ AHP Remote Server ────────────────────�
                                               CustomizationItemSource (aiCustomizationItemSource.ts)
                                               ├── normalizes → IAICustomizationListItem[]
                                               ├── expands hooks from file content
-                                              └── blends sync overlays when syncProvider present
+                                              └── normalizes items from provider
                                                                        │
                                                                        ▼
                                                               List Widget renders
@@ -192,7 +198,7 @@ AHP Remote Server ────────────────────�
 
 - **`promptsServiceCustomizationItemProvider.ts`** — Adapts `IPromptsService` to `ICustomizationItemProvider`. Reads agents, skills, instructions, hooks, and prompts from the core service, expands instruction categories and hook entries, applies harness-specific filters (storage sources, workspace subpaths, instruction file patterns), and returns `ICustomizationItem[]` with `storage` set from the authoritative promptsService metadata. Used as the default item provider for harnesses that don't supply their own.
 
-- **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationSyncProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
+- **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
 
 ### AgenticPromptsService (Sessions)
 
@@ -220,11 +226,17 @@ Skills that are directly invoked by UI elements (toolbar buttons, menu items) ar
 
 ### Count Consistency
 
-`customizationCounts.ts` uses the **same data sources** as the list widget. Both go through the active harness's `ICustomizationItemProvider` (or the `PromptsServiceCustomizationItemProvider` fallback), ensuring counts match what the list displays.
+Counts shown in the sidebar (per-link badges and the header total in `AICustomizationShortcutsWidget`) are driven by the same `IAICustomizationItemsModel` singleton (`workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.ts`) that feeds the customizations editor's list widget. The model owns the per-active-harness `ProviderCustomizationItemSource` cache and exposes per-section `IObservable<readonly IAICustomizationListItem[]>`; sidebar consumers `read` `.length` from those observables. There is exactly one discovery path, so editor and sidebar counts cannot diverge. McpServers and Plugins use their own service observables (`IMcpService.servers`, `IAgentPluginService.plugins`) directly.
 
 ### Item Badges
 
 `IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
+
+### Embedded Detail Editors
+
+The management editor opens inline detail panes for prompt files, MCP servers, and plugins. Prompt-file details use the standard text editor pane. MCP and plugin details render dedicated compact widgets — `EmbeddedMcpServerDetail` and `EmbeddedAgentPluginDetail` — purpose-built for the narrow split-pane host. They show the icon, name, scope/source, and description. Do **not** embed the full extension-editor panes inside the split-pane host: they assume a wide page-level layout and don't shrink cleanly.
+
+The MCP detail fixture in `src/vs/workbench/test/browser/componentFixtures/sessions/aiCustomizationManagementEditor.fixture.ts` must open a real server row (not a group header) and use a local server with concrete config so the compact widget's scope/description rendering is covered by screenshots.
 
 ### Debug Panel
 

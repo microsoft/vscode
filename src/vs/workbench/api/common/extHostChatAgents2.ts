@@ -830,8 +830,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				description: item.description,
 				groupKey: item.groupKey,
 				badge: item.badge,
-				badgeTooltip: item.badgeTooltip,
-			}));
+				badgeTooltip: item.badgeTooltip
+			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;
 		}
@@ -1012,7 +1012,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.isRateLimited || errorDetails?.confirmationButtons || errorDetails?.code) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.isRateLimited || errorDetails?.isExpectedError || errorDetails?.confirmationButtons || errorDetails?.code) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -1027,9 +1027,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
 			const isRateLimited = e instanceof Error && e.name === 'ChatRateLimited';
+			const isExpectedError = e instanceof Error && e.name === 'ChatExpectedError';
 			const { callstack: errorCallstack } = packErrorForTelemetry(e);
 			const errorName = e instanceof Error ? e.name : undefined;
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited }, errorCallstack, errorName };
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited, isExpectedError }, errorCallstack, errorName };
 
 		} finally {
 			if (inFlightRequest) {

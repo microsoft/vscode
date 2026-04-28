@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.46.0",
+	"version": "0.47.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.118.0",
+		"vscode": "^1.119.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -128,8 +128,10 @@
 		"chatReferenceBinaryData",
 		"languageModelSystem",
 		"languageModelCapabilities",
+		"languageModelPricing",
 		"inlineCompletionsAdditions",
 		"chatStatusItem",
+		"chatInputNotification",
 		"taskProblemMatcherStatus",
 		"contribLanguageModelToolSets",
 		"textDocumentChangeReason",
@@ -232,6 +234,27 @@
 						"query",
 						"description",
 						"details"
+					]
+				}
+			},
+			{
+				"name": "skill",
+				"toolReferenceName": "skill",
+				"displayName": "%copilot.tools.skill.name%",
+				"icon": "$(book)",
+				"userDescription": "%copilot.tools.skill.description%",
+				"modelDescription": "Invoke a skill to handle a user's request with specialized instructions and workflows.\n\nSkills are domain-specific capabilities discovered from SKILL.md files. When a user's task matches an available skill, call this tool to load and apply it. If the user types a slash command (e.g. \"/deploy\", \"/test\"), treat it as a skill invocation.\n\nUsage:\n- Pass the skill name only (no arguments).\n- Examples: skill: \"docx\", skill: \"deploy\", skill: \"fix-ci-failures\"\n\nRules:\n- Available skills appear in system-reminder messages earlier in the conversation.\n- BLOCKING: When a matching skill exists, you MUST call this tool before producing any other output about the task.\n- Never reference a skill without calling this tool.\n- Do not call this tool for a skill that is already active in the current turn (indicated by a <command-name> tag).\n- Do not use this tool for built-in commands such as /help or /clear.",
+				"when": "config.github.copilot.chat.skillTool.enabled",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"skill": {
+							"type": "string",
+							"description": "The skill name. E.g., \"commit\", \"review-pr\", or \"pdf\""
+						}
+					},
+					"required": [
+						"skill"
 					]
 				}
 			},
@@ -1265,7 +1288,8 @@
 					"problems",
 					"readFile",
 					"viewImage",
-					"readNotebookCellOutput"
+					"readNotebookCellOutput",
+					"skill"
 				]
 			},
 			{
@@ -1294,6 +1318,7 @@
 					"resolveMemoryFileUri",
 					"runCommand",
 					"switchAgent",
+					"toolSearch",
 					"vscodeAPI"
 				]
 			},
@@ -1545,6 +1570,11 @@
 					{
 						"name": "chronicle:tips",
 						"description": "%copilot.chronicle.tips.description%",
+						"when": "github.copilot.sessionSearch.enabled"
+					},
+					{
+						"name": "chronicle:reindex",
+						"description": "%copilot.chronicle.reindex.description%",
 						"when": "github.copilot.sessionSearch.enabled"
 					},
 					{
@@ -3231,13 +3261,6 @@
 						"tags": [
 							"onExp"
 						]
-					},
-					"github.copilot.chat.anthropic.thinking.budgetTokens": {
-						"type": "number",
-						"markdownDescription": "%github.copilot.config.anthropic.thinking.budgetTokens%",
-						"minimum": 0,
-						"maximum": 32000,
-						"default": 16000
 					}
 				}
 			},
@@ -3792,6 +3815,15 @@
 							"clear-both"
 						]
 					},
+					"github.copilot.chat.anthropic.cacheBreakpoints.lastTwoMessages": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.anthropic.cacheBreakpoints.lastTwoMessages%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.responsesApiReasoningSummary": {
 						"type": "string",
 						"default": "detailed",
@@ -4017,6 +4049,15 @@
 						"markdownDescription": "%github.copilot.config.exploreAgent.model%",
 						"tags": [
 							"experimental"
+						]
+					},
+					"github.copilot.chat.localIndex.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.localIndex.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
 						]
 					}
 				}
@@ -4268,16 +4309,6 @@
 							"experimental"
 						]
 					},
-					"github.copilot.chat.inlineChat.selectionRatioThreshold": {
-						"type": "number",
-						"default": 0,
-						"markdownDescription": "%github.copilot.config.inlineChat.selectionRatioThreshold%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.inlineChat.reasoningEffort": {
 						"type": "string",
 						"default": "low",
@@ -4412,6 +4443,15 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.skillTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.skill.enabled%",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
+					},
 					"github.copilot.chat.executionSubagent.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4476,7 +4516,7 @@
 					},
 					"github.copilot.chat.agentHistorySummarizationInline": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
 						"tags": [
 							"advanced",
@@ -6570,7 +6610,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.34",
+		"@github/copilot": "^1.0.38",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",
@@ -6589,7 +6629,7 @@
 		"@opentelemetry/sdk-trace-node": "^2.5.1",
 		"@opentelemetry/semantic-conventions": "^1.39.0",
 		"@sinclair/typebox": "^0.34.41",
-		"@vscode/copilot-api": "^0.2.19",
+		"@vscode/copilot-api": "^0.3.0",
 		"@vscode/extension-telemetry": "^1.5.1",
 		"@vscode/l10n": "^0.0.18",
 		"@vscode/prompt-tsx": "^0.4.0-alpha.8",

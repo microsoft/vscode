@@ -120,6 +120,37 @@
 	min-width: 0;
 }
 
+/* Chat status dashboard embedded in the agents-app titlebar account panel */
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip {
+	max-width: 360px;
+	padding: 2px 0 4px 0;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip div.header {
+	padding: 8px 10px 8px 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 8px;
+	padding: 0 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-header {
+	padding: 8px 10px 8px 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-inner {
+	padding-top: 0;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .contribution .header {
+	padding: 0 10px 8px 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .contribution .body {
+	padding: 0 10px 4px 8px;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
 	width: auto;
 	max-width: none;

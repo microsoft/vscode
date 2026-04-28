@@ -1366,8 +1366,10 @@ export class ActionListWidget<T> extends Disposable {
 				}
 				for (let ci = 0; ci < group.actions.length; ci++) {
 					const child = group.actions[ci];
-					const icon = (child as IAction & { icon?: ThemeIcon }).icon
+					const extendedChild = child as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+					const icon = extendedChild.icon
 						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+					const hoverContent = extendedChild.hoverContent;
 					submenuItems.push({
 						item: child,
 						kind: ActionListItemKind.Action,
@@ -1375,7 +1377,8 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: hoverContent } : {},
+						onRemove: extendedChild.onRemove,
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {
@@ -1385,6 +1388,7 @@ export class ActionListWidget<T> extends Disposable {
 			// Also include non-SubmenuAction items directly
 			for (const action of element.submenuActions!) {
 				if (!(action instanceof SubmenuAction)) {
+					const extendedAction = action as IAction & { onRemove?: () => void };
 					submenuItems.push({
 						item: action,
 						kind: ActionListItemKind.Action,
@@ -1393,6 +1397,7 @@ export class ActionListWidget<T> extends Disposable {
 						group: { title: '' },
 						hideIcon: false,
 						hover: {},
+						onRemove: extendedAction.onRemove,
 					});
 				}
 			}

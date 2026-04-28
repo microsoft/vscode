@@ -85,6 +85,14 @@ export interface IBrowserEditorViewState {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
+
+	/**
+	 * When true, indicates that this browser tab was opened via the localhost
+	 * link opener while the user has not explicitly configured the setting
+	 * (i.e. the default value was used). This is a transient flag and is not
+	 * serialized.
+	 */
+	readonly isDefaultLinkOpen?: boolean;
 }
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');

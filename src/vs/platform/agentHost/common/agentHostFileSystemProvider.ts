@@ -91,7 +91,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 		const decoded = this._decodeUri(resource);
-		if (decoded.scheme === 'session-db') {
+		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob') {
 			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 

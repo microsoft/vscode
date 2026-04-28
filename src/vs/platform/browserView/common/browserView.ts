@@ -13,6 +13,7 @@ export enum BrowserViewCommandId {
 	Open = `${commandPrefix}.open`,
 	NewTab = `${commandPrefix}.newTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
+	OpenOrList = `${commandPrefix}.openOrList`,
 	CloseAll = `${commandPrefix}.closeAll`,
 	CloseAllInGroup = `${commandPrefix}.closeAllInGroup`,
 

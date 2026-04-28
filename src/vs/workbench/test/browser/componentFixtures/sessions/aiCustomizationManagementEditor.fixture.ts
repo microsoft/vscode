@@ -41,10 +41,14 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
+import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
@@ -159,7 +163,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				description: f.description,
 				disableModelInvocation: false,
 				userInvocable: true,
-				when: undefined,
 			}));
 		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
@@ -175,7 +178,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: f.storage,
 					source: undefined,
 					extension: toExtensionInfo(f) as never,
-					when: undefined,
 				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;
@@ -195,17 +197,21 @@ function createMockHarnessService(activeHarnessId: string, descriptors: readonly
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
+		override findHarnessById(id: string) {
+			return descriptors.find(h => h.id === id);
+		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 
-function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string): IWorkbenchMcpServer {
+function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string, config?: IWorkbenchMcpServer['config']): IWorkbenchMcpServer {
 	return new class extends mock<IWorkbenchMcpServer>() {
 		override readonly id = id;
 		override readonly name = id;
 		override readonly label = label;
 		override readonly description = description ?? '';
+		override readonly config = config;
 		override readonly installState = McpServerInstallState.Installed;
 		override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
 			override readonly id = id;
@@ -327,6 +333,17 @@ const agentInstructions: IAgentInstructionFile[] = [
 ];
 
 const mcpWorkspaceServers = [
+	makeLocalMcpServer(
+		'component-explorer',
+		'component-explorer',
+		LocalMcpServerScope.Workspace,
+		'Component fixtures and screenshot tooling',
+		{
+			type: McpServerType.LOCAL,
+			command: 'npm',
+			args: ['exec', '--no', '--', 'component-explorer', 'mcp', '-p', './test/componentFixtures/component-explorer.json', '--use-daemon', '-vv'],
+		}
+	),
 	makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access'),
 	makeLocalMcpServer('mcp-github', 'GitHub', LocalMcpServerScope.Workspace, 'GitHub API'),
 	makeLocalMcpServer('mcp-redis', 'Redis', LocalMcpServerScope.Workspace, 'In-memory data store'),
@@ -580,7 +597,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.openFirstItem) {
 		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-		const firstRow = visibleContent?.querySelector('.monaco-list-row') as HTMLElement | undefined;
+		const firstRow = visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
 		if (firstRow) {
 			firstRow.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			firstRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -939,6 +956,96 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 }
 
 // ============================================================================
+// Embedded compact detail widgets — standalone (no host editor)
+// ============================================================================
+
+function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined): void {
+	const width = 480;
+	const height = 320;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+				override readonly onChange = Event.None;
+				override readonly onReset = Event.None;
+				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
+				override async open() { /* no-op in fixture */ }
+			}());
+		},
+	});
+
+	// Mirror the host editor's class so the scoped CSS selectors apply.
+	const host = DOM.append(ctx.container, DOM.$('.ai-customization-management-editor'));
+	host.style.height = '100%';
+	host.style.width = '100%';
+	host.style.overflow = 'auto';
+
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedMcpServerDetail, host));
+	if (server) {
+		detail.setInput(server);
+	}
+}
+
+function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPluginItem | undefined): void {
+	const width = 480;
+	const height = 320;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+		},
+	});
+
+	const host = DOM.append(ctx.container, DOM.$('.ai-customization-management-editor'));
+	host.style.height = '100%';
+	host.style.width = '100%';
+	host.style.overflow = 'auto';
+
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedAgentPluginDetail, host));
+	if (item) {
+		detail.setInput(item);
+	}
+}
+
+function makeInstalledPluginItem(name: string, description: string): IAgentPluginItem {
+	return {
+		kind: AgentPluginItemKind.Installed,
+		name,
+		description,
+		marketplace: 'GitHub',
+		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), true),
+	};
+}
+
+function makeMarketplacePluginItem(name: string, description: string): IAgentPluginItem {
+	return {
+		kind: AgentPluginItemKind.Marketplace,
+		name,
+		description,
+		source: 'GitHub',
+		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `acme/${name.toLowerCase()}` },
+		marketplace: 'GitHub',
+		marketplaceType: MarketplaceType.Copilot,
+		marketplaceReference: {
+			rawValue: `acme/${name.toLowerCase()}`,
+			displayLabel: `acme/${name.toLowerCase()}`,
+			cloneUrl: `https://github.com/acme/${name.toLowerCase()}`,
+			canonicalId: `github:acme/${name.toLowerCase()}`,
+			cacheSegments: ['github', 'acme', name.toLowerCase()],
+			kind: MarketplaceReferenceKind.GitHubShorthand,
+			githubRepo: `acme/${name.toLowerCase()}`,
+		},
+	};
+}
+
+// ============================================================================
 // Fixtures
 // ============================================================================
 
@@ -1183,6 +1290,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// MCP server detail view in a narrow viewport — catches embedded header overflow
+	// and the single-tab configuration layout used by local workspace servers.
+	McpServerDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			openFirstItem: true,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1191,5 +1311,53 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),
+	}),
+
+	PluginDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			openFirstItem: true,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	// Standalone embedded MCP detail widget (compact split-pane component).
+	// Workspace-scope server with a description.
+	EmbeddedMcpDetailWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace')),
+	}),
+
+	// Standalone embedded MCP detail widget — user-scope server.
+	EmbeddedMcpDetailUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session')),
+	}),
+
+	// Standalone embedded MCP detail widget — empty / no input state.
+	EmbeddedMcpDetailEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, undefined),
+	}),
+
+	// Standalone embedded plugin detail widget — installed plugin.
+	EmbeddedPluginDetailInstalled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
+	}),
+
+	// Standalone embedded plugin detail widget — marketplace plugin.
+	EmbeddedPluginDetailMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeMarketplacePluginItem('Sentry', 'Error monitoring and performance tracing')),
+	}),
+
+	// Standalone embedded plugin detail widget — empty / no input state.
+	EmbeddedPluginDetailEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, undefined),
 	}),
 });

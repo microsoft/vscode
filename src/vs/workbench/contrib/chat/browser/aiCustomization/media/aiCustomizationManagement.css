@@ -208,19 +208,21 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	padding: 5px 8px;
+	padding: 3px 6px;
 	border: 1px solid var(--vscode-dropdown-border, transparent);
-	border-radius: 4px;
-	background: var(--vscode-dropdown-background);
+	border-radius: 6px;
 	color: var(--vscode-dropdown-foreground);
+	background: transparent;
 	cursor: pointer;
 	font-size: 12px;
+	font-family: inherit;
 	text-align: left;
+	-webkit-appearance: none;
+	appearance: none;
 }
 
 .ai-customization-management-editor .harness-dropdown-button:hover {
 	background: var(--vscode-dropdown-background);
-	border-color: var(--vscode-focusBorder);
 }
 
 .ai-customization-management-editor .harness-dropdown-button:focus-visible {
@@ -704,11 +706,13 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
 	flex: 1;
-	overflow: hidden;
+	overflow: auto;
+	min-height: 0;
 }
 
 /* Embedded plugin detail view */
@@ -716,11 +720,91 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
-	overflow: hidden;
+	overflow: auto;
+	min-height: 0;
+}
+
+/* Compact embedded detail component (shared by MCP / plugin) */
+.ai-customization-management-editor .ai-customization-embedded-detail {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px 24px 24px 24px;
+	max-width: 720px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description {
+	display: none;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-icon {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-icon.codicon::before {
+	font-size: 28px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
+	margin: 0;
+	font-size: 18px;
+	line-height: 22px;
+	font-weight: 600;
+	word-break: break-word;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope .codicon {
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	padding: 8px 0;
 }
 
 /* Models section footer */
