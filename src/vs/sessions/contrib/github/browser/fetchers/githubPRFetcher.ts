@@ -164,8 +164,7 @@ export class GitHubPRFetcher {
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`,
 			'githubApi.getPullRequest',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
@@ -181,8 +180,7 @@ export class GitHubPRFetcher {
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
 			'githubApi.getReviews',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
@@ -219,7 +217,7 @@ export class GitHubPRFetcher {
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/comments`,
 			'githubApi.postReviewComment',
-			{ body, in_reply_to: inReplyTo },
+			{ data: { body, in_reply_to: inReplyTo } }
 		);
 		if (!response.data) {
 			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
@@ -237,7 +235,7 @@ export class GitHubPRFetcher {
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/issues/${prNumber}/comments`,
 			'githubApi.postIssueComment',
-			{ body },
+			{ data: { body } },
 		);
 		const data = response.data;
 		if (!data) {

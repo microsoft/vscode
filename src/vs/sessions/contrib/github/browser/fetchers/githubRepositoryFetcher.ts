@@ -30,8 +30,7 @@ export class GitHubRepositoryFetcher {
 			'GET',
 			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
 			'githubApi.getRepository',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {

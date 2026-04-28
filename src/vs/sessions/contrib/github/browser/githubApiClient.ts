@@ -13,6 +13,11 @@ const LOG_PREFIX = '[GitHubApiClient]';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 
+export interface IGitHubApiRequestOptions {
+	readonly data?: unknown;
+	readonly etag?: string;
+}
+
 export interface IGitHubApiResponse<T> {
 	readonly data: T | undefined;
 	readonly statusCode: number;
@@ -56,8 +61,8 @@ export class GitHubApiClient extends Disposable {
 		super();
 	}
 
-	async request<T>(method: string, path: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
-		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body, etag);
+	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, options);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -67,7 +72,7 @@ export class GitHubApiClient extends Disposable {
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			{ query, variables },
+			{ data: { query, variables } }
 		);
 
 		if (response.data?.errors?.length) {
@@ -85,7 +90,7 @@ export class GitHubApiClient extends Disposable {
 		return response.data.data;
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
@@ -97,10 +102,10 @@ export class GitHubApiClient extends Disposable {
 				'Authorization': `token ${token}`,
 				'Accept': accept,
 				'User-Agent': 'VSCode-Sessions-GitHub',
-				...(etag !== undefined ? { 'If-None-Match': etag } : {}),
-				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+				...(options?.etag !== undefined ? { 'If-None-Match': options.etag } : {}),
+				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
-			data: body !== undefined ? JSON.stringify(body) : undefined,
+			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
 			callSite
 		}, CancellationToken.None);
 

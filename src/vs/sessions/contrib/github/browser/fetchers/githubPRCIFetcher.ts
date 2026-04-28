@@ -64,8 +64,7 @@ export class GitHubPRCIFetcher {
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
 			'githubApi.getCheckRuns',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
