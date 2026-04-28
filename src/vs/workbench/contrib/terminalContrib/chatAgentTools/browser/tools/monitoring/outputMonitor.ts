@@ -473,6 +473,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 * This ensures we catch any input that happens between idle detection and prompt creation.
 	 */
 	private _setupIdleInputListener(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._userInputtedSinceIdleDetected = false;
 		this._logService.trace('OutputMonitor: Setting up idle input listener');
 

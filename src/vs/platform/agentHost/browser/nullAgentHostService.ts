@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import type { IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
@@ -36,7 +36,7 @@ export class NullAgentHostService implements IAgentHostService {
 
 	getSubscription<T extends StateComponents>(_kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
-	dispatch(_action: SessionAction | TerminalAction): void { notSupported(); }
+	dispatch(_action: SessionAction | TerminalAction | IRootConfigChangedAction): void { notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }

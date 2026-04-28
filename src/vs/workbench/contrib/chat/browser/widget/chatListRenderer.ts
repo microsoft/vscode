@@ -1072,7 +1072,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
+			&& (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced());
 		if (element.isComplete) {
 			return undefined;
 		}
@@ -1240,7 +1240,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true) {
+		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced())) {
 			return;
 		}
 
@@ -2748,6 +2748,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
+		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
@@ -2769,7 +2770,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCarouselFromTracking(context, part);
 
 			// Clear from input part (clear only the submitted carousel by its key)
-			const carouselKey = carousel.resolveId ?? `${responseId}_${context.contentIndex}`;
 			widget?.input.clearQuestionCarousel(undefined, carouselKey);
 		};
 
@@ -2790,10 +2790,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
 			}
 
-			// Clear the carousel from input part when response completes (stopped/canceled)
-			// Only clear if this response's carousel is currently displayed (pass responseId)
-			if (responseIsComplete && inputPartHasCarousel && responseId) {
-				widget?.input.clearQuestionCarousel(responseId);
+			// Clear the carousel from the input area once it has been answered or when the
+			// whole response completes. `carousel.isUsed` covers externally completed
+			// flows (for example, a remote answer winning over the local input UI).
+			if (inputPartHasCarousel) {
+				if (carousel.isUsed) {
+					widget?.input.clearQuestionCarousel(undefined, carouselKey);
+				} else if (responseIsComplete && responseId) {
+					widget?.input.clearQuestionCarousel(responseId);
+				}
 			}
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {

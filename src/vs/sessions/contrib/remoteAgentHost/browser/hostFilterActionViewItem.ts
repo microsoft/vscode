@@ -46,7 +46,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		@IAgentHostFilterService private readonly _filterService: IAgentHostFilterService,
+		@IAgentHostFilterService protected readonly _filterService: IAgentHostFilterService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
@@ -236,7 +236,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private _showMenu(e: MouseEvent | KeyboardEvent): void {
+	protected _showMenu(e: MouseEvent | KeyboardEvent): void {
 		if (!this._dropdownElement) {
 			return;
 		}
@@ -245,6 +245,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		if (hosts.length <= 1) {
 			return;
 		}
+
 		const selectedId = this._filterService.selectedProviderId;
 
 		const actions: IAction[] = [];

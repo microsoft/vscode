@@ -59,6 +59,12 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	isRateLimited?: boolean;
+	/**
+	 * If true, the error is an expected operational condition (e.g. user-actionable
+	 * configuration, network connectivity, missing dependency) and should not be
+	 * logged as a `chatAgentError` telemetry event.
+	 */
+	isExpectedError?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;

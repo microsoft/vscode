@@ -221,8 +221,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					detail: m.detail,
 					tooltip: m.tooltip,
 					version: m.version,
-					multiplier: m.multiplier,
 					multiplierNumeric: m.multiplierNumeric,
+					pricing: m.pricing,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
@@ -414,6 +414,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: model.info.family,
 				version: model.info.version,
 				name: model.info.name,
+				pricing: model.metadata.pricing,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,

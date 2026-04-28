@@ -27,16 +27,16 @@ const TEST_MODEL_ID_STRING = 'claude-3-sonnet';
 const TEST_MODEL_ID = parseClaudeModelId(TEST_MODEL_ID_STRING);
 const TEST_PERMISSION_MODE: PermissionMode = 'acceptEdits';
 const TEST_FOLDER_INFO: ClaudeFolderInfo = { cwd: '/test/project', additionalDirectories: [] };
-const SERVER_CONFIG = { port: 8080, nonce: 'test-nonce' };
 
 function createMockLangModelServer(): ClaudeLanguageModelServer {
 	return {
-		incrementUserInitiatedMessageCount: vi.fn()
+		incrementUserInitiatedMessageCount: vi.fn(),
+		getConfig: () => ({ port: 8080, nonce: 'test-nonce' }),
 	} as unknown as ClaudeLanguageModelServer;
 }
 
-function createMockChatRequest(): vscode.ChatRequest {
-	return { tools: new Map() } as unknown as vscode.ChatRequest;
+function createMockChatRequest(prompt = ''): vscode.ChatRequest {
+	return { prompt, references: [], tools: new Map(), id: 'test-request-id', toolInvocationToken: {} } as unknown as vscode.ChatRequest;
 }
 
 function commitTestState(
@@ -85,11 +85,6 @@ function createOTelService() {
 	const spans: ICompletedSpanData[] = [];
 	otelService.onDidCompleteSpan(span => spans.push(span));
 	return { otelService, spans };
-}
-
-/** Helper to convert a string prompt to TextBlockParam array */
-function toPromptBlocks(text: string): Anthropic.TextBlockParam[] {
-	return [{ type: 'text', text }];
 }
 
 /** Creates a typed assistant message with tool_use content blocks */
@@ -185,11 +180,11 @@ describe('Claude Session OTel Tool Spans', () => {
 
 		commitTestState(localSessionStateService, sessionId);
 		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
+			ClaudeCodeSession, createMockLangModelServer(), sessionId, true
 		));
 		const stream = new MockChatResponseStream();
 
-		await session.invoke(createMockChatRequest(), toPromptBlocks('read file'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+		await session.invoke(createMockChatRequest('read file'), stream, undefined, CancellationToken.None);
 
 		// Should have a user_message span + an execute_tool span
 		const toolSpan = spans.find(s => s.name === 'execute_tool Read');
@@ -228,11 +223,11 @@ describe('Claude Session OTel Tool Spans', () => {
 
 		commitTestState(localSessionStateService, sessionId);
 		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
+			ClaudeCodeSession, createMockLangModelServer(), sessionId, true
 		));
 		const stream = new MockChatResponseStream();
 
-		await session.invoke(createMockChatRequest(), toPromptBlocks('write file'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+		await session.invoke(createMockChatRequest('write file'), stream, undefined, CancellationToken.None);
 
 		const toolSpan = spans.find(s => s.name === 'execute_tool Write');
 		expect(toolSpan).toBeDefined();
@@ -270,11 +265,11 @@ describe('Claude Session OTel Tool Spans', () => {
 
 		commitTestState(localSessionStateService, sessionId);
 		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
+			ClaudeCodeSession, createMockLangModelServer(), sessionId, true
 		));
 		const stream = new MockChatResponseStream();
 
-		await session.invoke(createMockChatRequest(), toPromptBlocks('read and glob'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+		await session.invoke(createMockChatRequest('read and glob'), stream, undefined, CancellationToken.None);
 
 		const readSpan = spans.find(s => s.name === 'execute_tool Read');
 		const globSpan = spans.find(s => s.name === 'execute_tool Glob');
@@ -306,11 +301,11 @@ describe('Claude Session OTel Tool Spans', () => {
 
 		commitTestState(localSessionStateService, sessionId);
 		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
+			ClaudeCodeSession, createMockLangModelServer(), sessionId, true
 		));
 		const stream = new MockChatResponseStream();
 
-		await session.invoke(createMockChatRequest(), toPromptBlocks('hello'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+		await session.invoke(createMockChatRequest('hello'), stream, undefined, CancellationToken.None);
 
 		const userMsgSpan = spans.find(s => s.name === 'user_message');
 		expect(userMsgSpan).toBeDefined();
@@ -342,11 +337,11 @@ describe('Claude Session OTel Tool Spans', () => {
 
 		commitTestState(localSessionStateService, sessionId);
 		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
+			ClaudeCodeSession, createMockLangModelServer(), sessionId, true
 		));
 		const stream = new MockChatResponseStream();
 
-		await session.invoke(createMockChatRequest(), toPromptBlocks('run command'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
+		await session.invoke(createMockChatRequest('run command'), stream, undefined, CancellationToken.None);
 
 		const toolSpan = spans.find(s => s.name === 'execute_tool Bash');
 		expect(toolSpan).toBeDefined();

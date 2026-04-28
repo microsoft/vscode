@@ -64,9 +64,9 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		markdown.appendText(`\n`);
 	}
 
-	if (model.metadata.multiplier) {
-		markdown.appendMarkdown(`${localize('models.cost', 'Multiplier')}: `);
-		markdown.appendMarkdown(model.metadata.multiplier);
+	if (model.metadata.pricing) {
+		markdown.appendMarkdown(`${localize('models.pricing', 'Pricing')}: `);
+		markdown.appendMarkdown(model.metadata.pricing);
 		markdown.appendText(`\n`);
 	}
 
@@ -511,14 +511,14 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 }
 
-interface IMultiplierColumnTemplateData extends IModelTableColumnTemplateData {
-	readonly multiplierElement: HTMLElement;
+interface IPricingColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly pricingElement: HTMLElement;
 }
 
-class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'multiplier';
+class PricingColumnRenderer extends ModelsTableColumnRenderer<IPricingColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'pricing';
 
-	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
+	readonly templateId: string = PricingColumnRenderer.TEMPLATE_ID;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService
@@ -526,37 +526,37 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 		super();
 	}
 
-	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
+	renderTemplate(container: HTMLElement): IPricingColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
-		const multiplierElement = DOM.append(container, $('.model-multiplier'));
+		const pricingElement = DOM.append(container, $('.model-pricing'));
 		return {
 			container,
-			multiplierElement,
+			pricingElement,
 			disposables,
 			elementDisposables
 		};
 	}
 
-	override renderElement(entry: IViewModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = '';
+	override renderElement(entry: IViewModelEntry, index: number, templateData: IPricingColumnTemplateData): void {
+		templateData.pricingElement.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
 
-	override renderGroupElement(element: ILanguageModelGroupEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+	override renderGroupElement(element: ILanguageModelGroupEntry, index: number, templateData: IPricingColumnTemplateData): void {
 	}
 
-	override renderVendorElement(element: ILanguageModelProviderEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+	override renderVendorElement(element: ILanguageModelProviderEntry, index: number, templateData: IPricingColumnTemplateData): void {
 
 	}
 
-	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		const multiplierText = entry.model.metadata.multiplier ?? '-';
-		templateData.multiplierElement.textContent = multiplierText;
+	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IPricingColumnTemplateData): void {
+		const pricingText = entry.model.metadata.pricing ?? '-';
+		templateData.pricingElement.textContent = pricingText;
 
-		if (multiplierText !== '-') {
+		if (pricingText !== '-') {
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-				content: localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText),
+				content: localize('pricing.tooltip', "Pricing: {0}", pricingText),
 				appearance: {
 					compact: true,
 					skipFadeInAnimation: true
@@ -1030,7 +1030,7 @@ export class ChatModelsWidget extends Disposable {
 
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
-		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
+		const costColumnRenderer = this.instantiationService.createInstance(PricingColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
@@ -1087,17 +1087,17 @@ export class ChatModelsWidget extends Disposable {
 			{
 				label: localize('capabilities', 'Capabilities'),
 				tooltip: '',
-				weight: 0.2,
+				weight: 0.15,
 				minimumWidth: 180,
 				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: localize('cost', 'Request Multiplier'),
+				label: localize('cost', 'Pricing'),
 				tooltip: '',
-				weight: 0.1,
-				minimumWidth: 60,
-				templateId: MultiplierColumnRenderer.TEMPLATE_ID,
+				weight: 0.15,
+				minimumWidth: 200,
+				templateId: PricingColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
@@ -1147,9 +1147,9 @@ export class ChatModelsWidget extends Disposable {
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
 						}
-						const multiplierText = e.model.metadata.multiplier ?? '-';
-						if (multiplierText !== '-') {
-							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
+						const pricingText = e.model.metadata.pricing ?? '-';
+						if (pricingText !== '-') {
+							ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
 						}
 						if (e.model.visible) {
 							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));

@@ -125,9 +125,12 @@ export class NextEditCache extends Disposable {
 	}
 
 	private _getNesRebaseConfigs(): NesRebaseConfigs {
+		const maxImperfectAgreementLength = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsMaxImperfectAgreementLength, this._expService);
+
 		return {
 			absorbSubsequenceTyping: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAbsorbSubsequenceTyping, this._expService),
 			reverseAgreement: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsReverseAgreement, this._expService),
+			maxImperfectAgreementLength: typeof maxImperfectAgreementLength === 'number' ? Math.max(0, maxImperfectAgreementLength) : maxImperfectAgreementLength,
 		};
 	}
 

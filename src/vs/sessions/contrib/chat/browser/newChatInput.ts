@@ -48,6 +48,7 @@ import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
@@ -178,6 +179,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// is not clipped by any overflow:hidden ancestor.
 		const editorOverflowWidgetsDomNode = dom.append(root, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
+
+		// Notification widget above the input area
+		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
+		const notificationWidget = this._register(this.instantiationService.createInstance(ChatInputNotificationWidget));
+		notificationContainer.appendChild(notificationWidget.domNode);
 
 		// Input area inside the input slot
 		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));

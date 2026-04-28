@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 5
 
 declare module 'vscode' {
 
@@ -43,13 +43,7 @@ declare module 'vscode' {
 		requiresAuthorization?: true | { label: string };
 
 		/**
-		 * A multiplier indicating how many requests this model counts towards a quota.
-		 * For example, "2x" means each request counts twice.
-		 */
-		readonly multiplier?: string;
-
-		/**
-		 * A numeric form of the `multiplier` label
+		 * A numeric value for comparing model cost tiers.
 		 */
 		readonly multiplierNumeric?: number;
 

@@ -59,7 +59,7 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
+	manageAdditionalSpendUrl: product.defaultChatAgent?.manageAdditionalSpendUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
@@ -461,11 +461,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class EnableOveragesAction extends Action2 {
+		class ManageAdditionalSpendAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.chat.manageOverages',
-					title: localize2('manageOverages', "Manage GitHub Copilot Overages"),
+					id: 'workbench.action.chat.manageAdditionalSpend',
+					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Additional Spend"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -498,7 +498,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(defaultChat.manageOveragesUrl));
+				openerService.open(URI.parse(defaultChat.manageAdditionalSpendUrl));
 			}
 		}
 
@@ -509,7 +509,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
-		registerAction2(EnableOveragesAction);
+		registerAction2(ManageAdditionalSpendAction);
 
 		//#endregion
 

@@ -13,7 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -50,6 +50,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
 	private _outcomeResolved = false;
 	private _isShowingWelcome = false;
+	private _isShowingSignIn = false;
 
 	/**
 	 * Whether the overlay is currently displaying the signed-in welcome
@@ -59,13 +60,22 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	 */
 	get isShowingWelcome(): boolean { return this._isShowingWelcome; }
 
+	/**
+	 * Whether the overlay is currently displaying the sign-in buttons.
+	 * Only `true` after the sign-in screen has been fully rendered —
+	 * deliberately `false` during the loading phase so that external
+	 * account resolution (e.g. VS Code signing in) cannot auto-dismiss
+	 * the overlay before the user has had a chance to interact.
+	 */
+	get isShowingSignIn(): boolean { return this._isShowingSignIn; }
+
 	/** Resolves when the user completes or dismisses the walkthrough. */
 	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => { this._resolveOutcome = resolve; });
 
 	constructor(
 		container: HTMLElement,
 		private readonly _isFirstLaunch: boolean,
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -114,11 +124,47 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Set synchronously so the autorun in the contribution doesn't
 		// auto-dismiss before the async _renderSignIn completes.
-		if (this._isFirstLaunch && this._isAlreadySetUp()) {
+		// On first launch, optimistically assume signed in — the welcome
+		// screen renders the same regardless, and we update before painting.
+		if (this._isFirstLaunch) {
 			this._isShowingWelcome = true;
 		}
 
-		this._renderSignIn();
+		if (this._isFirstLaunch) {
+			// First launch: render a loading state while the default account resolves.
+			// Reading `currentDefaultAccount` synchronously here would always return null
+			// and cause us to render the sign-in screen for users who are actually signed in.
+			this._renderLoading();
+			this.defaultAccountService.getDefaultAccount().then(() => {
+				if (this._outcomeResolved) {
+					return;
+				}
+				this._isShowingWelcome = this._isSignedIn();
+				this._renderSignIn();
+			});
+		} else {
+			// Sign-out scenario (returning user who is now signed out): account is
+			// already known to be null, so render the sign-in screen immediately.
+			this._isShowingWelcome = false;
+			this._renderSignIn();
+		}
+	}
+
+	/**
+	 * Renders a centered animated agents icon as the loading state.
+	 * Used while the default account is being resolved on startup, before
+	 * the welcome content is rendered.
+	 */
+	private _renderLoading(): void {
+		this.contentContainer.textContent = '';
+		this.footerContainer.textContent = '';
+		this.disclaimerElement.classList.add('hidden');
+
+		const loadingIndicator = append(this.contentContainer, $('div.sessions-walkthrough-loading-indicator')) as HTMLElement;
+		loadingIndicator.setAttribute('role', 'status');
+		loadingIndicator.setAttribute('aria-busy', 'true');
+		loadingIndicator.setAttribute('aria-label', localize('walkthrough.loading', "Loading"));
+		append(loadingIndicator, $('div.sessions-walkthrough-logo.sessions-walkthrough-loading-icon'));
 	}
 
 	// ------------------------------------------------------------------
@@ -141,27 +187,22 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
 
 		// First time + signed in → welcome greeting with "Get Started"
-		if (this._isFirstLaunch && this._isAlreadySetUp()) {
+		if (this._isFirstLaunch && this._isSignedIn()) {
 			this._renderWelcome(stepDisposables, right, productName);
 			return;
 		}
 
-		// First time + not signed in → welcome content with sign-in buttons
-		// Returning + not signed in → plain sign-in screen
-		const titleEl = this._isFirstLaunch
-			? append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)))
-			: append(right, $('h2', undefined, localize('walkthrough.signin.title', "Sign In")));
-		const subtitleEl = append(right, $('p', undefined, this._isFirstLaunch
-			? localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")
-			: localize('walkthrough.signin.subtitle', "Sign in to continue.")));
-		if (this._isFirstLaunch) {
-			append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
-		}
+		// Always show the welcome title/subtitle with sign-in buttons,
+		// whether it's the first launch or a returning user who is signed out.
+		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
+		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
 	}
 
 	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
+		this._isShowingSignIn = true;
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
@@ -204,7 +245,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
 
 		if (isWeb) {
-			// Web: GitHub button uses IAuthenticationService directly
+			// Web: GitHub button uses IAuthenticationService with product scopes
 			stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => this._runSignInWeb(
 				providerButtons,
 				errorContainer,
@@ -239,10 +280,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
 		this._isShowingWelcome = true;
-		this.disclaimerElement.classList.add('hidden');
+		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
@@ -253,7 +294,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this.complete();
 		}));
 
-		this.currentFocusableElements = [getStartedBtn];
+		this.currentFocusableElements = [getStartedBtn, ...this.disclaimerLinks];
 
 		disposableTimeout(() => {
 			if (this.overlay.isConnected) {
@@ -262,14 +303,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}, 0, stepDisposables);
 	}
 
-	private _isAlreadySetUp(): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		return !!(
-			sentiment?.installed &&
-			!sentiment?.disabled &&
-			entitlement !== ChatEntitlement.Available &&
-			!(entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.anonymous)
-		);
+	private _isSignedIn(): boolean {
+		return this.defaultAccountService.currentDefaultAccount !== null;
 	}
 
 	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
@@ -315,10 +350,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	/**
-	 * Web sign-in: uses IAuthenticationService to create a GitHub session.
-	 * On production vscode.dev this triggers an OAuth popup. On localhost
-	 * the embedder's env-contributed auth provider handles the flow
-	 * (e.g. device code).
+	 * Web sign-in: uses IAuthenticationService to create a GitHub session
+	 * with the scopes defined in product.json. On production vscode.dev
+	 * this triggers an OAuth popup. On localhost the embedder's
+	 * env-contributed auth provider handles the flow (e.g. device code).
 	 */
 	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
@@ -327,7 +362,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 
 		try {
-			await this.authenticationService.createSession('github', ['repo', 'user:email', 'read:user'], { activateImmediate: true });
+			const scopes = this.productService.defaultChatAgent?.providerScopes?.[0]
+				?? ['read:user', 'user:email', 'repo', 'workflow'];
+			await this.authenticationService.createSession('github', scopes, { activateImmediate: true });
 			this.complete();
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Web sign-in failed:', err);

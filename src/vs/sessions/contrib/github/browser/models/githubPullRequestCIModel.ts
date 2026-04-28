@@ -19,16 +19,14 @@ const DEFAULT_POLL_INTERVAL_MS = 60_000;
  */
 export class GitHubPullRequestCIModel extends Disposable {
 
+	private _checksEtag: string | undefined = undefined;
 	private readonly _checks = observableValue<readonly IGitHubCICheck[]>(this, []);
 	readonly checks: IObservable<readonly IGitHubCICheck[]> = this._checks;
 
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>(this, GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 
-	private _pollingClients = 0;
-	private _refreshPromise: Promise<void> | undefined;
 	private readonly _pollScheduler: RunOnceScheduler;
-
 	private _disposed = false;
 
 	constructor(
@@ -46,23 +44,14 @@ export class GitHubPullRequestCIModel extends Disposable {
 	/**
 	 * Refresh all CI check data.
 	 */
-	refresh(): Promise<void> {
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh().finally(() => {
-				if (this._refreshPromise) {
-					this._refreshPromise = undefined;
-				}
-			});
-		}
-
-		return this._refreshPromise;
-	}
-
-	private async _refresh(): Promise<void> {
+	async refresh(): Promise<void> {
 		try {
-			const checks = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef);
-			this._checks.set(checks, undefined);
-			this._overallStatus.set(computeOverallCIStatus(checks), undefined);
+			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef, this._checksEtag);
+			if (response.statusCode === 200 && response.data) {
+				this._checksEtag = response.etag;
+				this._checks.set(response.data, undefined);
+				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
+			}
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}@${this.headRef}:`, err);
 		}
@@ -93,43 +82,27 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 * Start periodic polling. Each cycle refreshes CI check data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.delay = intervalMs;
-
-		this._pollingClients++;
-		if (this._pollingClients === 1) {
-			this._pollScheduler.cancel();
-			this._pollScheduler.schedule();
-		}
+		this._pollScheduler.cancel();
+		this._pollScheduler.schedule(intervalMs);
 	}
 
 	/**
 	 * Stop periodic polling.
 	 */
 	stopPolling(): void {
-		if (this._pollingClients === 0) {
-			return;
-		}
-
-		this._pollingClients--;
-		if (this._pollingClients === 0) {
-			this._pollScheduler.cancel();
-		}
+		this._pollScheduler.cancel();
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
-
 		// Re-schedule if not disposed (RunOnceScheduler is one-shot)
-		if (!this._disposed && this._pollingClients > 0) {
+		if (!this._disposed) {
 			this._pollScheduler.schedule();
 		}
 	}
 
 	override dispose(): void {
 		this._disposed = true;
-		this._pollingClients = 0;
-		this._refreshPromise = undefined;
-
 		super.dispose();
 	}
 }

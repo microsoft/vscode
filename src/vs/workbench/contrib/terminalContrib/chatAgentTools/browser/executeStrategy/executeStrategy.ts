@@ -197,6 +197,21 @@ export async function trackIdleOnPrompt(
 		scheduler.schedule();
 	}, 10_000));
 	initialFallbackScheduler.schedule();
+	// Fallback for when shell integration breaks mid-command: data arrives and
+	// C/D sequences transition us to Executing, but no A (prompt) sequence ever
+	// follows. Both initialFallbackScheduler and promptFallbackScheduler get
+	// cancelled in that state, causing a permanent hang. This scheduler is
+	// rescheduled on every data event while in the Executing state, so it only
+	// fires after 30s of data-idle — long enough that actively-outputting
+	// commands won't be cut off, but short enough to prevent indefinite hangs
+	// when shell integration breaks. When shell integration is working,
+	// onCommandFinished in the rich strategy's race wins before this fires.
+	const executingFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing) {
+			state = TerminalState.PromptAfterExecuting;
+			scheduler.schedule();
+		}
+	}, 30_000));
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
@@ -222,14 +237,17 @@ export async function trackIdleOnPrompt(
 					state = TerminalState.Prompt;
 				} else if (state === TerminalState.Executing) {
 					state = TerminalState.PromptAfterExecuting;
+					executingFallbackScheduler.cancel();
 				}
 			} else if (match.groups?.type === 'C' || match.groups?.type === 'D') {
 				state = TerminalState.Executing;
+				executingFallbackScheduler.schedule();
 			}
 		}
 		// Re-schedule on every data event as we're tracking data idle
 		if (state === TerminalState.PromptAfterExecuting) {
 			promptFallbackScheduler.cancel();
+			executingFallbackScheduler.cancel();
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
@@ -237,6 +255,9 @@ export async function trackIdleOnPrompt(
 				promptFallbackScheduler.schedule();
 			} else {
 				promptFallbackScheduler.cancel();
+				// Re-schedule on every data event so it only fires after 30s
+				// of data-idle while in the Executing state.
+				executingFallbackScheduler.schedule();
 			}
 		}
 	}));

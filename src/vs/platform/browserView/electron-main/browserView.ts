@@ -719,8 +719,11 @@ export class BrowserView extends Disposable {
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();
 
-		// Remove from parent window
-		this._currentWindow?.win?.contentView.removeChildView(this._view);
+		// Remove from parent window (guard against already-destroyed window)
+		const currentWin = this._currentWindow?.win;
+		if (currentWin && !currentWin.isDestroyed()) {
+			currentWin.contentView.removeChildView(this._view);
+		}
 
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();

@@ -192,8 +192,8 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel {
 	display: flex;
 	flex-direction: column;
-	width: 280px;
-	max-width: 280px;
+	width: 360px;
+	max-width: 360px;
 	color: var(--vscode-foreground);
 }
 

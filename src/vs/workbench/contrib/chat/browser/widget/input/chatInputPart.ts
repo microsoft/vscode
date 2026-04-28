@@ -119,7 +119,8 @@ import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
 import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
+import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
@@ -324,9 +325,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatQuestionCarouselContainer!: HTMLElement;
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
-	private chatInputWidgetsContainer!: HTMLElement;
+	private chatInputNotificationContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
-	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
+	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
@@ -555,6 +556,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IChatAttachmentWidgetRegistry private readonly _chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
+		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 		super();
 
@@ -1544,6 +1546,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.resetScrollbarVisibilityAfterAccept();
 
+		// Auto-dismiss notifications that requested it
+		this.chatInputNotificationService.handleMessageSent();
+
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
 			this._emptyInputState.set(undefined, undefined);
@@ -1938,29 +1943,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Updates the widget controller based on session type.
+	 * Ensures the notification widget is instantiated and appended to the notification container.
 	 */
-	private tryUpdateWidgetController(): void {
-		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-		if (!sessionResource) {
-			return;
-		}
-
-		// Determine effective session type:
-		// - If we have a delegate with a setter (e.g., welcome page), use the delegate's session type
-		// - Otherwise, use the actual session's type
-		const delegate = this.options.sessionTypePickerDelegate;
-		const delegateSessionType = delegate?.setActiveSessionProvider && delegate?.getActiveSessionProvider?.();
-		const sessionType = delegateSessionType || this._pendingDelegationTarget || getChatSessionType(sessionResource);
-		const isLocalSession = sessionType === localChatSessionType;
-
-		if (!isLocalSession) {
-			this._widgetController.clear();
-			return;
-		}
-
-		if (!this._widgetController.value) {
-			this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
+	private ensureNotificationWidget(): void {
+		if (!this._notificationWidget.value) {
+			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget);
+			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
 	}
 
@@ -2014,7 +2002,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Update agentSessionType when view model changes
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
-			this.tryUpdateWidgetController();
+			this.ensureNotificationWidget();
 			this.updateContextUsageWidget();
 			let hasMatchingResource = false;
 			if (e.currentSessionResource) {
@@ -2068,7 +2056,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-					dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
+					dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2094,7 +2082,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.interactive-input-followups@followupsContainer'),
-				dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
+				dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2144,7 +2132,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatPlanReviewContainer = elements.chatPlanReviewContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
-		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
+		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
 		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
@@ -2170,7 +2158,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._implicitContext = undefined;
 		}
 
-		this.tryUpdateWidgetController();
+		this.ensureNotificationWidget();
 
 		this._register(this._attachmentModel.onDidChange((e) => {
 			if (e.added.length > 0) {

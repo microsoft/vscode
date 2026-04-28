@@ -497,7 +497,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				...item,
 				id: `sync-${item.id}`,
 				syncable: true,
-				synced: syncProvider.isSelected(item.uri),
+				synced: !syncProvider.isDisabled(item.uri),
 			}));
 	}
 }

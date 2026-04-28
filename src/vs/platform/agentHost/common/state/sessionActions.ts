@@ -93,6 +93,7 @@ import type {
 	SessionQueuedMessagesReorderedAction,
 	SessionIsReadChangedAction,
 	SessionIsArchivedChangedAction,
+	RootConfigChangedAction,
 } from './protocol/actions.js';
 
 import type { ProtocolNotification } from './protocol/notifications.js';
@@ -108,6 +109,7 @@ export type ClientTerminalAction = IClientTerminalAction_;
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
 export type IActiveSessionsChangedAction = RootActiveSessionsChangedAction;
+export type IRootConfigChangedAction = RootConfigChangedAction;
 
 // Session actions — short aliases
 export type ITurnStartedAction = SessionTurnStartedAction;

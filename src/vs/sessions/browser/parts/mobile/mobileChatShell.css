@@ -392,3 +392,240 @@
 .agent-sessions-workbench.phone-layout .part.panel {
 	transition: none !important;
 }
+
+/* ---- Mobile Account Indicator ---- */
+
+.mobile-top-bar .mobile-account-indicator {
+	position: relative;
+}
+
+.mobile-top-bar .mobile-account-avatar {
+	display: none;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+	box-sizing: border-box;
+}
+
+.mobile-top-bar .mobile-account-avatar.visible {
+	display: block;
+}
+
+/* Hide the codicon when the avatar is loaded */
+.mobile-top-bar .mobile-account-indicator .codicon.hidden {
+	display: none;
+}
+
+.mobile-top-bar .mobile-account-badge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	border: 1.5px solid var(--vscode-editor-background);
+	background: var(--vscode-editorWarning-foreground);
+	pointer-events: none;
+}
+
+.mobile-top-bar .mobile-account-badge.dot-badge-warning {
+	background: var(--vscode-editorWarning-foreground);
+}
+
+.mobile-top-bar .mobile-account-badge.dot-badge-error {
+	background: var(--vscode-editorError-foreground);
+}
+
+/* ---- Mobile Account Sheet (full-screen bottom sheet) ---- */
+
+.mobile-account-sheet {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	touch-action: manipulation;
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.mobile-account-sheet-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 56px;
+	min-height: 56px;
+	padding: 0 16px;
+	padding-top: env(safe-area-inset-top);
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.mobile-account-sheet-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 50%;
+	font-size: 18px;
+	padding: 0;
+	touch-action: manipulation;
+}
+
+.mobile-account-sheet-close:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-account-sheet-content {
+	flex: 1;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	padding: 0 16px;
+	padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* Profile card */
+
+.mobile-account-sheet-profile {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 24px 0 20px;
+}
+
+.mobile-account-sheet-avatar {
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-avatar-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 28px;
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-profile-info {
+	min-width: 0;
+	flex: 1;
+}
+
+.mobile-account-sheet-name {
+	font-size: 18px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-account-sheet-provider {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Dashboard section */
+
+.mobile-account-sheet-section {
+	padding: 8px 0 16px;
+	border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+/* Action rows */
+
+.mobile-account-sheet-actions {
+	display: flex;
+	flex-direction: column;
+	border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	padding: 8px 0;
+}
+
+.mobile-account-sheet-action {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	height: 52px;
+	min-height: 52px;
+	padding: 0 4px;
+	border: none;
+	border-radius: 12px;
+	background: none;
+	color: var(--vscode-foreground);
+	font-size: 16px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.mobile-account-sheet-action:active {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.mobile-account-sheet-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.mobile-account-sheet-action-icon {
+	font-size: 20px;
+	width: 24px;
+	text-align: center;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-account-sheet-action-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-account-sheet-separator {
+	height: 1px;
+	margin: 4px 0;
+	background: var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.agent-sessions-workbench.phone-layout .sessions-account-titlebar-panel-action {
+	min-height: 44px;
+	touch-action: manipulation;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-account-titlebar-panel-header-action {
+	min-width: 44px;
+	min-height: 44px;
+	touch-action: manipulation;
+}

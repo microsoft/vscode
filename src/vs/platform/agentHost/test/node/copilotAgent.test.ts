@@ -22,6 +22,8 @@ import { AgentSession, type IAgentDeltaEvent, type IAgentMessageEvent, type IAge
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { SessionCustomization, CustomizationRef } from '../../common/state/sessionState.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot, type ICopilotClient } from '../../node/copilot/copilotAgent.js';
@@ -196,8 +198,11 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
+	services.set(IAgentConfigurationService, configService);
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());

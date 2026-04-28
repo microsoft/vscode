@@ -51,18 +51,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 	}
 
 	private _getThinkingBudget(modelId: string, maxOutputTokens: number): number | undefined {
-		const configuredBudget = this._configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		if (!configuredBudget || configuredBudget === 0) {
-			return undefined;
-		}
-
 		const modelCapabilities = this._knownModels?.[modelId];
 		const modelSupportsThinking = modelCapabilities?.thinking ?? false;
 		if (!modelSupportsThinking) {
 			return undefined;
 		}
-		const normalizedBudget = configuredBudget < 1024 ? 1024 : configuredBudget;
-		return Math.min(32000, maxOutputTokens - 1, normalizedBudget);
+		return Math.min(32000, maxOutputTokens - 1, 16000);
 	}
 
 	// Filters the byok known models based on what the anthropic API knows as well

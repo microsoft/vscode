@@ -15,6 +15,8 @@ import { hasKey, type SingleOrMany } from '../../../../../../base/common/types.j
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -34,8 +36,10 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -69,8 +73,6 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	}
 }
 
-type ITestRunInTerminalToolInvocationData = IChatTerminalToolInvocationData & { requiresConfirmationForRetry?: boolean };
-
 suite('RunInTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -87,6 +89,7 @@ suite('RunInTerminalTool', () => {
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
 	let createdTerminalInstance: ITerminalInstance;
+	let chatSessions: Map<string, ChatModel>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -136,6 +139,7 @@ suite('RunInTerminalTool', () => {
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 		capturedSteeringRequests = [];
+		chatSessions = new Map<string, ChatModel>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -144,7 +148,7 @@ suite('RunInTerminalTool', () => {
 
 		const chatServiceStub = {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
-			getSession: () => undefined,
+			getSession: (sessionResource: URI) => chatSessions.get(sessionResource.toString()),
 			sendRequest: async (sessionResource: URI, message: string) => {
 				capturedSteeringRequests.push({ sessionResource, message });
 				return { kind: 'rejected', reason: 'test' };
@@ -280,8 +284,31 @@ suite('RunInTerminalTool', () => {
 		}
 	}
 
-	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, requiresConfirmationForRetry: boolean | undefined): Promise<boolean> {
-		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, requiresConfirmationForRetry: boolean | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, requiresConfirmationForRetry, CancellationToken.None);
+	function createChatModelWithRequest(sessionResource: URI): ChatModel {
+		const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'retry';
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		chatSessions.set(sessionResource.toString(), model);
+		return model;
+	}
+
+	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
+		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, CancellationToken.None);
+	}
+
+	async function assertAutomaticUnsandboxRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined): Promise<void> {
+		const model = createChatModelWithRequest(sessionResource);
+		const shouldRetry = confirmAutomaticUnsandboxRetry(tool, sessionResource, command, shell, blockedDomains);
+		const request = model.getRequests().at(-1);
+		const response = request?.response;
+		ok(response, 'Expected chat request with response');
+		const elicitation = response.response.value.find(part => part.kind === 'elicitation2');
+		ok(elicitation?.kind === 'elicitation2', 'Expected automatic unsandbox retry elicitation');
+		const reject = elicitation.reject;
+		ok(reject, 'Expected automatic unsandbox retry elicitation to have a reject action');
+
+		await reject();
+		strictEqual(await shouldRetry, false);
 	}
 
 	function getAutomaticUnsandboxRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
@@ -479,20 +506,17 @@ suite('RunInTerminalTool', () => {
 			}), false);
 		});
 
-		test('should not show retry elicitation when prepared invocation was auto-approved', async () => {
+		test('should show retry elicitation when prepared invocation was auto-approved', async () => {
 			setAutoApprove({ echo: true });
+			const sessionResource = LocalChatSessionUri.forSession('auto-retry-auto-approved-session');
 
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
 			assertAutoApproved(preparedInvocation);
-			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
-			strictEqual(terminalData.requiresConfirmationForRetry, false);
 
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, undefined, 'echo hello', 'bash', undefined, terminalData.requiresConfirmationForRetry);
-
-			strictEqual(shouldRetry, true);
+			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, sessionResource, 'echo hello', 'bash', undefined);
 		});
 
-		test('should not show retry elicitation when prepared invocation was session auto-approved', async () => {
+		test('should show retry elicitation when prepared invocation was session auto-approved', async () => {
 			const sessionResource = LocalChatSessionUri.forSession('auto-retry-approval-session');
 			instantiationService.stub(IChatWidgetService, {
 				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
@@ -511,12 +535,8 @@ suite('RunInTerminalTool', () => {
 			} as IToolInvocationPreparationContext, CancellationToken.None);
 
 			assertAutoApproved(preparedInvocation);
-			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
-			strictEqual(terminalData.requiresConfirmationForRetry, false);
 
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(autoApproveRunInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined, terminalData.requiresConfirmationForRetry);
-
-			strictEqual(shouldRetry, true);
+			await assertAutomaticUnsandboxRetryElicitation(autoApproveRunInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined);
 		});
 
 		test('should show retry elicitation when prepared invocation required confirmation', async () => {
@@ -524,12 +544,8 @@ suite('RunInTerminalTool', () => {
 
 			const preparedInvocation = await executeToolTest({ command: 'rm dangerous-file.txt' });
 			assertConfirmationRequired(preparedInvocation);
-			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
-			strictEqual(terminalData.requiresConfirmationForRetry, true);
 
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, undefined, 'rm dangerous-file.txt', 'bash', undefined, terminalData.requiresConfirmationForRetry);
-
-			strictEqual(shouldRetry, false);
+			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, LocalChatSessionUri.forSession('auto-retry-confirmation-required-session'), 'rm dangerous-file.txt', 'bash', undefined);
 		});
 
 		test('should use retry confirmation title without sandbox link', () => {
@@ -556,13 +572,10 @@ suite('RunInTerminalTool', () => {
 			const preparedInvocation = await executeToolTest({ command: 'rm dangerous-file.txt' });
 
 			assertAutoApproved(preparedInvocation);
-			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
-			strictEqual(terminalData.requiresConfirmationForRetry, true);
 
-			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, undefined, 'rm dangerous-file.txt', 'bash', undefined, terminalData.requiresConfirmationForRetry);
-
-			strictEqual(shouldRetry, false);
+			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, LocalChatSessionUri.forSession('auto-retry-sandbox-force-approved-session'), 'rm dangerous-file.txt', 'bash', undefined);
 		});
 	});
 

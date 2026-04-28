@@ -704,7 +704,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}));
 
 		// Start polling and initial fetch
-		prModel.refresh().catch(err => {
+		prModel.refreshThreads().catch(err => {
 			this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
 			data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
 		});

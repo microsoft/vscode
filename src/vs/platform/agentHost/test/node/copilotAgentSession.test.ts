@@ -737,9 +737,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 1);
 			const event = progressEvents[0];
 			assertUserInputEvent(event);
-			assert.strictEqual(event.request.message, 'What is your name?');
 			const requestId = event.request.id;
 			assert.ok(event.request.questions);
+			assert.strictEqual(event.request.questions[0].message, 'What is your name?');
 			const questionId = event.request.questions[0].id;
 
 			// Respond to unblock the promise

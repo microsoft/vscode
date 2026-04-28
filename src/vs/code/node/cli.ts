@@ -250,13 +250,17 @@ export async function main(argv: string[]): Promise<void> {
 			const tempExtensionsDir = join(tempParentDir, 'extensions');
 			const tempSharedDataDir = join(tempParentDir, 'shared');
 			const tempAgentPluginsDir = join(tempParentDir, 'agent-plugins');
+			const tempAgentsUserDataDir = join(tempParentDir, 'agents-data');
+			const tempAgentsExtensionsDir = join(tempParentDir, 'agents-extensions');
 
 			addArg(argv, '--user-data-dir', tempUserDataDir);
 			addArg(argv, '--extensions-dir', tempExtensionsDir);
 			addArg(argv, '--shared-data-dir', tempSharedDataDir);
 			addArg(argv, '--agent-plugins-dir', tempAgentPluginsDir);
+			addArg(argv, '--agents-user-data-dir', tempAgentsUserDataDir);
+			addArg(argv, '--agents-extensions-dir', tempAgentsExtensionsDir);
 
-			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}" --shared-data-dir "${tempSharedDataDir}" --agent-plugins-dir "${tempAgentPluginsDir}"`);
+			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}" --shared-data-dir "${tempSharedDataDir}" --agent-plugins-dir "${tempAgentPluginsDir}" --agents-user-data-dir "${tempAgentsUserDataDir}" --agents-extensions-dir "${tempAgentsExtensionsDir}"`);
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');

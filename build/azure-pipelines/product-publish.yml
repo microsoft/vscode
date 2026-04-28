@@ -14,8 +14,6 @@ jobs:
     variables:
       - name: BUILDS_API_URL
         value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      - name: VSCODE_BUILD_HOUR
-        value: $[format('{0:HH}', pipeline.startTime)]
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -27,6 +25,11 @@ jobs:
           condition: always()
     steps:
       - template: ./common/checkout.yml@self
+
+      - pwsh: |
+          $hour = [DateTimeOffset]::UtcNow.ToString('HH')
+          Write-Host "##vso[task.setvariable variable=VSCODE_BUILD_HOUR]$hour"
+        displayName: Capture build hour (UTC)
 
       - task: NodeTool@0
         inputs:

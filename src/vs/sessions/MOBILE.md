@@ -51,7 +51,7 @@ On phone-sized viewports (`< 640px` width):
 
 ```
 ┌──────────────────────────────────┐
-│  [☰]  Session Title          [+] │  ← MobileTitlebarPart (prepended before grid)
+│  [☰]  Session Title      [+|👤] │  ← MobileTitlebarPart (prepended before grid)
 ├──────────────────────────────────┤
 │                                  │
 │     Chat (edge-to-edge)          │  ← Grid: ChatBarPart fills 100%
@@ -64,7 +64,7 @@ On phone-sized viewports (`< 640px` width):
 └──────────────────────────────────┘
 ```
 
-- **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and new session (+) button.
+- **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and a contextual right slot that swaps between the new session (+) button (when in a chat) and the account indicator 👤 (on the welcome / new session screen).
 - **Sidebar** is hidden by default and opens as an **85% width drawer overlay** with a backdrop when the hamburger is tapped. CSS makes its `split-view-view` absolutely positioned with `z-index: 250`. The workbench manually calls `sidebarPart.layout()` with drawer dimensions after opening. Closing the drawer clears the navigation stack.
 - **Titlebar** is hidden in the grid (`visible: false`) and via CSS — replaced by MobileTitlebarPart.
 - **SessionCompositeBar** (chat tabs) is hidden via CSS.
@@ -90,13 +90,14 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | Desktop Component | Mobile Equivalent | How Accessed |
 |---|---|---|
-| **Titlebar** (3-section toolbar) | **MobileTitlebarPart** (☰ / title / +) | Always visible at top |
+| **Titlebar** (3-section toolbar) | **MobileTitlebarPart** (☰ / title / +|👤) | Always visible at top |
 | **Sidebar** (sessions list) | Drawer overlay (85% width) | Hamburger button (☰) |
 | **ChatBar** (chat widget) | Same Part, edge-to-edge, no card chrome | Default view (always visible) |
 | **AuxiliaryBar** (files, changes) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **Panel** (terminal, output) | Gated — not shown on mobile | Planned: mobile-specific view |
 | **SessionCompositeBar** (chat tabs) | Hidden on phone | — |
-| **New Session** (sidebar button) | + button in MobileTitlebarPart | Always visible in top bar |
+| **New Session** (sidebar button) | + button in MobileTitlebarPart | Visible in top bar when in a chat |
+| **Account indicator** (titlebar) | Account button in MobileTitlebarPart | Visible in top bar on welcome/new session |
 
 ## File Map
 
@@ -113,7 +114,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Purpose |
 |------|---------|
-| `browser/parts/mobile/mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, new session (+). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. |
+| `browser/parts/mobile/mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
 | `browser/parts/mobile/mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, mobile pickers. |
 
 ### Layout & Navigation

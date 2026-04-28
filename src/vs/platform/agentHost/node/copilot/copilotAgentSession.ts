@@ -85,6 +85,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
+	/** Directory used to resolve workspace-scoped customizations for this session. */
+	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
 }
@@ -130,6 +132,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _wrapperFactory: SessionWrapperFactory;
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
+	private readonly _customizationDirectory: URI | undefined;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -146,6 +149,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapperFactory = options.wrapperFactory;
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
+		this._customizationDirectory = options.customizationDirectory;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -192,6 +196,10 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get appliedSnapshot(): IActiveClientSnapshot {
 		return this._appliedSnapshot;
+	}
+
+	get customizationDirectory(): URI | undefined {
+		return this._customizationDirectory;
 	}
 
 	/**
@@ -545,7 +553,6 @@ export class CopilotAgentSession extends Disposable {
 			// Build the protocol SessionInputRequest from the SDK's simple format
 			const inputRequest: SessionInputRequest = {
 				id: requestId,
-				message: request.question,
 				questions: [request.choices && request.choices.length > 0
 					? {
 						kind: SessionInputQuestionKind.SingleSelect,

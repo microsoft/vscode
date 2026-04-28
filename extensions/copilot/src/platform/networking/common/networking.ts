@@ -238,6 +238,18 @@ export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	postOptions: OptionalChatRequestParams;
 }
 
+/**
+ * Normalized token pricing in AICs per million tokens.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Cost in AICs per million input tokens */
+	readonly inputPrice: number;
+	/** Cost in AICs per million output tokens */
+	readonly outputPrice: number;
+	/** Cost in AICs per million cached (read) tokens */
+	readonly cacheReadTokenPrice: number;
+}
+
 export interface IChatEndpoint extends IEndpoint {
 	readonly maxOutputTokens: number;
 	/** The model ID- this may change and will be `copilot-base` for the base model. Use `family` to switch behavior based on model type. */
@@ -260,6 +272,12 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly degradationReason?: string;
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Normalized token pricing in AICs per million tokens.
+	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
+	 * and normalizing to per-million-token rates based on batch_size.
+	 */
+	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

@@ -57,6 +57,15 @@ export interface ISectionOverride {
 	readonly fileExtension?: string;
 }
 
+export interface ICustomizationItemAction {
+	readonly id: string;
+	readonly label: string;
+	readonly tooltip?: string;
+	readonly icon?: ThemeIcon;
+	readonly enabled?: boolean;
+	run(): void | Promise<void>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -129,17 +138,26 @@ export interface IHarnessDescriptor {
 	 */
 	readonly supportsTroubleshoot?: boolean;
 	/**
-	 * When set, this harness supports syncing local customizations to a
-	 * remote target. The UI shows local items with sync checkboxes when
-	 * this harness is active.
+	 * When set, this harness uses an opt-out sync model where all eligible
+	 * local customizations are synced by default. The UI shows disable
+	 * affordances when this harness is active.
 	 */
 	readonly syncProvider?: ICustomizationSyncProvider;
+	/**
+	 * Optional plugin-management actions shown in the Plugins section toolbar.
+	 * Harnesses can use these to replace the default local install/create
+	 * actions with environment-specific commands (for example, configuring
+	 * plugins on a remote agent host).
+	 */
+	readonly pluginActions?: readonly ICustomizationItemAction[];
 }
 
 /**
  * Represents a customization item provided by any source.
  */
 export interface ICustomizationItem {
+	/** Optional stable identity used by list widgets when URI alone is not unique. */
+	readonly itemKey?: string;
 	readonly uri: URI;
 	readonly type: string;
 	readonly name: string;
@@ -164,6 +182,8 @@ export interface ICustomizationItem {
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
 	readonly badgeTooltip?: string;
+	/** Optional inline/context-menu actions specific to this item. */
+	readonly actions?: readonly ICustomizationItemAction[];
 }
 
 /**
@@ -182,35 +202,16 @@ export interface ICustomizationItemProvider {
 }
 
 /**
- * Provider interface for harnesses that support syncing local customizations
- * to a remote target (e.g. a remote agent host).
+ * Provider interface for harnesses that use an opt-out sync model.
  *
- * The UI shows local customization items with sync checkboxes when the
- * active harness has a sync provider. Selected items are persisted and
- * automatically included in the active client's customization set.
+ * Every eligible local customization is synced by default; the user
+ * can disable individual items. The persisted set captures only the
+ * user's opt-outs.
  */
 export interface ICustomizationSyncProvider {
-	/**
-	 * Fires when the set of selected sync items changes.
-	 */
 	readonly onDidChange: Event<void>;
-	/**
-	 * Returns the URIs of local customizations currently selected for syncing.
-	 */
-	getSelectedUris(): readonly URI[];
-	/**
-	 * Updates the set of local customization URIs selected for syncing.
-	 */
-	setSelectedUris(uris: readonly URI[]): void;
-	/**
-	 * Returns whether the given URI is currently selected for syncing.
-	 */
-	isSelected(uri: URI): boolean;
-	/**
-	 * Toggles the sync selection state for a single URI.
-	 * @param type Optional prompt type for file-level sync tracking.
-	 */
-	toggleUri(uri: URI, type?: PromptsType): void;
+	isDisabled(uri: URI): boolean;
+	setDisabled(uri: URI, disabled: boolean): void;
 }
 
 /**

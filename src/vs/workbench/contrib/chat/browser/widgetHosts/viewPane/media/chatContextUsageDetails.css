@@ -48,16 +48,16 @@
 .chat-context-usage-details .quota-indicator .quota-bar {
 	width: 100%;
 	height: 4px;
-	background-color: var(--vscode-gauge-background);
+	background-color: var(--vscode-editorWidget-border);
 	border-radius: 4px;
-	border: 1px solid var(--vscode-gauge-border);
+	border: 1px solid var(--vscode-editorWidget-border);
 	margin: 4px 0;
 	display: flex;
 }
 
 .chat-context-usage-details .quota-indicator .quota-bar .quota-bit {
 	height: 100%;
-	background-color: var(--vscode-gauge-foreground);
+	background-color: var(--vscode-focusBorder);
 	border-radius: 4px;
 	transition: width 0.3s ease;
 }
@@ -65,8 +65,8 @@
 .chat-context-usage-details .quota-indicator .quota-bar .quota-bit.output-buffer {
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-foreground),
-		var(--vscode-gauge-foreground) 2px,
+		var(--vscode-focusBorder),
+		var(--vscode-focusBorder) 2px,
 		transparent 2px,
 		transparent 4px
 	);
@@ -93,8 +93,8 @@
 	border-radius: 2px;
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-foreground),
-		var(--vscode-gauge-foreground) 2px,
+		var(--vscode-focusBorder),
+		var(--vscode-focusBorder) 2px,
 		transparent 2px,
 		transparent 4px
 	);
@@ -104,26 +104,26 @@
 .chat-context-usage-details .quota-indicator.warning .output-buffer-swatch {
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-warningForeground),
-		var(--vscode-gauge-warningForeground) 2px,
+		var(--vscode-editorWarning-foreground),
+		var(--vscode-editorWarning-foreground) 2px,
 		transparent 2px,
 		transparent 4px
 	);
 }
 
 .chat-context-usage-details .quota-indicator.warning .quota-bar {
-	background-color: var(--vscode-gauge-warningBackground);
+	background-color: var(--vscode-editorWidget-border);
 }
 
 .chat-context-usage-details .quota-indicator.warning .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-warningForeground);
+	background-color: var(--vscode-editorWarning-foreground);
 }
 
 .chat-context-usage-details .quota-indicator.warning .quota-bar .quota-bit.output-buffer {
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-warningForeground),
-		var(--vscode-gauge-warningForeground) 2px,
+		var(--vscode-editorWarning-foreground),
+		var(--vscode-editorWarning-foreground) 2px,
 		transparent 2px,
 		transparent 4px
 	);
@@ -132,26 +132,26 @@
 .chat-context-usage-details .quota-indicator.error .output-buffer-swatch {
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-errorForeground),
-		var(--vscode-gauge-errorForeground) 2px,
+		var(--vscode-editorError-foreground),
+		var(--vscode-editorError-foreground) 2px,
 		transparent 2px,
 		transparent 4px
 	);
 }
 
 .chat-context-usage-details .quota-indicator.error .quota-bar {
-	background-color: var(--vscode-gauge-errorBackground);
+	background-color: var(--vscode-editorWidget-border);
 }
 
 .chat-context-usage-details .quota-indicator.error .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-errorForeground);
+	background-color: var(--vscode-editorError-foreground);
 }
 
 .chat-context-usage-details .quota-indicator.error .quota-bar .quota-bit.output-buffer {
 	background: repeating-linear-gradient(
 		-45deg,
-		var(--vscode-gauge-errorForeground),
-		var(--vscode-gauge-errorForeground) 2px,
+		var(--vscode-editorError-foreground),
+		var(--vscode-editorError-foreground) 2px,
 		transparent 2px,
 		transparent 4px
 	);

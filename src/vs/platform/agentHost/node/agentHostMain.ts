@@ -9,6 +9,7 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -16,6 +17,7 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -85,6 +87,7 @@ function startAgentHost(): void {
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -99,13 +102,14 @@ function startAgentHost(): void {
 		const instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);

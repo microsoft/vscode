@@ -3873,6 +3873,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {

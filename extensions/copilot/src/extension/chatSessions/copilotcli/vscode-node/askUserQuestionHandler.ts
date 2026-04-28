@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatParticipantToolToken, LanguageModelTextPart } from 'vscode';
+import { ChatParticipantToolToken, commands, LanguageModelTextPart } from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
-import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotcli/node/userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../../copilotcli/node/userInputHelpers';
 
 
 export interface IAskQuestionsParams {
@@ -19,6 +19,30 @@ export interface IAnswerResult {
 	readonly answers: Record<string, IQuestionAnswer>;
 }
 
+const NotifyQuestionCarouselAnswerCommandId = '_chat.notifyQuestionCarouselAnswer';
+
+function toCarouselAnswerValue(question: IQuestion, response: UserInputResponse): string | { selectedValue?: string; freeformValue?: string } | { selectedValues: string[]; freeformValue?: string } | undefined {
+	if (!response.answer) {
+		return undefined;
+	}
+
+	if (!question.options || question.options.length === 0) {
+		return response.answer;
+	}
+
+	if (question.multiSelect) {
+		const selectedValues = question.options.some(option => option.label === response.answer)
+			? [response.answer]
+			: response.answer.split(',').map(value => value.trim()).filter(Boolean);
+		return response.wasFreeform
+			? { selectedValues, freeformValue: response.answer }
+			: { selectedValues };
+	}
+
+	return response.wasFreeform
+		? { freeformValue: response.answer }
+		: { selectedValue: response.answer };
+}
 
 export class UserQuestionHandler implements IUserQuestionHandler {
 	declare _serviceBrand: undefined;
@@ -27,11 +51,12 @@ export class UserQuestionHandler implements IUserQuestionHandler {
 		@IToolsService private readonly _toolsService: IToolsService,
 	) {
 	}
-	async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+	async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
 		const input: IAskQuestionsParams = { questions: [question] };
 		const result = await this._toolsService.invokeTool(ToolName.CoreAskQuestions, {
 			input,
 			toolInvocationToken,
+			chatStreamToolCallId: toolCallId,
 		}, token);
 
 
@@ -55,5 +80,12 @@ export class UserQuestionHandler implements IUserQuestionHandler {
 			return answer;
 		}
 		return undefined;
+	}
+
+	async notifyQuestionCarouselAnswer(toolCallId: string, question: IQuestion, response: UserInputResponse): Promise<void> {
+		const answerValue = toCarouselAnswerValue(question, response);
+		await commands.executeCommand(NotifyQuestionCarouselAnswerCommandId, toolCallId, answerValue === undefined ? undefined : {
+			[`${toolCallId}:0`]: answerValue,
+		});
 	}
 }
