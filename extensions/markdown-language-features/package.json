@@ -791,7 +791,7 @@
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.12",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.13",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -804,8 +804,7 @@
     "@types/vscode-webview": "^1.57.0",
     "@vscode/markdown-it-katex": "^1.1.1",
     "lodash.throttle": "^4.1.1",
-    "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.3.0-alpha.3"
+    "vscode-languageserver-types": "^3.17.2"
   },
   "repository": {
     "type": "git",
