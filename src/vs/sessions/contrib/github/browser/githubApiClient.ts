@@ -56,12 +56,12 @@ export class GitHubApiClient extends Disposable {
 		super();
 	}
 
-	async request2<T>(method: string, path: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
-		return this._request2<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body, etag);
+	async request<T>(method: string, path: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
+		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body, etag);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
-		const response = await this._request2<IGitHubGraphQLResponse<T>>(
+		const response = await this._request<IGitHubGraphQLResponse<T>>(
 			'POST',
 			GITHUB_GRAPHQL_ENDPOINT,
 			'/graphql',
@@ -85,7 +85,7 @@ export class GitHubApiClient extends Disposable {
 		return response.data.data;
 	}
 
-	private async _request2<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
