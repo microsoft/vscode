@@ -422,11 +422,19 @@ const root = path.dirname(path.dirname(import.meta.dirname));
 const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
 const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
 
+// test-workbench_change start
+const codiconCustom = path.join(root, 'build', 'codicon-custom.ttf');
+// test-workbench_change end
+
 function copyCodiconsImpl() {
 	try {
 		if (fs.existsSync(codiconSource)) {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
-			fs.copyFileSync(codiconSource, codiconDest);
+			// test-workbench_change start
+			// Use custom font if available (contains additional glyphs), otherwise fall back to node_modules
+			const source = fs.existsSync(codiconCustom) ? codiconCustom : codiconSource;
+			fs.copyFileSync(source, codiconDest);
+			// test-workbench_change end
 		} else {
 			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
 		}

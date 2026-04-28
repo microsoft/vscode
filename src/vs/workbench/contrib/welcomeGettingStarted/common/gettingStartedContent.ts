@@ -187,17 +187,8 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:remoteHub.openRepository',
 		}
 	},
-	{
-		id: 'topLevelRemoteOpen',
-		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
-		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
-		when: '!isWeb',
-		icon: Codicon.remote,
-		content: {
-			type: 'startEntry',
-			command: 'command:workbench.action.remote.showMenu',
-		}
-	},
+	// test-workbench_change start - removed topLevelRemoteOpen entry
+	// test-workbench_change end
 	{
 		id: 'topLevelOpenTunnel',
 		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),

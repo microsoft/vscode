@@ -39,9 +39,10 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	// Ensure codicon.ttf is copied from node_modules (needed when node_modules is cached and postinstall doesn't run)
 	const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
 	const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+	const codiconCustom = path.join(root, 'build', 'codicon-custom.ttf'); // test-workbench_change
 	if (fs.existsSync(codiconSource)) {
 		fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
-		fs.copyFileSync(codiconSource, codiconDest);
+		fs.copyFileSync(fs.existsSync(codiconCustom) ? codiconCustom : codiconSource, codiconDest); // test-workbench_change
 	}
 
 	const apiusages = monacoapi.execute().usageContent;
