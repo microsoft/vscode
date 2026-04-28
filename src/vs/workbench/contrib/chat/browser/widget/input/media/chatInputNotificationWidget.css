@@ -116,15 +116,9 @@
 	height: 24px;
 }
 
-/* Tertiary (ghost) button style */
-.chat-input-notification .chat-input-notification-action-button.tertiary {
-	background-color: transparent !important;
-	color: var(--vscode-foreground) !important;
-	border: none !important;
-}
-
-.chat-input-notification .chat-input-notification-action-button.tertiary:hover {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
+/* Remove base button border from secondary (ghost) action buttons */
+.chat-input-notification .chat-input-notification-action-button.secondary {
+	border: none;
 }
 
 /* Dismiss button */

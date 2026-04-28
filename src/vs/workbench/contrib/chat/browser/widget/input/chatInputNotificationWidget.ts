@@ -142,13 +142,14 @@ export class ChatInputNotificationWidget extends Disposable {
 							await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 						}));
 					} else {
-						// Non-primary actions as tertiary (ghost) buttons
+						// Non-primary actions as secondary (ghost) buttons
 						const button = this._contentDisposables.add(new Button(actionsContainer, {
 							...defaultButtonStyles,
+							buttonSecondaryBorder: undefined,
 							supportIcons: true,
 							secondary: true,
 						}));
-						button.element.classList.add('chat-input-notification-action-button', 'tertiary');
+						button.element.classList.add('chat-input-notification-action-button');
 						button.label = action.label;
 						button.element.ariaLabel = `${notification.message} ${action.label}`;
 
