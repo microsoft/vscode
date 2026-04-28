@@ -271,7 +271,7 @@ suite('mapSessionEvents', () => {
 				{
 					type: 'skill.invoked',
 					id: 'evt-42',
-					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+					data: { name: 'SKILL', path: '/abs/repo/skills/plan/SKILL.md' },
 				},
 				{
 					type: 'user.message',

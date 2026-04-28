@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import type { IAgentToolCompleteEvent, IAgentToolReadyEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -441,6 +441,27 @@ export function getSkillSyntheticToolCallId(eventId: string | undefined, data: I
 	return `synth-skill-${hash(seed).toString(16)}`;
 }
 
+function getSkillDisplayName(data: ICopilotSkillInvokedData): string {
+	if (!isGenericSkillName(data.name) || !data.path) {
+		return data.name;
+	}
+
+	const skillUri = URI.file(data.path);
+	if (!isSkillFileName(basename(skillUri))) {
+		return data.name;
+	}
+
+	return basename(dirname(skillUri)) || data.name;
+}
+
+function isGenericSkillName(name: string): boolean {
+	return isSkillFileName(name) || name.toLowerCase() === 'skill';
+}
+
+function isSkillFileName(name: string): boolean {
+	return name.toLowerCase() === 'skill.md';
+}
+
 /**
  * Synthesizes the `tool_start` and `tool_complete` agent progress events that
  * represent a successful `skill.invoked` lifecycle event. Used by both the
@@ -454,6 +475,7 @@ export function synthesizeSkillToolEvents(
 ): { start: IAgentToolStartEvent; complete: IAgentToolCompleteEvent } {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
 	const displayName = localize('toolName.skill', "Read Skill");
+	const skillName = getSkillDisplayName(data);
 	// Use the skill name as the link text rather than the basename: every skill
 	// file is named SKILL.md, so `Reading skill [plan]` reads better than the
 	// always-identical `Reading skill [SKILL.md]`. The client may further upgrade
@@ -464,14 +486,14 @@ export function synthesizeSkillToolEvents(
 	// syntax (`\` and `]`); a full markdown escape would leave visible
 	// backslashes in renderers (like the skill pill) that extract link text
 	// without re-parsing markdown.
-	const escapedName = escapeMarkdownLinkLabel(data.name);
+	const escapedName = escapeMarkdownLinkLabel(skillName);
 	const skillLink = data.path ? `[${escapedName}](${URI.file(data.path)})` : undefined;
 	const invocationMessage: StringOrMarkdown = skillLink
 		? md(localize('toolInvoke.skill', "Reading skill {0}", skillLink))
-		: localize('toolInvoke.skillName', "Reading skill {0}", data.name);
+		: localize('toolInvoke.skillName', "Reading skill {0}", skillName);
 	const pastTenseMessage: StringOrMarkdown = skillLink
 		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
-		: localize('toolComplete.skillName', "Read skill {0}", data.name);
+		: localize('toolComplete.skillName', "Read skill {0}", skillName);
 	const start: IAgentToolStartEvent = {
 		session,
 		type: 'tool_start',

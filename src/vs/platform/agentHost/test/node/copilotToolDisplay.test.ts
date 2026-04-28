@@ -311,6 +311,11 @@ suite('skill events', () => {
 			{ name: 'plan' },
 			undefined,
 		);
+		const genericName = synthesizeSkillToolEvents(
+			session,
+			{ name: 'SKILL', path: '/abs/repo/skills/review/SKILL.md' },
+			'evt-456',
+		);
 
 		assert.deepStrictEqual({
 			skillIsHidden: isHiddenTool('skill'),
@@ -324,6 +329,8 @@ suite('skill events', () => {
 			noPathToolCallId: noPath.start.toolCallId,
 			noPathInvocation: noPath.start.invocationMessage,
 			noPathPastTense: noPath.complete.result.pastTenseMessage,
+			genericNameInvocation: genericName.start.invocationMessage,
+			genericNamePastTense: genericName.complete.result.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
@@ -336,6 +343,8 @@ suite('skill events', () => {
 			noPathToolCallId: 'synth-skill-2108d652',
 			noPathInvocation: 'Reading skill plan',
 			noPathPastTense: 'Read skill plan',
+			genericNameInvocation: { markdown: 'Reading skill [review](file:///abs/repo/skills/review/SKILL.md)' },
+			genericNamePastTense: { markdown: 'Read skill [review](file:///abs/repo/skills/review/SKILL.md)' },
 		});
 	});
 });
