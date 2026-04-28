@@ -503,6 +503,59 @@ suite('MemoryTool', () => {
 		});
 	});
 
+	// --- User CAPI sync ---
+
+	describe('user memory CAPI sync', () => {
+		beforeEach(() => {
+			vi.spyOn(accessor.get(IConfigurationService), 'getExperimentBasedConfig').mockReturnValue(true);
+		});
+
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		test('syncs JSON-formatted user create to CAPI with parsed fields', async () => {
+			await invokeMemoryTool(tool, {
+				command: 'create',
+				path: '/memories/patterns.json',
+				file_text: JSON.stringify({
+					subject: 'prefer arrow functions',
+					fact: 'use arrow functions over function expressions',
+					citations: 'src/foo.ts:10,src/bar.ts:20',
+					reason: 'codebase convention',
+				}),
+			});
+			expect(mockMemoryService.storedUserMemories).toHaveLength(1);
+			const synced = mockMemoryService.storedUserMemories[0];
+			expect(synced.subject).toBe('prefer arrow functions');
+			expect(synced.fact).toBe('use arrow functions over function expressions');
+			expect(synced.citations).toEqual(['src/foo.ts:10', 'src/bar.ts:20']);
+			expect(synced.reason).toBe('codebase convention');
+		});
+
+		test('syncs plain-text user create to CAPI using filename as subject', async () => {
+			await invokeMemoryTool(tool, {
+				command: 'create',
+				path: '/memories/debugging.md',
+				file_text: 'always check the logs first',
+			});
+			expect(mockMemoryService.storedUserMemories).toHaveLength(1);
+			const synced = mockMemoryService.storedUserMemories[0];
+			expect(synced.subject).toBe('debugging');
+			expect(synced.fact).toBe('always check the logs first');
+			expect(synced.citations).toEqual([]);
+		});
+
+		test('does not sync session-scoped creates to CAPI', async () => {
+			await invokeMemoryTool(tool, {
+				command: 'create',
+				path: '/memories/session/temp.md',
+				file_text: 'temp note',
+			});
+			expect(mockMemoryService.storedUserMemories).toHaveLength(0);
+		});
+	});
+
 	// --- Telemetry ---
 
 	describe('telemetry', () => {

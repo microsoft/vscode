@@ -26,10 +26,11 @@ class TrackingMemoryService implements IAgentMemoryService {
 	repoMemories: StoreMemoryRequest[] = [];
 	userMemories: StoreMemoryRequest[] = [];
 	shouldSucceed = true;
+	cachedResponse: MemoryPromptResponse | undefined = undefined;
 
 	async getMemoryPrompt(_repoNwo?: string, _sessionId?: string): Promise<MemoryPromptResponse | undefined> { return undefined; }
-	getCachedMemoryPrompt(_sessionId?: string): MemoryPromptResponse | undefined { return undefined; }
-	clearCache(_sessionId?: string): void { /* Mock implementation - no-op */ }
+	getCachedMemoryPrompt(_sessionId?: string): MemoryPromptResponse | undefined { return this.cachedResponse; }
+	clearCache(_sessionId?: string): void { }
 
 	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
 		if (this.shouldSucceed) {
@@ -49,6 +50,7 @@ class TrackingMemoryService implements IAgentMemoryService {
 		this.repoMemories = [];
 		this.userMemories = [];
 		this.shouldSucceed = true;
+		this.cachedResponse = undefined;
 	}
 }
 
@@ -162,6 +164,44 @@ suite('StoreMemoryTool', () => {
 			} finally {
 				throwingAccessor.dispose();
 			}
+		});
+	});
+
+	describe('alternativeDefinition', () => {
+		const staticTool = {
+			name: 'store_memory',
+			description: 'static description',
+			inputSchema: { type: 'object', properties: {} },
+		} as unknown as import('vscode').LanguageModelToolInformation;
+
+		test('returns static tool unchanged when cache is empty', () => {
+			const result = tool.alternativeDefinition(staticTool);
+			expect(result).toBe(staticTool);
+		});
+
+		test('returns static tool unchanged when storeToolDefinition is absent from cached response', () => {
+			mockMemoryService.cachedResponse = {
+				memoriesContext: { prompt: '', promptVersion: '1.0', memoriesCount: 0 },
+				storeInstructions: { prompt: '', promptVersion: '1.0' },
+				toolDefinition: { name: 'store_memory', description: 'server desc', definitionVersion: '1.1.1' },
+				storeToolDefinition: undefined as never,
+			};
+			const result = tool.alternativeDefinition(staticTool);
+			expect(result).toBe(staticTool);
+		});
+
+		test('overrides description and inputSchema from cached storeToolDefinition', () => {
+			mockMemoryService.cachedResponse = {
+				memoriesContext: { prompt: '', promptVersion: '1.0', memoriesCount: 0 },
+				storeInstructions: { prompt: '', promptVersion: '1.0' },
+				toolDefinition: { name: 'store_memory', description: 'server desc', definitionVersion: '1.1.1' },
+				storeToolDefinition: { name: 'store_memory', description: 'server desc', definitionVersion: '1.1.1' },
+			};
+			const result = tool.alternativeDefinition(staticTool);
+			expect(result).not.toBe(staticTool);
+			expect(result.description).toBe('server desc');
+			expect(result.inputSchema).toBeDefined();
+			expect(result.inputSchema).not.toBe(staticTool.inputSchema);
 		});
 	});
 });
