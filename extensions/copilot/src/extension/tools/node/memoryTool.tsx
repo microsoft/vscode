@@ -352,7 +352,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			}
 		} catch (error) {
 			this.logService.error('[MemoryTool] Error creating repo memory:', error);
-			return { text: `Error: Cannot create repository memory: ${error.message}`, outcome: 'error' };
+			return { text: `Error: Cannot create repository memory: ${error instanceof Error ? error.message : String(error)}`, outcome: 'error' };
 		}
 	}
 
@@ -481,7 +481,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			}
 		} catch (error) {
 			this.logService.error('[MemoryTool] Local operation error:', error);
-			return { text: `Error: ${error.message}`, outcome: 'error' };
+			return { text: `Error: ${error instanceof Error ? error.message : String(error)}`, outcome: 'error' };
 		}
 	}
 
