@@ -77,14 +77,14 @@
 /* Chat status dashboard shown from sidebar footer */
 .monaco-hover .chat-status-bar-entry-tooltip {
 	font-size: 12px;
-	max-width: 320px;
-	padding: 4px 6px;
+	padding: 2px 0 4px 0;
 	overflow: hidden;
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip div.header {
 	font-size: 12px;
 	margin-bottom: 6px;
+	padding: 8px 10px 8px 8px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -103,13 +103,27 @@
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-bottom: 4px;
+	margin-bottom: 8px;
+	padding: 0 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-header {
+	padding: 8px 10px 8px 8px;
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-inner {
+	padding-top: 0;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .header {
+	padding: 0 10px 8px 8px;
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip .contribution .body {
 	font-size: 11px;
 	overflow: hidden;
 	min-width: 0;
+	padding: 0 10px 4px 8px;
 }
 
 .monaco-hover .chat-status-bar-entry-tooltip .contribution .body .description,

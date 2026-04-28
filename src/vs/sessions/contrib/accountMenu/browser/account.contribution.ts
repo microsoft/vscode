@@ -220,6 +220,17 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// Color Theme (hidden on phone — no theme picker UI on mobile)
+MenuRegistry.appendMenuItem(AccountMenu, {
+	command: {
+		id: 'workbench.action.selectTheme',
+		title: localize('selectColorTheme', "Color Theme"),
+	},
+	when: IsPhoneLayoutContext.negate(),
+	group: '2_settings',
+	order: 1,
+});
+
 // Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
@@ -228,7 +239,7 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 	},
 	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
-	order: 1,
+	order: 2,
 });
 
 // Update actions
@@ -596,10 +607,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();
 
+		const themeAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.selectTheme');
 		const settingsAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.openSettings');
 		const signOutAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.agenticSignOut');
 
-		return [settingsAction, signOutAction].filter((action): action is IAction => !!action);
+		return [themeAction, settingsAction, signOutAction].filter((action): action is IAction => !!action);
 	}
 
 	private getPanelActions(): IAction[] {
@@ -620,12 +632,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 			return action.id !== 'workbench.action.agenticSignOut'
 				&& action.id !== 'workbench.action.openSettings'
+				&& action.id !== 'workbench.action.selectTheme'
 				&& !action.id.startsWith('update.');
 		});
 	}
 
 	private getHeaderActionIcon(action: IAction): ThemeIcon {
 		switch (action.id) {
+			case 'workbench.action.selectTheme':
+				return Codicon.symbolColor;
 			case 'workbench.action.openSettings':
 				return Codicon.settingsGear;
 			case 'workbench.action.agenticSignOut':
