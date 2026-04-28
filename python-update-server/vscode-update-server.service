@@ -1,0 +1,24 @@
+[Unit]
+Description=VS Code Update Server
+After=network.target
+
+[Service]
+Type=simple
+User=app123
+WorkingDirectory=/home/app123/opt/python-update-server
+ExecStart=/usr/bin/python3 /home/app123/opt/python-update-server/main.py
+Restart=always
+RestartSec=10
+
+# 环境变量（可选）
+Environment="HOST=0.0.0.0"
+Environment="PORT=8002"
+Environment="BASE_URL=http://127.0.0.1:8002"
+Environment="PACKAGES_DIR=/home/app123/opt/python-update-server/packages"
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+# FastAPI Update Server Dependencies
+# Python 3.7 Compatible - Fixed Versions
+
+# Web Framework - Python 3.7 compatible versions
+fastapi==0.95.2
+uvicorn==0.22.0
+
+# Data Validation - Python 3.7 compatible
+pydantic==1.10.12
+
+# Core Dependencies
+starlette==0.27.0
+typing-extensions==4.7.1
+
+# Optional: Production Recommended
+python-multipart==0.0.6
+python-dotenv==0.21.1

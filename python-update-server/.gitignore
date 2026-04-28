@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# 环境变量
+.env
+
+# 日志
+*.log
+
+# 安装包（太大，不提交到 git）
+packages/*.exe
+packages/*.dmg
+packages/*.deb
+packages/*.rpm
+packages/*.zip
+packages/*.tar.gz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统
+.DS_Store
+Thumbs.db

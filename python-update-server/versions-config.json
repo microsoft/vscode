@@ -1,0 +1,30 @@
+{
+  "win32-x64-user/stable": {
+    "version": "1.116.1",
+    "commit": "9c521649abc582aa7064480374c5b04e3449da6e",
+    "filename": "TSCodeSetup-1.116.1.exe",
+    "hash": "",
+    "supportsFastUpdate": true
+  },
+  "win32-x64-user/insider": {
+    "version": "1.117.0",
+    "commit": "abc123def456",
+    "filename": "TSCodeSetup-1.117.0-insider.exe",
+    "hash": "",
+    "supportsFastUpdate": true
+  },
+  "darwin-x64/stable": {
+    "version": "1.116.1",
+    "commit": "9c521649abc582aa7064480374c5b04e3449da6e",
+    "filename": "TSCode-1.116.1.dmg",
+    "hash": "",
+    "supportsFastUpdate": false
+  },
+  "linux-x64/stable": {
+    "version": "1.116.1",
+    "commit": "9c521649abc582aa7064480374c5b04e3449da6e",
+    "filename": "tscode-1.116.1-amd64.deb",
+    "hash": "",
+    "supportsFastUpdate": true
+  }
+}
