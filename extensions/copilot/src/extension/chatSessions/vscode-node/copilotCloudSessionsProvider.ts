@@ -26,13 +26,13 @@ import { DeferredPromise, retry, RunOnceScheduler } from '../../../util/vs/base/
 import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
+import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
-import { body_suffix, CONTINUE_TRUNCATION, extractTitle, formatBodyPlaceholder, getAuthorDisplayName, getRepoId, JOBS_API_VERSION, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
+import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, JOBS_API_VERSION, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -49,21 +49,6 @@ type InitialSessionOption = {
 	readonly optionId: string;
 	readonly value: string | vscode.ChatSessionProviderOptionItem;
 };
-
-function validateMetadata(metadata: unknown): asserts metadata is ConfirmationMetadata {
-	if (typeof metadata !== 'object') {
-		throw new Error('Invalid confirmation metadata: not an object.');
-	}
-	if (metadata === null) {
-		throw new Error('Invalid confirmation metadata: null value.');
-	}
-	if (typeof (metadata as ConfirmationMetadata).prompt !== 'string') {
-		throw new Error('Invalid confirmation metadata: missing or invalid prompt.');
-	}
-	if (typeof (metadata as ConfirmationMetadata).chatContext !== 'object' || (metadata as ConfirmationMetadata).chatContext === null) {
-		throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
-	}
-}
 
 function describeRuntimeValue(value: unknown): string {
 	if (Array.isArray(value)) {
@@ -152,7 +137,6 @@ const DEFAULT_PARTNER_AGENT_ID = '___vscode_partner_agent_default___';
 const DEFAULT_REPOSITORY_ID = '___vscode_repository_default___';
 
 const ACTIVE_SESSION_POLL_INTERVAL_MS = 5 * 1000; // 5 seconds
-const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const USER_SELECTED_REPOS_KEY = 'userSelectedRepositories';
@@ -275,7 +259,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private activeSessionIds: Set<string> = new Set();
 	private activeSessionPollingInterval: ReturnType<typeof setInterval> | undefined;
 	private readonly plainTextRenderer = new PlainTextRenderer();
-	private readonly gitOperationsManager = new CopilotCloudGitOperationsManager(this.logService, this._gitService, this._gitExtensionService);
 
 	// TTL cache for CCA enabled status per repository (key: "owner/repo")
 	// enabled=true cached for 30 min; disabled/undetermined cached for 5 min to reduce traffic
@@ -284,22 +267,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// Single-slot TTL cache for the full session provider options result (custom agents, models, partner agents, etc.)
 	// Caches the most recently computed options regardless of repo/workspace context
 	private _optionsCache = new SingleSlotTtlCache<vscode.ChatSessionProviderOptions>(OPTIONS_CACHE_TTL_MS);
-
-	// Title
-	private TITLE = vscode.l10n.t('Delegate to cloud agent');
-
-	// Buttons (used for matching, be careful changing!)
-	private readonly AUTHORIZE = vscode.l10n.t('Authorize');
-	private readonly COMMIT = vscode.l10n.t('Commit Changes');
-	private readonly PUSH_BRANCH = vscode.l10n.t('Push Branch');
-	private readonly DELEGATE = vscode.l10n.t('Delegate');
-	private readonly CANCEL = vscode.l10n.t('Cancel');
-
-	// Messages
-	private readonly BASE_MESSAGE = vscode.l10n.t('Cloud agent works asynchronously to create a pull request with your requested changes. This chat\'s history will be summarized and appended to the pull request as context.');
-	private readonly AUTHORIZE_MESSAGE = vscode.l10n.t('Cloud agent requires elevated GitHub access to proceed.');
-	private readonly COMMIT_MESSAGE = vscode.l10n.t('This workspace has uncommitted changes. Should these changes be pushed and included in cloud agent\'s work?');
-	private readonly PUSH_BRANCH_MESSAGE = (baseRef: string, defaultBranch: string) => vscode.l10n.t('Push your currently checked out branch `{0}`, or start from the default branch `{1}`?', baseRef, defaultBranch);
 
 	// Workspace storage keys
 	private readonly WORKSPACE_CONTEXT_PREFIX = 'copilot.cloudAgent';
@@ -1546,19 +1513,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		return state === 'MERGED' ? '$(git-merge)' : '$(git-pull-request)';
 	}
 
-	private hasHistoryToSummarize(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]): boolean {
-		if (!history || history.length === 0) {
-			return false;
-		}
-		const allResponsesEmpty = history.every(turn => {
-			if (turn instanceof vscode.ChatResponseTurn) {
-				return turn.response.length === 0;
-			}
-			return true;
-		});
-		return !allResponsesEmpty;
-	}
-
 	async delegate(
 		request: vscode.ChatRequest,
 		stream: vscode.ChatResponseStream,
@@ -1569,12 +1523,35 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		head_ref?: string
 	): Promise<vscode.ChatResponsePullRequestPart> {
 
-		let history: string | undefined;
+		// Ensure we have the permissive GitHub session before doing any work; this
+		// covers both the cloud-sessions provider entry point and the Copilot CLI
+		// `/delegate` path which calls into delegate() directly.
+		if (!this._authenticationService.permissiveGitHubSession) {
+			stream.progress(vscode.l10n.t('Authorizing'));
+			try {
+				await this._authenticationService.getGitHubSession('permissive', { createIfNone: { detail: l10n.t('Sign in to GitHub with additional permissions to use Copilot cloud sessions.') } });
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				this.logService.error(error, 'Authorization failed');
+				throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
+			}
+			if (!this._authenticationService.permissiveGitHubSession) {
+				throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
+			}
+		}
 
-		// TODO: Do this async/optimistically before delegation triggered
-		if (this.hasHistoryToSummarize(context.history)) {
-			stream.progress(vscode.l10n.t('Analyzing chat history'));
-			history = await this._chatDelegationSummaryService.summarize(context, token);
+		// Surface uncommitted local changes (staged + unstaged) so the user is aware
+		// the cloud agent runs against the remote commit, not their working tree.
+		// This aligns with Mission Control / Codex / Claude behavior.
+		const activeRepo = this._gitService.activeRepository.get();
+		const hasUncommittedChanges = !!activeRepo?.changes && (
+			activeRepo.changes.workingTree.length > 0
+			|| activeRepo.changes.indexChanges.length > 0
+		);
+		if (hasUncommittedChanges) {
+			stream.warning(vscode.l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last pushed commit; commit and push first if you want those changes included.'));
 		}
 
 		// Get the chat resource from context or metadata
@@ -1614,13 +1591,29 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				repoOwner = repoId.org;
 				repoName = repoId.repo;
 			}
-			const { default_branch } = await this._githubRepositoryService.getRepositoryInfo(repoOwner, repoName);
-			base_ref = default_branch;
+
+			// Prefer the user's currently checked-out branch when it tracks a remote
+			// (upstreamBranchName is set only when the branch exists on remote).
+			// Only applies when the active repository matches the selected repo
+			// (or no specific repo was selected).
+			const selectedMatchesActive = !selectedRepoOwner
+				|| (repoId?.org === selectedRepoOwner && repoId?.repo === selectedRepoName);
+			const currentBranch = activeRepo?.headBranchName;
+			const hasUpstream = !!activeRepo?.upstreamBranchName;
+			if (selectedMatchesActive && currentBranch && hasUpstream) {
+				base_ref = currentBranch;
+			} else {
+				const { default_branch } = await this._githubRepositoryService.getRepositoryInfo(repoOwner, repoName);
+				base_ref = default_branch;
+				if (currentBranch && !hasUpstream) {
+					stream.progress(vscode.l10n.t('Current branch `{0}` is not on the remote; cloud agent will start from `{1}`.', currentBranch, default_branch));
+				}
+			}
 		}
 
 		const { number, sessionId } = await this.invokeRemoteAgent(
 			metadata.prompt,
-			[result, history].filter(Boolean).join('\n\n').trim(),
+			result,
 			token,
 			stream,
 			base_ref,
@@ -1630,9 +1623,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			partnerAgentName,
 			selectedRepository
 		);
-		if (history) {
-			void this._chatDelegationSummaryService.trackSummaryUsage(sessionId, history);
-		}
 		this.logService.debug(`Delegated to cloud agent for PR #${number} with session ID ${sessionId}`);
 
 		// Store references for this session
@@ -1680,106 +1670,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		};
 	}
 
-	private async handleConfirmationData(request: vscode.ChatRequest, stream: vscode.ChatResponseStream, context: vscode.ChatContext, token: vscode.CancellationToken) {
-		if (!request.prompt || request.prompt.indexOf(':') === -1) {
-			this.logService.error('Invalid confirmation prompt format.');
-			return {};
-		}
-
-		// Parse out the button selected by the user
-		const selection = (request.prompt?.split(':')[0] || '').trim().toUpperCase();
-		const metadata: unknown = request.acceptedConfirmationData?.[0]?.metadata || request.rejectedConfirmationData?.[0]?.metadata;
-		try {
-			validateMetadata(metadata);
-		} catch (error) {
-			this.logService.error(`Invalid confirmation metadata: ${error}`);
-			return {};
-		}
-
-		// -- Process each button press in order of precedence
-
-		if (!selection || selection === this.CANCEL.toUpperCase() || token.isCancellationRequested) {
-			/* __GDPR__
-				"copilotcloud.chat.confirmationCancelled" : {
-					"owner": "joshspicer",
-					"comment": "Event sent when the cloud chat confirmation flow is cancelled.",
-					"tokenCancelled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the cancellation token was already cancelled." }
-				}
-			*/
-			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.confirmationCancelled', {
-				tokenCancelled: String(token.isCancellationRequested)
-			});
-			stream.markdown(vscode.l10n.t('Cloud agent cancelled'));
-			return {};
-		}
-
-		if (selection.includes(this.AUTHORIZE.toUpperCase())) {
-			stream.progress(vscode.l10n.t('Authorizing'));
-			try {
-				await this._authenticationService.getGitHubSession('permissive', { createIfNone: { detail: l10n.t('Sign in to GitHub with additional permissions to use Copilot cloud sessions.') } });
-				if (!this._authenticationService.permissiveGitHubSession) {
-					throw new Error('Failed to obtain permissive GitHub session');
-				}
-			} catch (error) {
-				this.logService.error(`Authorization failed: ${error}`);
-				throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
-
-			}
-		}
-
-		let head_ref: string | undefined; // If set, this is the branch we pushed pending changes to.
-
-		if (selection.includes(this.COMMIT.toUpperCase())) {
-			try {
-				stream.progress(vscode.l10n.t('Committing and pushing local changes'));
-				head_ref = await this.gitOperationsManager.commitAndPushChanges();
-				stream.markdown(vscode.l10n.t('Local changes pushed to remote branch `{0}`.', head_ref));
-			} catch (error) {
-				this.logService.error(`Commit and push failed: ${error}`);
-				throw vscode.l10n.t('{0}. Commit or stash your changes and try again.', (error instanceof Error ? error.message : String(error)) ?? vscode.l10n.t('Failed to commit and push changes.'));
-			}
-		} else if (selection.includes(this.PUSH_BRANCH.toUpperCase())) {
-			try {
-				stream.progress(vscode.l10n.t('Pushing base branch to remote'));
-				const baseBranch = await this.gitOperationsManager.pushBaseRefToRemote();
-				stream.markdown(vscode.l10n.t('Base branch `{0}` pushed to remote.', baseBranch));
-			} catch (error) {
-				this.logService.error(`Push branch failed: ${error}`);
-				throw vscode.l10n.t('{0}. Push the current branch to remote and try again.', (error instanceof Error ? error.message : String(error)) ?? vscode.l10n.t('Failed to push current branch.'));
-			}
-		}
-
-		// Get the selected repository from the chat context for multiroot workspace support
-		const chatResource = metadata.chatContext.chatSessionContext?.chatSessionItem?.resource;
-		const selectedRepository = chatResource ? this.sessionRepositoryMap.get(chatResource) : undefined;
-
-		const base_ref: string = await (async () => {
-			const res = await this.checkBaseBranchPresentOnRemote(selectedRepository);
-			if (!res) {
-				// Unexpected
-				throw new Error(vscode.l10n.t('Repo base branch is not detected on remote. Push your branch and try again.'));
-			}
-			return (res?.missingOnRemote || !res?.baseRef) ? res.repoDefaultBranch : res?.baseRef;
-		})();
-		stream.progress(vscode.l10n.t('Validating branch base branch exists on remote'));
-
-		// Now trigger delegation
-		try {
-			await this.delegate(request, stream, context, token, metadata, base_ref, head_ref);
-		} catch (error) {
-			this.logService.error(`Failure in delegation: ${error}`);
-			throw new Error(vscode.l10n.t('{0}', (error instanceof Error ? error.message : String(error))));
-		}
-	}
-
-	private setWorkspaceContext(key: string, value: string) {
-		this._extensionContext.workspaceState.update(`${this.WORKSPACE_CONTEXT_PREFIX}.${key}`, value);
-	}
-
-	private getWorkspaceContext(key: string): string | undefined {
-		return this._extensionContext.workspaceState.get<string>(`${this.WORKSPACE_CONTEXT_PREFIX}.${key}`);
-	}
-
 	resetWorkspaceContext() {
 		const keys =
 			this._extensionContext.workspaceState.keys()
@@ -1823,137 +1713,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		return validRepos;
 	}
 
-	private async detectedUncommittedChanges(): Promise<boolean> {
-		const currentRepository = this._gitService.activeRepository?.get();
-		if (!currentRepository) {
-			return false;
-		}
-		const git = this._gitExtensionService.getExtensionApi();
-		const repo = git?.getRepository(currentRepository?.rootUri);
-		if (!repo) {
-			return false;
-		}
-		return repo.state.workingTreeChanges.length > 0 || repo.state.indexChanges.length > 0;
-	}
-
-	/**
-	 * Checks if the current base branch exists on the remote repository.
-	 * Returns branch information including whether it's missing from remote, the base ref name, and the repository's default branch.
-	 * @param selectedRepository - Optional repository in `org/repo` format. If provided, uses this specific repository
-	 *                             instead of defaulting to the first one. This enables multiroot workspace support.
-	 */
-	private async checkBaseBranchPresentOnRemote(selectedRepository?: string): Promise<{ missingOnRemote: boolean; baseRef: string; repoDefaultBranch: string } | undefined> {
-		try {
-			const repoIds = await getRepoId(this._gitService);
-			if (!repoIds || repoIds.length === 0) {
-				return undefined;
-			}
-
-			// In multiroot workspaces, use the selected repository if provided
-			let repoId = repoIds[0];
-			if (selectedRepository && selectedRepository !== DEFAULT_REPOSITORY_ID) {
-				const [selectedOrg, selectedRepo] = selectedRepository.split('/');
-				const matchingRepoId = repoIds.find(id => id.org === selectedOrg && id.repo === selectedRepo);
-				repoId = matchingRepoId ?? new GithubRepoId(selectedOrg, selectedRepo);
-			}
-
-			const { baseRef, repository, remoteName } = await this.gitOperationsManager.repoInfo();
-			const remoteRepoInfo = await this._githubRepositoryService.getRepositoryInfo(repoId.org, repoId.repo);
-			const remoteHasRef = await this.gitOperationsManager.checkIfRemoteHasRef(repository, remoteName, baseRef);
-			if (remoteHasRef) {
-				// Remote HAS the base branch, no action needed.
-				return { missingOnRemote: false, baseRef, repoDefaultBranch: remoteRepoInfo.default_branch };
-			}
-			// Remote is MISSING the base branch
-			return { missingOnRemote: true, baseRef, repoDefaultBranch: remoteRepoInfo.default_branch };
-		} catch (error) {
-			this.logService.debug(`Failed to check default branch: ${error}`);
-			return undefined;
-		}
-	}
-
-	/**
-	 * Returns either all the data for a confirmation dialog, or undefined if no confirmation is needed.
-	 * */
-	private async buildConfirmation(context: vscode.ChatContext): Promise<{ title: string; message: string; buttons: string[] } | undefined> {
-		const title: string = this.TITLE;
-		const buttons: string[] = [this.CANCEL];
-		let message: string = this.BASE_MESSAGE;
-
-		// Get the selected repository from the chat context for multiroot workspace support
-		const chatResource = context.chatSessionContext?.chatSessionItem?.resource;
-		const selectedRepository = chatResource ? this.sessionRepositoryMap.get(chatResource) : undefined;
-
-		const needsPermissiveAuth = !this._authenticationService.permissiveGitHubSession;
-		const hasUncommittedChanges = await this.detectedUncommittedChanges();
-		const baseBranchInfo = await this.checkBaseBranchPresentOnRemote(selectedRepository);
-
-		if (needsPermissiveAuth && hasUncommittedChanges) {
-			message += '\n\n' + this.AUTHORIZE_MESSAGE;
-			message += '\n\n' + this.COMMIT_MESSAGE;
-			buttons.unshift(
-				vscode.l10n.t('{0} and {1}', this.AUTHORIZE, this.COMMIT),
-				this.AUTHORIZE,
-			);
-		} else if (needsPermissiveAuth && baseBranchInfo?.missingOnRemote) {
-			const { baseRef, repoDefaultBranch } = baseBranchInfo;
-			message += '\n\n' + this.AUTHORIZE_MESSAGE;
-			message += '\n\n' + this.PUSH_BRANCH_MESSAGE(baseRef, repoDefaultBranch);
-			buttons.unshift(
-				vscode.l10n.t('{0} and {1}', this.AUTHORIZE, this.PUSH_BRANCH),
-				this.AUTHORIZE,
-			);
-		} else if (needsPermissiveAuth) {
-			message += '\n\n' + this.AUTHORIZE_MESSAGE;
-			buttons.unshift(
-				this.AUTHORIZE,
-			);
-		} else if (hasUncommittedChanges) {
-			message += '\n\n' + this.COMMIT_MESSAGE;
-			buttons.unshift(
-				vscode.l10n.t('{0} and {1}', this.COMMIT, this.DELEGATE),
-				this.DELEGATE,
-			);
-		} else if (baseBranchInfo?.missingOnRemote) {
-			const { baseRef, repoDefaultBranch } = baseBranchInfo;
-			message += '\n\n' + this.PUSH_BRANCH_MESSAGE(baseRef, repoDefaultBranch);
-			buttons.unshift(
-				vscode.l10n.t('{0} and {1}', this.PUSH_BRANCH, this.DELEGATE),
-				this.DELEGATE,
-			);
-		}
-
-		// Check if the message has been modified from the default
-		const messageModified = message !== this.BASE_MESSAGE;
-
-		// Only skip confirmation if neither buttons were modified nor message was modified
-		if (buttons.length === 1 && !messageModified) {
-			if (context.chatSessionContext?.isUntitled) {
-				return; // Don't show the confirmation
-			}
-			const seenDelegationPromptBefore = this.getWorkspaceContext(SEEN_DELEGATION_PROMPT_KEY);
-			if (seenDelegationPromptBefore) {
-				return; // Don't show the confirmation
-			}
-		}
-
-		if (buttons.length === 1) {
-			// No other affirmative button added, so add generic one
-			buttons.unshift(this.DELEGATE);
-		}
-
-		return { title, message, buttons };
-	}
-
 	private async chatParticipantImpl(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
 		if (token.isCancellationRequested) {
 			stream.warning(vscode.l10n.t('Cloud session cancelled.'));
-			return {};
-		}
-
-		if (request.acceptedConfirmationData || request.rejectedConfirmationData) {
-			await this.handleConfirmationData(request, stream, context, token);
-			this.setWorkspaceContext(SEEN_DELEGATION_PROMPT_KEY, 'yes');
 			return {};
 		}
 
@@ -2010,36 +1772,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return {};
 		}
 
-		// New request
-		const showConfirmation = await this.buildConfirmation(context);
-		if (showConfirmation) {
-			const { title, message, buttons } = showConfirmation;
-			stream.confirmation(
-				title,
-				message,
-				{
-					metadata: {
-						prompt: request.prompt,
-						references: request.references,
-						chatContext: context,
-					} satisfies ConfirmationMetadata
-				},
-				buttons
-			);
-		} else {
-			// No confirmation
-			await this.delegate(
-				request,
-				stream,
-				context,
-				token,
-				{
-					prompt: request.prompt,
-					references: request.references,
-					chatContext: context
-				} satisfies ConfirmationMetadata,
-			);
-		}
+		// New request — align with Mission Control / CCA PR-decoupling flow: no modal,
+		// no preflight, go straight to delegation. delegate() performs its own
+		// permissive-auth check (shared with CLI /delegate callers), surfaces
+		// uncommitted-changes warnings, and handles base_ref selection.
+		await this.delegate(
+			request,
+			stream,
+			context,
+			token,
+			{
+				prompt: request.prompt,
+				references: request.references,
+				chatContext: context
+			} satisfies ConfirmationMetadata,
+		);
 	}
 
 	private async handleFollowUp(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
@@ -2606,9 +2353,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			...(resolvePartnerAgentName(partnerAgentName)),
 			pull_request: {
 				title,
-				body_placeholder: formatBodyPlaceholder(title),
 				base_ref,
-				body_suffix,
 				...(head_ref && { head_ref }),
 			}
 		};

@@ -10,7 +10,6 @@ import { UriHandlerPaths, UriHandlers } from './chatSessionsUriHandler';
 
 export const MAX_PROBLEM_STATEMENT_LENGTH = 30_000 - 50; // 50 character buffer
 export const CONTINUE_TRUNCATION = vscode.l10n.t('Continue with truncation');
-export const body_suffix = vscode.l10n.t('Created from [VS Code](https://code.visualstudio.com/docs/copilot/copilot-coding-agent).');
 // https://github.com/github/sweagentd/blob/main/docs/adr/0001-create-job-api.md
 export const JOBS_API_VERSION = 'v1';
 
@@ -64,10 +63,6 @@ export function extractTitle(prompt: string, context: string | undefined): strin
 	}
 	return fromTitle();
 
-}
-
-export function formatBodyPlaceholder(title: string | undefined): string {
-	return vscode.l10n.t('Cloud agent has begun work on **{0}** and will update this pull request as work progresses.', title || vscode.l10n.t('your request'));
 }
 
 export async function getRepoId(gitService: IGitService): Promise<GithubRepoId[] | undefined> {
