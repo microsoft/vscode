@@ -228,6 +228,232 @@ const completionSpec: Fig.Spec = {
 					description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 					subcommands: [
 						{
+							name: ['files'],
+							description: 'Manage files in a hosted agent session.',
+							subcommands: [
+								{
+									name: ['delete', 'remove', 'rm'],
+									description: 'Delete a file or directory from a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Remote file or directory path to delete',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--recursive'],
+											description: 'Recursively delete directories and their contents',
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['download'],
+									description: 'Download a file from a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Remote file path to download',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--target-path', '-t'],
+											description: 'Local destination path (defaults to remote filename)',
+											args: [
+												{
+													name: 'target-path',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['list', 'ls'],
+									description: 'List files in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['mkdir'],
+									description: 'Create a directory in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--dir', '-d'],
+											description: 'Remote directory path to create',
+											args: [
+												{
+													name: 'dir',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['stat'],
+									description: 'Get file or directory metadata in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['upload'],
+									description: 'Upload a file to a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Local file path to upload',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--target-path', '-t'],
+											description: 'Remote destination path (defaults to local filename)',
+											args: [
+												{
+													name: 'target-path',
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+						{
 							name: ['init'],
 							description: 'Initialize a new AI agent project. (Preview)',
 							options: [
@@ -369,6 +595,10 @@ const completionSpec: Fig.Spec = {
 									description: 'Stream logs in real-time',
 								},
 								{
+									name: ['--raw'],
+									description: 'Print the raw SSE stream without formatting',
+								},
+								{
 									name: ['--session-id', '-s'],
 									description: 'Session ID to stream logs for',
 									args: [
@@ -395,6 +625,10 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--utc'],
+									description: 'Display timestamps in UTC instead of local time',
+								},
 							],
 						},
 						{
@@ -416,6 +650,153 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'start-command',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['sessions'],
+							description: 'Manage sessions for a hosted agent endpoint.',
+							subcommands: [
+								{
+									name: ['create'],
+									description: 'Create a new session for a hosted agent.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--isolation-key'],
+											description: 'Isolation key for session ownership (derived from Entra token by default)',
+											args: [
+												{
+													name: 'isolation-key',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id'],
+											description: 'Optional caller-provided session ID (auto-generated if omitted)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--version'],
+											description: 'Agent version to back the session (auto-resolved from azd environment if omitted)',
+											args: [
+												{
+													name: 'version',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['delete'],
+									description: 'Delete a session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--isolation-key'],
+											description: 'Isolation key for session ownership (derived from Entra token by default)',
+											args: [
+												{
+													name: 'isolation-key',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['list'],
+									description: 'List sessions for a hosted agent.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--limit'],
+											description: 'Maximum number of sessions to return',
+											args: [
+												{
+													name: 'limit',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--pagination-token'],
+											description: 'Continuation token from a previous list response',
+											args: [
+												{
+													name: 'pagination-token',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['show'],
+									description: 'Show details of a session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
 										},
 									],
 								},
@@ -2924,6 +3305,36 @@ const completionSpec: Fig.Spec = {
 							description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 							subcommands: [
 								{
+									name: ['files'],
+									description: 'Manage files in a hosted agent session.',
+									subcommands: [
+										{
+											name: ['delete', 'remove', 'rm'],
+											description: 'Delete a file or directory from a hosted agent session.',
+										},
+										{
+											name: ['download'],
+											description: 'Download a file from a hosted agent session.',
+										},
+										{
+											name: ['list', 'ls'],
+											description: 'List files in a hosted agent session.',
+										},
+										{
+											name: ['mkdir'],
+											description: 'Create a directory in a hosted agent session.',
+										},
+										{
+											name: ['stat'],
+											description: 'Get file or directory metadata in a hosted agent session.',
+										},
+										{
+											name: ['upload'],
+											description: 'Upload a file to a hosted agent session.',
+										},
+									],
+								},
+								{
 									name: ['init'],
 									description: 'Initialize a new AI agent project. (Preview)',
 								},
@@ -2938,6 +3349,28 @@ const completionSpec: Fig.Spec = {
 								{
 									name: ['run'],
 									description: 'Run your agent locally for development.',
+								},
+								{
+									name: ['sessions'],
+									description: 'Manage sessions for a hosted agent endpoint.',
+									subcommands: [
+										{
+											name: ['create'],
+											description: 'Create a new session for a hosted agent.',
+										},
+										{
+											name: ['delete'],
+											description: 'Delete a session.',
+										},
+										{
+											name: ['list'],
+											description: 'List sessions for a hosted agent.',
+										},
+										{
+											name: ['show'],
+											description: 'Show details of a session.',
+										},
+									],
 								},
 								{
 									name: ['show'],
@@ -3534,7 +3967,7 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: ['--no-prompt'],
-			description: 'Accepts the default value instead of prompting, or it fails if there is no default.',
+			description: 'Runs without prompts. Uses existing values; fails if any required value or decision cannot be resolved automatically.',
 			isPersistent: true,
 		},
 		{
