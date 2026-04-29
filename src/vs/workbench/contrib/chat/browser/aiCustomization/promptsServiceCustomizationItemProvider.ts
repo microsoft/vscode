@@ -149,7 +149,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					enabled: !disabledUris.has(command.uri),
 					extensionId: command.extension?.identifier.value,
 					pluginUri: command.pluginUri,
-					userInvocable: true
+					userInvocable: command.userInvocable
 				});
 				if (command.extension) {
 					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
