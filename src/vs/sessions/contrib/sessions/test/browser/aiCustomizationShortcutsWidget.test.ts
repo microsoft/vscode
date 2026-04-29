@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
@@ -144,7 +145,7 @@ function createInstantiationService(disposables: DisposableStore, storageService
 		private readonly _descriptor: IHarnessDescriptor = {
 			id: 'test',
 			label: 'Test',
-			icon: undefined as never,
+			icon: ThemeIcon.fromId('vm'),
 			getStorageSourceFilter: () => ({ sources: [] }),
 		};
 		override readonly activeHarness = observableValue('testActiveHarness', 'test');

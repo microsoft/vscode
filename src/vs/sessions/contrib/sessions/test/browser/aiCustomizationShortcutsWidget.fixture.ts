@@ -7,6 +7,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -142,7 +143,7 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 	const descriptor: IHarnessDescriptor = {
 		id: 'fixture',
 		label: 'Fixture',
-		icon: undefined as never,
+		icon: ThemeIcon.fromId('vm'),
 		hiddenSections,
 		getStorageSourceFilter: () => ({ sources: [] }),
 	};
