@@ -260,8 +260,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private splitViewContainer!: HTMLElement;
 	private splitView!: SplitView<number>;
 	private sidebarContainer!: HTMLElement;
+	private sidebarSectionsListContainer!: HTMLElement;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
+	private contentInner!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
@@ -431,7 +433,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.sidebarContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.sectionsList.layout(height - 8, width);
+					this.sidebarContainer.style.height = `${height}px`;
+					this.sectionsList.layout(
+						this.sidebarSectionsListContainer.clientHeight,
+						this.sidebarSectionsListContainer.clientWidth
+					);
 				}
 			},
 		}, savedWidth, undefined, true);
@@ -445,15 +451,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.contentContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.listWidget.layout(height - 16, width - 24);
-					this.mcpListWidget?.layout(height - 16, width - 24);
-					this.pluginListWidget?.layout(height - 16, width - 24);
+					this.contentContainer.style.height = `${height}px`;
+					const contentHeight = this.contentInner.clientHeight;
+					const contentWidth = this.contentInner.clientWidth;
+					this.listWidget.layout(contentHeight, contentWidth);
+					this.mcpListWidget?.layout(contentHeight, contentWidth);
+					this.pluginListWidget?.layout(contentHeight, contentWidth);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
-					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
+					this.modelsWidget?.layout(Math.max(0, contentHeight - modelsFooterHeight), contentWidth);
 					if (this.viewMode === 'editor' && this.embeddedEditor) {
 						const editorHeaderHeight = 50;
-						const padding = 24;
-						this.embeddedEditor.layout({ width: Math.max(0, width - padding), height: Math.max(0, height - editorHeaderHeight - padding) });
+						this.embeddedEditor.layout({ width: contentWidth, height: Math.max(0, contentHeight - editorHeaderHeight) });
 					}
 					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
 					// the container; no explicit layout call is needed here.
@@ -528,7 +536,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.createSidebarHeader(sidebarContent);
 
 		// Main sections list container (takes remaining space)
-		const sectionsListContainer = DOM.append(sidebarContent, $('.sidebar-sections-list'));
+		const sectionsListContainer = this.sidebarSectionsListContainer = DOM.append(sidebarContent, $('.sidebar-sections-list'));
 
 		this.sectionsList = this.editorDisposables.add(this.instantiationService.createInstance(
 			WorkbenchList<ISectionItem>,
@@ -795,7 +803,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createContent(): void {
-		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
+		const contentInner = this.contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
 		// Welcome page (shown when no section is selected)
 		this.createWelcomePage(contentInner);
@@ -1031,6 +1039,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
+		}
+
+		if (this.dimension) {
+			this.layout(this.dimension);
 		}
 
 		this.ensureSectionsListReflectsActiveSection(section);
@@ -1379,6 +1391,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.dimension = dimension;
 
 		if (this.container && this.splitView) {
+			this.splitViewContainer.style.width = `${dimension.width}px`;
 			this.splitViewContainer.style.height = `${dimension.height}px`;
 			this.splitView.layout(dimension.width, dimension.height);
 		}
