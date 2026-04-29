@@ -480,6 +480,19 @@ function getPromptLabel(input: CopilotCLISessionInput): string {
 	return input.prompt;
 }
 
+function getRemoteControlArgs(input: CopilotCLISessionInput): string {
+	const prompt = stripReminders(('prompt' in input ? input.prompt : '') ?? '').trim().toLowerCase();
+	if (prompt === '/remote' || prompt === 'remote') {
+		return '';
+	}
+	for (const commandPrefix of ['/remote ', 'remote ']) {
+		if (prompt.startsWith(commandPrefix)) {
+			return prompt.slice(commandPrefix.length).trim();
+		}
+	}
+	return prompt;
+}
+
 export interface ICopilotCLISession extends IDisposable {
 	readonly sessionId: string;
 	readonly title?: string;
@@ -1382,7 +1395,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			return;
 		}
 
-		const args = ('prompt' in input ? input.prompt : '')?.trim().toLowerCase();
+		const args = getRemoteControlArgs(input);
 		const isCurrentlyActive = !!this._mcState;
 		if (!args) {
 			this._showRemoteControlStatus();

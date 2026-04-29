@@ -1529,7 +1529,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				const { prompt, attachments } = contextForRequest;
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
-			} else if (request.command && (copilotCLICommands as readonly string[]).includes(request.command) && !isUntitled) {
+			} else if (request.command && (copilotCLICommands as readonly string[]).includes(request.command)) {
 				const { prompt, attachments } = request.prompt
 					? await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token)
 					: { prompt: '', attachments: [] };
@@ -1562,7 +1562,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				? { details: formatModelDetails(modelInfo) }
 				: {};
 
-			if (isUntitled && !token.isCancellationRequested) {
+			if (isUntitled && request.command !== 'remote' && !token.isCancellationRequested) {
 				// Its possible the user tried steering, in that case, we should NOT swap the session item because the session.
 				// Else the messages may get lost (wait CHECK_FOR_STEERING_DELAYms to check if we have pending steering requests)
 				await new Promise<void>(resolve => disposableTimeout(() => resolve(), CHECK_FOR_STEERING_DELAY, this._store));
