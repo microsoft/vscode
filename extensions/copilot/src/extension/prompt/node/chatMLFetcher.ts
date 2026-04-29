@@ -239,6 +239,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					canRetryOnce,
 					requestKindOptions,
 					opts.summarizedAtRoundId,
+					opts.modeChanged,
 				);
 				response = fetchResult.result;
 				actualFetcher = fetchResult.fetcher;
@@ -861,6 +862,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		canRetryOnce?: boolean,
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
+		modeChanged?: boolean,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle }> {
 		const isPowerSaveBlockerEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, this._experimentationService);
 		const blockerHandle = isPowerSaveBlockerEnabled && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
@@ -900,6 +902,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				canRetryOnce,
 				requestKindOptions,
 				summarizedAtRoundId,
+				modeChanged,
 			);
 			return { ...fetchResult, suspendEventSeen: suspendEventSeen || undefined, resumeEventSeen: resumeEventSeen || undefined };
 		} catch (err) {
@@ -938,6 +941,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		canRetryOnce?: boolean,
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
+		modeChanged?: boolean,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle }> {
 
 		if (cancellationToken.isCancellationRequested) {
@@ -1011,6 +1015,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					telemetryProperties,
 					requestKindOptions,
 					summarizedAtRoundId,
+					modeChanged,
 				);
 				return { ...wsResult, otelSpan };
 			}
@@ -1069,6 +1074,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryProperties: TelemetryProperties | undefined,
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
 		summarizedAtRoundId: string | undefined,
+		modeChanged: boolean | undefined,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled }> {
 		const intent = locationToIntent(location);
 		const agentInteractionType = requestKindOptions?.kind === 'subagent' ?
@@ -1129,7 +1135,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		const requestStart = Date.now();
-		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId }, cancellationToken);
+		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId, modeChanged }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
 		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, modelRequestId.serverExperiments, getResponsesApiCompactionThresholdFromBody(request));
