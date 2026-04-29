@@ -2218,7 +2218,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				lastInputNeededOutput = currentOutput;
 				lastInputNeededNotificationTime = now;
 				const inputAction = this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false);
-				const message = `[Terminal ${termId} notification: command is waiting for input.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
+				const message = `[Terminal ${termId} notification: command may be waiting for input — assess the output below.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
@@ -2226,7 +2226,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalNeedsInput', "`{0}` needs input", commandName),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
