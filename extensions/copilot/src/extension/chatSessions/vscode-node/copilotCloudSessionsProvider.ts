@@ -33,7 +33,9 @@ import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, JOBS_API_VERSION, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
+import { CloudAgentBackend } from './cloudAgentBackend';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
+import { JobsApiBackend } from './jobsApiBackend';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
 
@@ -271,6 +273,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// Workspace storage keys
 	private readonly WORKSPACE_CONTEXT_PREFIX = 'copilot.cloudAgent';
 
+	// Backend abstraction for Jobs API / Task API migration
+	private readonly _backend: CloudAgentBackend;
+
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IGitService private readonly _gitService: IGitService,
@@ -289,6 +294,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 	) {
 		super();
+		this._backend = new JobsApiBackend(this._octoKitService, this.logService);
 		this.registerCommands();
 
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
@@ -1226,10 +1232,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		const indexedSessionId = SessionIdForPr.parse(resource);
+		const identity = this._backend.parseSessionId(resource);
 		let pullRequestNumber: number | undefined;
-		if (indexedSessionId) {
-			pullRequestNumber = indexedSessionId.prNumber;
+		if (identity?.type === 'pr') {
+			pullRequestNumber = identity.prNumber;
 		}
 		if (typeof pullRequestNumber === 'undefined') {
 			pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
