@@ -660,21 +660,18 @@ export class ChatService extends Disposable implements IChatService {
 			providedSession.dispose();
 		}));
 
-		// For agent host sessions (local `agent-host-*` and remote `remote-*`),
-		// re-run the request parser on restored history so that decorated parts
-		// (slash commands, prompt slash commands, agent mentions) are revived
-		// in the UI. Other contributed sessions still get a single text part.
 		const isAgentHostSession = isAgentHostTarget(chatSessionType);
 		const requestParser = isAgentHostSession ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
 		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
 			if (requestParser) {
 				try {
+					const sessionCapabilities = this.chatSessionService.getCapabilitiesForSessionType(chatSessionType);
 					const parsed = requestParser.parseChatRequestWithReferences(
 						EMPTY_REFERENCES,
 						EMPTY_TOOL_ENABLEMENT_MAP,
 						text,
 						location,
-						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities: agent?.capabilities },
+						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities: sessionCapabilities ?? agent?.capabilities },
 					);
 					if (parsed.parts.length > 0) {
 						return parsed;
