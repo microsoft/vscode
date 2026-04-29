@@ -35,6 +35,11 @@
 	color: var(--vscode-foreground);
 }
 
+.chat-status-bar-entry-tooltip .collapsible-header.no-border {
+	border-top: none;
+	margin-top: 0;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-header:focus {
 	outline: none;
 }
@@ -67,7 +72,13 @@
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
-	padding: 10px 0 4px;
+	margin-top: 10px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content.collapsed > .collapsible-inner {
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner > hr {
@@ -344,6 +355,12 @@
 	font-size: 11px;
 	overflow: hidden;
 	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .header {
+	border-bottom: none;
+	padding-bottom: 0;
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip .contribution .body .description,

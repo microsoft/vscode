@@ -143,8 +143,8 @@ export class ChatStatusDashboard extends DomWidget {
 			const headerHost = this.options?.titleHeaderContainer ?? this.element;
 			const header = this.renderHeader(headerHost, this._store, planName, toAction({
 				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Chat"),
-				tooltip: localize('quotaTooltip', "Manage Chat"),
+				label: localize('quotaLabel', "Manage Copilot Settings"),
+				tooltip: localize('quotaTooltip', "Manage Copilot Settings"),
 				class: ThemeIcon.asClassName(Codicon.settings),
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
@@ -199,7 +199,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Quick Settings — collapsible region
 		if (hasQuickSettingsContent) {
-			this.renderQuickSettings(contributedEntries);
+			const hasContentAbove = hasUsageSection || hasVisibleUsageContent || !!premiumChat?.unlimited;
+			this.renderQuickSettings(contributedEntries, hasContentAbove);
 		}
 
 		// New to Chat / Signed out
@@ -272,7 +273,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
-	private renderQuickSettings(contributedEntries: ChatStatusEntry[]): void {
+	private renderQuickSettings(contributedEntries: ChatStatusEntry[], hasContentAbove: boolean): void {
 		const nonCollapsible = !!this.options?.disableQuickSettingsCollapsible;
 		const collapsed = !nonCollapsible && this.storageService.getBoolean(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, StorageScope.PROFILE, true);
 
@@ -280,6 +281,9 @@ export class ChatStatusDashboard extends DomWidget {
 		let chevron: HTMLElement | undefined;
 		if (!nonCollapsible) {
 			disclosureHeader = this.element.appendChild($('button.collapsible-header'));
+			if (!hasContentAbove) {
+				disclosureHeader.classList.add('no-border');
+			}
 			disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 
 			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
