@@ -149,7 +149,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/cli": "^0.1.1",
+    "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/chrome-remote-interface": "^0.33.0",
@@ -187,7 +187,6 @@
     "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.19",
     "@webgpu/types": "^0.1.66",
-    "agent-browser": "^0.16.3",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
