@@ -904,8 +904,13 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 						try {
 							const resolvedParent = await realpath(parentDir);
 							linked = path.join(resolvedParent, path.basename(uri.fsPath));
-						} catch {
-							linked = uri.fsPath;
+						} catch (parentError) {
+							const code = (parentError as NodeJS.ErrnoException).code;
+							if (code === 'ENOENT' || code === 'ENOTDIR') {
+								linked = uri.fsPath;
+							} else {
+								throw parentError;
+							}
 						}
 					} else {
 						throw e;
