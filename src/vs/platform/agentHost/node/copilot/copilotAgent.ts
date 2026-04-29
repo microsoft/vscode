@@ -24,14 +24,14 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, SessionHistoryEvent } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { AutoApproveLevel, ISchemaProperty, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationStatus, CustomizationRef, SessionInputResponseKind, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
+import { CustomizationStatus, CustomizationRef, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type PendingMessage, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn, type PolicyState } from '../../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -123,31 +123,39 @@ function buildWorktreeAnnouncementText(branchName: string): string {
 	) + '\n\n';
 }
 
-type AgentMessageOrEvent = SessionHistoryEvent;
-
 /**
- * Returns a copy of `messages` where `announcement` has been prepended to
- * the first top-level assistant message's content. Subagent inner messages
- * (those with a `parentToolCallId`) are skipped so the announcement lands
- * on the parent turn. If no assistant message exists yet, returns the
- * messages unchanged — the live announcement path is responsible for the
- * very first turn before any reply has been recorded.
+ * Returns a copy of `turns` where `announcement` has been prepended to the
+ * first top-level assistant turn's first markdown response part. Used on
+ * session restore so the worktree announcement remains visible after the
+ * session is reopened. If no assistant content exists yet, a fresh
+ * markdown part is inserted at the top of the first turn.
  */
-function prependAnnouncementToFirstAssistantMessage(
-	messages: readonly AgentMessageOrEvent[],
+function prependAnnouncementToFirstTurn(
+	turns: readonly Turn[],
 	announcement: string,
-): readonly AgentMessageOrEvent[] {
-	const firstAssistantIdx = messages.findIndex(m => m.type === 'message' && m.role === 'assistant' && !m.parentToolCallId);
-	if (firstAssistantIdx === -1) {
-		return messages;
+): readonly Turn[] {
+	if (turns.length === 0) {
+		return turns;
 	}
-	const target = messages[firstAssistantIdx] as IAgentMessageEvent;
-	const updated: IAgentMessageEvent = { ...target, content: announcement + target.content };
-	return [
-		...messages.slice(0, firstAssistantIdx),
-		updated,
-		...messages.slice(firstAssistantIdx + 1),
-	];
+	const result = turns.slice();
+	const first = result[0];
+	const partIdx = first.responseParts.findIndex(rp => rp.kind === ResponsePartKind.Markdown);
+	if (partIdx >= 0) {
+		const part = first.responseParts[partIdx];
+		const updated: ResponsePart = part.kind === ResponsePartKind.Markdown
+			? { ...part, content: announcement + part.content }
+			: part;
+		const responseParts = first.responseParts.slice();
+		responseParts[partIdx] = updated;
+		result[0] = { ...first, responseParts };
+	} else {
+		const responseParts: ResponsePart[] = [
+			{ kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
+			...first.responseParts,
+		];
+		result[0] = { ...first, responseParts };
+	}
+	return result;
 }
 
 /**
@@ -157,7 +165,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = 'copilotcli' as const;
 	private static readonly _BRANCH_COMPLETION_LIMIT = 25;
 
-	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
+	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
@@ -700,18 +708,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			entry ??= await this._resumeSession(sessionId);
 
-			// Emit any pending first-turn announcements (e.g. worktree
-			// created) as a synthetic streaming delta before delegating to
-			// the SDK. The mapper treats it like any other assistant text —
-			// the SDK's subsequent deltas append to the same markdown part.
-			// The active turn has already been started by the state manager
-			// at this point, so the event mapper can attach the delta to it.
-			const pending = this._pendingFirstTurnAnnouncements.get(sessionId);
-			if (pending) {
+			// Reset per-turn streaming state on the session so that the
+			// next text/reasoning chunk (and any host-emitted announcement)
+			// allocates a fresh response part.
+			if (turnId) {
+				entry.resetTurnState(turnId);
+			}
+
+			// Emit any pending first-turn announcement (e.g. worktree
+			// created) as a synthetic markdown response part before
+			// delegating to the SDK. The SDK's subsequent deltas append to
+			// the same markdown part because the session has already
+			// allocated `_currentMarkdownPartId`.
+			const announcement = this._pendingFirstTurnAnnouncements.get(sessionId);
+			if (announcement !== undefined) {
 				this._pendingFirstTurnAnnouncements.delete(sessionId);
-				const messageId = `copilot-announcement-${generateUuid()}`;
-				const event: IAgentDeltaEvent = { type: 'delta', session, messageId, content: pending };
-				this._onDidSessionProgress.fire(event);
+				entry.emitInitialMarkdown(announcement);
 			}
 
 			try {
@@ -743,7 +755,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// No SDK-level enqueue is needed.
 	}
 
-	async getSessionMessages(session: URI): Promise<SessionHistoryEvent[]> {
+	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// If the URI describes a subagent child session (`<parent>/subagent/<toolCallId>`),
+		// load the parent's events once and extract the child's filtered turns.
+		const subagentInfo = parseSubagentSessionUri(session.toString());
+		if (subagentInfo) {
+			const parentUri = URI.parse(subagentInfo.parentSession);
+			const parentSessionId = AgentSession.id(parentUri);
+			const parentEntry = this._sessions.get(parentSessionId) ?? await this._resumeSession(parentSessionId).catch(err => {
+				this._logService.warn(`[Copilot:${parentSessionId}] Failed to resume parent for subagent restore`, err);
+				return undefined;
+			});
+			if (!parentEntry) {
+				return [];
+			}
+			return parentEntry.getSubagentMessages(subagentInfo.toolCallId, session.toString());
+		}
+
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
@@ -752,22 +780,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!entry) {
 			return [];
 		}
-		const rawMessages = await entry.getMessages();
+		const rawTurns = await entry.getMessages();
 
 		// If a worktree was created for this session at create-time, prepend
-		// the announcement to the first assistant message's content so it
-		// appears at the top of the first response when the session is
-		// reopened. The live path (sendMessage) handles the very first turn
-		// when the session is fresh; this path takes over on subsequent
-		// loads, where _pendingFirstTurnAnnouncements is empty.
+		// the announcement to the first turn so it appears at the top of the
+		// first response when the session is reopened. The live path
+		// (sendMessage) handles the very first turn when the session is fresh;
+		// this path takes over on subsequent loads, where
+		// _pendingFirstTurnAnnouncements is empty.
 		const branchName = await this._readWorktreeBranchMetadata(session).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to read worktree branch metadata`, err);
 			return undefined;
 		});
 		if (!branchName) {
-			return rawMessages;
+			return rawTurns;
 		}
-		return [...prependAnnouncementToFirstAssistantMessage(rawMessages, buildWorktreeAnnouncementText(branchName))];
+		return prependAnnouncementToFirstTurn(rawTurns, buildWorktreeAnnouncementText(branchName));
 	}
 
 	async disposeSession(session: URI): Promise<void> {

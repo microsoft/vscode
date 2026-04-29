@@ -42,7 +42,6 @@ export const AskQuestionsToolId = 'vscode_askQuestions';
 // - header soft (50 chars):        "Which database engine do you want to use for this?"
 // - header hard (75 chars):        "Which database engine and connection pooling strategy do you want to use here?"
 // - question soft (200 chars):     "What testing framework would you like to use for this project? Consider factors like your team's familiarity, community support, and integration with your existing CI/CD pipeline when making a choice."
-// - question hard (300 chars):     "What testing framework would you like to use for this project? Consider factors like your team's familiarity with the framework, community support and documentation quality, integration with your existing CI/CD pipeline, and the specific testing needs of your application architecture when deciding."
 const SoftLimits = {
 	header: 50,
 	question: 200
@@ -50,7 +49,6 @@ const SoftLimits = {
 
 const HardLimits = {
 	header: 75,
-	question: 300
 } as const;
 
 function truncateToLimit(value: string | undefined, limit: number): string | undefined {
@@ -98,12 +96,12 @@ export function createAskQuestionsToolData(): IToolData {
 		properties: {
 			header: {
 				type: 'string',
-				description: 'Short identifier for the question. Must be unique so answers can be mapped back to the question.',
+				description: `Short identifier for the question. Must be unique so answers can be mapped back to the question. Maximum ${SoftLimits.header} characters.`,
 				maxLength: SoftLimits.header
 			},
 			question: {
 				type: 'string',
-				description: 'The question text to display to the user. Keep it concise, ideally one sentence.',
+				description: `The question text to display to the user. Keep it concise, ideally one sentence. Maximum ${SoftLimits.question} characters.`,
 				maxLength: SoftLimits.question
 			},
 			multiSelect: {
@@ -226,40 +224,22 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			if (event.resolveId !== carousel.resolveId || carousel.isUsed) {
 				return;
 			}
-
-			carousel.data = event.answers ?? {};
-			carousel.isUsed = true;
-			carousel.draftAnswers = undefined;
-			carousel.draftCurrentIndex = undefined;
-			carousel.draftCollapsed = undefined;
-			void carousel.completion.complete({ answers: event.answers });
+			carousel.dismiss(event.answers);
 		});
 
 		let answerResult: { answers: IChatQuestionAnswers | undefined } | undefined;
 		try {
 			answerResult = await raceCancellation(carousel.completion.p, token);
 		} catch (error) {
-			if (error instanceof CancellationError && !carousel.isUsed) {
-				carousel.data = {};
-				carousel.isUsed = true;
-				carousel.draftAnswers = undefined;
-				carousel.draftCurrentIndex = undefined;
-				carousel.draftCollapsed = undefined;
-				await carousel.completion.complete({ answers: undefined });
+			if (error instanceof CancellationError) {
+				carousel.dismiss(undefined);
 			}
 			throw error;
 		} finally {
 			externalAnswerListener.dispose();
 		}
 		if (!answerResult) {
-			if (!carousel.isUsed) {
-				carousel.data = {};
-				carousel.isUsed = true;
-				carousel.draftAnswers = undefined;
-				carousel.draftCurrentIndex = undefined;
-				carousel.draftCollapsed = undefined;
-				await carousel.completion.complete({ answers: undefined });
-			}
+			carousel.dismiss(undefined);
 			throw new CancellationError();
 		}
 		if (token.isCancellationRequested) {
@@ -304,11 +284,6 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			if (question.options && question.options.length === 1) {
 				throw new Error(localize('askQuestionsTool.invalidOptions', 'Question "{0}" must have at least two options, or none for free text input.', question.header));
 			}
-
-			// Apply hard limits to truncate display values that exceed the more lenient hard limit
-			// Note: The original header is preserved and used as the answer key in convertCarouselAnswers
-			// to avoid collisions when distinct headers become identical after truncation
-			(question as { question: string }).question = truncateToLimit(question.question, HardLimits.question) ?? question.question;
 		}
 
 		const questionCount = questions.length;

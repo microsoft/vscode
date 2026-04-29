@@ -320,6 +320,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: undefined,
+			userInvocable: undefined,
 			actions,
 		};
 	}
@@ -358,7 +359,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 			plugins.push({
 				item: isBundleItem
-					? { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined }
+					? { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined, userInvocable: undefined }
 					: this.toItem(sessionCustomization.customization, sessionCustomization),
 				nonce: sessionCustomization.customization.nonce,
 				status: toStatusString(sessionCustomization.status),
@@ -513,6 +514,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 				groupKey,
 				extensionId: undefined,
 				pluginUri: undefined,
+				userInvocable: true
 			});
 		}
 		return items;

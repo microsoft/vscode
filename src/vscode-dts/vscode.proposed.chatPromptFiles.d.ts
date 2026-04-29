@@ -244,6 +244,22 @@ declare module 'vscode' {
 		 * Optional session types that describe when the hook should be offered.
 		 */
 		readonly sessionTypes?: readonly string[];
+
+		/**
+		 * Where the chat resource was loaded from.
+		 */
+		readonly source: ChatResourceSource;
+
+		/**
+		 * The contributing extension identifier when {@link source} is `extension`.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The contributing plugin URI when {@link source} is `plugin`.
+		 */
+		readonly pluginUri?: Uri;
+
 	}
 
 	export interface ChatPlugin {
@@ -252,6 +268,7 @@ declare module 'vscode' {
 		 * Optional session types that describe when the plugin should be offered.
 		 */
 		readonly sessionTypes?: readonly string[];
+
 	}
 
 	// #endregion

@@ -7,17 +7,18 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider, type ICustomizationItem, type ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { getFriendlyName } from '../../aiCustomization/aiCustomizationItemSource.js';
 import type { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -49,6 +50,8 @@ export interface ILocalCustomizationFile {
 	readonly type: PromptsType;
 	readonly storage: AICustomizationPromptsStorage;
 	readonly disabled: boolean;
+	readonly pluginUri?: URI;
+	readonly extensionId?: string;
 }
 
 /**
@@ -77,11 +80,13 @@ export async function enumerateLocalCustomizationsForHarness(
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const storage = SYNCABLE_STORAGE_SOURCES[i];
-			for (const file of lists[i] as readonly IPromptPath[]) {
+			for (const file of lists[i]) {
 				result.push({
 					uri: file.uri,
 					type,
 					storage,
+					pluginUri: file.pluginUri,
+					extensionId: file.extension?.identifier.value,
 					disabled: syncProvider.isDisabled(file.uri),
 				});
 			}
@@ -151,17 +156,19 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 		// folder, so the filename is not a useful display name. Look up the
 		// parsed skill metadata (name + description from frontmatter) and
 		// fall back to the parent folder name when a skill failed to parse.
-		const skillByUri = new ResourceMap<{ name: string; description: string | undefined }>();
+		const skillByUri = new ResourceMap<{ name: string; description: string | undefined; userInvocable?: boolean }>();
 		for (const skill of skills ?? []) {
-			skillByUri.set(skill.uri, { name: skill.name, description: skill.description });
+			skillByUri.set(skill.uri, { name: skill.name, description: skill.description, userInvocable: skill.userInvocable });
 		}
 		return enumerated.map(file => {
 			let name: string;
 			let description: string | undefined;
+			let userInvocable: boolean | undefined;
 			if (file.type === PromptsType.skill) {
 				const parsed = skillByUri.get(file.uri);
-				name = parsed?.name ?? basename(dirname(file.uri));
+				name = parsed?.name ?? getSkillFolderName(file.uri);
 				description = parsed?.description;
+				userInvocable = parsed?.userInvocable;
 			} else {
 				name = getFriendlyName(basename(file.uri));
 			}
@@ -175,8 +182,9 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 				// member but is recognized by the AI Customization view.
 				storage: file.storage as PromptsStorage,
 				enabled: !file.disabled,
-				extensionId: undefined,
-				pluginUri: undefined,
+				extensionId: file.extensionId,
+				pluginUri: file.pluginUri,
+				userInvocable
 			};
 		});
 	}

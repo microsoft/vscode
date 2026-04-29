@@ -25,14 +25,16 @@ import { SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfir
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
-import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
+import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
- * {@link mapSessionEvents}, and returns the result suitable for setting
- * on {@link MockAgent.sessionMessages}. This tests the full pipeline:
- * SDK events → mapSessionEvents → _buildTurnsFromMessages → Turn[].
+ * {@link mapSessionEventsToHistoryRecords}, and returns the result
+ * suitable for setting on {@link MockAgent.sessionMessages}. Tests the
+ * full pipeline: SDK events → IHistoryRecord → buildTurnsFromHistory →
+ * Turn[].
  *
  * Fixture files live in `test-cases/` and are sanitized copies of real
  * `events.jsonl` files from `~/.copilot/session-state/`.
@@ -48,7 +50,7 @@ async function loadFixtureMessages(fixtureName: string, session: URI) {
 	const sep = srcFile.includes('\\') ? '\\' : '/';
 	const raw = readFileSync(`${fixtureDir}${sep}test-cases${sep}${fixtureName}`, 'utf-8');
 	const events: ISessionEvent[] = raw.trim().split('\n').map(line => JSON.parse(line));
-	return mapSessionEvents(session, undefined, events);
+	return mapSessionEventsToHistoryRecords(session, undefined, events);
 }
 
 suite('AgentService (node dispatcher)', () => {
@@ -115,7 +117,10 @@ suite('AgentService (node dispatcher)', () => {
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
-			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
+			copilotAgent.fireProgress({
+				kind: 'action', session,
+				action: { type: ActionType.SessionResponsePart, session: session.toString(), turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 	});

@@ -20,6 +20,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { SessionType } from './chatSessionsService.js';
 import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -164,8 +165,6 @@ export interface ICustomizationItem {
 	readonly description?: string;
 	/** Storage origin (local, user, extension, plugin). Set by providers that know the source. */
 	readonly storage?: PromptsStorage;
-	/** Display name of the contributing extension (e.g. "GitHub Copilot Chat"). */
-	readonly extensionLabel?: string;
 	/** The extension identifier that contributed this customization, if any. */
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
@@ -182,6 +181,11 @@ export interface ICustomizationItem {
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
 	readonly badgeTooltip?: string;
+	/**
+	 * Whether this customization item can be invoked by the user.
+	 * Relevant for prompt / skill and custom agents
+	 */
+	readonly userInvocable?: boolean;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
 }
@@ -644,9 +648,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				result.push({
 					uri: item.uri,
 					type: item.type as PromptsType.prompt | PromptsType.skill,
-					name: item.name,
+					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri }, item.name) : item.name,
 					description: item.description,
-					userInvocable: true, // todo we need a way for providers to specify this if some items aren't user-invocable`
+					userInvocable: item.userInvocable ?? true,
 					storage: item.storage ?? PromptsStorage.local,
 					sessionTypes: [sessionType],
 				});
@@ -697,23 +701,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	public async resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
-		const harness = this.findHarnessById(sessionType);
-		if (!harness || !harness.itemProvider) {
-			return this.promptsService.resolvePromptSlashCommand(name, sessionType, token);
-		}
-
-		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
-		const item = items?.find(cmd => cmd.name === name);
-		if (item) {
-			const parsedPromptFile = await this.promptsService.parseNew(item.uri, token);
+		const commands = await this.getSlashCommands(sessionType, token);
+		const command = commands.find(cmd => cmd.name === name);
+		if (command) {
+			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
-				uri: item.uri,
-				type: item.type as PromptsType.prompt | PromptsType.skill,
-				name: item.name,
-				description: item.description,
-				userInvocable: parsedPromptFile.header?.userInvocable ?? true,
-				storage: item.storage ?? PromptsStorage.local,
-				sessionTypes: [sessionType],
+				...command,
+				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
 				parsedPromptFile,
 			};
 		}

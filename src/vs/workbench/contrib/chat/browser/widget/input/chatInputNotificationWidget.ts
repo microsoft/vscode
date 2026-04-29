@@ -125,6 +125,7 @@ export class ChatInputNotificationWidget extends Disposable {
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
+						...(!isLast ? { buttonSecondaryBorder: undefined } : {}),
 						supportIcons: true,
 						secondary: !isLast,
 					}));

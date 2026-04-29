@@ -1464,18 +1464,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const chatIds = this._getChatIdsInGroup(sessionId);
-		if (chatIds.length <= 1) {
-			// Only one chat — delete the entire session
-			return this.deleteSession(sessionId);
-		}
 
-		// Find the chat matching the URI
+		// Find the chat matching the URI first, before deciding whether to
+		// delete the entire session. This prevents accidentally deleting the
+		// whole session when the grouping cache is stale and chatIds doesn't
+		// include the chat being closed.
 		const chatId = chatIds.find(id => {
 			const chat = this._sessionCache.get(this._localIdFromchatId(id));
 			return chat && chat.resource.toString() === chatUri.toString();
 		});
 		if (!chatId) {
 			return;
+		}
+
+		if (chatIds.length <= 1) {
+			// This is the only chat in the session — delete the entire session
+			return this.deleteSession(sessionId);
 		}
 
 		// Delete the underlying agent session first.
@@ -2377,10 +2381,25 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const removedData: ICopilotChatSession[] = [];
 		for (const [key, adapter] of this._sessionCache) {
 			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
-				this._sessionCache.delete(key);
 				removedData.push(adapter);
 				cacheChanged = true;
 			}
+		}
+
+		// Resolve group IDs for removed sessions BEFORE removing them from the
+		// cache and invalidating grouping caches, so that child sessions are
+		// correctly mapped to their parent group.
+		let removedGroupIds: Map<ICopilotChatSession, string> | undefined;
+		if (removedData.length > 0 && this._isMultiChatEnabled()) {
+			removedGroupIds = new Map();
+			for (const removed of removedData) {
+				removedGroupIds.set(removed, this._getGroupIdForChat(removed));
+			}
+		}
+
+		// Now remove from cache and invalidate grouping caches
+		for (const removed of removedData) {
+			this._sessionCache.delete(removed.resource.toString());
 		}
 
 		if (cacheChanged) {
@@ -2389,7 +2408,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		if (addedData.length > 0 || removedData.length > 0 || changedData.length > 0) {
 			if (this._isMultiChatEnabled()) {
-				this._refreshSessionCacheMultiChat(addedData, removedData, changedData);
+				this._refreshSessionCacheMultiChat(addedData, removedData, changedData, removedGroupIds!);
 			} else {
 				this._onDidChangeSessions.fire({
 					added: addedData.map(d => this._chatToSession(d)),
@@ -2404,12 +2423,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		addedData: ICopilotChatSession[],
 		removedData: ICopilotChatSession[],
 		changedData: ICopilotChatSession[],
+		removedGroupIds: Map<ICopilotChatSession, string>,
 	): void {
-		// Track session group IDs for removed chats before they leave the cache
-		const removedGroupIds = new Map<ICopilotChatSession, string>();
-		for (const removed of removedData) {
-			removedGroupIds.set(removed, this._getGroupIdForChat(removed));
-		}
 
 		// Handle removed chats: if a removed chat belongs to a group with
 		// remaining siblings, treat it as a changed event on the parent session

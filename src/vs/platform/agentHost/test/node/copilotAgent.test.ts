@@ -18,10 +18,12 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type IAgentDeltaEvent, type IAgentMessageEvent, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { SessionCustomization, CustomizationRef } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { signalToLegacyView, type LegacyMockEvent } from './mockAgent.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -128,8 +130,8 @@ class TestCopilotClient implements ICopilotClient {
 }
 
 interface IFakeAgentSession {
-	send: (prompt: string, attachments?: unknown, turnId?: string) => Promise<void>;
-	getMessages: () => Promise<readonly (IAgentMessageEvent | IAgentToolStartEvent)[]>;
+	send: (prompt: string, attachments?: unknown, turnId?: string, announcement?: string) => Promise<void>;
+	getMessages: () => Promise<readonly Turn[]>;
 	dispose: () => void;
 }
 
@@ -177,6 +179,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		if (!fake) {
 			throw new Error(`No fake session registered for '${sessionId}'`);
 		}
+		const sessionUri = AgentSession.uri('copilotcli', sessionId);
+		const emitter = (this as unknown as { _onDidSessionProgress: { fire(s: AgentSignal): void } })._onDidSessionProgress;
+		let turnId = '';
 		// `_sessions` is a DisposableMap, so it will dispose() the entry on
 		// teardown. The fields below are the only ones touched by sendMessage
 		// and getSessionMessages in the code under test.
@@ -185,6 +190,19 @@ class TestableCopilotAgent extends CopilotAgent {
 			getMessages: fake.getMessages,
 			appliedSnapshot: undefined,
 			dispose: fake.dispose,
+			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
+			emitInitialMarkdown: (content: string) => {
+				emitter.fire({
+					kind: 'action',
+					session: sessionUri,
+					action: {
+						type: ActionType.SessionResponsePart,
+						session: sessionUri.toString(),
+						turnId,
+						part: { kind: ResponsePartKind.Markdown, id: `synth-${Date.now()}`, content },
+					},
+				});
+			},
 		} as unknown as CopilotAgentSession;
 		return stub;
 	}
@@ -500,9 +518,8 @@ suite('CopilotAgent', () => {
 				gitService,
 			}) as TestableCopilotAgent;
 
-			const fakeMessages: (IAgentMessageEvent | IAgentToolStartEvent)[] = [
-				{ session, type: 'message', role: 'user', messageId: 'u1', content: 'hi' },
-				{ session, type: 'message', role: 'assistant', messageId: 'a1', content: 'hello back' },
+			const fakeMessages: Turn[] = [
+				{ id: 'u1', userMessage: { text: 'hi' }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'hello back' }], usage: undefined, state: TurnState.Complete },
 			];
 			let sendCalls = 0;
 			agent.registerFakeSession(sessionId, {
@@ -528,19 +545,23 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(gitService.addedWorktrees.length, 1, 'addWorktree must be called once');
 				assert.strictEqual(gitService.addedWorktrees[0].branchName, expectedBranchName);
 
-				// 2. Live path: sendMessage must fire a synthetic delta event
-				//    carrying the announcement text before delegating to the SDK.
-				const events: IAgentProgressEvent[] = [];
-				disposables.add(agent.onDidSessionProgress(e => events.push(e)));
+				// 2. Live path: sendMessage must fire a synthetic markdown
+				//    delta carrying the announcement before delegating to the
+				//    SDK. The session is responsible for emitting the
+				//    announcement after resetting partId tracking.
+				const events: LegacyMockEvent[] = [];
+				disposables.add(agent.onDidSessionProgress(s => {
+					const v = signalToLegacyView(s);
+					if (v) { events.push(v); }
+				}));
 
 				await agent.sendMessage(session, 'hello');
 				assert.strictEqual(sendCalls, 1, 'underlying SDK send must still be called');
 
-				const deltas = events.filter((e): e is IAgentDeltaEvent => e.type === 'delta');
+				const deltas = events.filter((e): e is LegacyMockEvent & { type: 'delta' } => e.type === 'delta');
 				assert.strictEqual(deltas.length, 1, 'exactly one delta should be emitted for the worktree announcement');
 				const announcement = deltas[0];
 				assert.ok(announcement.content.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcement.content}'`);
-				assert.ok(announcement.messageId.startsWith('copilot-announcement-'), `announcement messageId should be synthetic, got '${announcement.messageId}'`);
 
 				// 3. Live path is one-shot: a second sendMessage must not re-emit.
 				events.length = 0;
@@ -548,13 +569,13 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(events.filter(e => e.type === 'delta').length, 0, 'announcement must not be re-emitted on subsequent sends');
 
 				// 4. Restore path: getSessionMessages must prepend the
-				//    announcement to the first assistant message's content,
+				//    announcement to the first turn's first markdown part,
 				//    using the persisted branch metadata.
 				const restored = await agent.getSessionMessages(session);
-				const assistant = restored.find((m): m is IAgentMessageEvent => m.type === 'message' && m.role === 'assistant');
-				assert.ok(assistant, 'restored messages should include the assistant reply');
-				assert.ok(assistant.content.includes(expectedBranchName), `restored assistant content should include the branch name, got '${assistant.content}'`);
-				assert.ok(assistant.content.endsWith('hello back'), `restored assistant content should still end with the original reply, got '${assistant.content}'`);
+				const md = restored[0]?.responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+				assert.ok(md, 'restored turns should include a markdown response part');
+				assert.ok(md.content.includes(expectedBranchName), `restored markdown content should include the branch name, got '${md.content}'`);
+				assert.ok(md.content.endsWith('hello back'), `restored markdown content should still end with the original reply, got '${md.content}'`);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -576,9 +597,8 @@ suite('CopilotAgent', () => {
 				gitService,
 			}) as TestableCopilotAgent;
 
-			const fakeMessages: IAgentMessageEvent[] = [
-				{ session, type: 'message', role: 'user', messageId: 'u1', content: 'hi' },
-				{ session, type: 'message', role: 'assistant', messageId: 'a1', content: 'untouched reply' },
+			const fakeMessages: Turn[] = [
+				{ id: 'u1', userMessage: { text: 'hi' }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'untouched reply' }], usage: undefined, state: TurnState.Complete },
 			];
 			agent.registerFakeSession(sessionId, {
 				send: async () => { },
@@ -592,14 +612,17 @@ suite('CopilotAgent', () => {
 				await agent.resolveWorktreeForTest({ workingDirectory: repositoryRoot }, sessionId);
 				assert.deepStrictEqual(gitService.addedWorktrees, [], 'addWorktree must not be called without worktree isolation');
 
-				const events: IAgentProgressEvent[] = [];
-				disposables.add(agent.onDidSessionProgress(e => events.push(e)));
+				const events: LegacyMockEvent[] = [];
+				disposables.add(agent.onDidSessionProgress(s => {
+					const v = signalToLegacyView(s);
+					if (v) { events.push(v); }
+				}));
 				await agent.sendMessage(session, 'hello');
 				assert.deepStrictEqual(events.filter(e => e.type === 'delta'), [], 'no announcement should be emitted live');
 
 				const restored = await agent.getSessionMessages(session);
-				const assistant = restored.find((m): m is IAgentMessageEvent => m.type === 'message' && m.role === 'assistant');
-				assert.strictEqual(assistant?.content, 'untouched reply', 'restored assistant content must not be modified');
+				const md = restored[0]?.responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+				assert.strictEqual(md?.content, 'untouched reply', 'restored markdown content must not be modified');
 			} finally {
 				await disposeAgent(agent);
 			}

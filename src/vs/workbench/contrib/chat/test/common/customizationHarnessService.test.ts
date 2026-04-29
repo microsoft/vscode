@@ -201,7 +201,7 @@ suite('CustomizationHarnessService', () => {
 			const emitter = new Emitter<void>();
 			store.add(emitter);
 			const testItems = [
-				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', extensionId: undefined, pluginUri: undefined },
+				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 			];
 
 			const itemProvider: ICustomizationItemProvider = {
@@ -372,10 +372,10 @@ suite('CustomizationHarnessService', () => {
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
 			});
@@ -461,8 +461,8 @@ suite('CustomizationHarnessService', () => {
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/agents/selected.agent.md'), type: PromptsType.agent, name: 'selected', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+						{ uri: URI.parse('file:///workspace/.test/agents/selected.agent.md'), type: PromptsType.agent, name: 'selected', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
 			}], testSessionType, promptsService);

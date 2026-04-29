@@ -183,6 +183,7 @@ export class RouterDecisionFetcher {
 				candidateModel: result.candidate_models?.[0] ?? '',
 				chosenModel: result.chosen_model ?? '',
 				candidateModels: JSON.stringify(result.candidate_models ?? []),
+				availableModels: JSON.stringify(availableModels),
 				stickyOverrideStr: String(result.sticky_override ?? false),
 				hydraScores: result.hydra_scores ? JSON.stringify(result.hydra_scores) : 'null',
 				binaryScores: JSON.stringify(result.scores),

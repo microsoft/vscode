@@ -589,7 +589,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	private toHook(dto: IHookDto): vscode.ChatHook {
-		return Object.freeze({ uri: URI.revive(dto.uri), sessionTypes: dto.sessionTypes });
+		return Object.freeze({
+			uri: URI.revive(dto.uri),
+			sessionTypes: dto.sessionTypes,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+		});
 	}
 
 	private toPlugin(dto: IPluginDto): vscode.ChatPlugin {
@@ -830,7 +836,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				description: item.description,
 				groupKey: item.groupKey,
 				badge: item.badge,
-				badgeTooltip: item.badgeTooltip
+				badgeTooltip: item.badgeTooltip,
+				extensionId: item.extensionId,
+				pluginUri: item.pluginUri,
+				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;

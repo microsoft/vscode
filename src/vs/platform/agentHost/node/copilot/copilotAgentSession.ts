@@ -17,14 +17,15 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentAttachment, IAgentProgressEvent, SessionHistoryEvent } from '../../common/agentService.js';
+import { AgentSignal, IAgentAttachment } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent } from '../../common/state/sessionState.js';
+import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
+import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolEvents, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -80,7 +81,7 @@ export type SessionWrapperFactory = (callbacks: {
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly rawSessionId: string;
-	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
+	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly wrapperFactory: SessionWrapperFactory;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
@@ -128,11 +129,21 @@ export class CopilotAgentSession extends Disposable {
 	 *  is disposed. */
 	private readonly _pendingEditContentUris = new Map<string, URI>();
 
-	private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>;
+	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private readonly _wrapperFactory: SessionWrapperFactory;
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
+
+	/**
+	 * Current markdown response part ID for the active turn. Streaming text
+	 * deltas append to this part; the first delta of a turn allocates a new
+	 * part ID. Reset on each new turn (in {@link send}) and invalidated when
+	 * a tool call begins so subsequent text creates a fresh part.
+	 */
+	private _currentMarkdownPartId: string | undefined;
+	/** Current reasoning response part ID for the active turn. Reset on each new turn. */
+	private _currentReasoningPartId: string | undefined;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -179,15 +190,105 @@ export class CopilotAgentSession extends Disposable {
 					title: displayName,
 				});
 
-				this._onDidSessionProgress.fire({
-					session: this.sessionUri,
-					type: 'tool_content_changed',
+				this._emitAction({
+					type: ActionType.SessionToolCallContentChanged,
+					session: this._protocolSession(),
+					turnId: this._turnId,
 					toolCallId,
 					content: tracked.content,
 				});
 			}));
 		}
 		this._register(toDisposable(() => this._cancelPendingClientToolCalls()));
+	}
+
+	// ---- AgentSignal helpers ------------------------------------------------
+
+	private _protocolSession(): ProtocolURI {
+		return this.sessionUri.toString();
+	}
+
+	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
+	private _emitAction(action: SessionAction, parentToolCallId?: string): void {
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session: this.sessionUri,
+			action,
+			parentToolCallId,
+		});
+	}
+
+	/**
+	 * Resets per-turn streaming state so the next text/reasoning chunk
+	 * allocates a fresh response part. Called by the agent when a new turn
+	 * starts (typically right before {@link send}).
+	 */
+	resetTurnState(turnId: string): void {
+		this._turnId = turnId;
+		this._currentMarkdownPartId = undefined;
+		this._currentReasoningPartId = undefined;
+	}
+
+	/**
+	 * Emits a synthetic markdown content block for the active turn and
+	 * makes it the current markdown response part so that subsequent SDK
+	 * deltas append to it. Used by the agent to surface one-shot host
+	 * messages (e.g. the worktree-created announcement) at the top of the
+	 * first response.
+	 */
+	emitInitialMarkdown(content: string): void {
+		this._emitMarkdownDelta(content);
+	}
+
+	/**
+	 * Emits a streaming text delta. The first delta of a turn allocates a
+	 * markdown response part; subsequent deltas append to it.
+	 */
+	private _emitMarkdownDelta(content: string, parentToolCallId?: string): void {
+		const session = this._protocolSession();
+		let partId = this._currentMarkdownPartId;
+		if (!partId) {
+			partId = generateUuid();
+			this._currentMarkdownPartId = partId;
+			this._emitAction({
+				type: ActionType.SessionResponsePart,
+				session,
+				turnId: this._turnId,
+				part: { kind: ResponsePartKind.Markdown, id: partId, content },
+			}, parentToolCallId);
+			return;
+		}
+		this._emitAction({
+			type: ActionType.SessionDelta,
+			session,
+			turnId: this._turnId,
+			partId,
+			content,
+		}, parentToolCallId);
+	}
+
+	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
+	private _emitReasoningDelta(content: string): void {
+		const session = this._protocolSession();
+		let partId = this._currentReasoningPartId;
+		if (!partId) {
+			partId = generateUuid();
+			this._currentReasoningPartId = partId;
+			this._emitAction({
+				type: ActionType.SessionResponsePart,
+				session,
+				turnId: this._turnId,
+				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
+			});
+			return;
+		}
+		this._emitAction({
+			type: ActionType.SessionReasoning,
+			session,
+			turnId: this._turnId,
+			partId,
+			content,
+		});
 	}
 
 	/**
@@ -323,8 +424,8 @@ export class CopilotAgentSession extends Disposable {
 				mode: 'immediate',
 			});
 			this._onDidSessionProgress.fire({
+				kind: 'steering_consumed',
 				session: this.sessionUri,
-				type: 'steering_consumed',
 				id: steeringMessage.id,
 			});
 		} catch (err) {
@@ -332,7 +433,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async getMessages(): Promise<SessionHistoryEvent[]> {
+	async getMessages(): Promise<readonly Turn[]> {
 		const events = await this._wrapper.session.getMessages();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -340,7 +441,20 @@ export class CopilotAgentSession extends Disposable {
 		} catch {
 			// Database may not exist yet — that's fine
 		}
-		return mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
+		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
+		return result.turns;
+	}
+
+	async getSubagentMessages(parentToolCallId: string, childSessionUri: string): Promise<readonly Turn[]> {
+		const events = await this._wrapper.session.getMessages();
+		let db: ISessionDatabase | undefined;
+		try {
+			db = this._databaseRef.object;
+		} catch {
+			// Database may not exist yet — that's fine
+		}
+		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
+		return result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
 	}
 
 	async abort(): Promise<void> {
@@ -413,17 +527,23 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'denied-interactively-by-user' };
 			}
 
-			// Fire a tool_ready event to transition the tool to PendingConfirmation
+			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
+			const toolName = request.toolName ?? request.kind;
 			this._onDidSessionProgress.fire({
+				kind: 'pending_confirmation',
 				session: this.sessionUri,
-				type: 'tool_ready',
-				toolCallId,
-				invocationMessage,
-				toolInput,
-				confirmationTitle,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId,
+					toolName,
+					displayName: getToolDisplayName(toolName),
+					invocationMessage,
+					toolInput,
+					confirmationTitle,
+					edits,
+				},
 				permissionKind,
 				permissionPath,
-				edits,
 			});
 
 			const approved = await deferred.p;
@@ -571,9 +691,9 @@ export class CopilotAgentSession extends Disposable {
 				],
 			};
 
-			this._onDidSessionProgress.fire({
-				session: this.sessionUri,
-				type: 'user_input_request',
+			this._emitAction({
+				type: ActionType.SessionInputRequested,
+				session: this._protocolSession(),
 				request: inputRequest,
 			});
 
@@ -648,7 +768,6 @@ export class CopilotAgentSession extends Disposable {
 	private _subscribeToEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
-		const session = this.sessionUri;
 
 		// Capture SDK event IDs for each user.message event so we can map
 		// protocol turn indices to the event IDs needed by the SDK's
@@ -661,34 +780,34 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'delta',
-				messageId: e.data.messageId,
-				content: e.data.deltaContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
+			this._emitMarkdownDelta(e.data.deltaContent, e.data.parentToolCallId);
 		}));
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'message',
-				role: 'assistant',
-				messageId: e.data.messageId,
-				content: e.data.content,
-				toolRequests: e.data.toolRequests?.map(tr => ({
-					toolCallId: tr.toolCallId,
-					name: tr.name,
-					arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
-					type: tr.type,
-				})),
-				reasoningOpaque: e.data.reasoningOpaque,
-				reasoningText: e.data.reasoningText,
-				encryptedContent: e.data.encryptedContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
+			// The SDK fires a `message` event with the full assembled content after
+			// streaming deltas. If deltas already created a markdown part for this
+			// turn, the live state is up to date and we skip. Only emit a fresh
+			// part when no deltas preceded the message (e.g. text after tool calls
+			// where the SDK delivered the full message at once).
+			//
+			// Other fields (toolRequests, reasoningText, encryptedContent) are
+			// only used for history reconstruction and live tool calls fire
+			// their own tool_start events, so we can safely drop them here.
+			if (!e.data.content) {
+				return;
+			}
+			if (this._currentMarkdownPartId) {
+				return;
+			}
+			const partId = generateUuid();
+			this._currentMarkdownPartId = partId;
+			this._emitAction({
+				type: ActionType.SessionResponsePart,
+				session: this._protocolSession(),
+				turnId: this._turnId,
+				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
+			}, e.data.parentToolCallId);
 		}));
 
 		this._register(wrapper.onToolStart(e => {
@@ -712,25 +831,62 @@ export class CopilotAgentSession extends Disposable {
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
+			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
+			const parentToolCallId = e.data.parentToolCallId;
 
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_start',
+			// A new tool call invalidates the current markdown and reasoning
+			// parts so the next text/reasoning delta after the tool call
+			// starts a fresh part. Without invalidating reasoning here, a
+			// later round of reasoning (after tool_start/tool_complete)
+			// would silently append to the pre-tool-call reasoning block.
+			this._currentMarkdownPartId = undefined;
+			this._currentReasoningPartId = undefined;
+
+			const meta: Record<string, unknown> = { toolKind, language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined };
+			if (subagentMeta?.description) {
+				meta.subagentDescription = subagentMeta.description;
+			}
+			if (subagentMeta?.agentName) {
+				meta.subagentAgentName = subagentMeta.agentName;
+			}
+			if (toolArgs !== undefined) {
+				meta.toolArguments = toolArgs;
+			}
+			if (e.data.mcpServerName) {
+				meta.mcpServerName = e.data.mcpServerName;
+			}
+			if (e.data.mcpToolName) {
+				meta.mcpToolName = e.data.mcpToolName;
+			}
+
+			const protocolSession = this._protocolSession();
+			this._emitAction({
+				type: ActionType.SessionToolCallStart,
+				session: protocolSession,
+				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
 				displayName,
+				toolClientId,
+				_meta: meta,
+			}, parentToolCallId);
+
+			// For client tools, do NOT auto-ready — the tool handler will fire
+			// a separate tool_ready signal once the deferred is in place (or
+			// the permission flow fires it first).
+			if (toolClientId) {
+				return;
+			}
+
+			this._emitAction({
+				type: ActionType.SessionToolCallReady,
+				session: protocolSession,
+				turnId: this._turnId,
+				toolCallId: e.data.toolCallId,
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
-				toolKind,
-				language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined,
-				toolArguments: toolArgs,
-				subagentAgentName: subagentMeta?.agentName,
-				subagentDescription: subagentMeta?.description,
-				mcpServerName: e.data.mcpServerName,
-				mcpToolName: e.data.mcpToolName,
-				parentToolCallId: e.data.parentToolCallId,
-				toolClientId: this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined,
-			});
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}, parentToolCallId);
 		}));
 
 		this._register(wrapper.onToolComplete(async e => {
@@ -773,9 +929,10 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_complete',
+			this._emitAction({
+				type: ActionType.SessionToolCallComplete,
+				session: this._protocolSession(),
+				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				result: {
 					success: e.data.success,
@@ -783,15 +940,16 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},
-				isUserRequested: e.data.isUserRequested,
-				toolTelemetry: e.data.toolTelemetry !== undefined ? tryStringify(e.data.toolTelemetry) : undefined,
-				parentToolCallId: e.data.parentToolCallId,
-			});
+			}, e.data.parentToolCallId);
 		}));
 
 		this._register(wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
-			this._onDidSessionProgress.fire({ session, type: 'idle' });
+			this._emitAction({
+				type: ActionType.SessionTurnComplete,
+				session: this._protocolSession(),
+				turnId: this._turnId,
+			});
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
@@ -800,16 +958,41 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		this._register(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
-			const { start, complete } = synthesizeSkillToolEvents(session, e.data, e.id);
-			this._onDidSessionProgress.fire(start);
-			this._onDidSessionProgress.fire(complete);
+			const synth = synthesizeSkillToolCall(e.data, e.id);
+			const protocolSession = this._protocolSession();
+			this._emitAction({
+				type: ActionType.SessionToolCallStart,
+				session: protocolSession,
+				turnId: this._turnId,
+				toolCallId: synth.toolCallId,
+				toolName: synth.toolName,
+				displayName: synth.displayName,
+			});
+			this._emitAction({
+				type: ActionType.SessionToolCallReady,
+				session: protocolSession,
+				turnId: this._turnId,
+				toolCallId: synth.toolCallId,
+				invocationMessage: synth.invocationMessage,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			this._emitAction({
+				type: ActionType.SessionToolCallComplete,
+				session: protocolSession,
+				turnId: this._turnId,
+				toolCallId: synth.toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: synth.pastTenseMessage,
+				},
+			});
 		}));
 
 		this._register(wrapper.onSubagentStarted(e => {
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
 			this._onDidSessionProgress.fire({
-				session,
-				type: 'subagent_started',
+				kind: 'subagent_started',
+				session: this.sessionUri,
 				toolCallId: e.data.toolCallId,
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
@@ -819,34 +1002,36 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'error',
-				errorType: e.data.errorType,
-				message: e.data.message,
-				stack: e.data.stack,
+			this._emitAction({
+				type: ActionType.SessionError,
+				session: this._protocolSession(),
+				turnId: this._turnId,
+				error: {
+					errorType: e.data.errorType,
+					message: e.data.message,
+					stack: e.data.stack,
+				},
 			});
 		}));
 
 		this._register(wrapper.onUsage(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'usage',
-				inputTokens: e.data.inputTokens,
-				outputTokens: e.data.outputTokens,
-				model: e.data.model,
-				cacheReadTokens: e.data.cacheReadTokens,
+			this._emitAction({
+				type: ActionType.SessionUsage,
+				session: this._protocolSession(),
+				turnId: this._turnId,
+				usage: {
+					inputTokens: e.data.inputTokens,
+					outputTokens: e.data.outputTokens,
+					model: e.data.model,
+					cacheReadTokens: e.data.cacheReadTokens,
+				},
 			});
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'reasoning',
-				content: e.data.deltaContent,
-			});
+			this._emitReasoningDelta(e.data.deltaContent);
 		}));
 	}
 

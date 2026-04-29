@@ -744,6 +744,11 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			return false;
 		}
 
+		const previousTurn = this.options.conversation.turns.at(-2);
+		if (!previousTurn) {
+			return false;
+		}
+
 		// Once a mode-switched turn has successfully produced a fresh responses-api
 		// stateful marker, later requests in the same turn should resume from that
 		// new chain instead of continuing to invalidate previous_response_id.
@@ -756,7 +761,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			return false;
 		}
 
-		const previousModeInstructions = this.options.conversation.turns.at(-2)?.modeInstructions;
+		const previousModeInstructions = previousTurn.modeInstructions;
 		if (!previousModeInstructions && !this.options.request.modeInstructions2) {
 			return false;
 		}

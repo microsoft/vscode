@@ -238,8 +238,7 @@ function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: 
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
 		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
-		'- Prefer $() over backticks for command substitution',
-		'- Use set -e at start of complex commands to exit on errors'
+		'- Prefer $() over backticks for command substitution'
 	].join('\n');
 }
 
@@ -251,7 +250,6 @@ function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: I
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
-		'- Use setopt errexit for strict error handling',
 		'- Take advantage of zsh globbing features (**, extended globs)'
 	].join('\n');
 }
@@ -265,7 +263,6 @@ function createFishModelDescription(isSandboxEnabled: boolean, networkDomains?: 
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
 		'- Prefer command substitution with () syntax',
 		'- Variables are arrays by default, use $var[1] for first element',
-		'- Use set -e for strict error handling',
 		'- Take advantage of fish\'s autosuggestions and completions'
 	].join('\n');
 }
@@ -748,6 +745,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalToolSessionId,
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
+			hasSessionAutoApproval: !!chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource),
 		};
 
 		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
@@ -1865,14 +1863,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!isBackground) {
 			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
 			if (cachedTerminal && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed) {
-				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
-				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
-				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
-				// Dispose any previous background notification (e.g. from an earlier
-				// `inputNeeded` race that left an OutputMonitor attached) before reusing
-				// this terminal, so its listeners don't accumulate across invocations.
-				this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
-				return cachedTerminal;
+				// When the shell process has already exited (e.g. `set -e` killed the
+				// login shell on a previous command failure), reusing the terminal would
+				// cause the execute strategy to hit its early-out check and return the
+				// stale exit code instead of running the new command. Discard the dead
+				// terminal and create a fresh one so the next command starts in a live
+				// shell.
+				if (cachedTerminal.instance.exitCode !== undefined) {
+					this._logService.info(`RunInTerminalTool: Cached terminal shell has exited (code=${cachedTerminal.instance.exitCode}), creating a new terminal`);
+					this._sessionTerminalAssociations.delete(chatSessionResource);
+				} else {
+					this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
+					this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
+					this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+					// Dispose any previous background notification (e.g. from an earlier
+					// `inputNeeded` race that left an OutputMonitor attached) before reusing
+					// this terminal, so its listeners don't accumulate across invocations.
+					this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
+					return cachedTerminal;
+				}
 			}
 		}
 
@@ -2217,7 +2226,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				lastInputNeededOutput = currentOutput;
 				lastInputNeededNotificationTime = now;
 				const inputAction = this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false);
-				const message = `[Terminal ${termId} notification: command is waiting for input.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
+				const message = `[Terminal ${termId} notification: command may be waiting for input — assess the output below.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
@@ -2225,7 +2234,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalNeedsInput', "`{0}` needs input", commandName),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
@@ -2281,9 +2290,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		// Clean up all background resources when the terminal is disposed
-		// (e.g. user closes the terminal) to avoid leaking listeners and monitors.
+		// (e.g. user closes the terminal). Send a completion notification so
+		// the agent isn't left waiting for an `onCommandFinished` event that
+		// will never fire — the pty exited before shell integration could
+		// emit the end marker. Output captured here is whatever was buffered
+		// up until disposal.
+		// Capture the execution reference now — by the time onDisposed fires,
+		// onDidDisposeInstance listeners may have already removed it from
+		// _activeExecutions.
+		const executionForDisposal = RunInTerminalTool._activeExecutions.get(termId);
 		store.add(terminalInstance.onDisposed(() => {
+			if (handleSessionCancelled()) {
+				return;
+			}
+			const currentOutput = executionForDisposal?.getOutput() ?? '';
+			const exitCode = terminalInstance.exitCode;
+			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			disposeNotification();
+			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
+			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...sendOptions,
+				queue: ChatRequestQueueKind.Steering,
+				isSystemInitiated: true,
+				systemInitiatedLabel: localize('terminalProcessExited', "`{0}` terminal exited", commandName),
+				terminalExecutionId: termId,
+			}).catch(e => {
+				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);
+			});
 		}));
 
 		// When a checkpoint is restored, requests are removed from the model.
