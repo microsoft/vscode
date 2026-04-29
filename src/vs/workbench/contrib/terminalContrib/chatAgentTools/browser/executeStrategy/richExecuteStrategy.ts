@@ -74,7 +74,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// If the terminal is already disposed or its pty has already exited
 			// (e.g. the shell from a previous command died before this one was
 			// requested), Event.toPromise(onExit/onDisposed) will subscribe to an
-			// emitter that has already fired and never resolve, hanging the
+			// emitter that has already fired and never resolves, hanging the
 			// run-in-terminal tool until the agent's outer timeout. Detect this
 			// up front and resolve immediately with the captured exit code.
 			if (this._instance.isDisposed) {
