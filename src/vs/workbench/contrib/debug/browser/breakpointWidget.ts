@@ -277,11 +277,18 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const breakpointOptions = this.buildBreakpointOptions();
 
 		const index = this.availableBreakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
+		let selectedIndex: number;
 		if (index !== -1) {
 			this.triggeredByBreakpointInput = this.availableBreakpoints[index];
+			selectedIndex = index + 1;
+		} else if (this.availableBreakpoints.length > 0) {
+			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
+			selectedIndex = 1;
+		} else {
+			selectedIndex = 0;
 		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
+		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, selectedIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.store.add(selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -347,6 +354,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				// The selected breakpoint was removed, clear the selection
 				this.triggeredByBreakpointInput = undefined;
 			}
+		}
+		if (!this.triggeredByBreakpointInput && this.availableBreakpoints.length > 0) {
+			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
+			selectedIndex = 1;
 		}
 
 		const breakpointOptions = this.buildBreakpointOptions();
