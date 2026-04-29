@@ -35,7 +35,7 @@ export default {
 	output: {
 		path: path.join(repoRoot, '.build', 'rspack-serve-out'),
 		filename: 'bundled/[name].js',
-		chunkFilename: 'bundled/[name].js',
+		chunkFilename: 'bundled/[name].[contenthash].js',
 		assetModuleFilename: 'bundled/assets/[name][ext][query]',
 		publicPath: '/',
 		clean: true,
@@ -55,6 +55,26 @@ export default {
 	},
 	experiments: {
 		css: true,
+	},
+	optimization: {
+		moduleIds: 'deterministic',
+		splitChunks: {
+			cacheGroups: {
+				vendor: {
+					test: /[\\/]node_modules[\\/]/,
+					name: 'vendors',
+					chunks: 'all',
+					priority: 10,
+				},
+				common: {
+					name: 'common',
+					minChunks: 2,
+					chunks: 'all',
+					priority: 5,
+					reuseExistingChunk: true,
+				},
+			},
+		},
 	},
 	module: {
 		rules: [
