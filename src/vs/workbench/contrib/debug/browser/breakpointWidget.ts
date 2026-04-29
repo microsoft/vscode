@@ -285,6 +285,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
 			selectedIndex = 1;
 		} else {
+			this.triggeredByBreakpointInput = undefined;
 			selectedIndex = 0;
 		}
 
