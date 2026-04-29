@@ -1,0 +1,227 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The character is rendered into a pixi canvas (see characterAvatar.ts). This
+ * stylesheet only handles stage layout, the toggle/customize buttons, and the
+ * customization panel. All sprite animation lives in pixi's ticker, not CSS. */
+
+/* === Stage container (pinned to the bottom of the auxiliary bar) === */
+
+.agents-character-stage-hosted {
+	position: relative;
+}
+
+.agents-character-stage {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 144px;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 5;
+	background: linear-gradient(
+		to top,
+		var(--vscode-sideBar-background, transparent) 0%,
+		transparent 100%
+	);
+	border-top: 1px solid var(--vscode-sideBar-border, transparent);
+}
+
+.agents-character-backdrop {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 6px;
+	background: linear-gradient(
+		to top,
+		var(--vscode-editorWidget-border, rgba(0, 0, 0, 0.15)),
+		transparent
+	);
+	opacity: 0.6;
+}
+
+/* === The avatar wrapper (positioned by characterBehavior) === */
+
+.agents-character {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 64px;
+	height: 64px;
+	will-change: transform;
+	pointer-events: auto;
+}
+
+.agents-character-canvas {
+	display: block;
+}
+
+.agents-character-name {
+	position: absolute;
+	left: 50%;
+	bottom: -16px;
+	transform: translateX(-50%);
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+/* === Toggle / customize buttons === */
+
+.agents-character-buttons {
+	position: absolute;
+	top: 4px;
+	right: 8px;
+	display: flex;
+	gap: 4px;
+	pointer-events: auto;
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+.agents-character-stage:hover .agents-character-buttons,
+.agents-character-stage.customizing .agents-character-buttons {
+	opacity: 1;
+}
+
+.agents-character-button {
+	all: unset;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 4px;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.agents-character-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agents-character-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* === Customization panel === */
+
+.agents-character-customization {
+	position: absolute;
+	left: 8px;
+	right: 8px;
+	bottom: 8px;
+	max-height: calc(100% - 16px);
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 12px;
+	padding: 12px;
+	border-radius: 6px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+	pointer-events: auto;
+	overflow: auto;
+}
+
+.agents-character-customization-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 80px;
+	min-height: 80px;
+	border-radius: 6px;
+	background: var(--vscode-input-background);
+}
+
+.agents-character-customization-preview .agents-character {
+	position: relative;
+}
+
+.agents-character-customization-form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.agents-character-customization-row {
+	display: grid;
+	grid-template-columns: 64px 1fr;
+	align-items: center;
+	gap: 8px;
+}
+
+.agents-character-customization-row > label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agents-character-customization-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.agents-character-customization-option {
+	all: unset;
+	padding: 2px 8px;
+	font-size: 11px;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: var(--vscode-button-secondaryBackground, transparent);
+	color: var(--vscode-button-secondaryForeground, inherit);
+	cursor: pointer;
+}
+
+.agents-character-customization-option:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.agents-character-customization-option.is-selected {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.agents-character-customization-color {
+	all: unset;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	cursor: pointer;
+	border: 2px solid transparent;
+}
+
+.agents-character-customization-color.is-selected {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agents-character-customization-name {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 2px 6px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 3px;
+	font: inherit;
+}
+
+.agents-character-customization-name:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agents-character-buttons {
+		transition: none;
+	}
+}

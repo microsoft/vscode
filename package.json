@@ -137,6 +137,7 @@
     "native-keymap": "^3.3.5",
     "node-pty": "^1.2.0-beta.12",
     "open": "^10.1.2",
+    "pixi.js": "^8.18.1",
     "playwright-core": "1.59.1",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
