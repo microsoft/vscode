@@ -14,6 +14,12 @@ interface PreferredProperties {
 	hasLockfile: boolean;
 }
 
+type PreferredPMResult = { name: string; multipleLockFilesDetected: boolean };
+
+const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+
+const preferredPMCache = new Map<string, Promise<PreferredPMResult>>();
+
 async function pathExists(filePath: string) {
 	try {
 		await workspace.fs.stat(Uri.file(filePath));
@@ -22,8 +28,6 @@ async function pathExists(filePath: string) {
 	}
 	return true;
 }
-
-const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
 
 async function readPackageManagerField(packageJsonPath: string): Promise<string | undefined> {
 	try {
@@ -101,9 +105,6 @@ async function isNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 	const lockfileExists = await pathExists(path.join(pkgPath, 'package-lock.json'));
 	return { isPreferred: lockfileExists, hasLockfile: lockfileExists };
 }
-
-type PreferredPMResult = { name: string; multipleLockFilesDetected: boolean };
-const preferredPMCache = new Map<string, Promise<PreferredPMResult>>();
 
 export function invalidatePreferredPMCache() {
 	preferredPMCache.clear();
