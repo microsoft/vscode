@@ -90,7 +90,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.49",
-    "@github/copilot": "^1.0.34",
+    "@github/copilot": "1.0.34",
     "@github/copilot-sdk": "^0.2.2",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
