@@ -1948,10 +1948,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.sessionId);
 		const repositoryPath = worktreeProperties?.repositoryPath ? Uri.file(worktreeProperties.repositoryPath) : getWorkingDirectory(session.workspace);
 		const repository = repositoryPath ? await this.gitService.getRepository(repositoryPath) : undefined;
-		const hasChanges = !!repository?.changes && (
-			repository.changes.indexChanges.length > 0
-			|| repository.changes.workingTree.length > 0
-		);
+		const hasChanges = (repository?.changes?.indexChanges?.length ?? 0) > 0
+			|| (repository?.changes?.workingTree?.length ?? 0) > 0;
 
 		if (hasChanges) {
 			stream.warning(l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last committed state. Consider committing your changes first if you want to include them.'));

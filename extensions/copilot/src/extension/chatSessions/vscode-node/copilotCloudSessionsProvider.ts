@@ -1546,10 +1546,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// the cloud agent runs against the remote commit, not their working tree.
 		// This aligns with Mission Control / Codex / Claude behavior.
 		const activeRepo = this._gitService.activeRepository.get();
-		const hasUncommittedChanges = !!activeRepo?.changes && (
-			activeRepo.changes.workingTree.length > 0
-			|| activeRepo.changes.indexChanges.length > 0
-		);
+		const hasUncommittedChanges = (activeRepo?.changes?.workingTree?.length ?? 0) > 0
+			|| (activeRepo?.changes?.indexChanges?.length ?? 0) > 0;
 		if (hasUncommittedChanges) {
 			stream.warning(vscode.l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last pushed commit; commit and push first if you want those changes included.'));
 		}
@@ -1605,7 +1603,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			} else {
 				const { default_branch } = await this._githubRepositoryService.getRepositoryInfo(repoOwner, repoName);
 				base_ref = default_branch;
-				if (currentBranch && !hasUpstream) {
+				if (selectedMatchesActive && currentBranch && !hasUpstream) {
 					stream.progress(vscode.l10n.t('Current branch `{0}` is not on the remote; cloud agent will start from `{1}`.', currentBranch, default_branch));
 				}
 			}
