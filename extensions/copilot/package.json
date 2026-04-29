@@ -6481,6 +6481,7 @@
 		"@types/tar": "^6.1.13",
 		"@types/vinyl": "^2.0.12",
 		"@types/vscode-webview": "^1.57.4",
+		"@types/ws": "^8.5.3",
 		"@types/yargs": "^17.0.24",
 		"@typescript-eslint/eslint-plugin": "^8.35.0",
 		"@typescript-eslint/parser": "^8.32.0",
