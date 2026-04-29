@@ -1,6 +1,6 @@
 {
 	"nameShort": "tscode",
-	"nameLong": "Test Studio Code",
+	"nameLong": "TestAgent工作台",
 	"applicationName": "tscode",
 	"dataFolderName": ".tscode",
 	"win32MutexName": "tscode",
@@ -13,8 +13,8 @@
 	"serverApplicationName": "tscode-server",
 	"serverDataFolderName": ".tscode-server",
 	"tunnelApplicationName": "tscode-tunnel",
-	"win32DirName": "Test Studio Code",
-	"win32NameVersion": "Test Studio Code",
+	"win32DirName": "TestAgent Studio",
+	"win32NameVersion": "TestAgent工作台",
 	"win32RegValueName": "TSCode",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
@@ -154,7 +154,7 @@
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
 	"linkProtectionTrustedDomains": [
-		"https://testhub-dev.paas.cmbchina.cn"
+		"https://testhub.paas.cmbchina.cn"
 	],
 	"trustedExtensionAuthAccess": {
 		"github": [

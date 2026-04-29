@@ -83,7 +83,7 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 			`${TscodeWelcomeInput.RESOURCE.scheme}://tscode_welcome_page/**`,
 			{
 				id: TscodeWelcomeInput.ID,
-				label: localize('tscodeWelcome.displayName', "TSCode Welcome Page"),
+				label: localize('tscodeWelcome.displayName', "TestAgent Welcome Page"),
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
