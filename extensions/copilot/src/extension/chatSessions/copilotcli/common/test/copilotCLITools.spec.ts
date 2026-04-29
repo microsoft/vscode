@@ -578,6 +578,11 @@ describe('CopilotCLITools', () => {
 			const part = createCopilotCLIToolInvocation({ toolName: 'codeql_checker', toolCallId: 'cq1', arguments: {} });
 			expect(part).toBeInstanceOf(ChatToolInvocationPart);
 		});
+		it('formats web_fetch invocation with url', () => {
+			const part = createCopilotCLIToolInvocation({ toolName: 'web_fetch', toolCallId: 'wf1', arguments: { url: 'https://example.com/page' } });
+			expect(part).toBeInstanceOf(ChatToolInvocationPart);
+			expect(getInvocationMessageText(part as ChatToolInvocationPart)).toContain('https://example.com/page');
+		});
 	});
 
 	describe('process tool execution lifecycle', () => {

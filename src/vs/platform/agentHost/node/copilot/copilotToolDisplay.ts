@@ -115,6 +115,11 @@ interface ICopilotGlobToolArgs {
 	path?: string;
 }
 
+/** Parameters for the `web_fetch` tool. */
+interface ICopilotWebFetchToolArgs {
+	url: string;
+}
+
 /** Set of tool names that perform file edits. */
 const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.Edit,
@@ -323,6 +328,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return localize('toolInvoke.webFetch', "Fetching {0}", args.url);
+			}
+			return localize('toolInvoke.webFetchGeneric', "Fetching web content");
+		}
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -401,6 +413,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 				return md(localize('toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.glob', "Found files");
+		}
+		case CopilotToolName.WebFetch: {
+			const args = parameters as ICopilotWebFetchToolArgs | undefined;
+			if (args?.url) {
+				return localize('toolComplete.webFetch', "Fetched {0}", args.url);
+			}
+			return localize('toolComplete.webFetchGeneric', "Fetched web content");
 		}
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);

@@ -1064,7 +1064,7 @@ const ToolFriendlyNameAndHandlers: { [K in ToolCall['toolName']]: [title: string
 	'report_intent': [l10n.t('Report Intent'), emptyInvocation, genericToolInvocationCompleted],
 	'think': [l10n.t('Thinking'), emptyInvocation, genericToolInvocationCompleted],
 	'report_progress': [l10n.t('Progress update'), formatProgressToolInvocation, genericToolInvocationCompleted],
-	'web_fetch': [l10n.t('Fetch Web Content'), emptyInvocation, genericToolInvocationCompleted],
+	'web_fetch': [l10n.t('Fetch Web Content'), formatWebFetchInvocation, genericToolInvocationCompleted],
 	'web_search': [l10n.t('Web Search'), emptyInvocation, genericToolInvocationCompleted],
 	'update_todo': [l10n.t('Update Todo'), formatUpdateTodoInvocation, formatUpdateTodoInvocationCompleted],
 	'show_file': [l10n.t('Show File'), formatShowFileInvocation, genericToolInvocationCompleted],
@@ -1103,6 +1103,15 @@ function formatProgressToolInvocation(invocation: ChatToolInvocationPart, toolCa
 }
 
 
+
+function formatWebFetchInvocation(invocation: ChatToolInvocationPart, toolCall: WebFetchTool): void {
+	const url = toolCall.arguments.url;
+	if (url) {
+		const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
+		invocation.invocationMessage = l10n.t("Fetching {0}", displayUrl);
+		invocation.pastTenseMessage = l10n.t("Fetched {0}", displayUrl);
+	}
+}
 
 function formatViewToolInvocation(invocation: ChatToolInvocationPart, toolCall: ViewTool): void {
 	const args = toolCall.arguments;
