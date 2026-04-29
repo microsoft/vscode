@@ -1409,7 +1409,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// chatCompletion.requestId.headerRequestId which is reported as `requestId` in response.success.
 		// Fall back to requestId (client-generated UUID) if the server didn't echo the header.
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			this.lastHeaderRequestId = fetchResult.serverRequestId ?? fetchResult.requestId;
+			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
 			this.lastModelCallId = fetchResult.modelCallId;
 		}
 
