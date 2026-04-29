@@ -1464,18 +1464,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const chatIds = this._getChatIdsInGroup(sessionId);
-		if (chatIds.length <= 1) {
-			// Only one chat — delete the entire session
-			return this.deleteSession(sessionId);
-		}
 
-		// Find the chat matching the URI
+		// Find the chat matching the URI first, before deciding whether to
+		// delete the entire session. This prevents accidentally deleting the
+		// whole session when the grouping cache is stale and chatIds doesn't
+		// include the chat being closed.
 		const chatId = chatIds.find(id => {
 			const chat = this._sessionCache.get(this._localIdFromchatId(id));
 			return chat && chat.resource.toString() === chatUri.toString();
 		});
 		if (!chatId) {
 			return;
+		}
+
+		if (chatIds.length <= 1) {
+			// This is the only chat in the session — delete the entire session
+			return this.deleteSession(sessionId);
 		}
 
 		// Delete the underlying agent session first.
