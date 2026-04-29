@@ -108,7 +108,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
-			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval);
+			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					// When shell integration is basic, it means that the end execution event is
@@ -136,7 +136,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
-				trackIdleOnPrompt(this._instance, idlePollInterval * 3, store, idlePollInterval).then(() => {
+				trackIdleOnPrompt(this._instance, idlePollInterval * 3, store, idlePollInterval, this._logService).then(() => {
 					this._log('onDone long idle prompt');
 				}),
 			]);

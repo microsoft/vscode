@@ -5,10 +5,11 @@
 
 import { BasePromptElementProps, PromptElement, PromptReference, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import type { Uri } from 'vscode';
-import { ResponseTranslationRules } from '../base/responseTranslationRules';
-import { SafetyRules } from '../base/safetyRules';
-import { Tag } from '../base/tag';
-import { CodeBlock } from '../panel/safeElements';
+import { SafetyRules } from '../../prompts/node/base/safetyRules';
+import { ResponseTranslationRules } from '../../prompts/node/base/responseTranslationRules';
+import { Tag } from '../../prompts/node/base/tag';
+import { CodeBlock } from '../../prompts/node/panel/safeElements';
+
 
 export type ProgressMessageScenario = 'generate' | 'edit';
 

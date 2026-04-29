@@ -12,6 +12,9 @@ import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatReferenceBinaryData } from '../../../../../vscodeTypes';
+import { LanguageModelToolMCPSource } from '../../../../../util/common/test/shims/chatTypes';
+import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
+import type { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { MockChatResponseStream, TestChatRequest } from '../../../../test/node/testHelpers';
 import type { ClaudeFolderInfo } from '../../common/claudeFolderInfo';
@@ -571,5 +574,293 @@ describe('ClaudeAgentManager - error handling', () => {
 
 		// Should return an error result (the error is caught and streamed)
 		expect(result.errorDetails).toBeDefined();
+	});
+});
+
+describe('ClaudeCodeSession - yield flow', () => {
+	const store = new DisposableStore();
+	let instantiationService: IInstantiationService;
+	let sessionStateService: IClaudeSessionStateService;
+	let mockService: MockClaudeCodeSdkService;
+
+	beforeEach(() => {
+		const services = store.add(createExtensionUnitTestingServices());
+		const accessor = services.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		sessionStateService = accessor.get(IClaudeSessionStateService);
+		mockService = accessor.get(IClaudeCodeSdkService) as MockClaudeCodeSdkService;
+		mockService.queryCallCount = 0;
+	});
+
+	afterEach(() => {
+		store.clear();
+		vi.resetAllMocks();
+	});
+
+	it('yield completes the current request while session continues', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		const stream1 = new MockChatResponseStream();
+		// yieldRequested is set before _processMessages runs (async session start),
+		// so the yield check triggers on the first dispatched message
+		const promise1 = session.invoke(createMockChatRequest('First'), stream1, () => true, CancellationToken.None);
+		await promise1;
+
+		// Session should still be alive — send a second request
+		const stream2 = new MockChatResponseStream();
+		const promise2 = session.invoke(createMockChatRequest('Second'), stream2, undefined, CancellationToken.None);
+		await promise2;
+
+		expect(stream2.output.join('\n')).toContain('Hello from mock!');
+		expect(mockService.queryCallCount).toBe(1);
+	});
+
+	it('second request after yield uses priority now', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('First'), stream1, () => true, CancellationToken.None);
+
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Second'), stream2, undefined, CancellationToken.None);
+
+		// The second message yielded to the SDK should have priority 'now'
+		expect(mockService.receivedMessages.length).toBeGreaterThanOrEqual(2);
+		expect(mockService.receivedMessages[1].priority).toBe('now');
+	});
+
+	it('multiple yield cycles work correctly', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		// A → yield → B → yield → C
+		const streamA = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('A'), streamA, () => true, CancellationToken.None);
+
+		const streamB = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('B'), streamB, () => true, CancellationToken.None);
+
+		const streamC = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('C'), streamC, undefined, CancellationToken.None);
+
+		expect(streamC.output.join('\n')).toContain('Hello from mock!');
+		expect(mockService.queryCallCount).toBe(1);
+		expect(mockService.receivedMessages).toHaveLength(3);
+	});
+});
+
+describe('ClaudeCodeSession - settings change restart', () => {
+	const store = new DisposableStore();
+	let instantiationService: IInstantiationService;
+	let sessionStateService: IClaudeSessionStateService;
+	let mockService: MockClaudeCodeSdkService;
+	let mockFs: MockFileSystemService;
+
+	beforeEach(() => {
+		const services = store.add(createExtensionUnitTestingServices());
+		const accessor = services.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		sessionStateService = accessor.get(IClaudeSessionStateService);
+		mockService = accessor.get(IClaudeCodeSdkService) as MockClaudeCodeSdkService;
+		mockService.queryCallCount = 0;
+		mockFs = accessor.get(IFileSystemService) as MockFileSystemService;
+	});
+
+	afterEach(() => {
+		store.clear();
+		vi.resetAllMocks();
+	});
+
+	it('restarts session when settings files change between requests', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		// First request establishes the session and takes a settings snapshot
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		// Simulate a CLAUDE.md file being created (settings change)
+		const claudeMdUri = URI.joinPath(URI.file('/home/testuser'), '.claude', 'CLAUDE.md');
+		mockFs.mockFile(claudeMdUri, '# Instructions', 2000);
+
+		// Second request should trigger settings change → restart (new query created)
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(2);
+	});
+
+	it('uses resume after settings change restart', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		// First request — new session
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
+		expect(mockService.lastQueryOptions?.sessionId).toBe('test-session');
+
+		// Trigger settings change
+		const claudeMdUri = URI.joinPath(URI.file('/home/testuser'), '.claude', 'CLAUDE.md');
+		mockFs.mockFile(claudeMdUri, '# Instructions', 2000);
+
+		// Second request — should use resume, not sessionId
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
+		expect(mockService.lastQueryOptions?.resume).toBe('test-session');
+		expect(mockService.lastQueryOptions?.sessionId).toBeUndefined();
+	});
+
+	it('does not restart when settings files have not changed', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		// No file changes — session should be reused
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+	});
+});
+
+describe('ClaudeCodeSession - effort and tools restart', () => {
+	const store = new DisposableStore();
+	let instantiationService: IInstantiationService;
+	let sessionStateService: IClaudeSessionStateService;
+	let mockService: MockClaudeCodeSdkService;
+
+	beforeEach(() => {
+		const services = store.add(createExtensionUnitTestingServices());
+		const accessor = services.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		sessionStateService = accessor.get(IClaudeSessionStateService);
+		mockService = accessor.get(IClaudeCodeSdkService) as MockClaudeCodeSdkService;
+		mockService.queryCallCount = 0;
+	});
+
+	afterEach(() => {
+		store.clear();
+		vi.resetAllMocks();
+	});
+
+	it('uses resume after effort change restart', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		// First request — new session
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
+		expect(mockService.lastQueryOptions?.sessionId).toBe('test-session');
+
+		// Change effort
+		sessionStateService.setReasoningEffortForSession('test-session', 'high');
+
+		// Restarted session should use resume
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
+		expect(mockService.lastQueryOptions?.resume).toBe('test-session');
+		expect(mockService.lastQueryOptions?.effort).toBe('high');
+	});
+
+	it('restarts session when MCP tools change', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		// First request with no MCP tools
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		// Second request with a new MCP tool
+		const stream2 = new MockChatResponseStream();
+		const mcpTool = { name: 'mcp-tool', source: new LanguageModelToolMCPSource('test-server', 'test-server', undefined) } as unknown as vscode.LanguageModelChatTool;
+		const reqWithTool: vscode.ChatRequest = {
+			prompt: 'Hello again',
+			references: [],
+			tools: new Map([[mcpTool, true]]),
+			id: 'test-request-2',
+			toolInvocationToken: {}
+		} as unknown as vscode.ChatRequest;
+		await session.invoke(reqWithTool, stream2, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(2);
+	});
+
+	it('does not restart when MCP tools are unchanged', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+
+		const mcpTool = { name: 'mcp-tool', source: new LanguageModelToolMCPSource('test-server', 'test-server', undefined) } as unknown as vscode.LanguageModelChatTool;
+		const makeReq = () => ({
+			prompt: 'Hello',
+			references: [],
+			tools: new Map([[mcpTool, true]]),
+			id: 'test-request',
+			toolInvocationToken: {}
+		} as unknown as vscode.ChatRequest);
+
+		const stream1 = new MockChatResponseStream();
+		await session.invoke(makeReq(), stream1, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+
+		const stream2 = new MockChatResponseStream();
+		await session.invoke(makeReq(), stream2, undefined, CancellationToken.None);
+		expect(mockService.queryCallCount).toBe(1);
+	});
+});
+
+describe('ClaudeCodeSession - edge cases', () => {
+	const store = new DisposableStore();
+	let instantiationService: IInstantiationService;
+	let sessionStateService: IClaudeSessionStateService;
+
+	beforeEach(() => {
+		const services = store.add(createExtensionUnitTestingServices());
+		const accessor = services.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		sessionStateService = accessor.get(IClaudeSessionStateService);
+	});
+
+	afterEach(() => {
+		store.clear();
+		vi.resetAllMocks();
+	});
+
+	it('rejects in-flight requests when disposed', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true);
+
+		const stream = new MockChatResponseStream();
+		const promise = session.invoke(createMockChatRequest('Hello'), stream, undefined, CancellationToken.None);
+
+		// Dispose immediately — the in-flight request should be rejected
+		session.dispose();
+
+		await expect(promise).rejects.toThrow();
+	});
+
+	it('rejects new requests after dispose', async () => {
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true);
+		session.dispose();
+
+		const stream = new MockChatResponseStream();
+		await expect(
+			session.invoke(createMockChatRequest('Hello'), stream, undefined, CancellationToken.None)
+		).rejects.toThrow('Session disposed');
 	});
 });

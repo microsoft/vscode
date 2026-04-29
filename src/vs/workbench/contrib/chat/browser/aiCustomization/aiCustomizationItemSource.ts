@@ -62,7 +62,7 @@ export interface IAICustomizationListItem {
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
-	readonly extensionLabel?: string;
+	readonly extensionId?: string;
 	/** Server-reported loading/sync status for remote customizations. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -199,7 +199,7 @@ export class AICustomizationItemNormalizer {
 	}
 
 	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
-		const { storage, groupKey, isBuiltin, extensionLabel } = this.resolveSource(item);
+		const { storage, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
@@ -217,64 +217,49 @@ export class AICustomizationItemNormalizer {
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
-			pluginUri: storage === PromptsStorage.plugin ? this.findPluginUri(item.uri) : undefined,
+			pluginUri,
 			displayName: item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
 			typeIcon: promptType === PromptsType.instructions && storage ? storageToIcon(storage) : undefined,
 			isBuiltin,
-			extensionLabel,
+			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
 		};
 	}
 
-	private resolveSource(item: ICustomizationItem): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		const inferred = this.inferStorageAndGroup(item.uri);
+	private inferStorageAndGroup(item: ICustomizationItem): { storage: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
+		const groupKey = item.groupKey;
+		const isBuiltin = groupKey === BUILTIN_STORAGE;
 
-		// Use provider-supplied values when available; otherwise fall back to URI inference.
-		const storage = item.storage ?? inferred.storage;
-		const extensionLabel = item.extensionLabel ?? inferred.extensionLabel;
-
-		if (!item.groupKey) {
-			return { ...inferred, storage, extensionLabel };
-		}
-
-		switch (item.groupKey) {
-			case BUILTIN_STORAGE: {
-				// Preserve a provider-supplied BUILTIN_STORAGE so the management
-				// editor's "edit built-in and save as user/workspace copy" flow
-				// activates. Otherwise fall back to extension storage (the
-				// historical source of built-in items).
-				const builtinStorage = (item.storage as PromptsStorage | typeof BUILTIN_STORAGE | undefined) === BUILTIN_STORAGE
-					? (BUILTIN_STORAGE as unknown as PromptsStorage)
-					: PromptsStorage.extension;
-				return { storage: builtinStorage, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionLabel };
+		if (item.extensionId) {
+			const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
+			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
 			}
-			default:
-				return { storage, groupKey: item.groupKey, extensionLabel };
+			return { storage: PromptsStorage.extension, extensionId: item.extensionId, groupKey, isBuiltin };
 		}
-	}
+		if (item.pluginUri) {
+			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
 
-	private inferStorageAndGroup(uri: URI): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		if (uri.scheme !== Schemas.file) {
-			return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
-		}
+		const uri = item.uri;
 
 		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
 		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
-			return { storage: PromptsStorage.local };
+			return { storage: PromptsStorage.local, groupKey, isBuiltin };
 		}
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			if (isEqualOrParent(uri, folder.uri)) {
-				return { storage: PromptsStorage.local };
+				return { storage: PromptsStorage.local, groupKey, isBuiltin };
 			}
 		}
 
 		for (const plugin of this.agentPluginService.plugins.get()) {
 			if (isEqualOrParent(uri, plugin.uri)) {
-				return { storage: PromptsStorage.plugin };
+				return { storage: PromptsStorage.plugin, pluginUri: plugin.uri, groupKey, isBuiltin };
 			}
 		}
 
@@ -282,22 +267,13 @@ export class AICustomizationItemNormalizer {
 		if (extensionId) {
 			const extensionIdentifier = new ExtensionIdentifier(extensionId);
 			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
-				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId };
 			}
-			return { storage: PromptsStorage.extension, extensionLabel: extensionIdentifier.value };
+			return { storage: PromptsStorage.extension, extensionId, groupKey, isBuiltin };
 		}
-
 		return { storage: PromptsStorage.user };
 	}
 
-	private findPluginUri(itemUri: URI): URI | undefined {
-		for (const plugin of this.agentPluginService.plugins.get()) {
-			if (isEqualOrParent(itemUri, plugin.uri)) {
-				return plugin.uri;
-			}
-		}
-		return undefined;
-	}
 }
 
 // #endregion
