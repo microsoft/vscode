@@ -103,18 +103,6 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of all view containers following the visual order.
 	 */
 	getPaneCompositeIds(): string[];
-
-	// test-workbench_change start
-	/**
-	 * Pins a view container in the composite bar.
-	 */
-	pinPaneComposite(id: string): void;
-
-	/**
-	 * Unpins a view container from the composite bar.
-	 */
-	unpinPaneComposite(id: string): void;
-	// test-workbench_change end
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -597,16 +585,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	getPaneCompositeIds(): string[] {
 		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
 	}
-
-	// test-workbench_change start
-	pinPaneComposite(id: string): void {
-		this.paneCompositeBar.value?.pinComposite(id);
-	}
-
-	unpinPaneComposite(id: string): void {
-		this.paneCompositeBar.value?.unpinComposite(id);
-	}
-	// test-workbench_change end
 
 	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();

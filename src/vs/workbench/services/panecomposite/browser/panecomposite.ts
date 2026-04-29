@@ -73,16 +73,4 @@ export interface IPaneCompositePartService {
 	 * Return the last active viewlet id.
 	 */
 	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string;
-
-	// test-workbench_change start
-	/**
-	 * Pins a view container in the composite bar.
-	 */
-	pinPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): void;
-
-	/**
-	 * Unpins a view container from the composite bar.
-	 */
-	unpinPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): void;
-	// test-workbench_change end
 }

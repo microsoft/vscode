@@ -1165,12 +1165,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// test-workbench_change start: Restore Concise Mode
-		// If concise mode was active (including the default true on first launch), apply it now.
-		// The state is persisted at PROFILE scope so the user's choice is remembered.
 		if (this.isConciseModeActiveInternal()) {
 			const activityBarPart = this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart;
 			this.setStatusBarHidden(true);
-			activityBarPart.setExtensionsVisible(false);
 			activityBarPart.setGlobalCompositeBarVisible(false);
 			this._onDidChangeConciseMode.fire(true);
 		}
@@ -1625,7 +1622,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO, conciseModeExitInfo);
 
 			this.setStatusBarHidden(true);
-			activityBarPart.setExtensionsVisible(false);
 			activityBarPart.setGlobalCompositeBarVisible(false);
 		} else {
 			// --- Leaving concise mode ---
@@ -1633,7 +1629,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (conciseModeExitInfo.wasStatusBarVisible) {
 				this.setStatusBarHidden(false);
 			}
-			activityBarPart.setExtensionsVisible(true);
 			activityBarPart.setGlobalCompositeBarVisible(true);
 		}
 		// test-workbench_change end

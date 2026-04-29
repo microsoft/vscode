@@ -174,18 +174,6 @@ export class ActivitybarPart extends Part {
 	}
 
 	// test-workbench_change start
-	pinPaneComposite(id: string): void {
-		this.compositeBar.value?.pinComposite(id);
-	}
-
-	unpinPaneComposite(id: string): void {
-		this.compositeBar.value?.unpinComposite(id);
-	}
-
-	setExtensionsVisible(visible: boolean): void {
-		this.compositeBar.value?.setCompositeVisible('workbench.view.extensions', visible);
-	}
-
 	setGlobalCompositeBarVisible(visible: boolean): void {
 		(this.compositeBar.value as ActivityBarCompositeBar | undefined)?.setGlobalCompositeBarVisible(visible);
 	}
