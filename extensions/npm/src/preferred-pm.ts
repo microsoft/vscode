@@ -23,6 +23,40 @@ async function pathExists(filePath: string) {
 	return true;
 }
 
+const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+
+async function readPackageManagerField(packageJsonPath: string): Promise<string | undefined> {
+	try {
+		const bytes = await workspace.fs.readFile(Uri.file(packageJsonPath));
+		const json = JSON.parse(new TextDecoder().decode(bytes));
+		const value = json?.packageManager;
+		if (typeof value !== 'string') {
+			return undefined;
+		}
+		// Corepack format: "<name>@<version>[+<hash>]"
+		const name = value.split('@', 1)[0].trim();
+		return SUPPORTED_PACKAGE_MANAGERS.has(name) ? name : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function findPackageManagerFromField(pkgPath: string): Promise<string | undefined> {
+	let result: string | undefined;
+	await findUp(async directory => {
+		const candidate = path.join(directory, 'package.json');
+		if (await pathExists(candidate)) {
+			const name = await readPackageManagerField(candidate);
+			if (name) {
+				result = name;
+				return candidate;
+			}
+		}
+		return undefined;
+	}, { cwd: pkgPath });
+	return result;
+}
+
 async function isBunPreferred(pkgPath: string): Promise<PreferredProperties> {
 	if (await pathExists(path.join(pkgPath, 'bun.lockb'))) {
 		return { isPreferred: true, hasLockfile: true };
@@ -71,6 +105,12 @@ async function isNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 export async function findPreferredPM(pkgPath: string): Promise<{ name: string; multipleLockFilesDetected: boolean }> {
 	const detectedPackageManagerNames: string[] = [];
 	const detectedPackageManagerProperties: PreferredProperties[] = [];
+
+	const fromField = await findPackageManagerFromField(pkgPath);
+	if (fromField) {
+		detectedPackageManagerNames.push(fromField);
+		detectedPackageManagerProperties.push({ isPreferred: true, hasLockfile: false });
+	}
 
 	const npmPreferred = await isNPMPreferred(pkgPath);
 	if (npmPreferred.isPreferred) {
