@@ -299,5 +299,13 @@
 	"tsCodeAuthMockEnabled": false,
 	"gitVersion": "v1.0.2",
 	"commit": "9c521649abc582aa7064480374c5b04e3449da6e",
-	"date": "2026-04-21T15:19:02+08:00"
+	"date": "2026-04-21T15:19:02+08:00",
+	"extensionsGallery": {
+		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
+		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
+		"resourceUrlTemplate": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+		"controlUrl": "",
+		"nlsBaseUrl": "",
+		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
+	}
 }
