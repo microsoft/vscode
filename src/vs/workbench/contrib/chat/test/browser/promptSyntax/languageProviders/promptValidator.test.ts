@@ -2015,6 +2015,35 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues');
 		});
 
+		test('body with fragment-only anchor link', async () => {
+			const content = [
+				'---',
+				'description: "Fragment-Only Links"',
+				'---',
+				'See [Details](#details) for more info.',
+				'See [Section](#section-name) and [Another](#another).',
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues for fragment-only anchor links');
+		});
+
+		test('body with mixed link types', async () => {
+			const nonExistingRef = existingRef1.with({ path: '/nonexisting' });
+			const content = [
+				'---',
+				'description: "Mixed Links"',
+				'---',
+				`Here is a [url link](${existingRef1.toString()}).`,
+				'See [Details](#details) for more info.',
+				`Here is a [url link](${nonExistingRef.toString()}).`
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			const messages = markers.map(m => m.message).sort();
+			assert.deepStrictEqual(messages, [
+				`File 'myFs://test/nonexisting' not found at '/nonexisting'.`,
+			]);
+		});
+
 		test('body with url link', async () => {
 			const nonExistingRef = existingRef1.with({ path: '/nonexisting' });
 			const content = [
