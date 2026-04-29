@@ -56,7 +56,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 		// a newline; pasting (especially via right click) would otherwise immediately execute it.
 		// The user can still review the pasted text and press Enter to run it.
 		if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
-			return { modifiedText: text.replace(/(?:\r?\n)+$/, '') };
+			return { modifiedText: textForLines[0] };
 		}
 	}
 
