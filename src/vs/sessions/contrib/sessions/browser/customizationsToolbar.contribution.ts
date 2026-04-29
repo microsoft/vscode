@@ -223,3 +223,42 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Keeps the active customization harness in sync with the currently active
+ * session's `sessionType`. This drives the customizations sidebar (counts,
+ * filtering) and the customizations editor so they reflect the harness that
+ * matches the session the user is interacting with.
+ *
+ * This covers two cases identically:
+ *  - opening / navigating into an existing session
+ *  - selecting "New session in {workspace}" (which sets a pending active
+ *    session before the user has sent the first request)
+ */
+export class ActiveSessionHarnessSyncContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
+
+	constructor(
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const sessionType = sessionsManagementService.activeSession.read(reader)?.sessionType;
+			if (!sessionType) {
+				return;
+			}
+			// Re-read available harnesses so we re-run when an external harness
+			// (e.g. agent host, CLI) registers asynchronously after the session
+			// has already been selected.
+			harnessService.availableHarnesses.read(reader);
+			if (harnessService.findHarnessById(sessionType)) {
+				harnessService.setActiveHarness(sessionType);
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(ActiveSessionHarnessSyncContribution.ID, ActiveSessionHarnessSyncContribution, WorkbenchPhase.AfterRestored);
