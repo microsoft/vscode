@@ -188,8 +188,9 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
-		if (premiumChat?.unlimited) {
-			const includedTitle = premiumChat.usageBasedBilling
+		const hasPremiumUnlimited = !!premiumChat?.unlimited;
+		if (hasPremiumUnlimited) {
+			const includedTitle = premiumChat!.usageBasedBilling
 				? localize('includedTitleTBB', "Monthly Limit")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
@@ -199,7 +200,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Quick Settings — collapsible region
 		if (hasQuickSettingsContent) {
-			const hasContentAbove = hasUsageSection || hasVisibleUsageContent || !!premiumChat?.unlimited;
+			const hasContentAbove = hasUsageSection || hasVisibleUsageContent || hasPremiumUnlimited;
 			this.renderQuickSettings(contributedEntries, hasContentAbove);
 		}
 
