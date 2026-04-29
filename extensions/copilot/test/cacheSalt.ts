@@ -10,7 +10,7 @@
  * Used for all ChatML requests (all models).
  */
 export const CHAT_ML_CACHE_SALT_PER_MODEL: Record<string, string> = {
-	'DEFAULT': '2024-07-04T07:37:00Z',
+	'DEFAULT': '2026-04-28T00:00:00Z',
 	'copilot-nes-oct': '2026-02-10T12:14:18.526Z',
 };
 

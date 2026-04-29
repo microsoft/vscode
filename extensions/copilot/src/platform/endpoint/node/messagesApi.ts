@@ -849,6 +849,27 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 		};
 		await finishCallback(textContent, 0, delta);
 
+		if (parsed.stop_reason === 'refusal') {
+			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
+
+			/* __GDPR__
+				"messagesApi.refusal" : {
+					"owner": "bhavyaus",
+					"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+					"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+					"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+					"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+				}
+			*/
+			telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+				{
+					requestId,
+					model: parsed.model,
+					category: 'unknown',
+				}
+			);
+		}
+
 		const usage = parsed.usage;
 		const completion = buildAnthropicCompletion({
 			model: parsed.model,
@@ -880,7 +901,13 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			telemetryDataWithUsage = telemetryData.extendedBy({}, {
 				promptTokens: completion.usage.prompt_tokens,
 				completionTokens: completion.usage.completion_tokens,
-				totalTokens: completion.usage.total_tokens
+				totalTokens: completion.usage.total_tokens,
+				...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+				...(completion.usage.completion_tokens_details && {
+					reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+					acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+					rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+				}),
 			});
 		}
 		sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
