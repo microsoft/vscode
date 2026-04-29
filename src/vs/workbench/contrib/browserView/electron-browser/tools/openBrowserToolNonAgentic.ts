@@ -19,6 +19,11 @@ import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
 	modelDescription: 'Open a new browser page in the integrated browser at the given URL.',
+	inputSchema: {
+		...OpenBrowserToolData.inputSchema,
+		required: ['url'],
+		$comment: undefined
+	}
 };
 
 export class OpenBrowserToolNonAgentic implements IToolImpl {

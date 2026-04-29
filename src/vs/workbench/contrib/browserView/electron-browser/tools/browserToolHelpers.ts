@@ -12,7 +12,7 @@ import { IAgentNetworkFilterService } from '../../../../../platform/networkFilte
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
@@ -149,6 +149,10 @@ export function errorResult(message: string): IToolResult {
 export function findExistingPagesByHost(
 	browserViewService: IBrowserViewWorkbenchService,
 	url: string,
+	options?: {
+		includeBlank?: boolean;
+		sharingState?: BrowserViewSharingState;
+	}
 ): BrowserEditorInput[] {
 	const parsed = URL.parse(url);
 	if (!parsed || (parsed.protocol !== 'file:' && !parsed.host)) {
@@ -160,10 +164,12 @@ export function findExistingPagesByHost(
 		if (!(editor instanceof BrowserEditorInput)) {
 			continue;
 		}
+		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
+			continue;
+		}
 		const editorUrl = URL.parse(editor.url || '');
 		if (
-			!editor.url ||
-			editor.url === 'about:blank' ||
+			options?.includeBlank && (!editor.url || editor.url === 'about:blank') ||
 			editorUrl?.host === parsed.host ||
 			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:') ||
 			(editorUrl?.host && parsed.host && (

@@ -125,22 +125,19 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		if (!params.forceNew) {
-			const allMatching = findExistingPagesByHost(this.browserViewService, params.url);
-			if (allMatching.length > 0) {
-				// If there are already-shared pages, tell the model to reuse them
-				const shared = allMatching.filter(e => e.model?.sharingState === BrowserViewSharingState.Shared);
-				const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
-				if (alreadyShared) {
-					return alreadyShared;
-				}
+			// If there are already-shared pages, tell the model to reuse them
+			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared });
+			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
+			if (alreadyShared) {
+				return alreadyShared;
+			}
 
-				// If there are unshared (but shareable) pages on the same host, prompt user to share one
-				const unshared = allMatching.filter(e => !e.model || e.model.sharingState === BrowserViewSharingState.NotShared);
-				if (unshared.length > 0) {
-					const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
-					if (shareResult) {
-						return shareResult;
-					}
+			// If there are unshared (but shareable) pages on the same host, prompt user to share one
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, sharingState: BrowserViewSharingState.NotShared });
+			if (unshared.length > 0) {
+				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
+				if (shareResult) {
+					return shareResult;
 				}
 			}
 		}
