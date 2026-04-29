@@ -275,13 +275,6 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	const requestData = TelemetryData.createAndMarkAsIssued(filteredProperties, telemetryData.measurements);
 
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
-
-	// >>> DEBUG model.request.added — REMOVE THIS BLOCK <<<
-	{
-		console.log(`[DEBUG] model.request.added properties:`, JSON.stringify(requestData.properties, null, 2));
-		console.log(`[DEBUG] model.request.added measurements:`, JSON.stringify(requestData.measurements, null, 2));
-	}
-	// >>> END DEBUG model.request.added <<<
 }
 
 function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, messageDirection: 'input' | 'output', logService?: ILogService): Array<{ uuid: string; headerRequestId: string }> {
@@ -420,13 +413,6 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 			}, telemetryData.measurements); // Include measurements from original telemetryData
 
 			telemetryService.sendInternalMSFTTelemetryEvent(eventName, modelCallData.properties, modelCallData.measurements);
-
-			// >>> DEBUG model.modelCall.input/output — REMOVE THIS BLOCK <<<
-			{
-				console.log(`[DEBUG] ${eventName} properties:`, JSON.stringify(modelCallData.properties, null, 2));
-				console.log(`[DEBUG] ${eventName} measurements:`, JSON.stringify(modelCallData.measurements, null, 2));
-			}
-			// >>> END DEBUG model.modelCall.input/output <<<
 		}
 	}
 }
@@ -472,16 +458,6 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 	// Commenting this out to test a new deduplicated way to collect the same information using sendModelTelemetryEvents()
 	// TO DO remove this line completely if the new way allows for complete reconstruction of entire message arrays with much lower drop rate
 	//telemetryService.sendInternalMSFTTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
-
-	// >>> DEBUG engine.messages — REMOVE THIS BLOCK <<<
-	{
-		const _dir = isOutput ? 'output' : 'input';
-		const _props = multiplexProperties(telemetryDataWithPrompt.properties);
-		const _meas = telemetryDataWithPrompt.measurements;
-		console.log(`[DEBUG] engine.messages (${_dir}) properties:`, JSON.stringify(_props, null, 2));
-		console.log(`[DEBUG] engine.messages (${_dir}) measurements:`, JSON.stringify(_meas, null, 2));
-	}
-	// >>> END DEBUG engine.messages <<<
 
 	// Send all model telemetry events (model.request.added, model.message.added, model.modelCall.input/output, model.request.options.added)
 	// Comment out the line below to disable the new deduplicated model telemetry events
