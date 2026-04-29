@@ -157,7 +157,8 @@ export async function expandHookFileItems(
 							groupKey: item.groupKey,
 							storage: item.storage,
 							extensionId: item.extensionId,
-							pluginUri: item.pluginUri
+							pluginUri: item.pluginUri,
+							userInvocable: item.userInvocable,
 						});
 					}
 				}
@@ -428,7 +429,8 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				badge: uiTooltip ? uiIntegrationBadge : undefined,
 				badgeTooltip: uiTooltip,
 				extensionId: undefined,
-				pluginUri: undefined
+				pluginUri: undefined,
+				userInvocable: true,
 			};
 			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
 		}
@@ -464,8 +466,9 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				name: getFriendlyName(basename(file.uri)),
 				groupKey: 'sync-local',
 				enabled: true,
-				extensionId: undefined,
-				pluginUri: undefined
+				extensionId: file.extension?.id,
+				pluginUri: file.pluginUri,
+				userInvocable: undefined
 			}));
 
 		return this.itemNormalizer.normalizeItems(providerItems, promptType)

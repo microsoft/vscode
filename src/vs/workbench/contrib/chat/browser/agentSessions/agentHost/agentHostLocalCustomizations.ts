@@ -127,17 +127,19 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 		// folder, so the filename is not a useful display name. Look up the
 		// parsed skill metadata (name + description from frontmatter) and
 		// fall back to the parent folder name when a skill failed to parse.
-		const skillByUri = new ResourceMap<{ name: string; description: string | undefined }>();
+		const skillByUri = new ResourceMap<{ name: string; description: string | undefined; userInvocable?: boolean }>();
 		for (const skill of skills ?? []) {
-			skillByUri.set(skill.uri, { name: skill.name, description: skill.description });
+			skillByUri.set(skill.uri, { name: skill.name, description: skill.description, userInvocable: skill.userInvocable });
 		}
 		return enumerated.map(file => {
 			let name: string;
 			let description: string | undefined;
+			let userInvocable: boolean | undefined;
 			if (file.type === PromptsType.skill) {
 				const parsed = skillByUri.get(file.uri);
 				name = parsed?.name ?? getSkillFolderName(file.uri);
 				description = parsed?.description;
+				userInvocable = parsed?.userInvocable;
 			} else {
 				name = getFriendlyName(basename(file.uri));
 			}
@@ -150,6 +152,7 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 				enabled: !file.disabled,
 				extensionId: file.extensionId,
 				pluginUri: file.pluginUri,
+				userInvocable
 			};
 		});
 	}
