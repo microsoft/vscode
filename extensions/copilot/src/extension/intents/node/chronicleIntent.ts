@@ -9,6 +9,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { type SessionRow, type RefRow, ISessionStore } from '../../../platform/chronicle/common/sessionStore';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -32,6 +33,7 @@ import { DefaultIntentRequestHandler } from '../../prompt/node/defaultIntentRequ
 import { IIntent, IIntentInvocation, IIntentInvocationContext, IIntentSlashCommandInfo, IntentLinkificationOptions } from '../../prompt/node/intents';
 import { PromptRenderer, RendererIntentInvocation } from '../../prompts/node/base/promptRenderer';
 import { ChroniclePrompt } from '../../prompts/node/panel/chroniclePrompt';
+import { reindexSessions } from '../../chronicle/node/sessionReindexer';
 
 /** Cloud SQL dialect sessions query. */
 const SESSIONS_QUERY_CLOUD = `SELECT *
@@ -40,7 +42,7 @@ const SESSIONS_QUERY_CLOUD = `SELECT *
 	ORDER BY updated_at DESC
 	LIMIT 100`;
 
-const SUBCOMMANDS = ['standup', 'tips', 'improve'] as const;
+const SUBCOMMANDS = ['standup', 'tips', 'improve', 'reindex'] as const;
 type ChronicleSubcommand = typeof SUBCOMMANDS[number];
 
 export class ChronicleIntent implements IIntent {
@@ -67,6 +69,7 @@ export class ChronicleIntent implements IIntent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IFetcherService private readonly _fetcherService: IFetcherService,
+		@IChatDebugFileLoggerService private readonly _debugLogService: IChatDebugFileLoggerService,
 	) {
 		this._indexingPreference = new SessionIndexingPreference(this._configService);
 	}
@@ -99,6 +102,8 @@ export class ChronicleIntent implements IIntent {
 				return this._handleStandup(rest, stream, request, token);
 			case 'tips':
 				return this._handleTips(rest, stream, request, token, conversation, documentContext, location, chatTelemetry);
+			case 'reindex':
+				return this._handleReindex(rest, stream, token);
 			case 'improve':
 				stream.markdown(l10n.t('`/chronicle {0}` is not yet implemented. Try `/chronicle:standup` or `/chronicle:tips`.', subcommand));
 				return {};
@@ -136,6 +141,62 @@ export class ChronicleIntent implements IIntent {
 			subcommand: trimmed.slice(0, spaceIdx).toLowerCase(),
 			rest: trimmed.slice(spaceIdx + 1).trim() || undefined,
 		};
+	}
+
+	private async _handleReindex(
+		rest: string | undefined,
+		stream: vscode.ChatResponseStream,
+		token: CancellationToken,
+	): Promise<vscode.ChatResult> {
+		const force = rest?.toLowerCase().includes('force') ?? false;
+		const statsBefore = this._sessionStore.getStats();
+		const startTime = Date.now();
+
+		stream.progress(l10n.t('Discovering sessions...'));
+
+		const result = await reindexSessions(
+			this._sessionStore,
+			this._debugLogService,
+			(message: string) => stream.progress(message),
+			token,
+			force,
+		);
+
+		const statsAfter = this._sessionStore.getStats();
+
+		const lines: string[] = [];
+		if (result.cancelled) {
+			lines.push(l10n.t('Reindex cancelled.'));
+		} else {
+			lines.push(l10n.t('Reindex complete.'));
+		}
+
+		lines.push('');
+		lines.push(`| | ${l10n.t('Before')} | ${l10n.t('After')} | ${l10n.t('Delta')} |`);
+		lines.push('|---|---|---|---|');
+		lines.push(`| ${l10n.t('Sessions')} | ${statsBefore.sessions} | ${statsAfter.sessions} | +${statsAfter.sessions - statsBefore.sessions} |`);
+		lines.push(`| ${l10n.t('Turns')} | ${statsBefore.turns} | ${statsAfter.turns} | +${statsAfter.turns - statsBefore.turns} |`);
+		lines.push(`| ${l10n.t('Files')} | ${statsBefore.files} | ${statsAfter.files} | +${statsAfter.files - statsBefore.files} |`);
+		lines.push(`| ${l10n.t('Refs')} | ${statsBefore.refs} | ${statsAfter.refs} | +${statsAfter.refs - statsBefore.refs} |`);
+		lines.push('');
+		lines.push(l10n.t('{0} session(s) processed, {1} skipped.', result.processed, result.skipped));
+
+		stream.markdown(lines.join('\n'));
+
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle', {
+			subcommand: 'reindex',
+			querySource: 'local',
+			force: String(force),
+			cancelled: String(result.cancelled),
+		}, {
+			localSessionCount: result.processed,
+			cloudSessionCount: 0,
+			totalSessionCount: result.processed + result.skipped,
+			skippedCount: result.skipped,
+			durationMs: Date.now() - startTime,
+		});
+
+		return {};
 	}
 
 	private async _handleStandup(
@@ -378,12 +439,16 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 "chronicle" : {
 "owner": "vijayu",
 "comment": "Tracks chronicle subcommand usage, data sources, and query failures",
-"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chronicle subcommand: standup, tips, or freeform." },
+"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chronicle subcommand: standup, tips, freeform, or reindex." },
 "querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The data source used: local, cloud, both, or cloudRefs." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message." },
+"force": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether force mode was used (reindex only)." },
+"cancelled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the operation was cancelled (reindex only)." },
 "localSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of local sessions used." },
 "cloudSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of cloud sessions used." },
-"totalSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total sessions used." }
+"totalSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total sessions used." },
+"skippedCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of sessions skipped during reindex." },
+"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Duration of the reindex operation in milliseconds." }
 }
 */
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle', {

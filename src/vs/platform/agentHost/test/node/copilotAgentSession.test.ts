@@ -16,10 +16,12 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
+import { AgentSession, AgentSignal } from '../../common/agentService.js';
+import { signalToLegacyView, type LegacyMockEvent } from './mockAgent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { AttachmentType, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { AttachmentType, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
@@ -83,17 +85,17 @@ class CapturingLogService extends NullLogService {
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
  * handler implementation actually returns.
  */
-function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string): Promise<ToolResultObject> {
-	return Promise.resolve(tool.handler({}, {
+function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string, args: Record<string, unknown> = {}): Promise<ToolResultObject> {
+	return Promise.resolve(tool.handler(args, {
 		sessionId: 'test-session-1',
 		toolCallId,
 		toolName: tool.name,
-		arguments: {},
+		arguments: args,
 	})) as Promise<ToolResultObject>;
 }
 
 type ISessionInternalsForTest = {
-	_onDidSessionProgress: { fire(event: IAgentProgressEvent): void };
+	_onDidSessionProgress: { fire(event: AgentSignal): void };
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
@@ -114,29 +116,56 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
-	progressEvents: IAgentProgressEvent[];
-	waitForProgress: (predicate: (event: IAgentProgressEvent) => boolean) => Promise<IAgentProgressEvent>;
+	progressEvents: LegacyMockEvent[];
+	signals: AgentSignal[];
+	waitForProgress: (predicate: (event: LegacyMockEvent) => boolean) => Promise<LegacyMockEvent>;
 }> {
-	const progressEmitter = disposables.add(new Emitter<IAgentProgressEvent>());
-	const progressEvents: IAgentProgressEvent[] = [];
-	const waiters: { predicate: (event: IAgentProgressEvent) => boolean; deferred: DeferredPromise<IAgentProgressEvent> }[] = [];
-	disposables.add(progressEmitter.event(e => {
-		progressEvents.push(e);
+	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
+	const progressEvents: LegacyMockEvent[] = [];
+	const signals: AgentSignal[] = [];
+	const waiters: { predicate: (event: LegacyMockEvent) => boolean; deferred: DeferredPromise<LegacyMockEvent> }[] = [];
+
+	const notify = (view: LegacyMockEvent): void => {
+		progressEvents.push(view);
 		for (let i = waiters.length - 1; i >= 0; i--) {
-			if (waiters[i].predicate(e)) {
+			if (waiters[i].predicate(view)) {
 				const { deferred } = waiters[i];
 				waiters.splice(i, 1);
-				deferred.complete(e);
+				deferred.complete(view);
 			}
 		}
+	};
+
+	disposables.add(progressEmitter.event(signal => {
+		signals.push(signal);
+		const view = signalToLegacyView(signal);
+		if (!view) {
+			return;
+		}
+		// Auto-ready Ready actions emitted in the same fire-batch as a tool_start
+		// describe the same logical event in the legacy vocabulary. Merge the
+		// invocation/toolInput/edits fields back into the prior tool_start view
+		// so existing tests that assert on `tool_start.invocationMessage` etc.
+		// see a single combined entry. Permission-driven ready signals (kind:
+		// 'tool_ready') and externally triggered ready actions are pushed
+		// separately.
+		if (view.type === 'tool_ready' && signal.kind === 'action') {
+			const last = progressEvents[progressEvents.length - 1];
+			if (last?.type === 'tool_start' && last.toolCallId === view.toolCallId) {
+				last.invocationMessage = view.invocationMessage;
+				last.toolInput = view.toolInput;
+				return;
+			}
+		}
+		notify(view);
 	}));
 
-	const waitForProgress = (predicate: (event: IAgentProgressEvent) => boolean): Promise<IAgentProgressEvent> => {
+	const waitForProgress = (predicate: (event: LegacyMockEvent) => boolean): Promise<LegacyMockEvent> => {
 		const existing = progressEvents.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
 		}
-		const deferred = new DeferredPromise<IAgentProgressEvent>();
+		const deferred = new DeferredPromise<LegacyMockEvent>();
 		waiters.push({ predicate, deferred });
 		return deferred.p;
 	};
@@ -180,7 +209,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	await session.initializeSession();
 
-	return { session, mockSession, progressEvents, waitForProgress };
+	return { session, mockSession, progressEvents, signals, waitForProgress };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -693,7 +722,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('complete message with tool requests is forwarded', async () => {
+		test('complete assistant message without preceding deltas surfaces a markdown response part', async () => {
 			const { mockSession, progressEvents } = await createAgentSession(disposables);
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-2',
@@ -706,13 +735,62 @@ suite('CopilotAgentSession', () => {
 				}],
 			} as SessionEventPayload<'assistant.message'>['data']);
 
+			// The session emits a fresh markdown response part for the
+			// content. Tool calls fire their own `tool_start` events, so
+			// `toolRequests` on the assistant message are not forwarded
+			// during live streaming.
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'message');
-			if (progressEvents[0].type === 'message') {
+			assert.strictEqual(progressEvents[0].type, 'delta');
+			if (progressEvents[0].type === 'delta') {
 				assert.strictEqual(progressEvents[0].content, 'Let me help you.');
-				assert.strictEqual(progressEvents[0].toolRequests?.length, 1);
-				assert.strictEqual(progressEvents[0].toolRequests?.[0].toolCallId, 'tc-20');
 			}
+		});
+
+		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			// First reasoning delta — allocates a fresh reasoning response part.
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: 'thinking step 1',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+
+			// A tool call interleaves between reasoning rounds.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-r-1',
+				toolName: 'bash',
+				arguments: { command: 'echo hi' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-r-1',
+				success: true,
+				result: { content: 'hi' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			// Second round of reasoning, after the tool call. This must
+			// land in a NEW reasoning response part — otherwise the
+			// renderer / state-tree would merge it into the pre-tool-call
+			// block and the visual ordering would be wrong on restore.
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: 'thinking step 2',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+
+			// Pull the protocol-level reasoning response parts. Both
+			// `SessionResponsePart{Reasoning}` (allocates a new part) and
+			// `SessionReasoning` (appends to an existing part) translate to
+			// the legacy `'reasoning'` view, so we have to inspect raw
+			// signals to tell them apart.
+			const reasoningResponseParts = signals.flatMap(s => {
+				if (s.kind !== 'action' || s.action.type !== ActionType.SessionResponsePart) {
+					return [];
+				}
+				return s.action.part.kind === ResponsePartKind.Reasoning ? [s.action.part] : [];
+			});
+			assert.strictEqual(reasoningResponseParts.length, 2,
+				'reasoning after a tool call should allocate a new response part, not append to the part from before the tool call');
+			assert.notStrictEqual(reasoningResponseParts[0].id, reasoningResponseParts[1].id,
+				'second reasoning round should have a distinct part id');
+			assert.strictEqual(reasoningResponseParts[0].content, 'thinking step 1');
+			assert.strictEqual(reasoningResponseParts[1].content, 'thinking step 2');
 		});
 	});
 
@@ -720,7 +798,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('user input handling', () => {
 
-		function assertUserInputEvent(event: IAgentProgressEvent): asserts event is IAgentUserInputRequestEvent {
+		function assertUserInputEvent(event: LegacyMockEvent): asserts event is LegacyMockEvent & { type: 'user_input_request' } {
 			assert.strictEqual(event.type, 'user_input_request');
 		}
 
@@ -737,9 +815,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 1);
 			const event = progressEvents[0];
 			assertUserInputEvent(event);
-			assert.strictEqual(event.request.message, 'What is your name?');
 			const requestId = event.request.id;
 			assert.ok(event.request.questions);
+			assert.strictEqual(event.request.questions[0].message, 'What is your name?');
 			const questionId = event.request.questions[0].id;
 
 			// Respond to unblock the promise
@@ -940,7 +1018,7 @@ suite('CopilotAgentSession', () => {
 			plugins: [],
 		};
 
-		test('tool_start fires immediately for client tools', async () => {
+		test('client tool handler waits for completion without emitting tool_ready', async () => {
 			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
@@ -956,9 +1034,13 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(progressEvents[0].toolClientId, 'test-client');
 			}
 
-			// SDK invokes the handler
+			// SDK invokes the handler — it creates a deferred and waits,
+			// but does NOT fire tool_ready (that comes from the permission flow).
 			const tools = session.createClientSdkTools();
-			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1');
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
+
+			// No tool_ready should have been emitted by the handler
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 0);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -972,7 +1054,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.textResultForLlm, 'result text');
 		});
 
-		test('permission request consumes pending auto-ready for client tools', async () => {
+		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
 			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
@@ -986,8 +1068,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 0);
 
-			// Permission request fires — tool_ready from permission flow
-			// (with confirmationTitle) replaces the auto-ready
+			// Permission request fires — tool_ready from permission flow.
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-client-perm',
@@ -996,17 +1077,29 @@ suite('CopilotAgentSession', () => {
 
 			// tool_ready from permission flow should have fired (with confirmationTitle)
 			await waitForProgress(e => e.type === 'tool_ready');
-			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
-			assert.strictEqual(toolReadys.length, 1);
-			if (toolReadys[0].type === 'tool_ready') {
-				assert.strictEqual(toolReadys[0].toolCallId, 'tc-client-perm');
-				assert.ok(toolReadys[0].confirmationTitle);
+			const permissionReady = progressEvents.filter(e => e.type === 'tool_ready');
+			assert.strictEqual(permissionReady.length, 1);
+			if (permissionReady[0].type === 'tool_ready') {
+				assert.strictEqual(permissionReady[0].toolCallId, 'tc-client-perm');
+				assert.ok(permissionReady[0].confirmationTitle);
 			}
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-perm');
+
+			// The handler should NOT emit its own tool_ready — only the
+			// permission flow fires tool_ready for client tools.
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 1, 'handler should not emit a second tool_ready');
 
 			// Approve and clean up
 			session.respondToPermissionRequest('tc-client-perm', true);
 			const permResult = await resultPromise;
 			assert.strictEqual(permResult.kind, 'approved');
+			session.handleClientToolCallComplete('tc-client-perm', {
+				success: true,
+				pastTenseMessage: 'did it',
+			});
+			await handlerPromise;
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {
@@ -1120,7 +1213,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in client tool handler: tool=my_tool, toolCallId=tc-client-error');
 		});
 
-		test('tool_start stores pending auto-ready data for client tools', async () => {
+		test('permission request before client tool handler emits only confirmation ready', async () => {
 			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			mockSession.fire('tool.execution_start', {
@@ -1132,11 +1225,8 @@ suite('CopilotAgentSession', () => {
 			// tool_start should have fired
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
 
-			// The session should have stored pending auto-ready data.
-			// We verify this indirectly: if we now fire a permission request
-			// for the same toolCallId, the pending auto-ready is consumed
-			// (tested by the permission request test above), and we get
-			// tool_ready with confirmationTitle instead.
+			// Permission before the handler should produce only the confirmation
+			// tool_ready, not a synthetic auto-ready.
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-ready-data',

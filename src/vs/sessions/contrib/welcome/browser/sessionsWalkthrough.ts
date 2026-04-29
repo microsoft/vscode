@@ -195,7 +195,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Always show the welcome title/subtitle with sign-in buttons,
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
@@ -245,7 +245,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
 
 		if (isWeb) {
-			// Web: GitHub button uses IAuthenticationService directly
+			// Web: GitHub button uses IAuthenticationService with product scopes
 			stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => this._runSignInWeb(
 				providerButtons,
 				errorContainer,
@@ -283,7 +283,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding agent that builds, tests, and iterates for you.")));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
@@ -350,10 +350,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	/**
-	 * Web sign-in: uses IAuthenticationService to create a GitHub session.
-	 * On production vscode.dev this triggers an OAuth popup. On localhost
-	 * the embedder's env-contributed auth provider handles the flow
-	 * (e.g. device code).
+	 * Web sign-in: uses IAuthenticationService to create a GitHub session
+	 * with the scopes defined in product.json. On production vscode.dev
+	 * this triggers an OAuth popup. On localhost the embedder's
+	 * env-contributed auth provider handles the flow (e.g. device code).
 	 */
 	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
@@ -362,7 +362,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 
 		try {
-			await this.authenticationService.createSession('github', ['repo', 'user:email', 'read:user'], { activateImmediate: true });
+			const scopes = this.productService.defaultChatAgent?.providerScopes?.[0]
+				?? ['read:user', 'user:email', 'repo', 'workflow'];
+			await this.authenticationService.createSession('github', scopes, { activateImmediate: true });
 			this.complete();
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Web sign-in failed:', err);

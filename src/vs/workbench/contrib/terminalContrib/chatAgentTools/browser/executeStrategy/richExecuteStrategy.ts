@@ -11,13 +11,34 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { isCI, isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
+
+function isTerminalLaunchError(value: unknown): value is ITerminalLaunchError {
+	return typeof value === 'object' && value !== null && 'message' in value;
+}
+
+function formatExitCodeOrError(exitCodeOrError: number | ITerminalLaunchError | undefined): string {
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return `launch error: ${exitCodeOrError.message}${exitCodeOrError.code !== undefined ? `, code=${exitCodeOrError.code}` : ''}`;
+	}
+	return `code=${exitCodeOrError}`;
+}
+
+function extractExitCode(exitCodeOrError: number | ITerminalLaunchError | undefined): number | undefined {
+	if (isNumber(exitCodeOrError)) {
+		return exitCodeOrError;
+	}
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return exitCodeOrError.code;
+	}
+	return undefined;
+}
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -50,16 +71,30 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 		// shared emitters like onCommandFinished are cleaned up immediately.
 		this._register(store);
 		try {
-			// Ensure xterm is available
-			this._log('Waiting for xterm');
-			const xterm = await this._instance.xtermReadyPromise;
-			if (!xterm) {
-				throw new Error('Xterm is not available');
+			// If the terminal is already disposed or its pty has already exited
+			// (e.g. the shell from a previous command died before this one was
+			// requested), Event.toPromise(onExit/onDisposed) will subscribe to an
+			// emitter that has already fired and never resolves, hanging the
+			// run-in-terminal tool until the agent's outer timeout. Detect this
+			// up front and resolve immediately with the captured exit code.
+			if (this._instance.isDisposed) {
+				this._log('Terminal already disposed at strategy entry');
+				throw new Error('The terminal was closed');
 			}
-			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
+			if (this._instance.exitCode !== undefined) {
+				this._log(`Terminal pty already exited at strategy entry (code=${this._instance.exitCode})`);
+				return {
+					output: undefined,
+					exitCode: this._instance.exitCode,
+					additionalInformation: `Command exited with code ${this._instance.exitCode}`,
+				};
+			}
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
+			// Subscribe to terminal lifecycle events BEFORE any awaits so that we
+			// don't miss events that fire while we're waiting for xterm to be
+			// ready (e.g. the pty exits during xtermReadyPromise resolution).
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					this._log('onDone via end event');
@@ -75,10 +110,22 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					this._log('onDone via terminal disposal');
 					return { type: 'disposal' } as const;
 				}),
-				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval).then(() => {
+				Event.toPromise(this._instance.onExit, store).then((exitCodeOrError) => {
+					this._log(`onDone via process exit (${formatExitCodeOrError(exitCodeOrError)})`);
+					return { type: 'processExit', exitCodeOrError } as const;
+				}),
+				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService).then(() => {
 					this._log('onDone via idle prompt');
 				}),
 			]);
+
+			// Ensure xterm is available
+			this._log('Waiting for xterm');
+			const xterm = await this._instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Xterm is not available');
+			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
@@ -150,7 +197,11 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				additionalInformationLines.push('Command produced no output');
 			}
 
-			const exitCode = finishedCommand?.exitCode;
+			// Determine exit code from shell integration or from the process exit event
+			let exitCode = finishedCommand?.exitCode;
+			if (exitCode === undefined && onDoneResult && onDoneResult.type === 'processExit') {
+				exitCode = extractExitCode(onDoneResult.exitCodeOrError);
+			}
 			if (isNumber(exitCode) && exitCode > 0) {
 				additionalInformationLines.push(`Command exited with code ${exitCode}`);
 			}

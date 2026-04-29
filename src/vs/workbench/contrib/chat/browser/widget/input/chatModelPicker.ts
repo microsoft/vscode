@@ -149,7 +149,8 @@ function createModelAction(
 ): IActionWidgetDropdownAction & { section?: string } {
 	const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
 	const configDescription = getModelConfigurationDescription(model, languageModelsService);
-	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
+	const detailParts = [model.metadata.detail, model.metadata.pricing].filter(Boolean);
+	const baseDescription = detailParts.length > 0 ? detailParts.join(' · ') : undefined;
 	const description = configDescription && baseDescription
 		? `${configDescription} · ${baseDescription}`
 		: configDescription ?? baseDescription;

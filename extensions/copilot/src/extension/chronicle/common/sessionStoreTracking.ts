@@ -3,9 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GenAiAttr } from '../../../platform/otel/common/genAiAttributes';
+import type { ICompletedSpanData } from '../../../platform/otel/common/otelService';
+
 /**
- * Helpers for extracting file paths and refs from tool calls.
+ * Helpers for extracting file paths and refs from tool calls,
+ * plus shared constants for session store truncation limits.
  */
+
+// ── Truncation limits (shared by sessionStoreTracker and sessionReindexer) ──
+
+/** Maximum characters stored for user_message. */
+export const MAX_USER_MESSAGE_LENGTH = 100;
+
+/** Maximum characters stored for assistant_response. */
+export const MAX_ASSISTANT_RESPONSE_LENGTH = 1000;
+
+/** Maximum characters stored for session summary. */
+export const MAX_SUMMARY_LENGTH = 100;
+
+/**
+ * Truncate a string to at most `maxLength` stored characters, appending '...' if truncated.
+ * The returned value, including the truncation suffix, never exceeds `maxLength`.
+ * Returns `undefined` for falsy input.
+ */
+export function truncateForStore(value: string | undefined, maxLength: number): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	if (value.length <= maxLength) {
+		return value;
+	}
+	const ellipsis = '...';
+	if (maxLength <= ellipsis.length) {
+		return ellipsis.slice(0, maxLength);
+	}
+	return value.slice(0, maxLength - ellipsis.length).trimEnd() + ellipsis;
+}
+
+/** Terminal/shell tool names that may produce refs. */
+export function isTerminalTool(toolName: string): boolean {
+	return toolName === 'runInTerminal' || toolName === 'run_in_terminal';
+}
+
+/**
+ * Extract tool arguments from an OTel span.
+ * Parses the serialized JSON from gen_ai.tool.call.arguments attribute.
+ * @internal Exported for testing.
+ */
+export function extractToolArgs(span: ICompletedSpanData): Record<string, unknown> {
+	const serialized = span.attributes[GenAiAttr.TOOL_CALL_ARGUMENTS];
+	if (typeof serialized === 'string') {
+		try {
+			return JSON.parse(serialized) as Record<string, unknown>;
+		} catch {
+			// ignore parse errors
+		}
+	}
+	return {};
+}
 
 /** Tools whose arguments contain a file path being modified or read. */
 const FILE_TRACKING_TOOLS = new Set([

@@ -220,21 +220,45 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 }
 
 /**
- * Convert tool definitions to OTel tool definition format.
+ * Convert tool definitions to OTel `gen_ai.tool.definitions` format.
+ *
+ * Accepts the variants emitted by the different request bodies/providers:
+ * - OpenAI Chat Completions: `{ type: 'function', function: { name, description, parameters } }`
+ * - OpenAI Responses API:    `{ type: 'function', name, description, parameters }`
+ * - Anthropic Messages API:  `{ name, description, input_schema }`
+ * - VS Code tool info:       `{ name, description, inputSchema }`
+ *
+ * Tools without a name (e.g. OpenAI client-side `tool_search`) are skipped
+ * because OTel `gen_ai.tool.definitions` requires a name per entry.
+ *
+ * @see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/#gen-ai-tool-definitions
  */
 export function toToolDefinitions(tools: ReadonlyArray<{
 	type?: string;
-	function?: { name: string; description?: string; parameters?: unknown };
+	name?: string;
+	description?: string;
+	parameters?: unknown;
+	input_schema?: unknown;
+	inputSchema?: unknown;
+	function?: { name?: string; description?: string; parameters?: unknown };
 }> | undefined): OTelToolDefinition[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
-	return tools
-		.filter((t): t is typeof t & { function: NonNullable<typeof t['function']> } => !!t.function)
-		.map(t => ({
-			type: 'function' as const,
-			name: t.function.name,
-			description: t.function.description,
-			parameters: t.function.parameters,
-		}));
+	const out: OTelToolDefinition[] = [];
+	for (const t of tools) {
+		const name = t.function?.name ?? t.name;
+		if (!name) {
+			continue;
+		}
+		const description = t.function?.description ?? t.description;
+		const parameters = t.function?.parameters ?? t.parameters ?? t.input_schema ?? t.inputSchema;
+		out.push({
+			type: 'function',
+			name,
+			description,
+			parameters,
+		});
+	}
+	return out.length > 0 ? out : undefined;
 }

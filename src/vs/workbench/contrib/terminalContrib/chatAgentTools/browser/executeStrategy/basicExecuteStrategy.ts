@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -18,6 +18,27 @@ import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAnd
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
+
+function isTerminalLaunchError(value: unknown): value is ITerminalLaunchError {
+	return typeof value === 'object' && value !== null && 'message' in value;
+}
+
+function formatExitCodeOrError(exitCodeOrError: number | ITerminalLaunchError | undefined): string {
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return `launch error: ${exitCodeOrError.message}${exitCodeOrError.code !== undefined ? `, code=${exitCodeOrError.code}` : ''}`;
+	}
+	return `code=${exitCodeOrError}`;
+}
+
+function extractExitCode(exitCodeOrError: number | ITerminalLaunchError | undefined): number | undefined {
+	if (isNumber(exitCodeOrError)) {
+		return exitCodeOrError;
+	}
+	if (isTerminalLaunchError(exitCodeOrError)) {
+		return exitCodeOrError.code;
+	}
+	return undefined;
+}
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -66,9 +87,28 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		this._register(store);
 
 		try {
+			// If the terminal is already disposed or its pty has already exited
+			// (e.g. the shell from a previous command died before this one was
+			// requested), Event.toPromise(onExit/onDisposed) will subscribe to an
+			// emitter that has already fired and never resolves, hanging the
+			// run-in-terminal tool until the agent's outer timeout. Detect this
+			// up front and resolve immediately with the captured exit code.
+			if (this._instance.isDisposed) {
+				this._log('Terminal already disposed at strategy entry');
+				throw new Error('The terminal was closed');
+			}
+			if (this._instance.exitCode !== undefined) {
+				this._log(`Terminal pty already exited at strategy entry (code=${this._instance.exitCode})`);
+				return {
+					output: undefined,
+					exitCode: this._instance.exitCode,
+					additionalInformation: `Command exited with code ${this._instance.exitCode}`,
+				};
+			}
+
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
-			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval);
+			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
 					// When shell integration is basic, it means that the end execution event is
@@ -90,9 +130,13 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					this._log('onDone via terminal disposal');
 					return { type: 'disposal' } as const;
 				}),
+				Event.toPromise(this._instance.onExit, store).then((exitCodeOrError) => {
+					this._log(`onDone via process exit (${formatExitCodeOrError(exitCodeOrError)})`);
+					return { type: 'processExit', exitCodeOrError } as const;
+				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
-				trackIdleOnPrompt(this._instance, idlePollInterval * 3, store, idlePollInterval).then(() => {
+				trackIdleOnPrompt(this._instance, idlePollInterval * 3, store, idlePollInterval, this._logService).then(() => {
 					this._log('onDone long idle prompt');
 				}),
 			]);
@@ -160,9 +204,12 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				this._log(`No finished command surfaced for requested=${commandId}`);
 			}
 
-			// Wait for the terminal to idle
-			this._log('Waiting for idle');
-			await waitForIdle(this._instance.onData, idlePollInterval);
+			// Wait for the terminal to idle, but skip if the process already exited
+			// since no more data will arrive.
+			if (!(onDoneResult && onDoneResult.type === 'processExit')) {
+				this._log('Waiting for idle');
+				await waitForIdle(this._instance.onData, idlePollInterval);
+			}
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -198,7 +245,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				additionalInformationLines.push('Command produced no output');
 			}
 
-			const exitCode = finishedCommand?.exitCode;
+			// Determine exit code from shell integration or from the process exit event
+			let exitCode = finishedCommand?.exitCode;
+			if (exitCode === undefined && onDoneResult && onDoneResult.type === 'processExit') {
+				exitCode = extractExitCode(onDoneResult.exitCodeOrError);
+			}
 			if (isNumber(exitCode) && exitCode > 0) {
 				additionalInformationLines.push(`Command exited with code ${exitCode}`);
 			}

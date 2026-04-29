@@ -171,7 +171,10 @@ export interface IMakeChatRequestOptions {
 	messages: Raw.ChatMessage[];
 	/** Enable WebSocket transport for this request when supported. */
 	useWebSocket?: boolean;
+	/** Disable Responses API stateful marker reuse, preventing previous_response_id-based history slicing. */
 	ignoreStatefulMarker?: boolean;
+	/** Indicates whether the request's mode instructions changed from the previous turn. */
+	modeChanged?: boolean;
 	/** Streaming callback for each response part. */
 	finishedCb: FinishedCallback | undefined;
 	/** Location where the chat message is being sent. */
@@ -231,11 +234,25 @@ export type IChatRequestTelemetryProperties = {
 	parentRequestId?: string;
 	/** For a subagent: The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
 	parentToolCallId?: string;
+	/** For a subagent: The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
+	parentHeaderRequestId?: string;
 };
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	requestId: string;
 	postOptions: OptionalChatRequestParams;
+}
+
+/**
+ * Normalized token pricing in AICs per million tokens.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Cost in AICs per million input tokens */
+	readonly inputPrice: number;
+	/** Cost in AICs per million output tokens */
+	readonly outputPrice: number;
+	/** Cost in AICs per million cached (read) tokens */
+	readonly cacheReadTokenPrice: number;
 }
 
 export interface IChatEndpoint extends IEndpoint {
@@ -260,6 +277,12 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly degradationReason?: string;
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Normalized token pricing in AICs per million tokens.
+	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
+	 * and normalizing to per-million-token rates based on batch_size.
+	 */
+	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

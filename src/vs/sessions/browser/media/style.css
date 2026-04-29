@@ -13,13 +13,13 @@
 	background-color: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background {
+.agent-sessions-workbench.shell-gradient-background {
 	position: relative;
 	isolation: isolate;
 	background: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.agent-sessions-workbench.shell-gradient-background::before {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -29,7 +29,7 @@
 }
 
 @supports (background: color-mix(in srgb, black 0%, white)) {
-	.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -41,7 +41,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -53,7 +53,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs-dark.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
 		background: linear-gradient(
 			to bottom right,
 			var(--vscode-agents-background) 0%,
@@ -64,8 +64,8 @@
 	}
 }
 
-.monaco-workbench.hc-black.agent-sessions-workbench.experimental-shell-gradient-background::before,
-.monaco-workbench.hc-light.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.monaco-workbench.hc-black.agent-sessions-workbench.shell-gradient-background::before,
+.monaco-workbench.hc-light.agent-sessions-workbench.shell-gradient-background::before {
 	display: none;
 }
 
@@ -105,7 +105,7 @@
 	bottom: auto;
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
+.agent-sessions-workbench.shell-gradient-background > .monaco-grid-view {
 	position: relative;
 	z-index: 1;
 	background: transparent;
@@ -125,14 +125,14 @@
  *   Panel:          bottom=18, left=16, right=16
  */
 
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .sessions-titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .composite.title,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .sidebar-footer {
+.agent-sessions-workbench.shell-gradient-background .part.titlebar,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .sessions-titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .composite.title,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .sidebar-footer {
 	background: transparent !important;
 }
 
@@ -150,8 +150,8 @@
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
-	background: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
@@ -267,6 +267,31 @@
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
+}
+
+/* Allow tabs to shrink in narrow viewports so the close button stays reachable.
+ * The default `sizing-fit` rule sets `min-width: fit-content; flex-shrink: 0;`
+ * which prevents the tab from shrinking below its label width and pushes the
+ * close button out of view. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
+	min-width: 0 !important;
+	flex-shrink: 1 !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+/* Keep the close button reserved within the tab so it remains accessible when
+ * the tab shrinks. Without this the action sits in an `overflow: hidden`
+ * container that only reveals on hover, which combined with the smaller tab
+ * makes the close target hard to hit. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab > .tab-actions {
+	flex: 0 0 auto;
+	overflow: visible;
 }
 
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {

@@ -39,7 +39,7 @@ import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { StrategySearchSizing, WorkspaceChunkQueryWithEmbeddings } from '../../common/workspaceChunkSearch';
 import { shouldPotentiallyIndexFile } from '../workspaceFileIndex';
 import { CodeSearchRepoStatus, TriggerIndexingError, TriggerRemoteIndexingError } from './codeSearchRepo';
-import { ExternalIngestFile, ExternalIngestRequestError, IExternalIngestClient } from './externalIngestClient';
+import { computeCheckpointHash, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestRequestError, IExternalIngestClient } from './externalIngestClient';
 import { WorkspaceFolderIdMap } from './workspaceFolderIdMap';
 
 const debug = false;
@@ -110,6 +110,8 @@ export class ExternalIngestIndex extends Disposable {
 		progressMessage: string | undefined;
 
 		completed: boolean;
+
+		readonly checkpointHash: string;
 	};
 
 	/**
@@ -322,11 +324,35 @@ export class ExternalIngestIndex extends Disposable {
 
 		const currentCheckpoint = this.getCurrentIndexCheckpoint();
 
+		// Pre-collect all files and compute the checkpoint hash so we can
+		// detect whether the workspace state has actually changed.
+		const allFiles: ExternalIngestFile[] = [];
+		for await (const file of this.getFilesToIndexFromDb(callerToken)) {
+			allFiles.push(file);
+		}
+		const checkpointHash = computeCheckpointHash(allFiles);
+
+		const fileSet: ExternalIngestFileSet = { files: allFiles, checkpoint: checkpointHash };
+
+		// If the checkpoint matches the stored one, the index is already up to date.
+		if (checkpointHash === currentCheckpoint) {
+			this._logService.info('ExternalIngestIndex::doIngest(): Checkpoint matches current checkpoint, skipping ingest.');
+			return Result.ok(true);
+		}
+
+		// If there is a running operation with the same checkpoint hash,
+		// the workspace state has not changed — reuse the existing operation.
+		if (this._currentIngestOperation && !this._currentIngestOperation.completed && this._currentIngestOperation.checkpointHash === checkpointHash) {
+			this._logService.info('ExternalIngestIndex::doIngest(): Workspace state unchanged, reusing existing ingest operation');
+			return this._currentIngestOperation.promise;
+		}
+
 		// Track building state
 		const operation: typeof this._currentIngestOperation = {
 			promise: undefined!,
 			progressMessage: undefined,
 			completed: false,
+			checkpointHash,
 		};
 
 		const sw = new StopWatch();
@@ -346,8 +372,7 @@ export class ExternalIngestIndex extends Disposable {
 			try {
 				const result = await this._client.updateIndex(
 					filesetName,
-					currentCheckpoint,
-					this.getFilesToIndexFromDb(token),
+					fileSet,
 					telemetryInfo.callTracker,
 					token,
 					wrappedOnProgress
@@ -425,7 +450,7 @@ export class ExternalIngestIndex extends Disposable {
 			}
 		});
 
-		// Cancel existing
+		// Cancel existing since workspace state has changed
 		this._currentIngestOperation?.promise.cancel();
 
 		operation.promise = updatePromise;
@@ -801,8 +826,9 @@ export class ExternalIngestIndex extends Disposable {
 	}
 
 	private async *getFilesToIndexFromDb(token: CancellationToken): AsyncIterable<ExternalIngestFile> {
-		// Get files that are either already marked "Yes" or "need to be evaluated" (Undetermined)
-		const rows = this._db.prepare('SELECT path, size, mtime, docSha, shouldIngest FROM Files WHERE shouldIngest IN (?, ?)').all(ShouldIngestState.Yes, ShouldIngestState.Undetermined) as unknown as Array<DbFileEntry>;
+		// Get files that are either already marked "Yes" or "need to be evaluated" (Undetermined).
+		// Order by path for deterministic results (important for stable checkpoint hashes).
+		const rows = this._db.prepare('SELECT path, size, mtime, docSha, shouldIngest FROM Files WHERE shouldIngest IN (?, ?) ORDER BY path').all(ShouldIngestState.Yes, ShouldIngestState.Undetermined) as unknown as Array<DbFileEntry>;
 
 		const limiter = new Limiter<ExternalIngestFile | undefined>(20);
 

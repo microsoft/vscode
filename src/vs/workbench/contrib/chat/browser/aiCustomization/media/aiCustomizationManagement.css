@@ -215,7 +215,10 @@
 	background: transparent;
 	cursor: pointer;
 	font-size: 12px;
+	font-family: inherit;
 	text-align: left;
+	-webkit-appearance: none;
+	appearance: none;
 }
 
 .ai-customization-management-editor .harness-dropdown-button:hover {

@@ -1501,7 +1501,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-editor-container {
 	padding: 0 0 0 4px;
-	/* enables 100cqi for placeholder truncation below */
+}
+
+/* Enable container query units for placeholder truncation. Scoped to
+	non-compact inputs (panel chat) because applying `container-type` in
+	compact contexts (inline chat, quick chat) interferes with Monaco's
+	view-line layout and causes the placeholder decoration to render
+	with zero width. */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container {
 	container-type: inline-size;
 }
 
@@ -1519,8 +1526,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	The placeholder is rendered as a Monaco contentText decoration with
 	class prefix "ced-chat-session-detail" inside the view-line spans;
 	style the decoration element directly so we don't pay :has() cost
-	across every view-line on each typed character. */
-.chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+	across every view-line on each typed character. Scoped to non-compact
+	inputs because the inline-block + container query sizing breaks the
+	placeholder rendering in compact contexts (inline chat, quick chat). */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
 	display: inline-block;
 	max-width: 100%;
 	/* fallback for environments without container query units */

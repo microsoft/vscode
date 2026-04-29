@@ -160,6 +160,8 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	 * sign-out from the account menu), clear the welcome completion marker
 	 * and show the sign-in walkthrough again. Without this, passive sign-out
 	 * leaves the user on a seemingly-working workbench with a stale UI.
+	 *
+	 * Also watches for passive token expiry on web.
 	 */
 	private _watchWebAuth(): void {
 		this._register(this.authenticationService.onDidChangeSessions(async e => {

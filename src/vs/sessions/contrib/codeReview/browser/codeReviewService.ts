@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,6 +19,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 
 // --- Types -------------------------------------------------------------------
 
@@ -235,9 +237,12 @@ interface ISessionReviewData {
 	readonly state: ReturnType<typeof observableValue<ICodeReviewState>>;
 }
 
+type IPullRequestReviewThreadsModel = ReturnType<IGitHubService['getPullRequestReviewThreads']>;
+
 interface IPRSessionReviewData {
 	readonly state: ReturnType<typeof observableValue<IPRReviewState>>;
 	readonly disposables: DisposableStore;
+	reviewThreadsModel?: IPullRequestReviewThreadsModel;
 	initialized: boolean;
 }
 
@@ -322,24 +327,41 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		this._loadFromStorage();
 		this._registerSessionListeners();
 
-		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			if (activeSession) {
-				this._ensurePRReviewInitialized(activeSession.resource);
-			}
-		}));
+		const activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			return this._sessionsManagementService.activeSession.read(reader)?.resource;
+		});
 
-		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			const archived = e.changed.filter(s => s.isArchived.get());
-			const nonArchived = e.changed.filter(s => !s.isArchived.get());
-			// Initialize PR review for new/changed sessions
-			for (const session of [...e.added, ...nonArchived]) {
-				this._ensurePRReviewInitialized(session.resource);
+		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals }, reader => {
+			const gitHubInfo = this._sessionsManagementService.activeSession.read(reader)?.gitHubInfo.read(reader);
+			if (!gitHubInfo?.pullRequest) {
+				return undefined;
 			}
-			// Dispose PR review for removed and archived sessions
-			for (const session of [...e.removed, ...archived]) {
-				this._disposePRReview(session.resource);
+
+			return {
+				owner: gitHubInfo.owner,
+				repo: gitHubInfo.repo,
+				pullRequestNumber: gitHubInfo.pullRequest.number,
+			};
+		});
+
+		this._register(autorun(reader => {
+			const activeSessionResource = activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				return;
 			}
+
+			const gitHubInfo = gitHubInfoObs.read(reader);
+			const data = this._ensurePRReviewInitialized(activeSessionResource, gitHubInfo);
+
+			// Initial fetch of review threads
+			data.reviewThreadsModel?.refresh().catch(err => {
+				this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
+				data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
+			});
+
+			// Start polling of review threads
+			data.reviewThreadsModel?.startPolling();
+			reader.store.add({ dispose: () => data.reviewThreadsModel?.stopPolling() });
 		}));
 	}
 
@@ -540,20 +562,22 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _registerSessionListeners(): void {
-		// Clean up when sessions change (archived/removed sessions, stale review versions)
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			let changed = false;
+
 			// Clean up reviews for removed/archived sessions
 			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+				this._disposePRReview(session.resource);
+
 				const key = session.resource.toString();
 				const data = this._reviewsBySession.get(key);
 				if (data) {
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
-					this._saveToStorage();
+					changed = true;
 				}
 			}
 
 			// Check for stale review versions when sessions change
-			let changed = false;
 			for (const [key, data] of this._reviewsBySession) {
 				const state = data.state.get();
 				if (state.kind !== CodeReviewStateKind.Result) {
@@ -599,9 +623,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const session = this._sessionsManagementService.getSession(sessionResource);
 		const gitHubInfo = session?.gitHubInfo.get();
 		if (gitHubInfo?.pullRequest) {
-			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+			const reviewThreadsModel = this._gitHubService.getPullRequestReviewThreads(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			try {
-				await prModel.resolveThread(threadId);
+				await reviewThreadsModel.resolveThread(threadId);
 			} catch (err) {
 				this._logService.warn('[CodeReviewService] Failed to resolve PR thread on GitHub:', err);
 			}
@@ -652,27 +676,27 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		return data;
 	}
 
-	private _ensurePRReviewInitialized(sessionResource: URI): void {
+	private _ensurePRReviewInitialized(sessionResource: URI, gitHubInfo: { owner: string; repo: string; pullRequestNumber: number } | undefined): IPRSessionReviewData {
 		const data = this._getOrCreatePRReviewData(sessionResource);
 		if (data.initialized) {
-			return;
+			return data;
 		}
 
 		const session = this._sessionsManagementService.getSession(sessionResource);
-		const gitHubInfo = session?.gitHubInfo.get();
-		if (!gitHubInfo?.pullRequest) {
-			return;
+		if (!session || !gitHubInfo) {
+			return data;
 		}
 
 		data.initialized = true;
 		data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 
-		const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		const workspace = session?.workspace.get();
+		const reviewThreadsModel = this._gitHubService.getPullRequestReviewThreads(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequestNumber);
+		const workspace = session.workspace.get();
+		data.reviewThreadsModel = reviewThreadsModel;
 
-		// Watch the PR model's review threads and map to local state
+		// Watch the PR review threads model and map to local state
 		data.disposables.add(autorun(reader => {
-			const threads = prModel.reviewThreads.read(reader);
+			const threads = reviewThreadsModel.reviewThreads.read(reader);
 			const converted = this._convertedPRCommentsBySession.get(sessionResource.toString());
 			const comments: IPRReviewComment[] = [];
 
@@ -703,12 +727,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			data.state.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
 		}));
 
-		// Start polling and initial fetch
-		prModel.refreshThreads().catch(err => {
-			this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
-			data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
-		});
-		prModel.startPolling();
+		return data;
 	}
 
 	private _disposePRReview(sessionResource: URI): void {
@@ -717,6 +736,8 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const data = this._prReviewBySession.get(key);
 		if (data) {
 			data.disposables.dispose();
+			data.reviewThreadsModel?.stopPolling();
+
 			this._prReviewBySession.delete(key);
 		}
 	}
@@ -724,8 +745,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	override dispose(): void {
 		for (const data of this._prReviewBySession.values()) {
 			data.disposables.dispose();
+			data.reviewThreadsModel?.stopPolling();
 		}
 		this._prReviewBySession.clear();
+
 		super.dispose();
 	}
 }

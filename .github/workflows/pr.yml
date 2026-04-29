@@ -19,7 +19,7 @@ env:
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
@@ -65,7 +65,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.VSCODE_OSS || secrets.GITHUB_TOKEN }}
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -82,7 +82,7 @@ jobs:
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.VSCODE_OSS || secrets.GITHUB_TOKEN }}
 
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
@@ -159,7 +159,7 @@ jobs:
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
       pull-requests: read
@@ -205,7 +205,7 @@ jobs:
 
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
     steps:
@@ -224,7 +224,7 @@ jobs:
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
     steps:
@@ -288,10 +288,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm run typecheck
 
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
-
       - name: Compile
         working-directory: extensions/copilot
         run: npm run compile
@@ -329,7 +325,7 @@ jobs:
 
   copilot-windows-tests:
     name: Copilot - Test (Windows)
-    runs-on: windows-2022
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
     steps:
@@ -386,10 +382,6 @@ jobs:
       - name: TypeScript type checking
         working-directory: extensions/copilot
         run: npm run typecheck
-
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
 
       - name: Compile
         working-directory: extensions/copilot

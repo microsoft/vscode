@@ -654,7 +654,13 @@ export async function processResponseFromMessagesEndpoint(
 						telemetryDataWithUsage = telemetryData.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
-							totalTokens: completion.usage.total_tokens
+							totalTokens: completion.usage.total_tokens,
+							...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+							...(completion.usage.completion_tokens_details && {
+								reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+								acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+								rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+							}),
 						});
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -993,6 +999,7 @@ export class AnthropicMessagesProcessor {
 						total_tokens: computedPromptTokens + this.outputTokens,
 						prompt_tokens_details: {
 							cached_tokens: this.cacheReadTokens,
+							cache_creation_input_tokens: this.cacheCreationTokens,
 						},
 						completion_tokens_details: {
 							reasoning_tokens: 0,

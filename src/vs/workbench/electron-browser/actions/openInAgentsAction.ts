@@ -9,6 +9,7 @@ import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDel
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { localize, localize2 } from '../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
@@ -82,13 +83,6 @@ class OpenInAgentsAction extends Action2 {
 				group: TitleBarLeadingActionsGroup,
 				order: -1000,
 				when: OpenInAgentsVisibility,
-			}, {
-				// Also surface inside the "Customize Layout..." submenu so users
-				// can toggle the entry on/off from the layout customization UI.
-				id: MenuId.LayoutControlMenuSubmenu,
-				group: '0_workbench_layout',
-				order: -1000,
-				when: OpenInAgentsVisibility,
 			}]
 		});
 	}
@@ -122,9 +116,11 @@ class OpenInAgentsAction extends Action2 {
 		);
 
 		// In built builds with a sibling Agents app available, launch it.
-		// Otherwise (dev / OSS / no sibling), open a new agents window of
-		// the current Electron app.
-		const mode: OpenInAgentsMode = environmentService.isBuilt && hasSibling ? 'siblingApp' : 'newWindow';
+		// Otherwise (dev / OSS / unsupported platform / no sibling), open a new agents window of
+		// the current Electron app. `launchSiblingApp` is only implemented for macOS/Windows
+		// (see `src/vs/platform/native/node/siblingApp.ts`), so gate on actual platform support.
+		const canLaunchSiblingApp = isMacintosh || isWindows;
+		const mode: OpenInAgentsMode = environmentService.isBuilt && hasSibling && canLaunchSiblingApp ? 'siblingApp' : 'newWindow';
 		telemetryService.publicLog2<OpenInAgentsEvent, OpenInAgentsClassification>('vscode.openInAgents', { mode });
 
 		if (mode === 'siblingApp') {

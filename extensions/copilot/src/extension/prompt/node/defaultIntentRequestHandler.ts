@@ -695,8 +695,10 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
 		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
 		const isSubagent = !!this.options.request.subAgentInvocationId;
+		const modeChanged = this.didModeChangeSincePreviousRequest();
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
+			modeChanged,
 			modelCapabilities: {
 				...opts.modelCapabilities,
 				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,
@@ -735,6 +737,36 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				: undefined,
 			enableRetryOnFilter: true
 		}, token);
+	}
+
+	private didModeChangeSincePreviousRequest(): boolean {
+		if (this.options.invocation.endpoint.apiType !== 'responses') {
+			return false;
+		}
+
+		// Once a mode-switched turn has successfully produced a fresh responses-api
+		// stateful marker, later requests in the same turn should resume from that
+		// new chain instead of continuing to invalidate previous_response_id.
+		// This is especially important for websocket follow-up requests after tool
+		// calls: keeping modeChanged=true for the entire turn would force the full
+		// pre-switch history back into every follow-up request, which can pull the
+		// model back toward the prior mode (for example implementation after
+		// switching into Plan mode).
+		if (this.currentToolCallRounds.some(round => !!round.statefulMarker)) {
+			return false;
+		}
+
+		const previousModeInstructions = this.options.conversation.turns.at(-2)?.modeInstructions;
+		if (!previousModeInstructions && !this.options.request.modeInstructions2) {
+			return false;
+		}
+
+		const modeChanged = !areModeInstructionsEqual(previousModeInstructions, this.options.request.modeInstructions2);
+		if (modeChanged) {
+			this._logService.trace('[DefaultIntentRequestHandler] Detected mode instructions changed between requests');
+		}
+
+		return modeChanged;
 	}
 
 	protected override async getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]> {
@@ -792,4 +824,40 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 interface IInternalRequestResult extends IToolCallLoopResult {
 	lastRequestTelemetry: ChatTelemetry;
+}
+
+type ModeInstructions = NonNullable<ChatRequest['modeInstructions2']>;
+type ModeInstructionMetadata = ModeInstructions['metadata'];
+
+function areModeInstructionsEqual(a: ChatRequest['modeInstructions2'], b: ChatRequest['modeInstructions2']): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+
+	return a.uri?.toString() === b.uri?.toString()
+		&& a.name === b.name
+		&& a.content === b.content
+		&& a.isBuiltin === b.isBuiltin
+		&& serializeModeInstructionMetadata(a.metadata) === serializeModeInstructionMetadata(b.metadata);
+}
+
+function normalizeModeInstructionMetadata(metadata: ModeInstructionMetadata): Record<string, boolean | string | number> | undefined {
+	if (!metadata) {
+		return undefined;
+	}
+
+	const entries = Object.entries(metadata).sort(([left], [right]) => left.localeCompare(right));
+	if (entries.length === 0) {
+		return undefined;
+	}
+
+	return entries.reduce<Record<string, boolean | string | number>>((result, [key, value]) => {
+		result[key] = value;
+		return result;
+	}, {});
+}
+
+function serializeModeInstructionMetadata(metadata: ModeInstructionMetadata): string | undefined {
+	const normalizedMetadata = normalizeModeInstructionMetadata(metadata);
+	return normalizedMetadata ? JSON.stringify(normalizedMetadata) : undefined;
 }

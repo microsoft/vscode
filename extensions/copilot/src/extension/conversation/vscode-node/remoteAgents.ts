@@ -284,7 +284,7 @@ export class RemoteAgentContribution implements IDisposable {
 					model_picker_enabled: false,
 					is_chat_default: false,
 					vendor: selectedEndpoint.modelProvider,
-					billing: selectedEndpoint.isPremium && selectedEndpoint.multiplier ? { is_premium: selectedEndpoint.isPremium, multiplier: selectedEndpoint.multiplier, restricted_to: selectedEndpoint.restrictedToSkus } : undefined,
+					billing: selectedEndpoint.isPremium !== undefined || selectedEndpoint.multiplier !== undefined ? { is_premium: selectedEndpoint.isPremium, multiplier: selectedEndpoint.multiplier, restricted_to: selectedEndpoint.restrictedToSkus } : undefined,
 					is_chat_fallback: false,
 					capabilities: {
 						supports: { tool_calls: selectedEndpoint.supportsToolCalls, vision: selectedEndpoint.supportsVision, streaming: true },

@@ -41,7 +41,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModels
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
-import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService, rephraseInlineChat } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
@@ -91,7 +91,7 @@ function getEditorId(editor: ICodeEditor, model: ITextModel): string {
 
 export class InlineChatController implements IEditorContribution {
 
-	static readonly ID = 'editor.contrib.inlineChatController';
+	static readonly ID = INLINE_CHAT_ID;
 
 	static get(editor: ICodeEditor): InlineChatController | undefined {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
