@@ -86,7 +86,17 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 	});
 
 	test('returns empty when the prompts service exposes no built-in skills (regular workbench)', async () => {
-		const promptsService = makePromptsService(new Map());
+		// The regular workbench's PromptsServiceImpl throws for unknown
+		// storage values like BUILTIN_STORAGE. Model that here so the
+		// try/catch in enumerateLocalCustomizationsForHarness is covered.
+		const promptsService = {
+			async listPromptFilesForStorage(_type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
+				if ((storage as unknown as string) === BUILTIN_STORAGE) {
+					throw new Error(`Unsupported storage: ${storage}`);
+				}
+				return [];
+			},
+		} as unknown as IPromptsService;
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), CancellationToken.None);
 		assert.deepStrictEqual(result, []);
 	});

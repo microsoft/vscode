@@ -13,7 +13,7 @@ import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/co
 import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider, type ICustomizationItem, type ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { getFriendlyName } from '../../aiCustomization/aiCustomizationItemSource.js';
@@ -95,16 +95,20 @@ export async function enumerateLocalCustomizationsForHarness(
 
 	// Built-in skills (e.g. `/create-pr`, `/merge`) are exposed via
 	// `BUILTIN_STORAGE`, which is not a member of the core `PromptsStorage`
-	// enum; cast through the wider `AICustomizationPromptsStorage` union to
-	// satisfy `listPromptFilesForStorage`. The base `PromptsService`
-	// returns an empty array for unknown storage values, so this is safe in
-	// the regular workbench window where the agentic prompts service is
-	// not registered.
-	const builtinSkills = await promptsService.listPromptFilesForStorage(
-		PromptsType.skill,
-		BUILTIN_STORAGE as unknown as PromptsStorage,
-		token,
-	);
+	// enum. The sessions-aware prompts service supports this extra storage,
+	// but the regular workbench prompts service throws on unknown storage
+	// values; treat that case as "no built-in skills available" so
+	// enumeration remains a no-op outside Sessions.
+	let builtinSkills: readonly IPromptPath[] = [];
+	try {
+		builtinSkills = await promptsService.listPromptFilesForStorage(
+			PromptsType.skill,
+			BUILTIN_STORAGE as unknown as PromptsStorage,
+			token,
+		);
+	} catch {
+		builtinSkills = [];
+	}
 	for (const file of builtinSkills) {
 		result.push({
 			uri: file.uri,

@@ -43,6 +43,9 @@ export class AgentHostClientResourceChannel implements IServerChannel {
 		switch (command) {
 			case 'resourceList': {
 				const stat = await this._fileService.resolve(URI.parse(a.uri as string));
+				if (!stat.isDirectory) {
+					throw new Error(`Resource is not a directory: ${a.uri}`);
+				}
 				const entries: DirectoryEntry[] = (stat.children ?? []).map(c => ({
 					name: c.name,
 					type: c.isDirectory ? 'directory' : 'file',
