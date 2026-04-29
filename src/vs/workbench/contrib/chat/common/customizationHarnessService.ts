@@ -185,7 +185,7 @@ export interface ICustomizationItem {
 	 * Whether this customization item can be invoked by the user.
 	 * Relevant for prompt / skill and custom agents
 	 */
-	readonly userInvocable: boolean | undefined;
+	readonly userInvocable?: boolean;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
 }
