@@ -405,11 +405,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
 		if (_extended) {
 			// Extended polling (2 minutes) expired while the process was still
-			// running. Rather than silently cancelling, signal that input may be
-			// needed so the agent sees the current output and can decide how to
-			// proceed (e.g. answer an unrecognised interactive prompt).
-			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes, signaling potential input needed');
-			this._onDidDetectInputNeeded.fire();
+			// running, but that alone does not mean the command is waiting for
+			// input. Avoid firing the input-needed event here so consumers don't
+			// misreport a quiet long-running command as an interactive prompt.
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes with the process still running');
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
