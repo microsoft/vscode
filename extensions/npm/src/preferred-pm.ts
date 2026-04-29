@@ -102,7 +102,23 @@ async function isNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 	return { isPreferred: lockfileExists, hasLockfile: lockfileExists };
 }
 
-export async function findPreferredPM(pkgPath: string): Promise<{ name: string; multipleLockFilesDetected: boolean }> {
+type PreferredPMResult = { name: string; multipleLockFilesDetected: boolean };
+const preferredPMCache = new Map<string, Promise<PreferredPMResult>>();
+
+export function invalidatePreferredPMCache() {
+	preferredPMCache.clear();
+}
+
+export function findPreferredPM(pkgPath: string): Promise<PreferredPMResult> {
+	let cached = preferredPMCache.get(pkgPath);
+	if (!cached) {
+		cached = computePreferredPM(pkgPath);
+		preferredPMCache.set(pkgPath, cached);
+	}
+	return cached;
+}
+
+async function computePreferredPM(pkgPath: string): Promise<PreferredPMResult> {
 	const detectedPackageManagerNames: string[] = [];
 	const detectedPackageManagerProperties: PreferredProperties[] = [];
 
