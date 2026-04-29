@@ -500,6 +500,28 @@ suite('OutputMonitor', () => {
 				monitor.dispose();
 			});
 		});
+
+		test('disposing while monitoring is in-flight still resolves onDidFinishCommand', async () => {
+			// Regression: if dispose() races the async _startMonitoring loop, the loop's
+			// finally block fires onDidFinishCommand AFTER super.dispose() has already
+			// torn down the emitter. Consumers awaiting Event.toPromise(onDidFinishCommand)
+			// would never resolve and the agent would hang on the run_in_terminal call.
+			//
+			// Fix: dispose() must fire onDidFinishCommand synchronously, before the
+			// emitter is disposed. It must also surface a Cancelled pollingResult so
+			// consumers that read monitor.pollingResult after awaiting the event see a
+			// defined value rather than undefined.
+			return runWithFakedTimers({}, async () => {
+				monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+				const finished = Event.toPromise(monitor.onDidFinishCommand);
+				// Dispose immediately, before the deferred _startMonitoring even starts.
+				monitor.dispose();
+				// Must resolve — would hang prior to the synchronous-fire-on-dispose fix.
+				await finished;
+				assert.ok(monitor.pollingResult, 'pollingResult should be defined after dispose-induced finish');
+				assert.strictEqual(monitor.pollingResult!.state, OutputMonitorState.Cancelled);
+			});
+		});
 	});
 
 	suite('detectsGenericPressAnyKeyPattern', () => {

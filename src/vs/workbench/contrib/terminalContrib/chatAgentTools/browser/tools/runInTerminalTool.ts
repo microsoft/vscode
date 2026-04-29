@@ -748,6 +748,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalToolSessionId,
 			chatSessionResource,
 			requiresUnsandboxConfirmation,
+			hasSessionAutoApproval: !!chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource),
 		};
 
 		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.

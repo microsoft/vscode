@@ -28,9 +28,9 @@ interface IQuotaWarning {
  * Listens to {@link IChatQuotaService.onDidChange} and determines whether a
  * new threshold has been crossed, then shows the highest-priority notification:
  *
- * 1. **Quota exhausted** — error, not auto-dismissed, only dismissible via X.
- * 2. **Quota approaching** — info/warning, auto-dismissed on next message.
- * 3. **Rate-limit warning** — info/warning, auto-dismissed on next message.
+ * 1. **Quota exhausted** — info, not auto-dismissed, only dismissible via X.
+ * 2. **Quota approaching** — info, auto-dismissed on next message.
+ * 3. **Rate-limit warning** — info, auto-dismissed on next message.
  */
 export class ChatInputNotificationContribution extends Disposable {
 
@@ -56,7 +56,7 @@ export class ChatInputNotificationContribution extends Disposable {
 	 * to show (or whether to hide).
 	 */
 	private _update(): void {
-		// Priority 1: Quota exhausted — sticky error notification
+		// Priority 1: Quota exhausted — sticky info notification
 		if (this._chatQuotaService.quotaExhausted) {
 			const isAnonymous = this._authService.copilotToken?.isNoAuthUser;
 			const isFree = this._authService.copilotToken?.isFreeUser;
@@ -152,7 +152,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		const notification = this._ensureNotification();
 		this._showingExhausted = true;
 
-		notification.severity = vscode.ChatInputNotificationSeverity.Error;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
 
@@ -181,11 +181,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		const notification = this._ensureNotification();
 		this._showingExhausted = false;
 
-		const severity = warning.percentUsed >= 90
-			? vscode.ChatInputNotificationSeverity.Warning
-			: vscode.ChatInputNotificationSeverity.Info;
-
-		notification.severity = severity;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
 		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
@@ -205,11 +201,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		this._showingExhausted = false;
 
 		const dateStr = this._formatResetDate(warning.resetDate);
-		const severity = warning.percentUsed >= 90
-			? vscode.ChatInputNotificationSeverity.Warning
-			: vscode.ChatInputNotificationSeverity.Info;
-
-		notification.severity = severity;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
 

@@ -102,6 +102,45 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _command = '';
 	private _invocationContext: IToolInvocationContext | undefined;
 	private _currentMonitoringCts: CancellationTokenSource | undefined;
+	/**
+	 * Tracks whether onDidFinishCommand has fired so the event is delivered at
+	 * most once. The event must fire synchronously during dispose so consumers
+	 * awaiting `Event.toPromise(onDidFinishCommand)` are unblocked before the
+	 * underlying emitter is torn down by super.dispose().
+	 */
+	private _didFinish = false;
+
+	private _fireFinishedOnce(): void {
+		if (this._didFinish) {
+			return;
+		}
+		this._didFinish = true;
+		this._onDidFinishCommand.fire();
+	}
+
+	override dispose(): void {
+		// Deliver onDidFinishCommand to consumers BEFORE super.dispose() tears
+		// down the emitter. Field-initialized disposables (including
+		// _onDidFinishCommand) are registered before any disposable added in
+		// the constructor body and are disposed first by DisposableStore in
+		// insertion order. Without this override, consumers awaiting
+		// `Event.toPromise(onDidFinishCommand)` would race with emitter
+		// teardown and hang when dispose lands while _startMonitoring is still
+		// in flight.
+		if (!this._didFinish) {
+			// Synthesize a Cancelled pollingResult so consumers that read
+			// `monitor.pollingResult` after awaiting onDidFinishCommand always
+			// see a defined value with the output collected so far.
+			this._pollingResult ??= {
+				state: OutputMonitorState.Cancelled,
+				output: this._execution.getOutput(),
+				pollDurationMs: 0,
+				resources: undefined,
+			};
+		}
+		this._fireFinishedOnce();
+		super.dispose();
+	}
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -231,7 +270,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			};
 			// Clean up idle input listener if still active
 			this._userInputListener.clear();
-			this._onDidFinishCommand.fire();
+			// Fire at most once. If dispose() already fired the event synchronously
+			// (e.g. the monitor was torn down before this async loop reached its
+			// finally), skip firing on a potentially disposed emitter.
+			this._fireFinishedOnce();
 		}
 	}
 

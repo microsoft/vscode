@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
-import { IResponseDelta } from '../../../networking/common/fetch';
+import { IResponseDelta, OpenAiFunctionTool } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
@@ -64,6 +64,17 @@ function createMockOptions(overrides: Partial<ICreateEndpointBodyOptions> = {}):
 	} as ICreateEndpointBodyOptions;
 }
 
+function createFunctionTool(name: string, description: string, properties: Record<string, object>, required: string[] = []): OpenAiFunctionTool {
+	return {
+		type: 'function',
+		function: {
+			name,
+			description,
+			parameters: { type: 'object', properties, ...(required.length ? { required } : {}) }
+		}
+	};
+}
+
 describe('createResponsesRequestBody tools', () => {
 	let disposables: DisposableStore;
 	let services: ReturnType<typeof createPlatformServices>;
@@ -79,6 +90,28 @@ describe('createResponsesRequestBody tools', () => {
 		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => coreNonDeferred.has(name) });
 		accessor = services.createTestingAccessor();
 	});
+
+	function createToolSearchScenario(messages: Raw.ChatMessage[]) {
+		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+
+		const options = createMockOptions({
+			messages,
+			requestOptions: {
+				tools: [
+					createFunctionTool('file_search', 'Find files', { query: { type: 'string' } }, ['query']),
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+					createFunctionTool('tool_search', 'Search tools', { query: { type: 'string' } }, ['query']),
+				]
+			}
+		});
+
+		return accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+	}
 
 	it('passes tools through without defer_loading when tool search disabled', () => {
 		const endpoint = createMockEndpoint('gpt-5.4-preview');
@@ -238,9 +271,9 @@ describe('createResponsesRequestBody tools', () => {
 		expect(toolSearchOutput.execution).toBe('client');
 		expect(toolSearchOutput.call_id).toBe('call_ts1');
 
-		// tool_search_output should not include tool_search itself in loaded tools
+		// No tools are currently deferred, so historical tool_search_output should not redeclare them.
 		const loadedToolNames = (toolSearchOutput.tools as any[]).map((t: any) => t.name);
-		expect(loadedToolNames).not.toContain('tool_search');
+		expect(loadedToolNames).toEqual([]);
 
 		// Should not have any function_call with name tool_search
 		const badFunctionCall = input.find(i => i.type === 'function_call' && i.name === 'tool_search');
@@ -281,6 +314,70 @@ describe('createResponsesRequestBody tools', () => {
 			tools: [],
 		});
 		expect(input.find(i => i.type === 'function_call' && i.name === 'tool_search')).toBeUndefined();
+	});
+
+	it('excludes non-deferred tools from tool_search_output history', () => {
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Find file tools' }] },
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_ts_file', type: 'function', function: { name: 'tool_search', arguments: '{"query":"file tools"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_ts_file',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["file_search","some_mcp_tool"]' }],
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{ id: 'call_file', type: 'function', function: { name: 'file_search', arguments: '{"query":"*.ts"}' } },
+					{ id: 'call_mcp', type: 'function', function: { name: 'some_mcp_tool', arguments: '{"input":"x"}' } },
+				],
+			},
+		];
+
+		const body = createToolSearchScenario(messages);
+
+		const input = body.input as Array<{ type?: string; name?: string; namespace?: string; tools?: Array<{ name: string }> }>;
+		const toolSearchOutput = input.find(i => i.type === 'tool_search_output');
+		const fileSearchCall = input.find(i => i.type === 'function_call' && i.name === 'file_search');
+		const mcpToolCall = input.find(i => i.type === 'function_call' && i.name === 'some_mcp_tool');
+
+		expect({
+			loadedToolNames: toolSearchOutput?.tools?.map(t => t.name),
+			fileSearchNamespace: fileSearchCall?.namespace,
+			mcpToolNamespace: mcpToolCall?.namespace,
+		}).toEqual({
+			loadedToolNames: ['some_mcp_tool'],
+			fileSearchNamespace: undefined,
+			mcpToolNamespace: 'some_mcp_tool',
+		});
+	});
+
+	it('does not load tools from tool_search_output when only non-deferred tools are returned', () => {
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Find core tools' }] },
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_ts_core', type: 'function', function: { name: 'tool_search', arguments: '{"query":"core tools"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_ts_core',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["file_search","read_file"]' }],
+			},
+		];
+
+		const body = createToolSearchScenario(messages);
+
+		const input = body.input as Array<{ type?: string; tools?: Array<{ name: string }> }>;
+		const toolSearchOutput = input.find(i => i.type === 'tool_search_output');
+
+		expect(toolSearchOutput?.tools?.map(t => t.name)).toEqual([]);
 	});
 });
 

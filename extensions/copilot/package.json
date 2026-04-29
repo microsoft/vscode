@@ -1473,64 +1473,7 @@
 				"locations": [
 					"editor"
 				],
-				"commands": [
-					{
-						"name": "generate",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.generate.description%",
-						"disambiguation": [
-							{
-								"category": "generate",
-								"description": "Generate new code",
-								"examples": [
-									"Add a function that returns the sum of two numbers"
-								]
-							}
-						]
-					},
-					{
-						"name": "edit",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.edit.inline.description%",
-						"disambiguation": [
-							{
-								"category": "edit",
-								"description": "Make changes to existing code",
-								"examples": [
-									"Change this method to use async/await"
-								]
-							}
-						]
-					},
-					{
-						"name": "fix",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.fix.description%",
-						"disambiguation": [
-							{
-								"category": "fix",
-								"description": "Propose a fix for the problems in the selected code",
-								"examples": [
-									"There is a problem in this code. Rewrite the code to show it with the bug fixed."
-								]
-							}
-						]
-					},
-					{
-						"name": "tests",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.tests.description%",
-						"disambiguation": [
-							{
-								"category": "tests",
-								"description": "Generate unit tests for the selected code. The user does not want to fix their existing tests.",
-								"examples": [
-									"Write a set of detailed unit test functions for the code above."
-								]
-							}
-						]
-					}
-				]
+				"commands": []
 			},
 			{
 				"id": "github.copilot.editsAgent",
@@ -6484,7 +6427,6 @@
 		"typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project test/simulation/workbench/tsconfig.json && tsc --noEmit --project tsconfig.worker.json && tsc --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
 		"lint": "eslint . --max-warnings=0",
 		"lint-staged": "eslint --max-warnings=0",
-		"tsfmt": "npx tsfmt -r --verify",
 		"test": "npm-run-all test:*",
 		"test:extension": "vscode-test",
 		"test:sanity": "vscode-test --sanity",
@@ -6595,7 +6537,6 @@
 		"tsx": "^4.20.3",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.36.0",
-		"typescript-formatter": "github:jrieken/typescript-formatter#497efb26bc40b5fa59a350e6eab17bce650a7e4b",
 		"vite-plugin-top-level-await": "^1.5.0",
 		"vite-plugin-wasm": "^3.5.0",
 		"vitest": "^3.0.5",

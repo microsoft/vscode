@@ -23,7 +23,7 @@ module.exports = {
 			return [];
 		}
 		return [
-			`npm run tsfmt -- ${filesToLint}`,
+			`node --experimental-strip-types ../../build/lib/formatter.ts --replace ${filesToLint}`,
 			`eslint --max-warnings=0 ${filesToLint}`
 		];
 	},

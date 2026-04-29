@@ -8,10 +8,14 @@ import type { OpenAI } from 'openai';
 import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
@@ -95,6 +99,16 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 		}
 	}]
 });
+
+type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
+	type: 'function_call';
+	name: string;
+	namespace?: string;
+};
+
+function isFunctionCallInputItem(item: OpenAI.Responses.ResponseInputItem, name: string): item is ResponseFunctionCallInputItem {
+	return item.type === 'function_call' && 'name' in item && item.name === name;
+}
 
 describe('responseApiInputToRawMessagesForLogging', () => {
 
@@ -756,11 +770,15 @@ describe('createResponsesRequestBody', () => {
 
 	it('adds namespace field only to function_call for tools loaded via tool_search_output', () => {
 		const services = createPlatformServices();
+		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search' });
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4-preview', family: 'gpt-5.4-preview' };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
-			{ type: 'function' as const, function: { name: 'grep_search', description: 'Grep files', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'read_file', description: 'Read a file', parameters: {} } },
 		];
 		const messages: Raw.ChatMessage[] = [
@@ -774,32 +792,34 @@ describe('createResponsesRequestBody', () => {
 				content: [],
 				toolCalls: [{ id: 'ts_1', type: 'function', function: { name: 'tool_search', arguments: '{"query":"search"}' } }],
 			},
-			// tool_search returns grep_search
+			// tool_search returns some_mcp_tool
 			{
 				role: Raw.ChatRole.Tool,
-				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search"]' }],
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["some_mcp_tool"]' }],
 				toolCallId: 'ts_1',
 			},
-			// Assistant calls grep_search (loaded via tool_search) and read_file (not loaded via tool_search)
+			// Assistant calls some_mcp_tool (loaded via tool_search) and read_file (not loaded via tool_search)
 			{
 				role: Raw.ChatRole.Assistant,
 				content: [],
 				toolCalls: [
-					{ id: 'call_grep', type: 'function', function: { name: 'grep_search', arguments: '{"q":"hello"}' } },
+					{ id: 'call_mcp', type: 'function', function: { name: 'some_mcp_tool', arguments: '{"q":"hello"}' } },
 					{ id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.ts"}' } },
 				],
 			},
 		];
 
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), requestOptions: { tools } }, testEndpoint.model, testEndpoint));
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), location: ChatLocation.Agent, requestOptions: { tools } }, endpoint.model, endpoint));
 
-		// grep_search was loaded via tool_search_output — should have namespace
-		const grepCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'grep_search') as any;
-		expect(grepCall).toBeDefined();
-		expect(grepCall.namespace).toBe('grep_search');
+		const input = body.input as OpenAI.Responses.ResponseInputItem[];
+
+		// some_mcp_tool was loaded via tool_search_output — should have namespace
+		const mcpCall = input.find(item => isFunctionCallInputItem(item, 'some_mcp_tool'));
+		expect(mcpCall).toBeDefined();
+		expect(mcpCall?.namespace).toBe('some_mcp_tool');
 
 		// read_file was NOT loaded via tool_search — should NOT have namespace
-		const readCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'read_file') as any;
+		const readCall = input.find(item => isFunctionCallInputItem(item, 'read_file'));
 		expect(readCall).toBeDefined();
 		expect(readCall).not.toHaveProperty('namespace');
 

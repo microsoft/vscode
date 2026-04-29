@@ -140,11 +140,11 @@ class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
  * Content widget that shows a small sparkle icon at the cursor position.
  * When clicked, it shows the overlay widget for inline chat.
  */
-export class InlineChatEditorAffordance extends Disposable implements IContentWidget {
+export class InlineChatAffordanceWidget extends Disposable implements IContentWidget {
 
 	static #idPool = 0;
 
-	readonly #id = `inline-chat-content-widget-${InlineChatEditorAffordance.#idPool++}`;
+	readonly #id = `inline-chat-content-widget-${InlineChatAffordanceWidget.#idPool++}`;
 	readonly #domNode: HTMLElement;
 	#position: IContentWidgetPosition | null = null;
 	#isVisible = false;

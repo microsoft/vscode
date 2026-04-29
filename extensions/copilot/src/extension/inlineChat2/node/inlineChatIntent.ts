@@ -23,19 +23,16 @@ import { isNonEmptyArray } from '../../../util/vs/base/common/arrays';
 import { timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
-import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { assertType, isDefined } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditorData, ChatResponseTextEditPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { Intent } from '../../common/constants';
 import { getAgentTools } from '../../intents/node/agentIntent';
-import { IIntentService } from '../../intents/node/intentService';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation, Turn } from '../../prompt/common/conversation';
+import { Conversation } from '../../prompt/common/conversation';
 import { IToolCall } from '../../prompt/common/intents';
 import { ToolCallRound } from '../../prompt/common/toolCallRound';
 import { ChatTelemetryBuilder, InlineChatTelemetry } from '../../prompt/node/chatParticipantTelemetry';
-import { DefaultIntentRequestHandler } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IIntent } from '../../prompt/node/intents';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
@@ -79,8 +76,6 @@ export class InlineChatIntent implements IIntent {
 		@IToolsService private readonly _toolsService: IToolsService,
 		@IIgnoreService private readonly _ignoreService: IIgnoreService,
 		@IEditSurvivalTrackerService private readonly _editSurvivalTrackerService: IEditSurvivalTrackerService,
-		@IIntentService private readonly _intentService: IIntentService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 	) {
 		this._progressMessages = this._instantiationService.createInstance(InlineChatProgressMessages);
@@ -109,71 +104,6 @@ export class InlineChatIntent implements IIntent {
 			};
 		}
 
-		const enableV2 = this._configurationService.getNonExtensionConfig<boolean>('inlineChat.enableV2');
-
-		if (!enableV2) {
-			// OLD world
-			return this._handleRequestWithOldWorld(conversation, request, stream, token, documentContext, chatTelemetry);
-		}
-
-		return this._handleRequestWithNewWorld(endpoint, conversation, request, stream, token, documentContext, chatTelemetry);
-	}
-
-	// --- OLD world
-
-	private async _handleRequestWithOldWorld(conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<vscode.ChatResult> {
-		// OLD world
-		let didEmitEdits = false;
-		stream = ChatResponseStreamImpl.spy(stream, part => {
-			if (part instanceof ChatResponseTextEditPart) {
-				didEmitEdits = true;
-			}
-		});
-
-		const intent = await this._selectIntent(conversation.turns, documentContext, request);
-
-		if (isFalsyOrWhitespace(request.prompt)) {
-			request = { ...request, prompt: intent.description };
-		}
-
-		const handler = this._instantiationService.createInstance(DefaultIntentRequestHandler, intent, conversation, request, stream, token, documentContext, ChatLocation.Editor, chatTelemetry, undefined, undefined);
-		const result = await handler.getResult();
-
-		if (!didEmitEdits && !result.errorDetails) {
-			// BAILOUT: when no edits were emitted, invoke the exit tool manually
-			await this._toolsService.invokeTool(INLINE_CHAT_EXIT_TOOL_NAME, { toolInvocationToken: request.toolInvocationToken, input: undefined }, token);
-		}
-		return result;
-	}
-
-	private async _selectIntent(history: readonly Turn[], documentContext: IDocumentContext, request: vscode.ChatRequest): Promise<IIntent> {
-
-		if (request.command) {
-			const result = this._intentService.getIntent(request.command, ChatLocation.Editor);
-			if (result) {
-				return result;
-			}
-		}
-
-		let preferredIntent: Intent | undefined;
-		if (documentContext && request.attempt === 0 && history.length === 1) {
-			if (documentContext.selection.isEmpty && documentContext.document.lineAt(documentContext.selection.start.line).text.trim() === '') {
-				preferredIntent = Intent.Generate;
-			} else if (!documentContext.selection.isEmpty && documentContext.selection.start.line !== documentContext.selection.end.line) {
-				preferredIntent = Intent.Edit;
-			}
-		}
-		if (preferredIntent) {
-			return this._intentService.getIntent(preferredIntent, ChatLocation.Editor) ?? this._intentService.unknownIntent;
-		}
-		return this._intentService.unknownIntent;
-	}
-
-	// --- NEW world
-
-	private async _handleRequestWithNewWorld(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<vscode.ChatResult> {
-		assertType(request.location2 instanceof ChatRequestEditorData);
-		assertType(documentContext);
 
 		const editSurvivalTracker = this._editSurvivalTrackerService.initialize(request.location2.document);
 

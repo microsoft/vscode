@@ -8,6 +8,11 @@
 	display: none;
 }
 
+/* Counteract the `.interactive-input-part` `gap: 4px` so the notification attaches to the input. */
+.interactive-session .interactive-input-part > .chat-input-notification-container {
+	margin-bottom: -4px;
+}
+
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification {
 	padding: 12px 16px;
 	box-sizing: border-box;
@@ -110,6 +115,11 @@
 	min-width: unset;
 	width: auto;
 	height: 24px;
+}
+
+/* Remove base button border from secondary (ghost) action buttons */
+.chat-input-notification .chat-input-notification-action-button.secondary {
+	border: none;
 }
 
 /* Dismiss button */
