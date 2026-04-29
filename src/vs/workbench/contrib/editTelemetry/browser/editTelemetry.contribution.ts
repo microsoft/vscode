@@ -10,6 +10,10 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { localize } from '../../../../nls.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAiEditTelemetryService } from './telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { AiEditTelemetryServiceImpl } from './telemetry/aiEditTelemetry/aiEditTelemetryServiceImpl.js';
+import { IRandomService, RandomService } from './randomService.js';
 
 registerWorkbenchContribution2('EditTelemetryContribution', EditTelemetryContribution, WorkbenchPhase.AfterRestored);
 
@@ -25,14 +29,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[AI_STATS_SETTING_ID]: {
-			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge represents the average amount of code inserted by AI vs manual typing over a 24 hour period."),
+			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge shows the average AI rate across 5-minute sessions, where each session's rate is calculated as AI-inserted characters divided by total inserted characters."),
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[EDIT_TELEMETRY_DETAILS_SETTING_ID]: {
@@ -41,7 +48,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {
@@ -58,3 +65,6 @@ configurationRegistry.registerConfiguration({
 		},
 	}
 });
+
+registerSingleton(IAiEditTelemetryService, AiEditTelemetryServiceImpl, InstantiationType.Delayed);
+registerSingleton(IRandomService, RandomService, InstantiationType.Delayed);

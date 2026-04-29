@@ -19,7 +19,8 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, LineInjectedText, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -27,6 +28,7 @@ import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
+import { IViewModel } from './viewModel.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -221,7 +223,7 @@ export interface IModelDecorationOptions {
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
-	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+	 * If set, the decoration will override the line height of the lines it spans. This value is a multiplier to the default line height.
 	 */
 	lineHeight?: number | null;
 	/**
@@ -689,8 +691,8 @@ export interface ITextSnapshot {
 /**
  * @internal
  */
-export function isITextSnapshot(obj: any): obj is ITextSnapshot {
-	return (obj && typeof obj.read === 'function');
+export function isITextSnapshot(obj: unknown): obj is ITextSnapshot {
+	return (!!obj && typeof (obj as ITextSnapshot).read === 'function');
 }
 
 /**
@@ -713,6 +715,18 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly isForSimpleWidget: boolean;
+
+	/**
+	 * Method to register a view model on a model
+	 * @internal
+	 */
+	registerViewModel(viewModel: IViewModel): void;
+
+	/**
+	 * Method which unregister a view model on a model
+	 * @internal
+	 */
+	unregisterViewModel(viewModel: IViewModel): void;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -841,6 +855,12 @@ export interface ITextModel {
 	 * Get the text for a certain line.
 	 */
 	getLineContent(lineNumber: number): string;
+
+	/**
+	 * Get the line injected text for a certain line.
+	 * @internal
+	 */
+	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
 
 	/**
 	 * Get the text length for a certain line.
@@ -1169,6 +1189,13 @@ export interface ITextModel {
 	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param range The range to search in
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
+
+	/**
 	 * @internal
 	 */
 	_getTrackedRange(id: string): Range | null;
@@ -1284,13 +1311,6 @@ export interface ITextModel {
 	 */
 	canRedo(): boolean;
 
-	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	readonly onDidChangeContentOrInjectedText: Event<InternalModelContentChangeEvent | ModelInjectedTextChangedEvent>;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
@@ -1502,7 +1522,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
  * `lineNumber` is 1 based.
  */
 export interface IReadonlyTextBuffer {
-	onDidChangeContent: Event<void>;
+	readonly onDidChangeContent: Event<void>;
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainUnusualLineTerminators(): boolean;

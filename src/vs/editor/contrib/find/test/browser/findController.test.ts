@@ -76,6 +76,7 @@ suite('FindController', () => {
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	if (platform.isMacintosh) {
+		// eslint-disable-next-line local/code-no-any-casts
 		serviceCollection.set(IClipboardService, <any>{
 			readFindText: () => clipboardState,
 			writeFindText: (value: any) => { clipboardState = value; }
@@ -168,7 +169,7 @@ suite('FindController', () => {
 			// The cursor is at the very top, of the file, at the first ABC
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			const findState = findController.getState();
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			// I hit Ctrl+F to show the Find dialog
 			await executeAction(instantiationService, editor, StartFindAction);
@@ -220,7 +221,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor) => {
 			clipboardState = '';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			editor.setPosition({
 				lineNumber: 1,
@@ -245,7 +246,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
 			clipboardState = '';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			editor.setSelection(new Selection(1, 9, 1, 13));
 
@@ -268,7 +269,7 @@ suite('FindController', () => {
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
 			const testRegexString = 'tes.';
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextMatchFindAction = new NextMatchFindAction();
+			const nextMatchFindAction = NextMatchFindAction;
 
 			findController.toggleRegex();
 			findController.setSearchString(testRegexString);
@@ -287,6 +288,67 @@ suite('FindController', () => {
 
 			assert.strictEqual(findController.getState().searchString, testRegexString);
 
+			findController.dispose();
+		});
+	});
+
+	test('editor.find.closeOnResult: closes find widget when a match is found from explicit navigation', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'ABC' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.isRevealed, false);
+			findController.dispose();
+		});
+	});
+
+	test('editor.find.closeOnResult: keeps find widget open when no match is found', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'DEF',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'NO_MATCH' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.matchesCount, 0);
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('editor.find.closeOnResult: disabled keeps find widget open after navigation', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+		], { serviceCollection: serviceCollection, find: { closeOnResult: false } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			findState.change({ searchString: 'ABC' }, true);
+			await editor.runAction(NextMatchFindAction);
+
+			assert.strictEqual(findState.isRevealed, true);
 			findController.dispose();
 		});
 	});

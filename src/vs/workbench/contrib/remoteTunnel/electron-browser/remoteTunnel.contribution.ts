@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITunnelApplicationConfig } from '../../../../base/common/product.js';
@@ -200,11 +200,15 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					),
 				actions: {
 					primary: [
-						new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
-							return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+						toAction({
+							id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
+								return this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+							}
 						}),
-						new Action('doNotShowAgain', localize('action.doNotShowAgain', "Do not show again"), undefined, true, () => {
-							this.storageService.store(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+						toAction({
+							id: 'doNotShowAgain', label: localize('action.doNotShowAgain', "Do not show again"), run: () => {
+								this.storageService.store(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+							}
 						}),
 					]
 				}
@@ -564,9 +568,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							),
 						actions: {
 							primary: [
-								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString(true))),
-								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
-									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+								toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
+								toAction({
+									id: 'showExtension', label: localize('action.showExtension', "Show Extension"), run: () => {
+										return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
+									}
 								})
 							]
 						}

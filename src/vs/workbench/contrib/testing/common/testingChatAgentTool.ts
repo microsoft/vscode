@@ -10,10 +10,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, isAbsolute } from '../../../../base/common/path.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -29,15 +28,18 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-} from '../../chat/common/languageModelToolsService.js';
+} from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
+import { FileCoverage, TestCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
-import { getTestProgressText, collectTestStateCounts } from './testingProgressMessages.js';
+import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
-import { LiveTestResult } from './testResult.js';
+import { ITestResult, LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
-import { IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
+import { DetailType, IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { ITestProfileService } from './testProfileService.js';
 
 export class TestingChatAgentToolContribution extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.testing.chatAgentTool';
@@ -45,55 +47,64 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-		const runInTerminalTool = instantiationService.createInstance(RunTestTool);
-		this._register(toolsService.registerToolData(RunTestTool.DEFINITION));
-		this._register(
-			toolsService.registerToolImplementation(RunTestTool.ID, runInTerminalTool)
-		);
+		const runTestsTool = instantiationService.createInstance(RunTestTool);
+		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
+		this._register(toolsService.executeToolSet.addTool(RunTestTool.DEFINITION));
 
-		// todo@connor4312: temporary for 1.103 release during changeover
-		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
+		const testFailureTool = instantiationService.createInstance(TestFailureTool);
+		this._register(toolsService.registerTool(TestFailureTool.DEFINITION, testFailureTool));
+		this._register(toolsService.executeToolSet.addTool(TestFailureTool.DEFINITION));
 	}
 }
+
+type Mode = 'run' | 'coverage';
 
 interface IRunTestToolParams {
 	files?: string[];
 	testNames?: string[];
+	/** File paths to return coverage info for (only used when mode === 'coverage') */
+	coverageFiles?: string[];
+	mode?: Mode;
 }
 
-class RunTestTool implements IToolImpl {
+export class RunTestTool implements IToolImpl {
 	public static readonly ID = 'runTests';
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
 		toolReferenceName: 'runTests',
-		canBeReferencedInPrompt: true,
+		legacyToolReferenceFullNames: ['runTests'],
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
-		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
+		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
 		icon: Codicon.beaker,
 		inputSchema: {
 			type: 'object',
 			properties: {
 				files: {
 					type: 'array',
-					items: {
-						type: 'string',
-					},
+					items: { type: 'string' },
 					description: 'Absolute paths to the test files to run. If not provided, all test files will be run.',
 				},
 				testNames: {
 					type: 'array',
-					items: {
-						type: 'string',
-					},
+					items: { type: 'string' },
 					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
+				},
+				mode: {
+					type: 'string',
+					enum: ['run', 'coverage'],
+					description: 'Execution mode: "run" (default) runs tests normally, "coverage" collects coverage.',
+				},
+				coverageFiles: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'When mode="coverage": absolute file paths to include detailed coverage info for. If not provided, a file-level summary of all files with incomplete coverage is shown.'
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests'),
+		userDescription: localize('runTestTool.userDescription', 'Run unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',
@@ -101,6 +112,8 @@ class RunTestTool implements IToolImpl {
 			'enable_other_tool_copilot_listDirectory',
 			'enable_other_tool_copilot_findFiles',
 			'enable_other_tool_copilot_runTests',
+			'enable_other_tool_copilot_runTestsWithCoverage',
+			'enable_other_tool_testFailure',
 		],
 	};
 
@@ -109,10 +122,15 @@ class RunTestTool implements IToolImpl {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ITestResultService private readonly _testResultService: ITestResultService,
+		@ITestProfileService private readonly _testProfileService: ITestProfileService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;
+		const mode: Mode = (params.mode === 'coverage' ? 'coverage' : 'run');
+		let group = (mode === 'coverage' ? TestRunProfileBitset.Coverage : TestRunProfileBitset.Run);
+		const coverageFiles = (mode === 'coverage' ? (params.coverageFiles && params.coverageFiles.length ? params.coverageFiles : undefined) : undefined);
+
 		const testFiles = await this._getFileTestsToRun(params, progress);
 		const testCases = await this._getTestCasesToRun(params, testFiles, progress);
 		if (!testCases.length) {
@@ -124,7 +142,14 @@ class RunTestTool implements IToolImpl {
 
 		progress.report({ message: localize('runTestTool.invoke.progress', 'Starting test run...') });
 
-		const result = await this._captureTestResult(testCases, token);
+		// If the model asks for coverage but the test provider doesn't support it, use normal 'run' mode
+		if (group === TestRunProfileBitset.Coverage) {
+			if (!testCases.some(tc => this._testProfileService.capabilitiesForTest(tc.item) & TestRunProfileBitset.Coverage)) {
+				group = TestRunProfileBitset.Run;
+			}
+		}
+
+		const result = await this._captureTestResult(testCases, group, token);
 		if (!result) {
 			return {
 				content: [{ kind: 'text', value: 'No test run was started. Instruct the user to ensure their test runner is correctly configured' }],
@@ -142,32 +167,13 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
+		const summary = await buildTestRunSummary(result, mode, coverageFiles);
+		const content = [{ kind: 'text', value: summary } as const];
+
 		return {
-			content: [{ kind: 'text', value: this._makeModelTestResults(result) }],
-			toolResultMessage: getTestProgressText(collectTestStateCounts(true, [result])),
+			content: content as Mutable<IToolResult['content']>,
+			toolResultMessage: getTestProgressText(collectTestStateCounts(false, [result])),
 		};
-	}
-
-	private _makeModelTestResults(result: LiveTestResult) {
-		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
-		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
-		if (failures === 0) {
-			return str;
-		}
-
-		for (const failure of result.tests) {
-			if (!isFailedState(failure.ownComputedState)) {
-				continue;
-			}
-
-			const [, ...testPath] = TestId.split(failure.item.extId);
-			const testName = testPath.pop();
-			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-			str += failure.tasks.flatMap(t => t.messages.filter(m => m.type === TestMessageType.Error).map(m => typeof m.message === 'string' ? m.message : m.message.value)).join('\n\n');
-			str += `\n</testFailure>\n`;
-		}
-
-		return str;
 	}
 
 	/** Updates the UI progress as the test runs, resolving when the run is finished. */
@@ -177,11 +183,9 @@ class RunTestTool implements IToolImpl {
 		const update = () => {
 			const counts = collectTestStateCounts(!result.completedAt, [result]);
 			const text = getTestProgressText(counts);
-			progress.report({ message: text, increment: counts.runSoFar - lastSoFar, total: counts.totalWillBeRun });
-			lastSoFar = counts.runSoFar;
+			progress.report({ message: text, progress: counts.runSoFar / counts.totalWillBeRun });
 		};
 
-		let lastSoFar = 0;
 		const throttler = store.add(new RunOnceScheduler(update, 500));
 
 		return new Promise<void>(resolve => {
@@ -209,7 +213,7 @@ class RunTestTool implements IToolImpl {
 	 * test run to come in that contains one or more tasks and treat that as the
 	 * one we're looking for.
 	 */
-	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], token: CancellationToken): Promise<LiveTestResult | undefined> {
+	private async _captureTestResult(testCases: IncrementalTestCollectionItem[], group: TestRunProfileBitset, token: CancellationToken): Promise<LiveTestResult | undefined> {
 		const store = new DisposableStore();
 		const onDidTimeout = store.add(new Emitter<void>());
 
@@ -228,7 +232,7 @@ class RunTestTool implements IToolImpl {
 			}));
 
 			this._testService.runTests({
-				group: TestRunProfileBitset.Run,
+				group,
 				tests: testCases,
 				preserveFocus: true,
 			}, token).then(() => {
@@ -293,8 +297,10 @@ class RunTestTool implements IToolImpl {
 
 		const tests: IncrementalTestCollectionItem[] = [];
 		for (const uri of uris) {
-			for await (const file of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
-				tests.push(file);
+			for await (const files of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
+				for (const file of files) {
+					tests.push(file);
+				}
 			}
 		}
 
@@ -317,4 +323,254 @@ class RunTestTool implements IToolImpl {
 			},
 		});
 	}
+}
+
+export class TestFailureTool implements IToolImpl {
+	public static readonly ID = 'testFailure';
+	public static readonly DEFINITION: IToolData = {
+		id: this.ID,
+		toolReferenceName: 'testFailure',
+		legacyToolReferenceFullNames: ['copilot_testFailure'],
+		when: TestingContextKeys.hasAnyResults,
+		displayName: localize('testFailureTool.displayName', 'Test failures'),
+		modelDescription: 'Includes test failure information in the prompt. Use this tool to get the details of test failures from the most recent test run. If there are no failures yet, suggest running tests first.',
+		icon: Codicon.beaker,
+		inputSchema: {
+			type: 'object',
+			properties: {},
+		},
+		userDescription: localize('testFailureTool.userDescription', 'Include test failure information'),
+		source: ToolDataSource.Internal,
+		tags: [
+			'vscode_editing_with_tests',
+			'enable_other_tool_copilot_readFile',
+			'enable_other_tool_copilot_listDirectory',
+			'enable_other_tool_copilot_findFiles',
+			'enable_other_tool_copilot_runTests',
+		],
+	};
+
+	constructor(
+		@ITestResultService private readonly _testResultService: ITestResultService,
+	) { }
+
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const result = this._testResultService.results.find(r => r.tasks.length > 0);
+		if (!result) {
+			return {
+				content: [{ kind: 'text', value: 'No test failures were found yet, call the runTests tool to run tests and find failures.' }],
+			};
+		}
+
+		const details = await getFailureDetails(result);
+		return {
+			content: [{ kind: 'text', value: details }],
+		};
+	}
+
+	prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return Promise.resolve({
+			invocationMessage: localize('testFailureTool.invocation', 'Finding test failures'),
+			pastTenseMessage: localize('testFailureTool.pastTense', 'Found test failures'),
+		});
+	}
+}
+
+/** Builds the full summary string for a completed test run. */
+export async function buildTestRunSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
+	const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
+	let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />\n`;
+	if (failures !== 0) {
+		str += await getFailureDetails(result);
+	}
+	if (mode === 'coverage') {
+		str += await getCoverageSummary(result, coverageFiles);
+	}
+	return str;
+}
+
+/** Gets a coverage summary from a test result, either overall or per-file. */
+export async function getCoverageSummary(result: LiveTestResult, coverageFiles: string[] | undefined): Promise<string> {
+	let str = '';
+	for (const task of result.tasks) {
+		const coverage = task.coverage.get();
+		if (!coverage) {
+			continue;
+		}
+
+		if (!coverageFiles || !coverageFiles.length) {
+			str += getOverallCoverageSummary(coverage);
+			continue;
+		}
+
+		const normalized = coverageFiles.map(file => URI.file(file).fsPath);
+		const coveredFilesMap = new Map<string, FileCoverage>();
+		for (const file of coverage.getAllFiles().values()) {
+			coveredFilesMap.set(file.uri.fsPath, file);
+		}
+
+		for (const path of normalized) {
+			const file = coveredFilesMap.get(path);
+			if (!file) {
+				continue;
+			}
+			str += await getFileCoverageDetails(file, path);
+		}
+	}
+	return str;
+}
+
+/** Gets a file-level coverage overview sorted by lowest coverage first. */
+export function getOverallCoverageSummary(coverage: TestCoverage): string {
+	const files = [...coverage.getAllFiles().values()]
+		.map(f => ({ path: f.uri.fsPath, pct: getTotalCoveragePercent(f.statement, f.branch, f.declaration) * 100 }))
+		.filter(f => f.pct < 100)
+		.sort((a, b) => a.pct - b.pct);
+
+	if (!files.length) {
+		return '<coverageSummary>All files have 100% coverage.</coverageSummary>\n';
+	}
+
+	let str = '<coverageSummary>\n';
+	for (const f of files) {
+		str += `<file path="${f.path}" percent=${f.pct.toFixed(1)} />\n`;
+	}
+	str += '</coverageSummary>\n';
+	return str;
+}
+
+/** Gets detailed coverage information for a single file including uncovered items. */
+export async function getFileCoverageDetails(file: FileCoverage, path: string): Promise<string> {
+	const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+	let str = `<coverage path="${path}" percent=${pct.toFixed(1)} statements=${file.statement.covered}/${file.statement.total}`;
+	if (file.branch) {
+		str += ` branches=${file.branch.covered}/${file.branch.total}`;
+	}
+	if (file.declaration) {
+		str += ` declarations=${file.declaration.covered}/${file.declaration.total}`;
+	}
+	str += '>\n';
+
+	try {
+		const details = await file.details();
+
+		const uncoveredDeclarations: { name: string; line: number }[] = [];
+		const uncoveredBranches: { line: number; label?: string }[] = [];
+		const uncoveredLines: [number, number][] = [];
+
+		for (const detail of details) {
+			if (detail.type === DetailType.Declaration) {
+				if (!detail.count) {
+					const line = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+					uncoveredDeclarations.push({ name: detail.name, line });
+				}
+			} else {
+				if (!detail.count) {
+					const startLine = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+					const endLine = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.endLineNumber;
+					uncoveredLines.push([startLine, endLine]);
+				}
+				if (detail.branches) {
+					for (const branch of detail.branches) {
+						if (!branch.count) {
+							let line: number;
+							if (branch.location) {
+								line = Position.isIPosition(branch.location) ? branch.location.lineNumber : branch.location.startLineNumber;
+							} else {
+								line = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+							}
+							uncoveredBranches.push({ line, label: branch.label });
+						}
+					}
+				}
+			}
+		}
+
+		if (uncoveredDeclarations.length) {
+			str += 'uncovered functions: ' + uncoveredDeclarations.map(d => `${d.name}(L${d.line})`).join(', ') + '\n';
+		}
+		if (uncoveredBranches.length) {
+			str += 'uncovered branches: ' + uncoveredBranches.map(b => b.label ? `L${b.line}(${b.label})` : `L${b.line}`).join(', ') + '\n';
+		}
+		if (uncoveredLines.length) {
+			str += 'uncovered lines: ' + mergeLineRanges(uncoveredLines) + '\n';
+		}
+	} catch { /* ignore - details not available */ }
+
+	str += '</coverage>\n';
+	return str;
+}
+
+/** Merges overlapping/contiguous line ranges and formats them compactly. */
+export function mergeLineRanges(ranges: [number, number][]): string {
+	if (!ranges.length) {
+		return '';
+	}
+	ranges.sort((a, b) => a[0] - b[0]);
+	const merged: [number, number][] = [ranges[0]];
+	for (let i = 1; i < ranges.length; i++) {
+		const last = merged[merged.length - 1];
+		const [start, end] = ranges[i];
+		if (start <= last[1] + 1) {
+			last[1] = Math.max(last[1], end);
+		} else {
+			merged.push([start, end]);
+		}
+	}
+	return merged.map(([s, e]) => s === e ? `${s}` : `${s}-${e}`).join(', ');
+}
+
+/** Formats failure details from a test result into an XML-like string. */
+export async function getFailureDetails(result: ITestResult): Promise<string> {
+	let str = '';
+	let hadMessages = false;
+	for (const failure of result.tests) {
+		if (!isFailedState(failure.ownComputedState)) {
+			continue;
+		}
+
+		const [, ...testPath] = TestId.split(failure.item.extId);
+		const testName = testPath.pop();
+		str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
+		for (const task of failure.tasks) {
+			for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+				hadMessages = true;
+
+				if (message.expected !== undefined && message.actual !== undefined) {
+					str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
+					str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
+				} else {
+					const messageText = typeof message.message === 'string' ? message.message : message.message.value;
+					str += `<message>\n${messageText}\n</message>\n`;
+				}
+
+				if (message.stackTrace && message.stackTrace.length > 0) {
+					for (const frame of message.stackTrace.slice(0, 10)) {
+						if (frame.uri && frame.position) {
+							str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
+						} else if (frame.uri) {
+							str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
+						} else {
+							str += `<stackFrame>${frame.label}</stackFrame>\n`;
+						}
+					}
+				}
+
+				if (message.location) {
+					str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
+				}
+			}
+		}
+
+		str += `</testFailure>\n`;
+	}
+
+	if (!hadMessages) {
+		const output = result.tasks.map(t => t.output.getRange(0, t.output.length).toString().trim()).join('\n');
+		if (output) {
+			str += `<output>\n${output}\n</output>\n`;
+		}
+	}
+
+	return str;
 }

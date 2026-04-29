@@ -116,10 +116,10 @@ export interface ISuggestEnabledInputStyleOverrides {
 
 export class SuggestEnabledInput extends Widget {
 
-	private readonly _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = this._register(new Emitter<void>());
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private readonly _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = this._register(new Emitter<string | undefined>());
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -311,6 +311,7 @@ export class SuggestEnabledInput extends Widget {
 		this.stylingContainer.style.borderStyle = 'solid';
 		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
+		// eslint-disable-next-line no-restricted-syntax
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
 			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);

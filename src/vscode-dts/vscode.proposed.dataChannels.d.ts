@@ -10,7 +10,7 @@ declare module 'vscode' {
 	}
 
 	export interface DataChannel<T = unknown> {
-		onDidReceiveData: Event<DataChannelEvent<T>>;
+		readonly onDidReceiveData: Event<DataChannelEvent<T>>;
 	}
 
 	export interface DataChannelEvent<T> {

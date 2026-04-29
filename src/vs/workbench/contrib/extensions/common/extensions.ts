@@ -124,6 +124,8 @@ export interface IExtensionsNotification {
 	readonly message: string;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
 	dismiss(): void;
 }
 
@@ -162,7 +164,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
@@ -203,8 +205,8 @@ export interface IExtensionContainer extends IDisposable {
 }
 
 export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
+	readonly onFocus: Event<IExtension>;
+	readonly onBlur: Event<IExtension>;
 	filters: {
 		featureId?: string;
 	};
@@ -258,6 +260,7 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
+export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

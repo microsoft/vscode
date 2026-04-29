@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
+import type * as http from 'http';
 import { AddressInfo } from 'net';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 import { request } from '../../common/requestImpl.js';
 import { streamToBuffer } from '../../../../common/buffer.js';
+import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
 
 
 suite('Request', () => {
@@ -18,6 +19,7 @@ suite('Request', () => {
 	let server: http.Server;
 
 	setup(async () => {
+		const http = await import('http');
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
@@ -56,7 +58,8 @@ suite('Request', () => {
 			url: `http://127.0.0.1:${port}`,
 			headers: {
 				'echo-header': 'echo-value'
-			}
+			},
+			callSite: 'request.test.GET'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -72,6 +75,7 @@ suite('Request', () => {
 			type: 'POST',
 			url: `http://127.0.0.1:${port}/postpath`,
 			data: 'Some data',
+			callSite: 'request.test.POST'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -83,32 +87,38 @@ suite('Request', () => {
 	});
 
 	test('timeout', async () => {
-		try {
-			await request({
-				type: 'GET',
-				url: `http://127.0.0.1:${port}/noreply`,
-				timeout: 123,
-			}, CancellationToken.None);
-			assert.fail('Should fail with timeout');
-		} catch (err) {
-			assert.strictEqual(err.message, 'Fetch timeout: 123ms');
-		}
+		return runWithFakedTimers({}, async () => {
+			try {
+				await request({
+					type: 'GET',
+					url: `http://127.0.0.1:${port}/noreply`,
+					timeout: 123,
+					callSite: 'request.test.timeout'
+				}, CancellationToken.None);
+				assert.fail('Should fail with timeout');
+			} catch (err) {
+				assert.strictEqual(err.message, 'Fetch timeout: 123ms');
+			}
+		});
 	});
 
 	test('cancel', async () => {
-		try {
-			const source = new CancellationTokenSource();
-			const res = request({
-				type: 'GET',
-				url: `http://127.0.0.1:${port}/noreply`,
-			}, source.token);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			source.cancel();
-			await res;
-			assert.fail('Should fail with cancellation');
-		} catch (err) {
-			assert.strictEqual(err.message, 'Canceled');
-		}
+		return runWithFakedTimers({}, async () => {
+			try {
+				const source = new CancellationTokenSource();
+				const res = request({
+					type: 'GET',
+					url: `http://127.0.0.1:${port}/noreply`,
+					callSite: 'request.test.cancel'
+				}, source.token);
+				await new Promise(resolve => setTimeout(resolve, 100));
+				source.cancel();
+				await res;
+				assert.fail('Should fail with cancellation');
+			} catch (err) {
+				assert.strictEqual(err.message, 'Canceled');
+			}
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

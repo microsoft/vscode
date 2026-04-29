@@ -22,7 +22,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ContextKeyTrueExpr, ContextKeyFalseExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { autorun, autorunWithStore, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -338,7 +338,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	}
 
 	private onDidActiveEditorChange(): void {
-		this.transientDisposables.add(autorunWithStore((reader, store) => {
+		this.transientDisposables.add(autorun(reader => {
 			const activeEditor = this.activeEditor.read(reader);
 			const activeTextEditorControl = this.editorService.activeTextEditorControl;
 
@@ -353,7 +353,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				return;
 			}
 
-			store.add(quickDiffModelRef);
+			reader.store.add(quickDiffModelRef);
 
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
@@ -361,7 +361,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 					return quickDiffModelRef.object.changes.filter(change => visibleQuickDiffs.some(quickDiff => quickDiff.id === change.providerId)).length;
 				});
 
-			store.add(autorun(reader => {
+			reader.store.add(autorun(reader => {
 				const count = visibleDecorationCount.read(reader);
 				this.quickDiffDecorationCount.set(count);
 			}));
@@ -369,7 +369,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	}
 
 	private onDidChangeQuickDiffProviders(): void {
-		this.transientDisposables.add(autorunWithStore((reader, store) => {
+		this.transientDisposables.add(autorun(reader => {
 			const providers = this.quickDiffProviders.read(reader);
 
 			const labels: string[] = [];
@@ -383,7 +383,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
 				const order = index + 1;
 
-				store.add(registerAction2(class extends Action2 {
+				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: `workbench.scm.action.toggleQuickDiffVisibility.${provider.id}`,

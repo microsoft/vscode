@@ -12,6 +12,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 
 abstract class AbstractUpdateService implements IUpdateService {
 
@@ -30,12 +31,19 @@ abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
+
+		// Clear transient one-time properties from Idle state after delivering the event.
+		// This prevents new windows from seeing stale error/notAvailable messages.
+		if (state.type === StateType.Idle && (state.error || state.notAvailable)) {
+			this._state = State.Idle(state.updateType);
+		}
 	}
 
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService protected logService: ILogService,
+		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
 	) {
 		if (environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
@@ -67,10 +75,15 @@ abstract class AbstractUpdateService implements IUpdateService {
 		this.doCheckForUpdates(explicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(explicit: boolean): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
+			return;
+		}
+
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
@@ -102,11 +115,17 @@ abstract class AbstractUpdateService implements IUpdateService {
 			return Promise.resolve(undefined);
 		}
 
+		// Remember the Ready state so we can restore it if the quit is vetoed
+		const readyState = this.state;
+
+		this.setState(State.Restarting(this.state.update));
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
+				this.logService.info('update#quitAndInstall(): quit was vetoed, restoring Ready state');
+				this.setState(readyState);
 				return;
 			}
 
@@ -126,6 +145,10 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
+		// noop - not applicable for snap
+	}
+
 	abstract isLatestVersion(): Promise<boolean | undefined>;
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
@@ -143,8 +166,9 @@ export class SnapUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, environmentMainService, logService);
+		super(lifecycleMainService, environmentMainService, logService, meteredConnectionService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
@@ -152,7 +176,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(() => this.checkForUpdates(false));
 
-		lifecycleMainService.onWillShutdown(() => {
+		Event.once(lifecycleMainService.onWillShutdown)(() => {
 			listener.dispose();
 			watcher.close();
 		});
@@ -162,9 +186,9 @@ export class SnapUpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(false));
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something' }));
+				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
-				this.setState(State.Idle(UpdateType.Snap));
+				this.setState(State.Idle(UpdateType.Snap, undefined, undefined));
 			}
 		}, err => {
 			this.logService.error(err);

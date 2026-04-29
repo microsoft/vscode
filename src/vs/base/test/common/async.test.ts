@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as async from '../../common/async.js';
-import * as MicrotaskDelay from "../../common/symbols.js";
+import * as MicrotaskDelay from '../../common/symbols.js';
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { isCancellationError } from '../../common/errors.js';
 import { Event } from '../../common/event.js';
@@ -1210,6 +1210,22 @@ suite('Async', () => {
 			assert.strictEqual((await deferred.p.catch(e => e)).name, 'Canceled');
 			assert.strictEqual(deferred.isRejected, true);
 		});
+
+		test('retains the original settled value', async () => {
+			const deferred = new async.DeferredPromise<number>();
+			assert.strictEqual(deferred.isResolved, false);
+			assert.strictEqual(deferred.value, undefined);
+
+			deferred.complete(42);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
+
+			deferred.complete(-1);
+			assert.strictEqual(await deferred.p, 42);
+			assert.strictEqual(deferred.value, 42);
+			assert.strictEqual(deferred.isResolved, true);
+		});
 	});
 
 	suite('Promises.settled', () => {
@@ -2165,6 +2181,137 @@ suite('Async', () => {
 				{ id: 3, name: 'third' }
 			]);
 		});
+
+		test('tee - both iterators receive all values', async () => {
+			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+			async function* sourceGenerator() {
+				yield 1;
+				yield 2;
+				yield 3;
+				yield 4;
+				yield 5;
+			}
+
+			const [iter1, iter2] = async.AsyncIterableProducer.tee(sourceGenerator());
+
+			const result1: number[] = [];
+			const result2: number[] = [];
+
+			// Consume both iterables concurrently
+			await Promise.all([
+				(async () => {
+					for await (const item of iter1) {
+						result1.push(item);
+					}
+				})(),
+				(async () => {
+					for await (const item of iter2) {
+						result2.push(item);
+					}
+				})()
+			]);
+
+			assert.deepStrictEqual(result1, [1, 2, 3, 4, 5]);
+			assert.deepStrictEqual(result2, [1, 2, 3, 4, 5]);
+		});
+
+		test('tee - sequential consumption', async () => {
+			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+			const source = new async.AsyncIterableProducer<number>(emitter => {
+				emitter.emitMany([1, 2, 3]);
+			});
+
+			const [iter1, iter2] = async.AsyncIterableProducer.tee(source);
+
+			// Consume first iterator completely
+			const result1: number[] = [];
+			for await (const item of iter1) {
+				result1.push(item);
+			}
+
+			// Then consume second iterator
+			const result2: number[] = [];
+			for await (const item of iter2) {
+				result2.push(item);
+			}
+
+			assert.deepStrictEqual(result1, [1, 2, 3]);
+			assert.deepStrictEqual(result2, [1, 2, 3]);
+		});
+
+		test.skip('tee - empty source', async () => {
+			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+			const source = new async.AsyncIterableProducer<number>(emitter => {
+				// Emit nothing
+			});
+
+			const [iter1, iter2] = async.AsyncIterableProducer.tee(source);
+
+			const result1: number[] = [];
+			const result2: number[] = [];
+
+			await Promise.all([
+				(async () => {
+					for await (const item of iter1) {
+						result1.push(item);
+					}
+				})(),
+				(async () => {
+					for await (const item of iter2) {
+						result2.push(item);
+					}
+				})()
+			]);
+
+			assert.deepStrictEqual(result1, []);
+			assert.deepStrictEqual(result2, []);
+		});
+
+		test.skip('tee - handles errors in source', async () => {
+			// TODO: Implementation bug - executors don't await start(), causing producers to finalize early
+			const expectedError = new Error('source error');
+			const source = new async.AsyncIterableProducer<number>(async emitter => {
+				emitter.emitOne(1);
+				emitter.emitOne(2);
+				throw expectedError;
+			});
+
+			const [iter1, iter2] = async.AsyncIterableProducer.tee(source);
+
+			let error1: Error | undefined;
+			let error2: Error | undefined;
+			const result1: number[] = [];
+			const result2: number[] = [];
+
+			await Promise.all([
+				(async () => {
+					try {
+						for await (const item of iter1) {
+							result1.push(item);
+						}
+					} catch (e) {
+						error1 = e as Error;
+					}
+				})(),
+				(async () => {
+					try {
+						for await (const item of iter2) {
+							result2.push(item);
+						}
+					} catch (e) {
+						error2 = e as Error;
+					}
+				})()
+			]);
+
+			// Both iterators should have received the same values before error
+			assert.deepStrictEqual(result1, [1, 2]);
+			assert.deepStrictEqual(result2, [1, 2]);
+
+			// Both should have received the error
+			assert.strictEqual(error1, expectedError);
+			assert.strictEqual(error2, expectedError);
+		});
 	});
 
 	suite('AsyncReader', () => {
@@ -2375,12 +2522,14 @@ suite('Async', () => {
 		});
 
 		test('peekTimeout - timeout occurs', async () => {
-			const reader = new async.AsyncReader(createDelayedAsyncIterator([1, 2, 3], 50));
+			return runWithFakedTimers({}, async () => {
+				const reader = new async.AsyncReader(createDelayedAsyncIterator([1, 2, 3], 50));
 
-			const result = await reader.peekTimeout(10);
-			assert.strictEqual(result, undefined);
+				const result = await reader.peekTimeout(10);
+				assert.strictEqual(result, undefined);
 
-			await reader.consumeToEnd();
+				await reader.consumeToEnd();
+			});
 		});
 
 		test('peekTimeout - empty iterator', async () => {

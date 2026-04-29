@@ -205,21 +205,27 @@ export class MarkersModel {
 				} else {
 					change.updated.add(resourceMarkers);
 				}
-				const markersCountByKey = new Map<string, number>();
-				const markers = rawMarkers.map((rawMarker) => {
-					const key = IMarkerData.makeKey(rawMarker);
-					const index = markersCountByKey.get(key) || 0;
-					markersCountByKey.set(key, index + 1);
+				// Deduplicate markers with identical source, code, severity, message
+				// and range so that a diagnostic reported by both a task problem
+				// matcher and a language extension is only shown once (#244424).
+				const processedMarkerKeys = new Set<string>();
+				const markers: Marker[] = [];
+				for (const rawMarker of rawMarkers) {
+					const markerKey = IMarkerData.makeKey(rawMarker) + rawMarker.resource.toString();
+					if (processedMarkerKeys.has(markerKey)) {
+						continue;
+					}
+					processedMarkerKeys.add(markerKey);
 
-					const markerId = this.id(resourceMarkers!.id, key, index, rawMarker.resource.toString());
+					const markerId = this.id(resourceMarkers!.id, markerKey, 0, rawMarker.resource.toString());
 
 					let relatedInformation: RelatedInformation[] | undefined = undefined;
 					if (rawMarker.relatedInformation) {
 						relatedInformation = rawMarker.relatedInformation.map((r, index) => new RelatedInformation(this.id(markerId, r.resource.toString(), r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn, index), rawMarker, r));
 					}
 
-					return new Marker(markerId, rawMarker, relatedInformation);
-				});
+					markers.push(new Marker(markerId, rawMarker, relatedInformation));
+				}
 
 				this._total -= resourceMarkers.total;
 				resourceMarkers.set(resource, markers);

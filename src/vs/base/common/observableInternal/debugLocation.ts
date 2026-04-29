@@ -16,7 +16,7 @@ export namespace DebugLocation {
 		if (!enabled) {
 			return undefined;
 		}
-		const Err = Error as any as { stackTraceLimit: number }; // For the monaco editor checks, which don't have the nodejs types.
+		const Err = Error as ErrorConstructor & { stackTraceLimit: number };
 
 		const l = Err.stackTraceLimit;
 		Err.stackTraceLimit = 3;

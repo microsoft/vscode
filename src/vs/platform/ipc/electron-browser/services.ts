@@ -10,6 +10,7 @@ import { createDecorator, IInstantiationService, ServiceIdentifier } from '../..
 import { IMainProcessService } from '../common/mainProcessService.js';
 import { IRemoteService } from '../common/services.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ChannelClientCtor<T> = { new(channel: IChannel, ...args: any[]): T };
 type Remote = { getChannel(channelName: string): IChannel };
 

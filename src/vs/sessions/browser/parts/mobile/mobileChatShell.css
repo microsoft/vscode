@@ -1,0 +1,762 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * `!important` policy for this file:
+ *
+ * Only use `!important` when fighting one of:
+ *   1. SplitView.View.layoutContainer — sets inline position/top/left/width/height
+ *      on every `.split-view-view` (src/vs/base/browser/ui/splitview/splitview.ts).
+ *   2. Part.layoutContents — inlines width/height on `.part > .content` via size().
+ *   3. An equal-specificity desktop rule in the main workbench stylesheet.
+ *
+ * Rules that only face lower-specificity desktop CSS (e.g. a single `.part.X`
+ * selector) do NOT need `!important` — the `.phone-layout` class on the
+ * workbench root already wins. When adding a new rule, omit `!important`
+ * first and only add it if DevTools shows an actual override.
+ */
+
+/* ---- Mobile Top Bar ---- */
+
+.mobile-top-bar {
+	display: flex;
+	align-items: center;
+	height: 48px;
+	min-height: 48px;
+	padding: 0 4px;
+	padding-top: env(safe-area-inset-top);
+	background: var(--vscode-editor-background);
+	flex-shrink: 0;
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+	touch-action: manipulation;
+	z-index: 10;
+}
+
+.mobile-top-bar .mobile-top-bar-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 50%;
+	flex-shrink: 0;
+	touch-action: manipulation;
+	font-size: 18px;
+	padding: 0;
+}
+
+.monaco-workbench .mobile-top-bar .mobile-top-bar-button:focus {
+	outline: none !important;
+}
+
+.mobile-top-bar .mobile-top-bar-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.mobile-top-bar .mobile-top-bar-button:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* -- Mobile titlebar: Changes pill ------------------------------------- */
+/* Pill-shaped button showing total insertions/deletions for the active session. Tapping opens a quick pick of changed files; selecting one opens the mobile diff view. Hidden when the session has no changes or when on the welcome / new-chat screen. */
+
+.mobile-top-bar .mobile-top-bar-button.mobile-changes-pill {
+	width: auto;
+	height: 28px;
+	padding: 0 10px;
+	border-radius: 14px;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 18px;
+	font-variant-numeric: tabular-nums;
+	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-icon {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
+}
+
+.mobile-top-bar .mobile-changes-pill:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-top-bar .mobile-top-bar-center {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.mobile-top-bar .mobile-session-title {
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding: 0 4px;
+	cursor: pointer;
+	border: none;
+	background: none;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.monaco-workbench .mobile-top-bar .mobile-session-title:focus {
+	outline: none !important;
+}
+
+.mobile-top-bar .mobile-session-title:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.mobile-top-bar .mobile-session-title:active {
+	opacity: 0.7;
+}
+
+.mobile-top-bar .mobile-top-bar-actions {
+	display: none;
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	height: 100%;
+}
+
+/* When the welcome screen is visible and the center menu has contributed
+	items (e.g., the web host filter on the home screen) the title is
+	hidden and the toolbar takes its place. */
+.mobile-top-bar.show-actions .mobile-session-title {
+	display: none;
+}
+
+.mobile-top-bar.show-actions .mobile-top-bar-actions {
+	display: flex;
+	flex-direction: column;
+}
+
+/* ---- Phone Layout: Full-screen chat ---- */
+
+/* On phone, stack the mobile top bar and grid vertically */
+.agent-sessions-workbench.phone-layout {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+/* On phone, all split-view-view wrappers inside the grid — both those
+	wrapping parts AND those wrapping nested grid branch nodes — fill the
+	full grid area. This collapses the multi-axis grid into a single
+	full-screen viewport so parts overlap rather than share horizontal
+	space. The sidebar uses its own z-index + transform to slide over
+	the chat (see sidebarPart.css). The :has() conditions scope strictly
+	to grid wrappers so splitviews used inside individual parts' content
+	(e.g. a sidebar's view list) are not affected. */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part),
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .monaco-grid-branch-node) {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+}
+
+/* All grid branch nodes fill their parent. `.monaco-grid-branch-node` is
+	specific to the grid widget, so this descendant selector won't hit
+	splitviews used inside individual parts' content. The grid widget
+	does not write inline geometry to branch nodes (only to the wrapping
+	`.split-view-view`), so plain CSS suffices here. */
+.agent-sessions-workbench.phone-layout .monaco-grid-branch-node {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+/* Remove card appearance from ALL parts on phone.
+	Specificity wins over the desktop card rule in style.css without !important;
+	width/height match what the mobile Part.layout() already inlines. */
+.agent-sessions-workbench.phone-layout .part.chatbar,
+.agent-sessions-workbench.phone-layout .part.sidebar,
+.agent-sessions-workbench.phone-layout .part.auxiliarybar,
+.agent-sessions-workbench.phone-layout .part.panel {
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	--part-border-color: transparent;
+	width: 100%;
+	height: 100%;
+}
+
+/* Pin Part content to the wrapper's full width on phone.
+	`!important` is required because `Part.layoutContents()` inlines the
+	width on `.part > .content` based on the splitview size (rule #2 in the
+	policy above). Without this, opening the sidebar — which makes the
+	splitview share space between sidebar and chatbar — would shrink the
+	chatbar's content during the drawer slide animation. */
+.agent-sessions-workbench.phone-layout .part.chatbar > .content,
+.agent-sessions-workbench.phone-layout .part.sidebar > .content,
+.agent-sessions-workbench.phone-layout .part.auxiliarybar > .content,
+.agent-sessions-workbench.phone-layout .part.panel > .content {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+/* Hide the session composite bar (Copilot CLI / Approvals / Branch) on phone */
+.agent-sessions-workbench.phone-layout .session-composite-bar {
+	display: none;
+}
+
+/* Ensure the grid view element doesn't overflow — flex child must shrink */
+.agent-sessions-workbench.phone-layout > .monaco-grid-view {
+	flex: 1 1 0% !important;
+	min-height: 0 !important;
+	overflow: hidden !important;
+	height: auto !important;
+	background-color: var(--vscode-editor-background);
+}
+
+/* Remove max-width constraint on chat content */
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-item-container {
+	max-width: none !important;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session > .chat-suggest-next-widget {
+	max-width: none !important;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-input-part {
+	max-width: none !important; /* fights equal-specificity rule in style.css */
+	padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+/* Chat input minimum font size to prevent iOS auto-zoom */
+.agent-sessions-workbench.phone-layout .interactive-session .chat-input-container textarea,
+.agent-sessions-workbench.phone-layout .interactive-session .chat-input-container input {
+	font-size: 16px !important;
+}
+
+/* Hide the desktop titlebar on phone — replaced by mobile top bar */
+.agent-sessions-workbench.phone-layout .part.titlebar {
+	display: none !important;
+}
+
+/* Sidebar content and customization toolbar should stack and scroll */
+.agent-sessions-workbench.phone-layout .part.sidebar {
+	display: flex !important;
+	flex-direction: column !important;
+	overflow: hidden !important;
+}
+
+.agent-sessions-workbench.phone-layout .part.sidebar > .composite.title {
+	display: none;
+}
+
+.agent-sessions-workbench.phone-layout .part.sidebar > .content {
+	top: 0 !important;
+	flex: 1 !important;
+	min-height: 0 !important;
+	overflow-y: auto !important;
+	-webkit-overflow-scrolling: touch;
+}
+
+/* Customization toolbar: hidden on phone (opens editors, not mobile-compatible) */
+.agent-sessions-workbench.phone-layout .part.sidebar .ai-customization-toolbar {
+	display: none;
+}
+
+/* Make sidebar footer touch-friendly */
+.agent-sessions-workbench.phone-layout .part.sidebar > .sidebar-footer .sidebar-action-button {
+	min-height: 44px;
+	padding: 8px 12px;
+}
+
+/* Hide the "+ Session" button in the sidebar on phone — replaced by top bar + button */
+.agent-sessions-workbench.phone-layout .agent-sessions-new-button-container {
+	display: none;
+}
+
+/* Hide sashes on phone */
+.agent-sessions-workbench.phone-layout .monaco-sash {
+	display: none !important;
+	pointer-events: none !important;
+}
+
+/* Overscroll containment */
+.agent-sessions-workbench.phone-layout .interactive-session {
+	overscroll-behavior: contain;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-list {
+	overscroll-behavior: contain;
+}
+
+/* On phone, push the chat input to the bottom of the chat area */
+.agent-sessions-workbench.phone-layout .interactive-session .interactive-input-and-execute-toolbar {
+	margin-top: auto;
+}
+
+/* ---- Phone Layout: Chat Welcome Page ---- */
+
+/* Make the welcome page a flex column that fills the chat area */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container {
+	display: flex !important;
+	flex-direction: column !important;
+	height: 100% !important;
+	padding: 8px 8px 0 8px !important;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-widget-content {
+	display: flex !important;
+	flex-direction: column !important;
+	flex: 1 !important;
+	min-height: 0 !important;
+	max-width: 100% !important;
+	padding-bottom: 20px !important;
+}
+
+/* Workspace picker centered vertically with icon above */
+.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container {
+	flex: 1 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	max-width: 100% !important;
+}
+
+/* Show the sessions logo above the workspace picker — same asset as the auth page */
+.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before {
+	content: '';
+	display: block;
+	width: 64px;
+	height: 64px;
+	margin-bottom: 16px;
+	background-image: url('../../media/sessions-logo-light.svg');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.vs .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
+.hc-light .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before {
+	background-image: url('../../media/sessions-logo-dark.svg');
+}
+
+/* Center the picker text */
+.agent-sessions-workbench.phone-layout .session-workspace-picker {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	gap: 8px !important;
+	font-size: 16px !important;
+}
+
+.agent-sessions-workbench.phone-layout .session-workspace-picker-label {
+	font-size: 18px;
+	opacity: 0.6;
+}
+
+/* Input slot pinned to the bottom */
+.agent-sessions-workbench.phone-layout .new-chat-input-container {
+	flex-shrink: 0 !important;
+	padding: 0 0 8px 0 !important;
+	max-width: 100% !important;
+}
+
+/* Make the chat input full-width and edge-to-edge styled */
+.agent-sessions-workbench.phone-layout .sessions-chat-input-area {
+	border-radius: 16px !important;
+	max-width: 100% !important;
+}
+
+/* Hide the local mode bar (Copilot CLI / Default Approvals / Branch) on phone */
+.agent-sessions-workbench.phone-layout .new-chat-bottom-container {
+	display: none;
+}
+
+/* Also hide the sessions-chat-widget's DnD overlay on phone */
+.agent-sessions-workbench.phone-layout .sessions-chat-dnd-overlay {
+	display: none;
+}
+
+/* Chat widget fills full width on phone */
+.agent-sessions-workbench.phone-layout .sessions-chat-widget {
+	width: 100% !important;
+}
+
+/* allow-any-unicode-next-line */
+/* Compact chat toolbar on phone */
+.agent-sessions-workbench.phone-layout .sessions-chat-toolbar {
+	padding: 0 6px 0 6px !important;
+	max-height: 32px !important;
+	gap: 4px !important;
+}
+
+/* Prevent card transitions from flashing on phone */
+.agent-sessions-workbench.phone-layout .part.chatbar,
+.agent-sessions-workbench.phone-layout .part.sidebar,
+.agent-sessions-workbench.phone-layout .part.auxiliarybar,
+.agent-sessions-workbench.phone-layout .part.panel {
+	transition: none !important;
+}
+
+/* ---- Mobile Account Indicator ---- */
+
+.mobile-top-bar .mobile-account-indicator {
+	position: relative;
+}
+
+.mobile-top-bar .mobile-account-avatar {
+	display: none;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+	box-sizing: border-box;
+}
+
+.mobile-top-bar .mobile-account-avatar.visible {
+	display: block;
+}
+
+/* Hide the codicon when the avatar is loaded */
+.mobile-top-bar .mobile-account-indicator .codicon.hidden {
+	display: none;
+}
+
+.mobile-top-bar .mobile-account-badge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	border: 1.5px solid var(--vscode-editor-background);
+	background: var(--vscode-editorWarning-foreground);
+	pointer-events: none;
+}
+
+.mobile-top-bar .mobile-account-badge.dot-badge-warning {
+	background: var(--vscode-editorWarning-foreground);
+}
+
+.mobile-top-bar .mobile-account-badge.dot-badge-error {
+	background: var(--vscode-editorError-foreground);
+}
+
+/* ---- Mobile Account Sheet (full-screen bottom sheet) ---- */
+
+.mobile-account-sheet {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	touch-action: manipulation;
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.mobile-account-sheet-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 56px;
+	min-height: 56px;
+	padding: 0 16px;
+	padding-top: env(safe-area-inset-top);
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.mobile-account-sheet-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border: none;
+	background: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 50%;
+	font-size: 18px;
+	padding: 0;
+	touch-action: manipulation;
+}
+
+.mobile-account-sheet-close:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-account-sheet-content {
+	flex: 1;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	padding: 0 16px;
+	padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* Profile card */
+
+.mobile-account-sheet-profile {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 24px 0 20px;
+}
+
+.mobile-account-sheet-avatar {
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-avatar-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 28px;
+	flex-shrink: 0;
+}
+
+.mobile-account-sheet-profile-info {
+	min-width: 0;
+	flex: 1;
+}
+
+.mobile-account-sheet-name {
+	font-size: 18px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-account-sheet-provider {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Dashboard section */
+
+.mobile-account-sheet-section {
+	padding: 8px 0 16px;
+	border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+/* Action rows */
+
+.mobile-account-sheet-actions {
+	display: flex;
+	flex-direction: column;
+	border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	padding: 8px 0;
+}
+
+.mobile-account-sheet-action {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	height: 52px;
+	min-height: 52px;
+	padding: 0 4px;
+	border: none;
+	border-radius: 12px;
+	background: none;
+	color: var(--vscode-foreground);
+	font-size: 16px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.mobile-account-sheet-action:active {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.mobile-account-sheet-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.mobile-account-sheet-action-icon {
+	font-size: 20px;
+	width: 24px;
+	text-align: center;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-account-sheet-action-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-account-sheet-separator {
+	height: 1px;
+	margin: 4px 0;
+	background: var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.agent-sessions-workbench.phone-layout .sessions-account-titlebar-panel-action {
+	min-height: 44px;
+	touch-action: manipulation;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-account-titlebar-panel-header-action {
+	min-width: 44px;
+	min-height: 44px;
+	touch-action: manipulation;
+}
+
+/* -- Phone: Sessions list header --------------------------------------- */
+/* The desktop header row (Sessions label + New + Filter + Find toolbar) is hidden on phone in favor of the filter-chips row and the (+) button in MobileTitlebarPart. The row container itself is still rendered because the tree's find widget mounts inside it; the `phone-layout-empty` class is removed when the find widget is open so the row reappears for searching. */
+
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row.phone-layout-empty {
+	display: none;
+}
+
+/* On phone the label / actions slots are intentionally left empty (the
+ * desktop header content is replaced by the mobile filter chips and the
+ * (+) button in MobileTitlebarPart). When the find widget opens the row
+ * becomes visible, but these two empty flex children would still occupy
+ * leading space because of `gap` between siblings. Collapse them so the
+ * find input sits flush with the row's leading edge. */
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row > .agent-sessions-header-label,
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row > .agent-sessions-header-actions {
+	display: none;
+}
+
+/* -- Phone: Find widget mobile-friendly UX ----------------------------- */
+/* When the user opens find on phone, the desktop type-filter widget is normally a tiny floating input with a 24px tall input box and a 22x22 close button — designed for a mouse cursor. On phone, expand it to a full-width row with thumb-sized targets and a single visible search input. */
+
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row {
+	/* The find widget commandeers the row when open. Use minimal horizontal padding so the input stretches as close to the screen edges as possible — feels right for a phone search field. */
+	padding: 6px 4px 6px 8px;
+	min-height: 52px;
+	gap: 4px;
+}
+
+.agent-sessions-workbench.phone-layout .agent-sessions-find-widget-container {
+	/* Take the full width on phone — there's no label/toolbar competing for space because they're hidden in this mode. */
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
+	/* Reset desktop offsets — the desktop widget tries to align with the tree-element rows above it; on phone it lives in its own row. */
+	width: 100%;
+	gap: 4px;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput {
+	display: block;
+	width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+	min-height: 36px;
+	border-radius: 18px;
+	padding: 0 12px;
+	font-size: 14px;
+	width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox input {
+	font-size: 14px;
+	line-height: 22px;
+}
+
+/* Hide the per-input "filter mode" toggle (matches whole word, etc.) on phone — it's tiny and rarely useful for a sessions list lookup; the primary action is "type to filter". */
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .controls {
+	display: none;
+}
+
+/* Close button: thumb-sized, hugs the right edge. Override the desktop actionbar's natural left-margin so there is no extra empty gap between the input and the X. */
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	> .monaco-tree-type-filter-actionbar {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	> .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+}

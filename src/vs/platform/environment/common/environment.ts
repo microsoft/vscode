@@ -58,6 +58,7 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
+	appSharedDataHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -71,6 +72,7 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	skipBuiltinExtensions?: readonly string[];
 	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
@@ -87,6 +89,16 @@ export interface IEnvironmentService {
 	disableTelemetry: boolean;
 	disableExperiments: boolean;
 	serviceMachineIdResource: URI;
+
+	// --- agent sessions workspace
+	agentSessionsWorkspace?: URI;
+
+	/**
+	 * When running as the embedded Agents app, the user roaming data home of
+	 * the host VS Code application (i.e. the default profile's settings/User
+	 * directory). `undefined` when not running as embedded.
+	 */
+	readonly hostUserRoamingDataHome?: URI;
 
 	// --- Policy
 	policyFile?: URI;
@@ -145,6 +157,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
+	exportPolicyData?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

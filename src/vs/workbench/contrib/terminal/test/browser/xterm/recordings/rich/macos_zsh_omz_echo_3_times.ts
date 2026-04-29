@@ -138,10 +138,6 @@ export const events = [
 		"data": ""
 	},
 	{
-		"type": "promptInputChange",
-		"data": "echo a"
-	},
-	{
 		"type": "output",
 		"data": "\u001b]633;P;Cwd=/Users/tyriar/playground/test1\u0007\u001b]633;EnvSingleStart;0;448d50d0-70fe-4ab5-842e-132f3b1c159a;\u0007\u001b]633;EnvSingleEnd;448d50d0-70fe-4ab5-842e-132f3b1c159a;\u0007\r\u001b[0m\u001b[27m\u001b[24m\u001b[J\u001b]633;A\u0007tyriar@Mac test1 % \u001b]633;B\u0007\u001b[K\u001b[?2004h"
 	},
@@ -244,10 +240,6 @@ export const events = [
 	{
 		"type": "output",
 		"data": ""
-	},
-	{
-		"type": "promptInputChange",
-		"data": "echo b"
 	},
 	{
 		"type": "output",
@@ -356,10 +348,6 @@ export const events = [
 	{
 		"type": "output",
 		"data": ""
-	},
-	{
-		"type": "promptInputChange",
-		"data": "echo c"
 	},
 	{
 		"type": "output",

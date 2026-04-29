@@ -10,14 +10,18 @@ import { IProductConfiguration } from '../../../../base/common/product.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { applyZoom } from '../../../../platform/window/electron-browser/window.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
 import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
 import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue.js';
@@ -49,16 +53,20 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IUpdateService private readonly updateService: IUpdateService
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
 			this.updateSystemInfo(this.issueReporterModel.getData());
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 		});
 		if (this.data.issueType === IssueType.PerformanceIssue) {
 			this.processService.getPerformanceInfo().then(info => {
@@ -78,7 +86,9 @@ export class IssueReporter extends BaseIssueReporterService {
 		const updateState = this.updateService.state;
 		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
 			this.needsUpdate = true;
+			// eslint-disable-next-line no-restricted-syntax
 			const includeAcknowledgement = this.getElementById('version-acknowledgements');
+			// eslint-disable-next-line no-restricted-syntax
 			const updateBanner = this.getElementById('update-banner');
 			if (updateBanner && includeAcknowledgement) {
 				includeAcknowledgement.classList.remove('hidden');
@@ -101,12 +111,13 @@ export class IssueReporter extends BaseIssueReporterService {
 			}
 
 			// Resets placeholder
+			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 			this.setSourceOptions();
 			this.render();
 		});
@@ -159,20 +170,19 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 		const result = await response.json();
-		await this.nativeHostService.openExternal(result.html_url);
+		await this.openerService.open(result.html_url, { openExternal: true });
 		this.close();
 		return true;
 	}
 
-	public override async createIssue(): Promise<boolean> {
+	public override async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
-		if (hasUri) {
+		if (this.nonGitHubIssueUrl) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
-				await this.nativeHostService.openExternal(url);
+				await this.openerService.open(url, { openExternal: true });
 				return true;
 			}
 		}
@@ -180,6 +190,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
+			// eslint-disable-next-line no-restricted-syntax
 			const invalidInput = this.window.document.getElementsByClassName('invalid-input');
 			if (invalidInput.length) {
 				(<HTMLInputElement>invalidInput[0]).focus();
@@ -209,28 +220,28 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		this.hasBeenSubmitted = true;
 
+		// eslint-disable-next-line no-restricted-syntax
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		let issueUrl = this.getIssueUrl();
-		if (!issueUrl) {
-			console.error('No issue url found');
-			return false;
-		}
-
-		if (selectedExtension?.uri) {
+		let issueUrl = privateUri ? this.getPrivateIssueUrl() : this.getIssueUrl();
+		if (!issueUrl && selectedExtension?.uri) {
 			const uri = URI.revive(selectedExtension.uri);
 			issueUrl = uri.toString();
+		} else if (!issueUrl) {
+			console.error(`No ${privateUri ? 'private ' : ''}issue url found`);
+			return false;
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		if (this.data.githubAccessToken && gitHubDetails) {
+		if (this.data.githubAccessToken && gitHubDetails && shouldCreate) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
 				return true;
 			}
@@ -246,7 +257,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 
-		await this.nativeHostService.openExternal(url);
+		await this.openerService.open(url, { openExternal: true });
 		return true;
 	}
 
@@ -262,6 +273,7 @@ export class IssueReporter extends BaseIssueReporterService {
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		if (target) {
@@ -351,6 +363,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {
 		this.issueReporterModel.update({ experimentInfo });
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-experiments .block-info');
 		if (target) {
 			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");

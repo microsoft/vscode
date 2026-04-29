@@ -5,25 +5,25 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService, TestTextResourceConfigurationService } from '../../../../test/browser/workbenchTestServices.js';
-import { ITextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager.js';
-import { EditorService } from '../../../../services/editor/browser/editorService.js';
-import { EditorAutoSave } from '../../../../browser/parts/editor/editorAutoSave.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
-import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { TestContextService, TestMarkerService } from '../../../../test/common/workbenchTestServices.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { EditorAutoSave } from '../../../../browser/parts/editor/editorAutoSave.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager.js';
+import { ITextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
+import { createEditorPart, registerTestFileEditor, TestEnvironmentService, TestFilesConfigurationService, TestServiceAccessor, TestTextResourceConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestFileService, TestMarkerService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('EditorAutoSave', () => {
 
@@ -43,6 +43,7 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
+		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IAccessibilitySignalService, {
 			playSignal: async () => { },
 			isSoundEnabled(signal: unknown) { return false; },

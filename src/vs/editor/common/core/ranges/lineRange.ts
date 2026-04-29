@@ -5,7 +5,7 @@
 
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetRange } from './offsetRange.js';
-import { Range } from '../range.js';
+import { IRange, Range } from '../range.js';
 import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from '../../../../base/common/arraysFind.js';
 import { Comparator, compareBy, numberComparator } from '../../../../base/common/arrays.js';
 
@@ -17,11 +17,11 @@ export class LineRange {
 		return new LineRange(startLineNumber, startLineNumber + length);
 	}
 
-	public static fromRange(range: Range): LineRange {
+	public static fromRange(range: IRange): LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
 	}
 
-	public static fromRangeInclusive(range: Range): LineRange {
+	public static fromRangeInclusive(range: IRange): LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber + 1);
 	}
 

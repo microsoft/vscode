@@ -58,7 +58,8 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				promptType = PromptsType.instructions;
 				break;
 			case 'chat-mode/install':
-				promptType = PromptsType.mode;
+			case 'chat-agent/install':
+				promptType = PromptsType.agent;
 				break;
 			default:
 				return false;
@@ -83,7 +84,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				return true;
 			}
 
-			const result = await this.requestService.request({ type: 'GET', url: urlString }, CancellationToken.None);
+			const result = await this.requestService.request({ type: 'GET', url: urlString, callSite: 'promptUrlHandler.resolveUrl' }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
 				this.logService.error(`[PromptUrlHandler] Failed to fetch URL: ${urlString}`);
 				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', urlString));
@@ -135,7 +136,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			default:
-				message = localize('confirmInstallMode', "An external application wants to create a chat mode with content from a URL. Do you want to continue by selecting a destination folder and name?");
+				message = localize('confirmInstallAgent', "An external application wants to create a custom agent with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 		}
 

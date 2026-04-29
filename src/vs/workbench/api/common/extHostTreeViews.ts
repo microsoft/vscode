@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -15,8 +14,8 @@ import { ExtHostCommands, CommandsConverter } from './extHostCommands.js';
 import { asPromise } from '../../../base/common/async.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isUndefinedOrNull, isString } from '../../../base/common/types.js';
-import { equals, coalesce } from '../../../base/common/arrays.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import { equals, coalesce, distinct } from '../../../base/common/arrays.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString, ViewBadge, DataTransfer } from './extHostTypeConverters.js';
 import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
@@ -32,15 +31,18 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		return { label };
 	}
 
-	if (label
-		&& typeof label === 'object'
-		&& typeof label.label === 'string') {
+	if (label && typeof label === 'object' && label.label) {
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
 			highlights = highlights.length ? highlights : undefined;
 		}
-		return { label: label.label, highlights };
+		if (isString(label.label)) {
+			return { label: label.label, highlights };
+		} else if (extHostTypes.MarkdownString.isMarkdownString(label.label)) {
+			checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
+			return { label: MarkdownString.from(label.label), highlights };
+		}
 	}
 
 	return undefined;
@@ -148,7 +150,13 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			dispose: async () => {
 				// Wait for the registration promise to finish before doing the dispose.
 				await registerPromise;
-				this._treeViews.delete(viewId);
+				// Only notify the main thread if this view was not replaced by a new registration.
+				// When an extension disposes a view and immediately re-registers it, the new
+				// registration may have already updated _treeViews before this async dispose runs.
+				if (this._treeViews.get(viewId) === treeView) {
+					this._treeViews.delete(viewId);
+					this._proxy.$disposeTree(viewId);
+				}
 				treeView.dispose();
 			}
 		};
@@ -311,6 +319,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private static readonly LABEL_HANDLE_PREFIX = '0';
 	private static readonly ID_HANDLE_PREFIX = '1';
+	private static readonly ROOT_FETCH_KEY = Symbol('extHostTreeViewRoot');
 
 	private readonly _dataProvider: vscode.TreeDataProvider<T>;
 	private readonly _dndController: vscode.TreeDragAndDropController<T> | undefined;
@@ -318,6 +327,13 @@ class ExtHostTreeView<T> extends Disposable {
 	private _roots: TreeNode[] | undefined = undefined;
 	private _elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private _nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
+	// Track the latest child-fetch per element so that refresh-triggered cache clears ignore stale results.
+	// Without these tokens, an earlier getChildren promise resolving after refresh would re-register handles and hit the duplicate-id guard.
+	private readonly _childrenFetchTokens = new Map<T | typeof ExtHostTreeView.ROOT_FETCH_KEY, number>();
+	// Global counter for fetch tokens. Using a monotonically increasing counter ensures that even after
+	// _childrenFetchTokens.clear() during a root refresh, old in-flight fetches will have requestIds that
+	// can never match new fetches (e.g., old fetch has id=5, after clear new fetches get 6, 7, 8...).
+	private _globalFetchTokenCounter = 0;
 
 	private _visible: boolean = false;
 	get visible(): boolean { return this._visible; }
@@ -406,12 +422,22 @@ class ExtHostTreeView<T> extends Disposable {
 		}, 200, true);
 		this._register(onDidChangeData(({ message, elements }) => {
 			if (elements.length) {
+				elements = distinct(elements);
 				this._refreshQueue = this._refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
 					refreshingPromise = null;
 					const childrenToClear = Array.from(this._nodesToClear);
+					this._nodesToClear.clear();
+					this._debugLogRefresh('start', elements, childrenToClear);
 					return this._refresh(elements).then(() => {
+						this._debugLogRefresh('done', elements, childrenToClear);
 						this._clearNodes(childrenToClear);
+						return _promiseCallback();
+					}).catch(e => {
+						const message = e instanceof Error ? e.message : JSON.stringify(e);
+						this._debugLogRefresh('error', elements, childrenToClear);
+						this._clearNodes(childrenToClear);
+						this._logService.error(`Unable to refresh tree view ${this._viewId}: ${message}`);
 						return _promiseCallback();
 					});
 				});
@@ -420,6 +446,46 @@ class ExtHostTreeView<T> extends Disposable {
 				this._proxy.$setMessage(this._viewId, MarkdownString.fromStrict(this._message) ?? '');
 			}
 		}));
+	}
+
+	private _debugCollectHandles(elements: (T | Root)[]): { changed: string[]; roots: string[]; clearing?: string[] } {
+		const changed: string[] = [];
+		for (const el of elements) {
+			if (!el) {
+				changed.push('<root>');
+				continue;
+			}
+			const node = this._nodes.get(el as T);
+			if (node) {
+				changed.push(node.item.handle);
+			}
+		}
+		const roots = this._roots?.map(r => r.item.handle) ?? [];
+		return { changed, roots };
+	}
+
+	private _debugLogRefresh(phase: 'start' | 'done' | 'error', elements: (T | Root)[], childrenToClear: TreeNode[]): void {
+		if (!this._isDebugLogging()) {
+			return;
+		}
+		try {
+			const snapshot = this._debugCollectHandles(elements);
+			snapshot.clearing = childrenToClear.map(n => n.item.handle);
+			const changedCount = snapshot.changed.length;
+			const nodesToClearLen = childrenToClear.length;
+			this._logService.debug(`[TreeView:${this._viewId}] refresh ${phase} changed=${changedCount} nodesToClear=${nodesToClearLen} elements.size=${this._elements.size} nodes.size=${this._nodes.size} handles=${JSON.stringify(snapshot)}`);
+		} catch {
+			this._logService.debug(`[TreeView:${this._viewId}] refresh ${phase} (snapshot failed)`);
+		}
+	}
+
+	private _isDebugLogging(): boolean {
+		try {
+			const level = this._logService.getLevel();
+			return (level === LogLevel.Debug) || (level === LogLevel.Trace);
+		} catch {
+			return false;
+		}
 	}
 
 	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
@@ -638,24 +704,24 @@ class ExtHostTreeView<T> extends Disposable {
 		return asPromise(() => this._dataProvider.getParent!(element));
 	}
 
-	private _resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
+	private async _resolveTreeNode(element: T, parent?: TreeNode): Promise<TreeNode> {
 		const node = this._nodes.get(element);
 		if (node) {
-			return Promise.resolve(node);
+			return node;
 		}
-		return asPromise(() => this._dataProvider.getTreeItem(element))
-			.then(extTreeItem => this._createHandle(element, extTreeItem, parent, true))
-			.then(handle => this.getChildren(parent ? parent.item.handle : undefined)
-				.then(() => {
-					const cachedElement = this.getExtensionElement(handle);
-					if (cachedElement) {
-						const node = this._nodes.get(cachedElement);
-						if (node) {
-							return Promise.resolve(node);
-						}
-					}
-					throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this._extension.identifier.value}`);
-				}));
+		const extTreeItem = await asPromise(() => this._dataProvider.getTreeItem(element));
+		const handle = this._createHandle(element, extTreeItem, parent, true);
+		await this.getChildren(parent ? parent.item.handle : undefined);
+		const cachedElement = this.getExtensionElement(handle);
+		if (cachedElement) {
+			const node = this._nodes.get(cachedElement);
+			if (node) {
+				return node;
+			}
+		}
+		this._logService.error(`[TreeView:${this._viewId}] Failed to resolve tree node for element ${handle}`);
+		this._proxy.$logResolveTreeNodeFailure(this._extension.identifier.value);
+		throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this._extension.identifier.value}`);
 	}
 
 	private _getChildrenNodes(parentNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode[] | undefined {
@@ -672,15 +738,26 @@ class ExtHostTreeView<T> extends Disposable {
 		return this._roots;
 	}
 
+	private _getFetchKey(parentElement?: T): T | typeof ExtHostTreeView.ROOT_FETCH_KEY {
+		return parentElement ?? ExtHostTreeView.ROOT_FETCH_KEY;
+	}
+
 	private async _fetchChildrenNodes(parentElement?: T): Promise<TreeNode[] | undefined> {
 		// clear children cache
 		this._addChildrenToClear(parentElement);
+		const fetchKey = this._getFetchKey(parentElement);
+		const requestId = ++this._globalFetchTokenCounter;
+		this._childrenFetchTokens.set(fetchKey, requestId);
 
 		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
 
 		try {
-			const parentNode = parentElement ? this._nodes.get(parentElement) : undefined;
 			const elements = await this._dataProvider.getChildren(parentElement);
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
+			const parentNode = parentElement ? this._nodes.get(parentElement) : undefined;
+
 			if (cts.token.isCancellationRequested) {
 				return undefined;
 			}
@@ -689,12 +766,18 @@ class ExtHostTreeView<T> extends Disposable {
 			const treeItems = await Promise.all(coalesce(coalescedElements).map(element => {
 				return this._dataProvider.getTreeItem(element);
 			}));
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
 			if (cts.token.isCancellationRequested) {
 				return undefined;
 			}
 
 			// createAndRegisterTreeNodes adds the nodes to a cache. This must be done sync so that they get added in the correct order.
 			const items = treeItems.map((item, index) => item ? this._createAndRegisterTreeNode(coalescedElements[index], item, parentNode) : null);
+			if (this._childrenFetchTokens.get(fetchKey) !== requestId) {
+				return undefined;
+			}
 
 			return coalesce(items);
 		} finally {
@@ -788,10 +871,27 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private _createAndRegisterTreeNode(element: T, extTreeItem: vscode.TreeItem, parentNode: TreeNode | Root): TreeNode {
-		const node = this._createTreeNode(element, extTreeItem, parentNode);
-		if (extTreeItem.id && this._elements.has(node.item.handle)) {
-			throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
+		const duplicateHandle = extTreeItem.id ? `${ExtHostTreeView.ID_HANDLE_PREFIX}/${extTreeItem.id}` : undefined;
+		if (duplicateHandle) {
+			const existingElement = this._elements.get(duplicateHandle);
+			if (existingElement) {
+				const existingNode = this._nodes.get(existingElement);
+				if (existingElement !== element) {
+					// A different element object was registered with the same ID.
+					// This can happen during concurrent tree operations (e.g., tree
+					// being switched to while data is updated). Clean up the stale
+					// element reference before re-registering with the new one.
+					this._nodes.delete(existingElement);
+				}
+				if (existingNode) {
+					const newNode = this._createTreeNode(element, extTreeItem, parentNode);
+					this._updateNodeCache(element, newNode, existingNode, parentNode);
+					existingNode.dispose();
+					return newNode;
+				}
+			}
 		}
+		const node = this._createTreeNode(element, extTreeItem, parentNode);
 		this._addNodeToCache(element, node);
 		this._addNodeToParentCache(node, parentNode);
 		return node;
@@ -874,7 +974,15 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const treeItemLabel = toTreeItemLabel(label, this._extension);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
+		let labelValue = '';
+		if (treeItemLabel) {
+			if (isMarkdownString(treeItemLabel.label)) {
+				labelValue = treeItemLabel.label.value;
+			} else {
+				labelValue = treeItemLabel.label;
+			}
+		}
+		let elementId = labelValue || (resourceUri ? basename(resourceUri) : '');
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this._nodes.has(element) ? this._nodes.get(element)!.item.handle : undefined;
 		const childrenNodes = (this._getChildrenNodes(parent) || []);
@@ -987,6 +1095,7 @@ class ExtHostTreeView<T> extends Disposable {
 		});
 		this._nodes.clear();
 		this._elements.clear();
+		this._childrenFetchTokens.clear();
 	}
 
 	private _clearNodes(nodes: TreeNode[]): void {
@@ -1000,6 +1109,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this._nodes.clear();
 		dispose(this._nodesToClear);
 		this._nodesToClear.clear();
+		this._childrenFetchTokens.clear();
 	}
 
 	override dispose() {
@@ -1007,6 +1117,5 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this._clearAll();
-		this._proxy.$disposeTree(this._viewId);
 	}
 }

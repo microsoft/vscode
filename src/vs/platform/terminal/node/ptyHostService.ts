@@ -87,7 +87,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -254,8 +254,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	processBinary(id: number, data: string): Promise<void> {
 		return this._proxy.processBinary(id, data);
 	}
-	resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._proxy.resize(id, cols, rows);
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void> {
+		return this._proxy.resize(id, cols, rows, pixelWidth, pixelHeight);
 	}
 	clearBuffer(id: number): Promise<void> {
 		return this._proxy.clearBuffer(id);
@@ -265,6 +265,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(id, version);
+	}
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._proxy.setNextCommandId(id, commandLine, commandId);
 	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._proxy.getInitialCwd(id);

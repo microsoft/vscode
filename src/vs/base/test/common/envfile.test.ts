@@ -93,14 +93,14 @@ suite('parseEnvFile', () => {
 		assert.strictEqual(parsed.get('DOUBLE_QUOTES_SPACED'), '    double quotes    ');
 		assert.strictEqual(parsed.get('DOUBLE_QUOTES_INSIDE_SINGLE'), 'double "quotes" work inside single quotes');
 		assert.strictEqual(parsed.get('DOUBLE_QUOTES_WITH_NO_SPACE_BRACKET'), '{ port: $MONGOLAB_PORT}');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_DOUBLE'), "single 'quotes' work inside double quotes");
+		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_DOUBLE'), `single 'quotes' work inside double quotes`);
 		assert.strictEqual(parsed.get('BACKTICKS_INSIDE_SINGLE'), '`backticks` work inside single quotes');
 		assert.strictEqual(parsed.get('BACKTICKS_INSIDE_DOUBLE'), '`backticks` work inside double quotes');
 		assert.strictEqual(parsed.get('BACKTICKS'), 'backticks');
 		assert.strictEqual(parsed.get('BACKTICKS_SPACED'), '    backticks    ');
 		assert.strictEqual(parsed.get('DOUBLE_QUOTES_INSIDE_BACKTICKS'), 'double "quotes" work inside backticks');
-		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_BACKTICKS'), "single 'quotes' work inside backticks");
-		assert.strictEqual(parsed.get('DOUBLE_AND_SINGLE_QUOTES_INSIDE_BACKTICKS'), "double \"quotes\" and single 'quotes' work inside backticks");
+		assert.strictEqual(parsed.get('SINGLE_QUOTES_INSIDE_BACKTICKS'), `single 'quotes' work inside backticks`);
+		assert.strictEqual(parsed.get('DOUBLE_AND_SINGLE_QUOTES_INSIDE_BACKTICKS'), `double "quotes" and single 'quotes' work inside backticks`);
 		assert.strictEqual(parsed.get('EXPAND_NEWLINES'), 'expand\nnew\nlines');
 		assert.strictEqual(parsed.get('DONT_EXPAND_UNQUOTED'), 'dontexpand\\nnewlines');
 		assert.strictEqual(parsed.get('DONT_EXPAND_SQUOTED'), 'dontexpand\\nnewlines');

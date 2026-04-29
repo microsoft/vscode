@@ -45,7 +45,7 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent-host'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'chat': {
@@ -58,12 +58,22 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
 			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
 			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
+			'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
 			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
 	'serve-web': {
 		type: 'subcommand',
 		description: 'Run a server that displays the editor UI in browsers.',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+		}
+	},
+	'agent-host': {
+		type: 'subcommand',
+		description: 'Run a server that hosts agents.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -98,6 +108,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	'agents': { type: 'boolean', cat: 'o', deprecates: ['sessions'], description: localize('agents', "Opens the agents window.") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -108,7 +119,11 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
+	'shared-data-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
+	'agent-plugins-dir': { type: 'string' },
+	'agents-user-data-dir': { type: 'string' },
+	'agents-extensions-dir': { type: 'string' },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', allowEmptyValue: true, cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },
@@ -156,19 +171,25 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
 	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
+	'export-policy-data': { type: 'string', allowEmptyValue: true },
+	'export-default-keybindings': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
+	'skip-sessions-welcome': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'transient': { type: 'boolean' },
+	'share-secrets-with-agents-app': { type: 'boolean' },
+	'transient': { type: 'boolean', cat: 't', description: localize('transient', "Run with temporary data and extension directories, as if launched for the first time.") },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
@@ -177,6 +198,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'crash-reporter-id': { type: 'string' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
+	'open-chat-session': { type: 'string' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
 	'install-builtin-extension': { type: 'string[]' },
@@ -202,7 +224,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'enable-rdp-display-tracking': { type: 'boolean' },
 	'disable-layout-restore': { type: 'boolean' },
 	'disable-experiments': { type: 'boolean' },
-	'startup-experiment-group': { type: 'string', cat: 't', args: 'control|maximizedChat|splitEmptyEditorChat|splitWelcomeChat', description: localize('startupExperimentGroup', "Override the startup experiment group.") },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -261,8 +282,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];
 	const booleanOptions: string[] = [];
-	const globalOptions: OptionDescriptions<any> = {};
-	let command: Subcommand<any> | undefined = undefined;
+	const globalOptions: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> = {};
+	let command: Subcommand<Record<string, unknown>> | undefined = undefined;
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.type === 'subcommand') {
@@ -291,13 +312,13 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		}
 	}
 	if (command && firstPossibleCommand) {
-		const options = globalOptions;
+		const options: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>> = globalOptions;
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
 		const newArgs = args.filter(a => a !== firstPossibleCommand);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
-		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		const subcommandOptions = parseArgs(newArgs, options as OptionDescriptions<Record<string, unknown>>, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstPossibleCommand]: subcommandOptions,
@@ -309,8 +330,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
 
-	const cleanedArgs: any = {};
-	const remainingArgs: any = parsedArgs;
+	const cleanedArgs: Record<string, unknown> = {};
+	const remainingArgs: Record<string, unknown> = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
 	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
@@ -347,8 +368,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					val = [val];
 				}
 				if (!o.allowEmptyValue) {
-					const sanitized = val.filter((v: string) => v.length > 0);
-					if (sanitized.length !== val.length) {
+					const sanitized = (val as string[]).filter((v: string) => v.length > 0);
+					if (sanitized.length !== (val as string[]).length) {
 						errorReporter.onEmptyValue(optionId);
 						val = sanitized.length > 0 ? sanitized : undefined;
 					}
@@ -356,7 +377,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			} else if (o.type === 'string') {
 				if (Array.isArray(val)) {
 					val = val.pop(); // take the last
-					errorReporter.onMultipleValues(optionId, val);
+					errorReporter.onMultipleValues(optionId, val as string);
 				} else if (!val && !o.allowEmptyValue) {
 					errorReporter.onEmptyValue(optionId);
 					val = undefined;
@@ -375,10 +396,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		errorReporter.onUnknownOption(key);
 	}
 
-	return cleanedArgs;
+	return cleanedArgs as T;
 }
 
-function formatUsage(optionId: string, option: Option<any>) {
+function formatUsage(optionId: string, option: Option<'boolean'> | Option<'string'> | Option<'string[]'>) {
 	let args = '';
 	if (option.args) {
 		if (Array.isArray(option.args)) {
@@ -394,10 +415,10 @@ function formatUsage(optionId: string, option: Option<any>) {
 }
 
 // exported only for testing
-export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
+export function formatOptions(options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>>, columns: number): string[] {
 	const usageTexts: [string, string][] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'>;
 		const usageText = formatUsage(optionId, o);
 		usageTexts.push([usageText, o.description!]);
 	}
@@ -443,7 +464,7 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
 	const subcommand = capabilities?.isChat ? ' chat' : '';
@@ -456,18 +477,19 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		help.push(buildStdinMessage(executableName, capabilities?.isChat));
 		help.push('');
 	}
-	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
+	const optionsByCategory: { [P in keyof typeof helpCategories]?: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> } = {};
 	const subcommands: { command: string; description: string }[] = [];
 	for (const optionId in options) {
-		const o = options[optionId];
+		const o = options[optionId as keyof typeof options] as Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>;
 		if (o.type === 'subcommand') {
 			if (o.description) {
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			let optionsByCat = optionsByCategory[o.cat];
+			const cat = o.cat;
+			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
-				optionsByCategory[o.cat] = optionsByCat = {};
+				optionsByCategory[cat] = optionsByCat = {};
 			}
 			optionsByCat[optionId] = o;
 		}

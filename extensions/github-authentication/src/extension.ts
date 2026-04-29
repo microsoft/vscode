@@ -81,12 +81,11 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	// Listener to prompt for reload when the fetch implementation setting changes
-	let beforeFetchSetting = vscode.workspace.getConfiguration('github-authentication').get<boolean>('useElectronFetch');
+	const beforeFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
 		if (e.affectsConfiguration('github-authentication.useElectronFetch')) {
-			const afterFetchSetting = vscode.workspace.getConfiguration('github-authentication').get<boolean>('useElectronFetch');
+			const afterFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);
 			if (beforeFetchSetting !== afterFetchSetting) {
-				beforeFetchSetting = afterFetchSetting;
 				const selection = await vscode.window.showInformationMessage(
 					vscode.l10n.t('GitHub Authentication - Reload required'),
 					{

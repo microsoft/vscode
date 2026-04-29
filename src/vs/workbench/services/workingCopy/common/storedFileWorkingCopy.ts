@@ -527,7 +527,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag,
 			value: buffer,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -568,11 +569,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}
@@ -664,6 +666,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: content.etag,
 			readonly: content.readonly,
 			locked: content.locked,
+			executable: false,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,

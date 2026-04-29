@@ -1663,7 +1663,7 @@ class InnerMinimap extends Disposable {
 					continue;
 				}
 				highlightedLines.set(line, true);
-				const y = layout.getYForLineNumber(startLineNumber, minimapLineHeight);
+				const y = layout.getYForLineNumber(line, minimapLineHeight);
 				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, minimapLineHeight);
 			}
 		}

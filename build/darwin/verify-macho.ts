@@ -7,6 +7,7 @@ import assert from 'assert';
 import path from 'path';
 import { open, stat, readdir, realpath } from 'fs/promises';
 import { spawn, ExitCodeError } from '@malept/cross-spawn-promise';
+import minimatch from 'minimatch';
 
 const MACHO_PREFIX = 'Mach-O ';
 const MACHO_64_MAGIC_LE = 0xfeedfacf;
@@ -19,6 +20,28 @@ const MACHO_X86_64_CPU_TYPE = new Set([
 	0x07000001,
 	0x01000007,
 ]);
+
+// Files to skip during architecture validation
+const FILES_TO_SKIP = [
+	// MSAL runtime files are only present in ARM64 builds
+	'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
+	'**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
+	// Copilot SDK: universal app has both x64 and arm64 platform packages
+	'**/node_modules/@github/copilot-darwin-x64/**',
+	'**/node_modules/@github/copilot-darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
+	// Copilot prebuilds: single-arch binaries in per-platform directories
+	'**/node_modules/@github/copilot/prebuilds/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/**',
+	// Copilot SDK (extensions/copilot): single-arch prebuilds and ripgrep binaries
+	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-*/**',
+	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/**',
+];
+
+function isFileSkipped(file: string): boolean {
+	return FILES_TO_SKIP.some(pattern => minimatch(file, pattern));
+}
 
 async function read(file: string, buf: Buffer, offset: number, length: number, position: number) {
 	let filehandle;
@@ -105,11 +128,11 @@ const archToCheck = process.argv[2];
 assert(process.env['APP_PATH'], 'APP_PATH not set');
 assert(archToCheck === 'x64' || archToCheck === 'arm64' || archToCheck === 'universal', `Invalid architecture ${archToCheck} to check`);
 checkMachOFiles(process.env['APP_PATH'], archToCheck).then(invalidFiles => {
-	if (invalidFiles.length > 0) {
-		console.error('\x1b[31mThe following files are built for the wrong architecture:\x1b[0m');
-		for (const file of invalidFiles) {
-			console.error(`\x1b[31m${file}\x1b[0m`);
-		}
+	// Filter out files that should be skipped
+	const actualInvalidFiles = invalidFiles.filter(file => !isFileSkipped(file));
+	if (actualInvalidFiles.length > 0) {
+		console.error('\x1b[31mThese files are built for the wrong architecture:\x1b[0m');
+		actualInvalidFiles.forEach(file => console.error(`\x1b[31m${file}\x1b[0m`));
 		process.exit(1);
 	} else {
 		console.log('\x1b[32mAll files are valid\x1b[0m');

@@ -19,9 +19,9 @@ export interface IFolderBackupInfo extends IBaseBackupInfo {
 }
 
 export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
-	return curr && curr.hasOwnProperty('folderUri');
+	return curr?.hasOwnProperty('folderUri');
 }
 
 export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
-	return curr && curr.hasOwnProperty('workspace');
+	return curr?.hasOwnProperty('workspace');
 }

@@ -2,7 +2,7 @@
 	"extends": "../../src/tsconfig.base.json",
 	"compilerOptions": {
 		"lib": [
-			"ES2022"
+			"ES2024"
 		],
 		"types": [
 			"node"
@@ -22,6 +22,7 @@
 	],
 	"exclude": [
 		"../../src/**/test/**",
-		"../../src/**/fixtures/**"
+		"../../src/**/fixtures/**",
+		"../../src/typings/editContext.d.ts"
 	]
 }

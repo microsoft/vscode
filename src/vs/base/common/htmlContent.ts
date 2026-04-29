@@ -19,6 +19,8 @@ export interface IMarkdownString {
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	/** @internal */
+	readonly supportAlertSyntax?: boolean;
 	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
 }
@@ -34,6 +36,7 @@ export class MarkdownString implements IMarkdownString {
 	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
+	public supportAlertSyntax?: boolean;
 	public baseUri?: URI;
 	public uris?: { [href: string]: UriComponents } | undefined;
 
@@ -46,7 +49,7 @@ export class MarkdownString implements IMarkdownString {
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; supportAlertSyntax?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -57,11 +60,13 @@ export class MarkdownString implements IMarkdownString {
 			this.isTrusted = isTrustedOrOptions;
 			this.supportThemeIcons = false;
 			this.supportHtml = false;
+			this.supportAlertSyntax = false;
 		}
 		else {
 			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+			this.supportAlertSyntax = isTrustedOrOptions.supportAlertSyntax ?? false;
 		}
 	}
 
@@ -124,7 +129,8 @@ export function isMarkdownString(thing: unknown): thing is IMarkdownString {
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
 			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || typeof (<IMarkdownString>thing).isTrusted === 'object' || (<IMarkdownString>thing).isTrusted === undefined)
-			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined)
+			&& (typeof (<IMarkdownString>thing).supportAlertSyntax === 'boolean' || (<IMarkdownString>thing).supportAlertSyntax === undefined);
 	}
 	return false;
 }
@@ -139,6 +145,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 			&& a.isTrusted === b.isTrusted
 			&& a.supportThemeIcons === b.supportThemeIcons
 			&& a.supportHtml === b.supportHtml
+			&& a.supportAlertSyntax === b.supportAlertSyntax
 			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
 }
@@ -146,6 +153,18 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
+}
+
+/**
+ * Escapes only the characters that would break out of markdown link text
+ * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
+ * displayed as the visible label of a link, since renderers that extract the
+ * link text without re-parsing markdown (e.g. the chat inline anchor / skill
+ * pill) would otherwise show full `escapeMarkdownSyntaxTokens` backslashes
+ * (`\-`, `\.`, ...) verbatim.
+ */
+export function escapeMarkdownLinkLabel(text: string): string {
+	return text.replace(/[\\\]]/g, '\\$&');
 }
 
 /**
@@ -164,6 +183,23 @@ export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string
 		code,
 		`${'`'.repeat(desiredFenceLength)}`,
 	].join('\n');
+}
+
+/**
+ * Wraps arbitrary text in a markdown inline code span using a backtick fence
+ * long enough to safely contain any backtick sequences present in the text.
+ *
+ * Backticks inside an inline code span cannot be backslash-escaped per the
+ * CommonMark spec — the only safe way is to choose a delimiter run longer
+ * than any run of backticks in the content (and pad with spaces if the
+ * content begins or ends with a backtick).
+ */
+export function appendEscapedMarkdownInlineCode(text: string): string {
+	const longestBacktickRun = Math.max(0, ...(text.match(/`+/g) ?? []).map(m => m.length));
+	const fence = '`'.repeat(longestBacktickRun + 1);
+	const needsSpace = text.startsWith('`') || text.endsWith('`');
+	const content = needsSpace ? ` ${text} ` : text;
+	return `${fence}${content}${fence}`;
 }
 
 export function escapeDoubleQuotes(input: string) {
@@ -199,12 +235,19 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }): string {
-	const uri = URI.from({
-		scheme: Schemas.command,
-		path: command.id,
-		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
-	}).toString();
+export function createMarkdownLink(text: string, href: string, title?: string, escapeTokens = true): string {
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(text) : text}](${href}${title ? ` "${escapeMarkdownSyntaxTokens(title)}"` : ''})`;
+}
 
-	return `[${escapeMarkdownSyntaxTokens(command.title)}](${uri})`;
+export function createMarkdownCommandLink(command: { text: string; id: string; arguments?: unknown[]; tooltip: string }, escapeTokens = true): string {
+	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
+	return createMarkdownLink(command.text, uri, command.tooltip, escapeTokens);
+}
+
+export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {
+	return URI.from({
+		scheme: Schemas.command,
+		path: commandId,
+		query: commandArgs.length ? encodeURIComponent(JSON.stringify(commandArgs)) : undefined,
+	});
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -62,6 +62,46 @@ export interface IAuthenticationCreateSessionOptions {
 	[key: string]: any;
 }
 
+export interface IAuthenticationWwwAuthenticateRequest {
+	/**
+	 * The raw WWW-Authenticate header value that triggered this challenge.
+	 * This will be parsed by the authentication provider to extract the necessary
+	 * challenge information.
+	 */
+	readonly wwwAuthenticate: string;
+
+	/**
+	 * Optional scopes for the session. If not provided, the authentication provider
+	 * may use default scopes or extract them from the challenge.
+	 */
+	readonly fallbackScopes?: readonly string[];
+}
+
+export function isAuthenticationWwwAuthenticateRequest(obj: unknown): obj is IAuthenticationWwwAuthenticateRequest {
+	return typeof obj === 'object'
+		&& obj !== null
+		&& 'wwwAuthenticate' in obj
+		&& (typeof obj.wwwAuthenticate === 'string');
+}
+
+/**
+ * Represents constraints for authentication, including challenges and optional scopes.
+ * This is used when creating or retrieving sessions that must satisfy specific authentication
+ * requirements from WWW-Authenticate headers.
+ */
+export interface IAuthenticationConstraint {
+	/**
+	 * Array of authentication challenges parsed from WWW-Authenticate headers.
+	 */
+	readonly challenges: readonly IAuthenticationChallenge[];
+
+	/**
+	 * Optional scopes for the session. If not provided, the authentication provider
+	 * may extract scopes from the challenges or use default scopes.
+	 */
+	readonly fallbackScopes?: readonly string[];
+}
+
 /**
  * Options for getting authentication sessions via the service.
  */
@@ -102,7 +142,7 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<string>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -197,7 +237,7 @@ export interface IAuthenticationService {
 	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -205,7 +245,7 @@ export interface IAuthenticationService {
 	 * @param scopes The scopes to request
 	 * @param options Additional options for creating the session
 	 */
-	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session with the given id from the provider with the given id
@@ -217,8 +257,9 @@ export interface IAuthenticationService {
 	/**
 	 * Gets a provider id for a specified authorization server
 	 * @param authorizationServer The authorization server url that this provider is responsible for
+	 * @param resourceServer The resource server URI that should match the provider's resourceServer (if defined)
 	 */
-	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
@@ -230,7 +271,7 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<IAuthenticationProvider | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -273,7 +314,7 @@ export interface IAuthenticationExtensionsService {
 	 * * A session preference is changed (because it's deprecated)
 	 * * A session preference is removed (because it's deprecated)
 	 */
-	onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
+	readonly onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
 	/**
 	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationAccessService` to get the account preference
 	 * @param providerId The authentication provider id
@@ -315,9 +356,9 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
 	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
 }
 
@@ -357,6 +398,13 @@ export interface IAuthenticationProvider {
 	 * The display label of the authentication provider.
 	 */
 	readonly label: string;
+
+	/**
+	 * The resource server URI that this provider is responsible for, if any.
+	 * TODO@TylerLeonhardt: Rather than this being added to the provider, it should be passed in to
+	 * getSessions/createSession/etc... this way we can have providers that handle multiple resource servers.
+	 */
+	readonly resourceServer?: URI;
 
 	/**
 	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
@@ -401,6 +449,25 @@ export interface IAuthenticationProvider {
 	 * @returns A promise that resolves to an authentication session.
 	 */
 	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
+
+	/**
+	 * Get existing sessions that match the given authentication constraints.
+	 *
+	 * @param constraint The authentication constraint containing challenges and optional scopes
+	 * @param options Options for the session request
+	 * @returns A thenable that resolves to an array of existing authentication sessions
+	 */
+	getSessionsFromChallenges?(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]>;
+
+	/**
+	 * Create a new session based on authentication constraints.
+	 * This is called when no existing session matches the constraint requirements.
+	 *
+	 * @param constraint The authentication constraint containing challenges and optional scopes
+	 * @param options Options for the session creation
+	 * @returns A thenable that resolves to a new authentication session
+	 */
+	createSessionFromChallenges?(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session corresponding to the specified session ID.

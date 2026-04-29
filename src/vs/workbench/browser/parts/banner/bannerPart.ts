@@ -20,7 +20,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -56,7 +56,6 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
-	private readonly markdownRenderer: MarkdownRenderer;
 	private visible = false;
 
 	private actionBar: ActionBar | undefined;
@@ -69,10 +68,9 @@ export class BannerPart extends Part implements IBannerService {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -140,7 +138,7 @@ export class BannerPart extends Part implements IBannerService {
 			return element;
 		}
 
-		return this.markdownRenderer.render(message).element;
+		return this.markdownRendererService.render(message).element;
 	}
 
 	private setVisibility(visible: boolean): void {

@@ -12,11 +12,12 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import * as assert from 'assert';
 import { CoverageDetailsModel } from '../../browser/codeCoverageDecorations.js';
 import { CoverageDetails, DetailType } from '../../common/testTypes.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('Code Coverage Decorations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const textModel = { getValueInRange: () => '' } as any as ITextModel;
+	const textModel = upcastPartial<ITextModel>({ getValueInRange: () => '' });
 	const assertRanges = async (model: CoverageDetailsModel) => await assertSnapshot(model.ranges.map(r => ({
 		range: r.range.toString(),
 		count: r.metadata.detail.type === DetailType.Branch ? r.metadata.detail.detail.branches![r.metadata.detail.branch].count : r.metadata.detail.count,

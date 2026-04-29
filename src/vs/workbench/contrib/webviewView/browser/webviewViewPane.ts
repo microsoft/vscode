@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, findParentWithClass, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { IViewBadge, IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
@@ -33,6 +33,10 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 const storageKeys = {
 	webviewState: 'webviewState',
 } as const;
+
+interface WebviewViewState {
+	[storageKeys.webviewState]?: string | undefined;
+}
 
 export class WebviewViewPane extends ViewPane {
 
@@ -49,7 +53,6 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _rootContainer?: HTMLElement;
-	private _resizeObserver?: any;
 
 	private readonly defaultTitle: string;
 	private setTitle: string | undefined;
@@ -57,11 +60,9 @@ export class WebviewViewPane extends ViewPane {
 	private badge: IViewBadge | undefined;
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
-	private readonly memento: Memento;
-	private readonly viewState: MementoObject;
+	private readonly memento: Memento<WebviewViewState>;
+	private readonly viewState: WebviewViewState;
 	private readonly extensionId?: ExtensionIdentifier;
-
-	private _repositionTimeout?: Timeout;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -110,8 +111,6 @@ export class WebviewViewPane extends ViewPane {
 	override dispose() {
 		this._onDispose.fire();
 
-		clearTimeout(this._repositionTimeout);
-
 		super.dispose();
 	}
 
@@ -126,18 +125,7 @@ export class WebviewViewPane extends ViewPane {
 		this._container = container;
 		this._rootContainer = undefined;
 
-		if (!this._resizeObserver) {
-			this._resizeObserver = new ResizeObserver(() => {
-				setTimeout(() => {
-					this.layoutWebview();
-				}, 0);
-			});
-
-			this._register(toDisposable(() => {
-				this._resizeObserver.disconnect();
-			}));
-			this._resizeObserver.observe(container);
-		}
+		this.layoutWebview();
 	}
 
 	public override saveState() {
@@ -151,8 +139,7 @@ export class WebviewViewPane extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-
-		this.layoutWebview(new Dimension(width, height));
+		this.layoutWebview();
 	}
 
 	private updateTreeVisibility() {
@@ -183,9 +170,7 @@ export class WebviewViewPane extends ViewPane {
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
 
-		if (this._container) {
-			this.layoutWebview();
-		}
+		this.layoutWebview();
 
 		this._webviewDisposables.add(toDisposable(() => {
 			this._webview.value?.release(this);
@@ -268,11 +253,7 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 
-	override onDidScrollRoot() {
-		this.layoutWebview();
-	}
-
-	private doLayoutWebview(dimension?: Dimension) {
+	private layoutWebview() {
 		const webviewEntry = this._webview.value;
 		if (!this._container || !webviewEntry) {
 			return;
@@ -282,15 +263,7 @@ export class WebviewViewPane extends ViewPane {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container, dimension, this._rootContainer);
-	}
-
-	private layoutWebview(dimension?: Dimension) {
-		this.doLayoutWebview(dimension);
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => this.doLayoutWebview(dimension), 200);
+		webviewEntry.setAnchorElement(this._container, this._rootContainer);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {

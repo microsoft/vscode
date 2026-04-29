@@ -1,12 +1,12 @@
 
 // This file is adding references to various symbols which should not be removed via tree shaking
 
-import { IObservable } from './vs/base/common/observable';
+import { IObservable } from './vs/base/common/observable.js';
 
-import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
-import { start } from './vs/editor/editor.worker.start';
-import { SyncDescriptor0 } from './vs/platform/instantiation/common/descriptors';
-import * as editorAPI from './vs/editor/editor.api';
+import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation.js';
+import { start } from './vs/editor/editor.worker.start.js';
+import { SyncDescriptor0 } from './vs/platform/instantiation/common/descriptors.js';
+import * as editorAPI from './vs/editor/editor.api.js';
 
 (function () {
 	var a: any;

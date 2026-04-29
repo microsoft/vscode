@@ -34,7 +34,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 		};
 	}
 
-	async handle({ commitMessagePath }: GitEditorRequest): Promise<any> {
+	async handle({ commitMessagePath }: GitEditorRequest): Promise<boolean> {
 		if (commitMessagePath) {
 			const uri = Uri.file(commitMessagePath);
 			const doc = await workspace.openTextDocument(uri);
@@ -49,6 +49,8 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 				});
 			});
 		}
+
+		return Promise.resolve(false);
 	}
 
 	getEnv(): { [key: string]: string } {

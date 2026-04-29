@@ -45,7 +45,7 @@ export interface IKeybindingService {
 
 	readonly inChordMode: boolean;
 
-	onDidUpdateKeybindings: Event<void>;
+	readonly onDidUpdateKeybindings: Event<void>;
 
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!
@@ -105,6 +105,12 @@ export interface IKeybindingService {
 	registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 
 	toggleLogging(): boolean;
+
+	/**
+	 * Given a UI element label and a command ID, appends the keybinding label if any.
+	 * If the command is defined and has a keybinding, returns `${label} (keybinding label)`, otherwise just `label`.
+	 */
+	appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

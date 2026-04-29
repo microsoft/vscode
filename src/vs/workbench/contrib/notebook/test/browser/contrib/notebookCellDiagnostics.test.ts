@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
-import { IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { CellDiagnostics } from '../../../browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib.js';
 import { CodeCellViewModel } from '../../../browser/viewModel/codeCellViewModel.js';
 import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
@@ -55,7 +55,7 @@ suite('notebookCellDiagnostics', () => {
 
 	interface ITestMarkerService extends IMarkerService {
 		markers: ResourceMap<IMarkerData[]>;
-		onMarkersUpdated: Event<void>;
+		readonly onMarkersUpdated: Event<void>;
 	}
 
 	setup(function () {
@@ -68,6 +68,7 @@ suite('notebookCellDiagnostics', () => {
 
 		const agentData = {
 			extensionId: nullExtensionDescription.identifier,
+			extensionVersion: undefined,
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			name: 'testEditorAgent',

@@ -22,19 +22,17 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, restartRequiredIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import Severity from '../../../../base/common/severity.js';
 import { Color } from '../../../../base/common/color.js';
-import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -51,6 +49,7 @@ import { IExplorerService } from '../../files/browser/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -76,7 +75,8 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 
 export class ExtensionIconWidget extends ExtensionWidget {
 
-	private readonly disposables = this._register(new DisposableStore());
+	private readonly iconLoadingDisposable = this._register(new MutableDisposable());
+	private readonly iconErrorDisposable = this._register(new MutableDisposable());
 	private readonly element: HTMLElement;
 	private readonly iconElement: HTMLImageElement;
 	private readonly defaultIconElement: HTMLElement;
@@ -104,7 +104,8 @@ export class ExtensionIconWidget extends ExtensionWidget {
 		this.iconElement.src = '';
 		this.iconElement.style.display = 'none';
 		this.defaultIconElement.style.display = 'none';
-		this.disposables.clear();
+		this.iconErrorDisposable.clear();
+		this.iconLoadingDisposable.clear();
 	}
 
 	render(): void {
@@ -114,22 +115,24 @@ export class ExtensionIconWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.iconUrl) {
-			this.iconElement.style.display = 'inherit';
-			this.defaultIconElement.style.display = 'none';
 			if (this.iconUrl !== this.extension.iconUrl) {
+				this.iconElement.style.display = 'inherit';
+				this.defaultIconElement.style.display = 'none';
 				this.iconUrl = this.extension.iconUrl;
-				this.disposables.add(addDisposableListener(this.iconElement, 'error', () => {
+				this.iconErrorDisposable.value = addDisposableListener(this.iconElement, 'error', () => {
 					if (this.extension?.iconUrlFallback) {
 						this.iconElement.src = this.extension.iconUrlFallback;
 					} else {
 						this.iconElement.style.display = 'none';
 						this.defaultIconElement.style.display = 'inherit';
 					}
-				}, { once: true }));
+				}, { once: true });
 				this.iconElement.src = this.iconUrl;
 				if (!this.iconElement.complete) {
 					this.iconElement.style.visibility = 'hidden';
-					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+					this.iconLoadingDisposable.value = addDisposableListener(this.iconElement, 'load', () => {
+						this.iconElement.style.visibility = 'inherit';
+					});
 				} else {
 					this.iconElement.style.visibility = 'inherit';
 				}
@@ -139,6 +142,8 @@ export class ExtensionIconWidget extends ExtensionWidget {
 			this.iconElement.style.display = 'none';
 			this.iconElement.src = '';
 			this.defaultIconElement.style.display = 'inherit';
+			this.iconErrorDisposable.clear();
+			this.iconLoadingDisposable.clear();
 		}
 	}
 }
@@ -695,6 +700,34 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
+export class ExtensionRestartRequiredWidget extends ExtensionWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly container: HTMLElement,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.disposables.clear();
+		this.container.innerText = '';
+
+		const runtimeState = this.extension?.runtimeState;
+		const reason = typeof runtimeState?.reason === 'string' ? runtimeState.reason : '';
+
+		// Only show "Restart Required" when the runtime state reason clearly indicates
+		// a restart or reload is needed, to avoid mislabeling other runtime actions.
+		if (runtimeState && /restart|reload/i.test(reason)) {
+			const element = append(this.container, $('span.extension-restart-required' + ThemeIcon.asCSSSelector(restartRequiredIcon)));
+			append(this.container, $('span.extension-restart-required-label', undefined, localize('restart required', "Restart Required")));
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, reason));
+		}
+	}
+}
+
 export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 	constructor(
@@ -810,7 +843,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		markdown.appendMarkdown(`**`).appendText(this.extension.displayName).appendMarkdown(`**`);
 		if (semver.valid(this.extension.version)) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
@@ -861,7 +894,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(this.extension.description);
 			markdown.appendText(`\n`);
 		}
 
@@ -899,8 +932,8 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				if (extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.length) {
 					const hasErrors = extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.some(message => message.type === Severity.Error);
 					const hasWarnings = extensionRuntimeStatus.messages.some(message => message.type === Severity.Warning);
-					const errorsLink = extensionRuntimeStatus.runtimeErrors.length ? `[${extensionRuntimeStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionRuntimeStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})` : undefined;
-					const messageLink = extensionRuntimeStatus.messages.length ? `[${extensionRuntimeStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionRuntimeStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})` : undefined;
+					const errorsLink = extensionRuntimeStatus.runtimeErrors.length ? `[${extensionRuntimeStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionRuntimeStatus.runtimeErrors.length)}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features)})` : undefined;
+					const messageLink = extensionRuntimeStatus.messages.length ? `[${extensionRuntimeStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionRuntimeStatus.messages.length)}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features)})` : undefined;
 					markdown.appendMarkdown(`$(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) This extension has reported `);
 					if (errorsLink && messageLink) {
 						markdown.appendMarkdown(`${errorsLink} and ${messageLink}`);
@@ -918,7 +951,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						const feature = registry.getExtensionFeature(featureId);
 						if (feature) {
 							markdown.appendMarkdown(localize('feature usage label', "{0} usage", feature.label));
-							markdown.appendMarkdown(`: [${localize('total', "{0} {1} requests in last 30 days", accessData.accessTimes.length, feature.accessDataLabel ?? feature.label)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
+							markdown.appendMarkdown(`: [${localize('total', "{0} {1} requests in last 30 days", accessData.accessTimes.length, feature.accessDataLabel ?? feature.label)}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features)})`);
 							markdown.appendText(`\n`);
 						}
 					}
@@ -982,7 +1015,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.preRelease) {
 			return undefined;
 		}
-		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
+		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${createCommandUri('workbench.extensions.action.showPreReleaseVersion', extension.identifier.id)})`;
 		return localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
 	}
 
@@ -998,7 +1031,7 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly extensionStatusAction: ExtensionStatusAction,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.render();
@@ -1023,14 +1056,7 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 					markdown.appendText(`\n`);
 				}
 			}
-			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: {
-					callback: (content) => {
-						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					},
-					disposables
-				}
-			}));
+			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			append(this.container, rendered.element);
 		}
 		this._onDidRender.fire();

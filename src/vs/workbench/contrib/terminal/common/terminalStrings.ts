@@ -18,6 +18,7 @@ export const terminalStrings = {
 	typeLocal: localize('local', "Local"),
 	actionCategory: localize2('terminalCategory', "Terminal"),
 	focus: localize2('workbench.action.terminal.focus', "Focus Terminal"),
+	focusInstance: localize2('workbench.action.terminal.focusInstance', "Focus Terminal"),
 	focusAndHideAccessibleBuffer: localize2('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
 	kill: {
 		...localize2('killTerminal', "Kill Terminal"),
@@ -40,5 +41,6 @@ export const terminalStrings = {
 	newWithCwd: localize2('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
 	renameWithArgs: localize2('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
 	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll to Previous Command"),
-	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command")
+	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command"),
+	revealCommand: localize2('workbench.action.terminal.revealCommand', "Reveal Command in Terminal"),
 };

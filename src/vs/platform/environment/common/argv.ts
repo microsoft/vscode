@@ -24,6 +24,7 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	'agent-host'?: INativeCliOptions;
 	chat?: {
 		_: string[];
 		'add-file'?: string[];
@@ -31,6 +32,7 @@ export interface NativeParsedArgs {
 		maximize?: boolean;
 		'reuse-window'?: boolean;
 		'new-window'?: boolean;
+		profile?: string;
 		help?: boolean;
 	};
 
@@ -52,6 +54,7 @@ export interface NativeParsedArgs {
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
+	'agents'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
 	'prof-startup'?: boolean;
@@ -72,6 +75,10 @@ export interface NativeParsedArgs {
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
+	'shared-data-dir'?: string;
+	'agent-plugins-dir'?: string;
+	'agents-user-data-dir'?: string;
+	'agents-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	extensionDevelopmentKind?: string[];
@@ -84,6 +91,8 @@ export interface NativeParsedArgs {
 	'inspect-brk-search'?: string;
 	'inspect-ptyhost'?: string;
 	'inspect-brk-ptyhost'?: string;
+	'inspect-agenthost'?: string;
+	'inspect-brk-agenthost'?: string;
 	'inspect-sharedprocess'?: string;
 	'inspect-brk-sharedprocess'?: string;
 	'disable-extensions'?: boolean;
@@ -100,13 +109,17 @@ export interface NativeParsedArgs {
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
+	'open-chat-session'?: string;
 	'skip-release-notes'?: boolean;
 	'skip-welcome'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
+	'export-policy-data'?: string;
+	'export-default-keybindings'?: string;
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
+	'share-secrets-with-agents-app'?: boolean;
 	'transient'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
@@ -118,6 +131,7 @@ export interface NativeParsedArgs {
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
+	'skip-sessions-welcome'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
@@ -139,7 +153,6 @@ export interface NativeParsedArgs {
 	'unresponsive-sample-period'?: string;
 	'enable-rdp-display-tracking'?: boolean;
 	'disable-layout-restore'?: boolean;
-	'startup-experiment-group'?: string;
 	'disable-experiments'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches

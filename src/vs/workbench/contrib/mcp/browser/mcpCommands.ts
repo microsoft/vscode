@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, disposableWindowInterval, EventType, h } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -14,7 +14,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -33,8 +33,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -52,19 +50,20 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
-import { ChatModeKind } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
+import { ContributionEnablementState, isContributionDisabled } from '../../chat/common/enablement.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
-import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService, VIEWLET_ID } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
-import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
+import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
@@ -83,6 +82,7 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(
@@ -90,11 +90,12 @@ export class ListMcpServerCommand extends Action2 {
 						McpContextKeys.hasServersWithErrors,
 					),
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				),
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 2,
+				order: 101,
 			}],
 		});
 	}
@@ -110,20 +111,27 @@ export class ListMcpServerCommand extends Action2 {
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
 		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
+		mcpService.activateCollections();
+
 		store.add(pick);
 
 		store.add(autorun(reader => {
-			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
+			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => a.collection.order - b.collection.order), s => s.collection.id);
 			const firstRun = pick.items.length === 0;
 			pick.items = [
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
-				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
-					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
-					...servers.map(server => ({
-						id: server.definition.id,
-						label: server.definition.label,
-						description: McpConnectionState.toString(server.connectionState.read(reader)),
-					})),
+				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
+					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
+					...servers!.map(server => {
+						const disabled = isContributionDisabled(server.enablement.read(reader));
+						return {
+							id: server.definition.id,
+							label: server.definition.label,
+							description: disabled
+								? localize('mcp.disabled', 'Disabled')
+								: McpConnectionState.toString(server.connectionState.read(reader)),
+						};
+					}),
 				]),
 			];
 
@@ -156,7 +164,7 @@ export class ListMcpServerCommand extends Action2 {
 }
 
 interface ActionItem extends IQuickPickItem {
-	action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
+	action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources' | 'enable';
 }
 
 interface AuthActionItem extends IQuickPickItem {
@@ -193,7 +201,7 @@ export class McpConfirmationServerOptionsCommand extends Action2 {
 			if (tool?.source.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
 			}
-		} else if (arg.kind === 'elicitation') {
+		} else if (arg.kind === 'elicitation2') {
 			if (arg.source?.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
 			}
@@ -232,11 +240,17 @@ export class McpServerOptionsCommand extends Action2 {
 
 		const items: (ActionItem | AuthActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
+		const disabled = isContributionDisabled(server.enablement.get());
 
 		items.push({ type: 'separator', label: localize('mcp.actions.status', 'Status') });
 
-		// Only show start when server is stopped or in error state
-		if (McpConnectionState.canBeStarted(serverState.state)) {
+		if (disabled) {
+			items.push({
+				label: localize('mcp.enableWorkspace', 'Enable Server (Workspace)'),
+				action: 'enable'
+			});
+		} else if (McpConnectionState.canBeStarted(serverState.state)) {
+			// Only show start when server is stopped or in error state
 			items.push({
 				label: localize('mcp.start', 'Start Server'),
 				action: 'start'
@@ -303,6 +317,9 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		switch (pick.action) {
+			case 'enable':
+				mcpService.enablementModel.setEnabled(server.definition.id, ContributionEnablementState.EnabledWorkspace);
+				break;
 			case 'start':
 				await server.start({ promptType: 'all-untrusted' });
 				server.showOutput();
@@ -478,7 +495,9 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
+		const actionItemState = displayedState.map(s => s.state);
+
+		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -489,34 +508,30 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 					super.render(container);
 					container.classList.add('chat-mcp');
+					container.style.position = 'relative';
 
-					const action = h('button.chat-mcp-action', [h('span@icon')]);
+					const stateIndicator = container.appendChild($('.chat-mcp-state-indicator'));
+					stateIndicator.style.display = 'none';
 
 					this._register(autorun(r => {
 						const displayed = displayedState.read(r);
 						const { state } = displayed;
-						const { root, icon } = action;
 						this.updateTooltip();
-						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
 
-						if (!root.parentElement) {
-							container.appendChild(root);
-						}
 
-						root.ariaLabel = this.getLabelForState(displayed);
-						root.className = 'chat-mcp-action';
-						icon.className = '';
+						stateIndicator.ariaLabel = this.getLabelForState(displayed);
+						stateIndicator.className = 'chat-mcp-state-indicator';
 						if (state === DisplayedState.NewTools) {
-							root.classList.add('chat-mcp-action-new');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.refresh));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refresh));
 						} else if (state === DisplayedState.Error) {
-							root.classList.add('chat-mcp-action-error');
-							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warning));
 						} else if (state === DisplayedState.Refreshing) {
-							root.classList.add('chat-mcp-action-refreshing');
-							icon.classList.add(...ThemeIcon.asClassNameArray(spinningLoading));
+							stateIndicator.style.display = 'block';
+							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(spinningLoading));
 						} else {
-							root.remove();
+							stateIndicator.style.display = 'none';
 						}
 					}));
 				}
@@ -548,10 +563,11 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				}
 
 				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
-					const link = (s: IMcpServer) => markdownCommandLink({
-						title: s.definition.label,
+					const link = (s: IMcpServer) => createMarkdownCommandLink({
+						text: s.definition.label,
 						id: McpCommandIds.ServerOptions,
 						arguments: [s.definition.id],
+						tooltip: localize('mcp.server.options.tooltip', 'Show server options for {0}', s.definition.label),
 					});
 
 					const single = servers.length === 1;
@@ -606,7 +622,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							const checkbox = store.add(new Checkbox(
 								settingLabelStr,
 								config.get() !== McpAutoStartValue.Never,
-								defaultCheckboxStyles
+								{ ...defaultCheckboxStyles }
 							));
 
 							checkboxContainer.appendChild(checkbox.domNode);
@@ -646,7 +662,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				}
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
-		}, Event.fromObservable(displayedState)));
+		}, Event.fromObservableLight(actionItemState)));
 	}
 }
 
@@ -657,7 +673,7 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -675,7 +691,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -695,11 +711,13 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
-					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				)
 			}
 		});
@@ -710,6 +728,26 @@ export class AddConfigurationAction extends Action2 {
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const target = configUri ? workspaceService.getWorkspaceFolder(URI.parse(configUri)) : undefined;
 		return instantiationService.createInstance(McpAddConfigurationCommand, target ?? undefined).run();
+	}
+}
+
+export class InstallFromManifestAction extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.InstallFromManifest,
+			title: localize2('mcp.installFromManifest', "Install Server from Manifest..."),
+			metadata: {
+				description: localize2('mcp.installFromManifest.description', "Install an MCP server from a JSON manifest file"),
+			},
+			category,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		return instantiationService.createInstance(McpInstallFromManifestCommand).run();
 	}
 }
 
@@ -819,9 +857,18 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
-		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ promptType: 'all-untrusted', ...opts });
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+		let servers = accessor.get(IMcpService).servers.get();
+		if (serverId !== '*') {
+			servers = servers.filter(s => s.definition.id === serverId);
+		}
+
+		const startOpts: IMcpServerStartOpts = { promptType: 'all-untrusted', ...opts };
+		if (opts?.waitForLiveTools) {
+			await Promise.all(servers.map(s => startServerAndWaitForLiveTools(s, startOpts)));
+		} else {
+			await Promise.all(servers.map(s => s.start(startOpts)));
+		}
 	}
 }
 
@@ -846,11 +893,19 @@ export class McpBrowseCommand extends Action2 {
 		super({
 			id: McpCommandIds.Browse,
 			title: localize2('mcp.command.browse', "MCP Servers"),
+			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
+			icon: Codicon.search,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+			}, {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				group: 'navigation',
 			}],
 		});
 	}
@@ -863,31 +918,11 @@ export class McpBrowseCommand extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: McpCommandIds.Browse,
-		title: localize2('mcp.command.browse.mcp', "Browse Servers"),
-		category
+		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
+		category,
+		precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 	},
 });
-
-export class BrowseMcpServersPageCommand extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.BrowsePage,
-			title: localize2('mcp.command.open', "Browse MCP Servers"),
-			icon: Codicon.globe,
-			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', InstalledMcpServersViewId),
-				group: 'navigation',
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
-		return openerService.open(productService.quality === 'insider' ? 'https://code.visualstudio.com/insider/mcp' : 'https://code.visualstudio.com/mcp');
-	}
-}
 
 export class ShowInstalledMcpServersCommand extends Action2 {
 	constructor() {
@@ -895,7 +930,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.command.show.installed', "Show Installed Servers"),
 			category,
-			precondition: HasInstalledMcpServersContext,
+			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			f1: true,
 		});
 	}
@@ -904,7 +939,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = await viewsService.openView(InstalledMcpServersViewId, true);
 		if (!view) {
-			await viewsService.openViewContainer(VIEW_CONTAINER.id);
+			await viewsService.openViewContainer(VIEWLET_ID);
 			await viewsService.openView(InstalledMcpServersViewId, true);
 		}
 	}
@@ -916,8 +951,8 @@ MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
 		title: localize2('mcp.servers', "MCP Servers")
 	},
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 14,
-	group: '0_level'
+	order: 10,
+	group: '2_level'
 });
 
 abstract class OpenMcpResourceCommand extends Action2 {
@@ -940,7 +975,8 @@ export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 			id: McpCommandIds.OpenUserMcp,
 			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 		});
 	}
 
@@ -957,7 +993,10 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
 			category,
 			f1: true,
-			precondition: RemoteNameContext.notEqualsTo('')
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				RemoteNameContext.notEqualsTo('')
+			)
 		});
 	}
 
@@ -976,7 +1015,10 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				WorkspaceFolderCountContext.notEqualsTo(0)
+			)
 		});
 	}
 
@@ -999,7 +1041,10 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+				WorkbenchStateContext.isEqualTo('workspace')
+			)
 		});
 	}
 
@@ -1019,7 +1064,7 @@ export class McpBrowseResourcesCommand extends Action2 {
 			id: McpCommandIds.BrowseResources,
 			title: localize2('mcp.browseResources', "Browse Resources..."),
 			category,
-			precondition: McpContextKeys.serverCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			f1: true,
 		});
 	}
@@ -1055,9 +1100,9 @@ export class McpConfigureSamplingModels extends Action2 {
 			}
 			return {
 				label: model.name,
-				description: model.description,
+				description: model.tooltip,
 				id,
-				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefaultForLocation[ChatAgentLocation.Chat],
 			};
 		}).filter(isDefined);
 
@@ -1106,5 +1151,20 @@ export class McpStartPromptingServerCommand extends Action2 {
 		editor.setSelection(Range.fromPositions(range.getEndPosition().delta(0, text.length)));
 		widget.focusInput();
 		SuggestController.get(editor)?.triggerSuggest();
+	}
+}
+
+export class McpSkipCurrentAutostartCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SkipCurrentAutostart,
+			title: localize2('mcp.skipCurrentAutostart', "Skip Current Autostart"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IMcpService).cancelAutostart();
 	}
 }

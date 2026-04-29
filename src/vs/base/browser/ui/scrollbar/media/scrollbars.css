@@ -27,6 +27,11 @@
 	transition: opacity 800ms linear;
 }
 
+.disable-animations .monaco-scrollable-element > .visible,
+.disable-animations .monaco-scrollable-element > .invisible.fade {
+	transition: none;
+}
+
 /* Scrollable Content Inset Shadow */
 .monaco-scrollable-element > .shadow {
 	position: absolute;
@@ -57,6 +62,10 @@
 }
 .monaco-scrollable-element > .shadow.top.left {
 	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+}
+
+.monaco-scrollable-element > .scrollbar {
+	background: var(--vscode-scrollbar-background);
 }
 
 .monaco-scrollable-element > .scrollbar > .slider {

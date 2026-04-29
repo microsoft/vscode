@@ -11,9 +11,10 @@ import { IConfigurationService, IConfigurationChangeEvent } from '../../../../pl
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { isMacintosh, isWindows, isLinux, isBigSurOrNewer } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows, isLinux, isTahoeOrNewer } from '../../../../base/common/platform.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
-import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -42,13 +43,13 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
-	private bigSurOrNewer: boolean;
+	private tahoeOrNewer: boolean;
 	private get macTitlebarSize() {
-		if (this.bigSurOrNewer) {
-			return 28; // macOS Big Sur increases title bar height
+		if (this.tahoeOrNewer) {
+			return 32;
 		}
 
-		return 22;
+		return 28;
 	}
 
 	//#endregion
@@ -76,11 +77,12 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService
 	) {
-		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService);
+		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService, actionViewItemService);
 
-		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
+		this.tahoeOrNewer = isTahoeOrNewer(environmentService.os.release);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId);
 	}
@@ -125,9 +127,9 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	private onUpdateAppIconDragBehavior(): void {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting && this.appIcon) {
-			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
+			(this.appIcon.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'no-drag';
 		} else if (this.appIcon) {
-			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
+			(this.appIcon.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 		}
 	}
 
@@ -272,13 +274,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-
-			// When the user goes into full screen mode, the height of the title bar becomes 0.
-			// Instead, set it back to the default titlebar height for Catalina users
-			// so that they can have the traffic lights rendered at the proper offset.
-			// Ref https://github.com/microsoft/vscode/issues/159862
-
-			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor(getWindow(this.element))) : this.macTitlebarSize;
+			const newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({
@@ -306,9 +302,10 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, editorGroupService.mainPart, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
+		super(Parts.TITLEBAR_PART, mainWindow, editorGroupService.mainPart, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService, actionViewItemService);
 	}
 }
 
@@ -335,10 +332,11 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService, actionViewItemService);
 	}
 
 	override get preventZoom(): boolean {

@@ -336,18 +336,18 @@ export const STATUS_BAR_ITEM_FOCUS_BORDER = registerColor('statusBarItem.focusBo
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hcDark: Color.white.transparent(0.12),
-	hcLight: Color.black.transparent(0.12)
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.hoverForeground', STATUS_BAR_FOREGROUND, localize('statusBarItemHoverForeground', "Status bar item foreground color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND = registerColor('statusBarItem.compactHoverBackground', {
-	dark: Color.white.transparent(0.20),
-	light: Color.white.transparent(0.20),
-	hcDark: Color.white.transparent(0.20),
-	hcLight: Color.black.transparent(0.20)
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemCompactHoverBackground', "Status bar item background color when hovering an item that contains two hovers. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', STATUS_BAR_FOREGROUND, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
@@ -547,6 +547,11 @@ export const PANEL_STICKY_SCROLL_BACKGROUND = registerColor('panelStickyScroll.b
 export const PANEL_STICKY_SCROLL_BORDER = registerColor('panelStickyScroll.border', null, localize('panelStickyScrollBorder', "Border color of sticky scroll in the panel."));
 
 export const PANEL_STICKY_SCROLL_SHADOW = registerColor('panelStickyScroll.shadow', scrollbarShadow, localize('panelStickyScrollShadow', "Shadow color of sticky scroll in the panel."));
+
+
+// < --- Browser --- >
+
+export const BROWSER_BORDER = registerColor('browser.border', TAB_BORDER, localize('browserBorder', "Border color for integrated browser pages."));
 
 
 // < --- Profiles --- >

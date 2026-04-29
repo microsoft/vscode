@@ -130,7 +130,7 @@ export abstract class ManagedSocket extends Disposable implements ISocket {
 	public abstract write(buffer: VSBuffer): void;
 	protected abstract closeRemote(): void;
 
-	traceSocketEvent(type: SocketDiagnosticsEventType, data?: any): void {
+	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
 		SocketDiagnostics.traceSocketEvent(this, this.debugLabel, type, data);
 	}
 

@@ -35,7 +35,9 @@ export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
 	HideAccessibleView = 'accessibility.hideAccessibleView',
-	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress',
+	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates',
+	ShowChatCheckmarks = 'accessibility.chat.showCheckmarks'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -50,7 +52,8 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
-	TerminalChat = 'accessibility.verbosity.terminalChat',
+	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
+	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -63,7 +66,10 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
-	SourceControl = 'accessibility.verbosity.sourceControl'
+	SourceControl = 'accessibility.verbosity.sourceControl',
+	Find = 'accessibility.verbosity.find',
+	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -140,12 +146,16 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.TerminalChatOutput]: {
+			description: localize('verbosity.terminalChatOutput.description', 'Provide information about how to open the chat terminal output in the Accessible View.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
 			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and Accessible View.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused.'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -191,6 +201,18 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SourceControl]: {
 			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Find]: {
+			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsChat]: {
+			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents app accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatQuestionCarousel]: {
+			description: localize('verbosity.chatQuestionCarousel', 'Provide information about how to navigate and interact with the chat question carousel, including how to focus the terminal when applicable.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
@@ -562,6 +584,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
+			'default': {
+				'sound': 'auto',
+				'announcement': 'off'
+			},
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
@@ -804,9 +830,14 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.openChatEditedFiles': {
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
+		'accessibility.verboseChatProgressUpdates': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+		}
 	}
 };
 
@@ -838,6 +869,17 @@ export function registerAccessibilityConfiguration() {
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']
+			},
+			[AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates]: {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+			},
+			[AccessibilityWorkbenchSettingId.ShowChatCheckmarks]: {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['accessibility'],
+				'markdownDescription': localize('accessibility.chat.showCheckmarks', "Controls whether checkmark icons are shown on completed tool calls and other collapsible items in chat responses.")
 			}
 		}
 	});
@@ -845,7 +887,7 @@ export function registerAccessibilityConfiguration() {
 
 export { AccessibilityVoiceSettingId };
 
-export const SpeechTimeoutDefault = 1200;
+export const SpeechTimeoutDefault = 0;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 

@@ -8,7 +8,6 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,7 +16,7 @@ import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEdito
 import { EmbeddedCodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { EmbeddedDiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IDiffEditorOptions, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -68,7 +67,7 @@ class SimpleDiffEditorModel extends EditorModel {
 
 
 export interface IPeekOutputRenderer extends IDisposable {
-	onDidContentSizeChange?: Event<void>;
+	readonly onDidContentSizeChange?: Event<void>;
 	onScrolled?(evt: ScrollEvent): void;
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
@@ -120,8 +119,8 @@ function applyEditorMirrorOptions<T extends IEditorOptions>(base: T, cfg: IConfi
 		let changed = false;
 		const patch: Partial<IEditorOptions> = {};
 		for (const [key, value] of Object.entries(configuration)) {
-			if (!immutable.has(key) && (base as any)[key] !== value) {
-				(patch as any)[key] = value;
+			if (!immutable.has(key) && (base as Record<string, unknown>)[key] !== value) {
+				(patch as Record<string, unknown>)[key] = value;
 				changed = true;
 			}
 		}
@@ -252,14 +251,15 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 
 
 export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private readonly markdown = new Lazy(
-		() => this.instantiationService.createInstance(MarkdownRenderer, {}),
-	);
+
 	private readonly rendered = this._register(new DisposableStore());
 
 	private element?: HTMLElement;
 
-	constructor(private readonly container: HTMLElement, @IInstantiationService private readonly instantiationService: IInstantiationService) {
+	constructor(
+		private readonly container: HTMLElement,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) {
 		super();
 		this._register(toDisposable(() => this.clear()));
 	}
@@ -276,7 +276,7 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 		}
 
 
-		const rendered = this.rendered.add(this.markdown.value.render(message.message, {}));
+		const rendered = this.rendered.add(this.markdownRendererService.render(message.message, {}));
 		rendered.element.style.userSelect = 'text';
 		rendered.element.classList.add('preview-text');
 		this.container.appendChild(rendered.element);

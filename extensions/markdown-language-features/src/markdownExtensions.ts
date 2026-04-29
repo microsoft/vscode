@@ -84,7 +84,7 @@ export namespace MarkdownContributions {
 		const map = new Map<string, Thenable<(md: any) => any>>();
 		if (contributes['markdown.markdownItPlugins']) {
 			map.set(extension.id, extension.activate().then(() => {
-				if (extension.exports && extension.exports.extendMarkdownIt) {
+				if (extension.exports?.extendMarkdownIt) {
 					return (md: any) => extension.exports.extendMarkdownIt(md);
 				}
 				return (md: any) => md;
@@ -119,36 +119,38 @@ export interface MarkdownContributionProvider {
 
 class VSCodeExtensionMarkdownContributionProvider extends Disposable implements MarkdownContributionProvider {
 
-	private _contributions?: MarkdownContributions;
+	#contributions?: MarkdownContributions;
+	readonly #extensionContext: vscode.ExtensionContext;
 
 	public constructor(
-		private readonly _extensionContext: vscode.ExtensionContext,
+		extensionContext: vscode.ExtensionContext,
 	) {
 		super();
+		this.#extensionContext = extensionContext;
 
 		this._register(vscode.extensions.onDidChange(() => {
-			const currentContributions = this._getCurrentContributions();
-			const existingContributions = this._contributions || MarkdownContributions.Empty;
+			const currentContributions = this.#getCurrentContributions();
+			const existingContributions = this.#contributions || MarkdownContributions.Empty;
 			if (!MarkdownContributions.equal(existingContributions, currentContributions)) {
-				this._contributions = currentContributions;
-				this._onContributionsChanged.fire(this);
+				this.#contributions = currentContributions;
+				this.#onContributionsChanged.fire(this);
 			}
 		}));
 	}
 
 	public get extensionUri() {
-		return this._extensionContext.extensionUri;
+		return this.#extensionContext.extensionUri;
 	}
 
-	private readonly _onContributionsChanged = this._register(new vscode.EventEmitter<this>());
-	public readonly onContributionsChanged = this._onContributionsChanged.event;
+	readonly #onContributionsChanged = this._register(new vscode.EventEmitter<this>());
+	public readonly onContributionsChanged = this.#onContributionsChanged.event;
 
 	public get contributions(): MarkdownContributions {
-		this._contributions ??= this._getCurrentContributions();
-		return this._contributions;
+		this.#contributions ??= this.#getCurrentContributions();
+		return this.#contributions;
 	}
 
-	private _getCurrentContributions(): MarkdownContributions {
+	#getCurrentContributions(): MarkdownContributions {
 		return vscode.extensions.all
 			.map(MarkdownContributions.fromExtension)
 			.reduce(MarkdownContributions.merge, MarkdownContributions.Empty);

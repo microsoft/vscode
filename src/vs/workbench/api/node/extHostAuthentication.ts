@@ -254,6 +254,11 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			tokenRequest.append('device_code', deviceCodeData.device_code);
 			tokenRequest.append('client_id', this._clientId);
 
+			// Add resource indicator if available (RFC 8707)
+			if (this._resourceMetadata?.resource) {
+				tokenRequest.append('resource', this._resourceMetadata.resource);
+			}
+
 			try {
 				const tokenResponse = await fetch(this._serverMetadata.token_endpoint, {
 					method: 'POST',

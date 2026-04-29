@@ -32,6 +32,11 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
+	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
+
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
 		const inclusion = anchorGlob(globArg);

@@ -640,19 +640,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	moveEditor(editor: EditorInput, fromTabIndex: number, targeTabIndex: number): void {
+	moveEditor(editor: EditorInput, fromTabIndex: number, targetTabIndex: number): void {
 
 		// Move the editor label
 		const editorLabel = this.tabLabels[fromTabIndex];
 		this.tabLabels.splice(fromTabIndex, 1);
-		this.tabLabels.splice(targeTabIndex, 0, editorLabel);
+		this.tabLabels.splice(targetTabIndex, 0, editorLabel);
 
 		// Redraw tabs in the range of the move
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
 		},
-			Math.min(fromTabIndex, targeTabIndex), 	// from: smallest of fromTabIndex/targeTabIndex
-			Math.max(fromTabIndex, targeTabIndex)	//   to: largest of fromTabIndex/targeTabIndex
+			Math.min(fromTabIndex, targetTabIndex), // from: smallest of fromTabIndex/targetTabIndex
+			Math.max(fromTabIndex, targetTabIndex)	//   to: largest of fromTabIndex/targetTabIndex
 		);
 
 		// Moving an editor requires a layout to keep the active editor visible
@@ -778,6 +778,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
+			oldOptions.showTabIndex !== newOptions.showTabIndex ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -826,7 +827,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 
 		// Gesture Support
-		this._register(Gesture.addTarget(tabContainer));
+		const gestureDisposable = Gesture.addTarget(tabContainer);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -866,7 +867,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, tabIndex, tabsContainer, tabsScrollbar);
 
-		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(gestureDisposable, eventsDisposable, tabActionBarDisposable, editorLabel));
 
 		return tabContainer;
 	}
@@ -1103,7 +1104,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
 						applyDragImage(e, tab, label);
 					} else {
-						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
+						const options = this.groupsView.partOptions;
+						const isTabSticky = this.tabsModel.isSticky(tabIndex);
+						const isShrinkSizing = options.tabSizing === 'shrink' || (isTabSticky && options.pinnedTabSizing === 'shrink');
+						if (isShrinkSizing) {
+							// When tab sizing is 'shrink', the tab label may be truncated. Using the tab DOM element
+							// as a drag image can cause parts of the tab header UI to visually drag along.
+							// Instead, use a clean text-only drag image with the editor name.
+							applyDragImage(e, tab, editor.getName());
+						} else {
+							e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
+						}
 					}
 				}
 
@@ -1604,6 +1615,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Sticky compact tabs will only show an icon if icons are enabled
 		// or their first character of the name otherwise
 		let name: string | undefined;
+		let namePrefix: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
 		const fileDecorationColors = Boolean(options.decorations?.colors);
@@ -1616,6 +1628,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
 			name = tabLabel.name;
+			namePrefix = options.showTabIndex ? `${this.toEditorIndex(tabIndex) + 1}: ` : undefined;
 			description = tabLabel.description || '';
 		}
 
@@ -1640,6 +1653,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				},
 				icon: editor.getIcon(),
 				hideIcon: options.showIcons === false,
+				namePrefix,
 			}
 		);
 
@@ -1761,6 +1775,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		return editorActions;
+	}
+
 	getHeight(): number {
 
 		// Return quickly if our used dimensions are known
@@ -1866,6 +1884,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
+		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
+		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
 		// - disabled: remove class and margin-right variable
@@ -1882,7 +1903,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Update `last-tab-margin-right` CSS variable to account for the absolute
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
+			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
 			for (const tab of tabsContainer.children) {
@@ -1900,7 +1922,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
+				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385

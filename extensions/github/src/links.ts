@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, RefType, Repository } from './typings/git.js';
+import { RefType } from './typings/git.constants.js';
+import type { API as GitAPI, Repository } from './typings/git.d.ts';
 import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
 
 export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
@@ -47,12 +48,12 @@ interface EditorLineNumberContext {
 export type LinkContext = vscode.Uri | EditorLineNumberContext | undefined;
 
 function extractContext(context: LinkContext): { fileUri: vscode.Uri | undefined; lineNumber: number | undefined } {
-	if (context instanceof vscode.Uri) {
-		return { fileUri: context, lineNumber: undefined };
-	} else if (context !== undefined && 'lineNumber' in context && 'uri' in context) {
-		return { fileUri: context.uri, lineNumber: context.lineNumber };
-	} else {
+	if (context === undefined) {
 		return { fileUri: undefined, lineNumber: undefined };
+	} else if (context instanceof vscode.Uri) {
+		return { fileUri: context, lineNumber: undefined };
+	} else {
+		return { fileUri: context.uri, lineNumber: context.lineNumber };
 	}
 }
 

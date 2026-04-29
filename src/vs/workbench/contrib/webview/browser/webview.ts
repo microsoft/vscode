@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -18,7 +17,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWebviewPortMapping } from '../../../../platform/webview/common/webviewPortMapping.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -331,14 +330,13 @@ export interface IOverlayWebview extends IWebview {
 	release(claimant: any): void;
 
 	/**
-	 * Absolutely position the webview on top of another element in the DOM.
+	 * Sets the webview to be absolutely positioned on top of another element in the DOM.
 	 *
 	 * @param element Element to position the webview on top of. This element should
 	 *   be an placeholder for the webview since the webview will entirely cover it.
-	 * @param dimension Optional explicit dimensions to use for sizing the webview.
 	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
-	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
+	setAnchorElement(element: HTMLElement, clippingContainer?: HTMLElement): void;
 }
 
 /**
@@ -348,8 +346,8 @@ export interface IOverlayWebview extends IWebview {
  */
 export class WebviewOriginStore {
 
-	private readonly _memento: Memento;
-	private readonly _state: MementoObject;
+	private readonly _memento: Memento<Record<string, string>>;
+	private readonly _state: Record<string, string | undefined>;
 
 	constructor(
 		rootStorageKey: string,

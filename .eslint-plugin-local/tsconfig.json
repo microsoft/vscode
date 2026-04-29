@@ -4,23 +4,26 @@
 		"lib": [
 			"ES2024"
 		],
-		"module": "commonjs",
-		"esModuleInterop": true,
-		"alwaysStrict": true,
-		"allowJs": true,
+		"rootDir": ".",
+		"module": "esnext",
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"newLine": "lf",
-		"noEmit": true
+		"typeRoots": [
+			"."
+		]
 	},
 	"include": [
-		"**/*.ts",
-		"**/*.js"
+		"./**/*.ts",
 	],
 	"exclude": [
-		"node_modules/**"
+		"node_modules/**",
+		"./tests/**"
 	]
 }

@@ -12,15 +12,15 @@ export interface IQuickTreeFilterData {
 	readonly descriptionHighlights?: IMatch[];
 }
 
-export function getParentNodeState(parentChildren: ITreeNode<IQuickTreeItem | null, IQuickTreeFilterData>[] | IObjectTreeElement<IQuickTreeItem>[]): boolean | 'partial' {
+export function getParentNodeState(parentChildren: ITreeNode<IQuickTreeItem | null, IQuickTreeFilterData>[] | IObjectTreeElement<IQuickTreeItem>[]): boolean | 'mixed' {
 	let containsChecks = false;
 	let containsUnchecks = false;
-	let containsPartial = false;
+	let containsMixed = false;
 
 	for (const element of parentChildren) {
 		switch (element.element?.checked) {
-			case 'partial':
-				containsPartial = true;
+			case 'mixed':
+				containsMixed = true;
 				break;
 			case true:
 				containsChecks = true;
@@ -29,18 +29,18 @@ export function getParentNodeState(parentChildren: ITreeNode<IQuickTreeItem | nu
 				containsUnchecks = true;
 				break;
 		}
-		if (containsChecks && containsUnchecks && containsPartial) {
+		if (containsChecks && containsUnchecks && containsMixed) {
 			break;
 		}
 	}
 	const newState = containsUnchecks
-		? containsPartial
-			? 'partial'
+		? containsMixed
+			? 'mixed'
 			: containsChecks
-				? 'partial'
+				? 'mixed'
 				: false
-		: containsPartial
-			? 'partial'
+		: containsMixed
+			? 'mixed'
 			: containsChecks;
 	return newState;
 }

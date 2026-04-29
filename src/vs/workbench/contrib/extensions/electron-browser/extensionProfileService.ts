@@ -114,7 +114,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 	}
 
-	public async startProfiling(): Promise<any> {
+	public async startProfiling(): Promise<unknown> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}

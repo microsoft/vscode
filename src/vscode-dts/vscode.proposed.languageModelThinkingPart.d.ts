@@ -16,7 +16,7 @@ declare module 'vscode' {
 		/**
 		 * The thinking/reasoning text content.
 		 */
-		value: string;
+		value: string | string[];
 
 		/**
 		 * Optional unique identifier for this thinking sequence.
@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * Optional metadata associated with this thinking sequence.
 		 */
-		metadata?: string;
+		metadata?: { readonly [key: string]: any };
 
 		/**
 		 * Construct a thinking part with the given content.
@@ -36,7 +36,7 @@ declare module 'vscode' {
 		 * @param id Optional unique identifier for this thinking sequence.
 		 * @param metadata Optional metadata associated with this thinking sequence.
 		 */
-		constructor(value: string, id?: string, metadata?: string);
+		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any });
 	}
 
 	export interface LanguageModelChatResponse {
@@ -46,4 +46,66 @@ declare module 'vscode' {
 		 */
 		stream: AsyncIterable<LanguageModelTextPart | LanguageModelThinkingPart | LanguageModelToolCallPart | unknown>;
 	}
+
+	export interface LanguageModelChat {
+		sendRequest(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+		countTokens(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number>;
+	}
+
+	/**
+	 * Represents a message in a chat. Can assume different roles, like user or assistant.
+	 */
+	export class LanguageModelChatMessage2 {
+
+		/**
+		 * Utility to create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
+
+		/**
+		 * Utility to create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
+
+		/**
+		 * The role of this message.
+		 */
+		role: LanguageModelChatMessageRole;
+
+		/**
+		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+
+		/**
+		 * Create a new user message.
+		 *
+		 * @param role The role of the message.
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, name?: string);
+	}
+
+	/**
+	 * Temporary alias for LanguageModelToolResultPart to avoid breaking changes in chat.
+	 */
+	export class LanguageModelToolResultPart2 extends LanguageModelToolResultPart { }
+
+	/**
+	 * Temporary alias for LanguageModelToolResult to avoid breaking changes in chat.
+	 */
+	export class LanguageModelToolResult2 extends LanguageModelToolResult { }
 }

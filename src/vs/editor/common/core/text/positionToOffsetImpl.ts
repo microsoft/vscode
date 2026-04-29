@@ -73,27 +73,43 @@ export function _setPositionOffsetTransformerDependencies(deps: IDeps): void {
 }
 
 export class PositionOffsetTransformer extends PositionOffsetTransformerBase {
-	private readonly lineStartOffsetByLineIdx: number[];
-	private readonly lineEndOffsetByLineIdx: number[];
+	private _lineStartOffsetByLineIdx: number[] | undefined;
+	private _lineEndOffsetByLineIdx: number[] | undefined;
 
 	constructor(public readonly text: string) {
 		super();
+	}
 
-		this.lineStartOffsetByLineIdx = [];
-		this.lineEndOffsetByLineIdx = [];
+	private get lineStartOffsetByLineIdx(): number[] {
+		if (!this._lineStartOffsetByLineIdx) {
+			this._computeLineOffsets();
+		}
+		return this._lineStartOffsetByLineIdx!;
+	}
 
-		this.lineStartOffsetByLineIdx.push(0);
-		for (let i = 0; i < text.length; i++) {
-			if (text.charAt(i) === '\n') {
-				this.lineStartOffsetByLineIdx.push(i + 1);
-				if (i > 0 && text.charAt(i - 1) === '\r') {
-					this.lineEndOffsetByLineIdx.push(i - 1);
+	private get lineEndOffsetByLineIdx(): number[] {
+		if (!this._lineEndOffsetByLineIdx) {
+			this._computeLineOffsets();
+		}
+		return this._lineEndOffsetByLineIdx!;
+	}
+
+	private _computeLineOffsets(): void {
+		this._lineStartOffsetByLineIdx = [];
+		this._lineEndOffsetByLineIdx = [];
+
+		this._lineStartOffsetByLineIdx.push(0);
+		for (let i = 0; i < this.text.length; i++) {
+			if (this.text.charAt(i) === '\n') {
+				this._lineStartOffsetByLineIdx.push(i + 1);
+				if (i > 0 && this.text.charAt(i - 1) === '\r') {
+					this._lineEndOffsetByLineIdx.push(i - 1);
 				} else {
-					this.lineEndOffsetByLineIdx.push(i);
+					this._lineEndOffsetByLineIdx.push(i);
 				}
 			}
 		}
-		this.lineEndOffsetByLineIdx.push(text.length);
+		this._lineEndOffsetByLineIdx.push(this.text.length);
 	}
 
 	override getOffset(position: Position): number {

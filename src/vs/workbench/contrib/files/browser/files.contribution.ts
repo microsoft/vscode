@@ -243,7 +243,7 @@ configurationRegistry.registerConfiguration({
 		'files.trimTrailingWhitespaceInRegexAndStrings': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('trimTrailingWhitespaceInRegexAndStrings', "When enabled, trailing whitespace will be removed from multiline strings and regexes will be removed on save or when executing 'editor.action.trimTrailingWhitespace'. This can cause whitespace to not be trimmed from lines when there isn't up-to-date token information."),
+			'description': nls.localize('trimTrailingWhitespaceInRegexAndStrings', "When enabled, trailing whitespace will be removed from multiline strings and regexes on save or when executing 'editor.action.trimTrailingWhitespace'. This can cause whitespace to not be trimmed from lines when there isn't up-to-date token information."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.insertFinalNewline': {
@@ -295,7 +295,16 @@ configurationRegistry.registerConfiguration({
 			'patternProperties': {
 				'.*': { 'type': 'boolean' }
 			},
-			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/.hg/store/**': true },
+			'default': {
+				// Avoiding a '**' pattern here which results in a very complex
+				// RegExp that can slow things down significantly in large workspaces
+				'.git/objects/**': true,
+				'.git/subtree-cache/**': true,
+				'.hg/store/**': true,
+				'*/.git/objects/**': true,
+				'*/.git/subtree-cache/**': true,
+				'*/.hg/store/**': true
+			},
 			'markdownDescription': nls.localize('watcherExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
 		},
@@ -393,8 +402,8 @@ configurationRegistry.registerConfiguration({
 			],
 			'enumDescriptions': [
 				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
-				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
-				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control). If source control can't be used, then the whole file will be formatted."),
+				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications. Requires source control and a formatter that supports 'Format Selection'."),
+				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control and a formatter that supports 'Format Selection'). If source control can't be used, then the whole file will be formatted."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is enabled."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -459,7 +468,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use {0} as variable for the matching file name.', '$(basename)')
 							}
 						}
 					}
@@ -483,7 +492,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting files and folders."),
 			'default': true
 		},
 		'explorer.enableUndo': {
