@@ -226,40 +226,22 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			if (event.resolveId !== carousel.resolveId || carousel.isUsed) {
 				return;
 			}
-
-			carousel.data = event.answers ?? {};
-			carousel.isUsed = true;
-			carousel.draftAnswers = undefined;
-			carousel.draftCurrentIndex = undefined;
-			carousel.draftCollapsed = undefined;
-			void carousel.completion.complete({ answers: event.answers });
+			carousel.dismiss(event.answers);
 		});
 
 		let answerResult: { answers: IChatQuestionAnswers | undefined } | undefined;
 		try {
 			answerResult = await raceCancellation(carousel.completion.p, token);
 		} catch (error) {
-			if (error instanceof CancellationError && !carousel.isUsed) {
-				carousel.data = {};
-				carousel.isUsed = true;
-				carousel.draftAnswers = undefined;
-				carousel.draftCurrentIndex = undefined;
-				carousel.draftCollapsed = undefined;
-				await carousel.completion.complete({ answers: undefined });
+			if (error instanceof CancellationError) {
+				carousel.dismiss(undefined);
 			}
 			throw error;
 		} finally {
 			externalAnswerListener.dispose();
 		}
 		if (!answerResult) {
-			if (!carousel.isUsed) {
-				carousel.data = {};
-				carousel.isUsed = true;
-				carousel.draftAnswers = undefined;
-				carousel.draftCurrentIndex = undefined;
-				carousel.draftCollapsed = undefined;
-				await carousel.completion.complete({ answers: undefined });
-			}
+			carousel.dismiss(undefined);
 			throw new CancellationError();
 		}
 		if (token.isCancellationRequested) {
