@@ -797,6 +797,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const disposables = new DisposableStore();
 		let sdkSessionId: string | undefined = undefined;
 		let session: IReference<ICopilotCLISession> | undefined = undefined;
+		let shouldRefreshSessionItem = true;
 		try {
 			this.sendTelemetryForHandleRequest(request, context);
 
@@ -833,6 +834,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const selectedOptions = getSelectedSessionOptions(chatSessionContext.inputState);
 			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream }, disposables, token);
 			({ session } = sessionResult);
+			shouldRefreshSessionItem = !(isNewSession && request.command === 'remote');
 
 
 			if (isNewSession && !sessionResult.trusted) {
@@ -873,8 +875,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					{ status: session.object.status, workspace: session.object.workspace, createdPullRequestUrl: session.object.createdPullRequestUrl },
 					token,
 				);
-				this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: sdkSessionId })
-					.catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
+				if (shouldRefreshSessionItem) {
+					this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: sdkSessionId })
+						.catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
+				}
 			}
 			disposables.dispose();
 		}
@@ -887,7 +891,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return { session: undefined, isNewSession, model, agent, trusted };
 		}
 
-		if (isNewSession) {
+		if (isNewSession && request.command !== 'remote') {
 			this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId });
 		}
 

@@ -1037,6 +1037,43 @@ describe('CopilotCLISession', () => {
 		expect(stream.output.join('\n')).toContain('Usage: /remote, /remote on, /remote off');
 	});
 
+	it('accepts /remote arguments when the prompt includes the slash command text', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+		Object.defineProperty(session, '_missionControlApiClient', {
+			value: { submitEvents: vi.fn(async () => true), deleteSession: vi.fn(async () => undefined) },
+			configurable: true,
+		});
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ command: 'remote', prompt: '/remote off' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(stream.output.join('\n')).toContain('Remote control disabled.');
+	});
+
 	it('forwards session.idle to Mission Control so remote running state clears', async () => {
 		const session = await createSession();
 		const remoteState = {
