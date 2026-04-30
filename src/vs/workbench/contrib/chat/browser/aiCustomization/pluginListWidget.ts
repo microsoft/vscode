@@ -984,11 +984,15 @@ export class PluginListWidget extends Disposable {
 		const entries: IPluginListEntry[] = [];
 		let isFirst = true;
 
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteGroups = new Map<string, IPluginRemoteItemEntry[]>();
 		for (const item of this.remoteItems) {
 			const key = item.groupKey ?? 'remote-host';
 			if (key === 'remote-client') {
 				continue; // client-synced items are already shown in "Enabled Locally"
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				continue; // plugin is also locally installed; show it once in "Enabled Locally"
 			}
 			let group = remoteGroups.get(key);
 			if (!group) {
@@ -1039,7 +1043,17 @@ export class PluginListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.remoteItems.filter(item => item.groupKey !== 'remote-client').length + this.installedItems.length;
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
+		const uniqueRemote = this.remoteItems.filter(item => {
+			if (item.groupKey === 'remote-client') {
+				return false;
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				return false;
+			}
+			return true;
+		});
+		return uniqueRemote.length + this.installedItems.length;
 	}
 
 	/**
