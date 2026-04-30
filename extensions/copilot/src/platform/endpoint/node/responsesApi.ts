@@ -302,6 +302,48 @@ interface RawMessagesToResponseAPIOptions {
 	readonly modeChanged?: boolean;
 }
 
+
+function hasMessageShape(item: unknown): item is { role: string; content: unknown } {
+	return !!item
+		&& typeof item === "object"
+		&& typeof (item as { role?: unknown }).role === "string"
+		&& "content" in item;
+}
+
+function hasEmptyType(item: unknown): boolean {
+	if (!item || typeof item !== "object") {
+		return true;
+	}
+	const type = (item as { type?: unknown }).type;
+	return typeof type !== "string" || type.trim().length === 0;
+}
+
+function normalizeResponsesInputItem<T extends { type?: unknown }>(
+	item: T
+): T | (T & { type: "message" }) | undefined {
+	if (!item || typeof item !== "object") {
+		return undefined;
+	}
+	if (!hasEmptyType(item)) {
+		return item;
+	}
+	if (hasMessageShape(item)) {
+		return {
+			...item,
+			type: "message"
+		};
+	}
+	return undefined;
+}
+
+function normalizeResponsesInput<T extends { type?: unknown }>(
+	input: readonly T[]
+): Array<T | (T & { type: "message" })> {
+	return input
+		.map(normalizeResponsesInputItem)
+		.filter((item): item is T | (T & { type: "message" }) => !!item);
+}
+
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
 	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
@@ -442,7 +484,8 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		}
 	}
 
-	return { input, previous_response_id: previousResponseId };
+	// Defensive normalization: ensure no empty or missing type fields
+	return { input: normalizeResponsesInput(input), previous_response_id: previousResponseId };
 }
 
 /**
