@@ -21,6 +21,7 @@ import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
@@ -367,6 +368,7 @@ export class ChatStatusDashboard extends DomWidget {
 			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
 			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));
 			statusEl.append(...renderLabelWithIcons(item.description));
+			statusEl.title = stripIcons(item.description).trim();
 
 			const collapsibleContent = this.element.appendChild($('div.collapsible-content'));
 			const collapsibleInner = collapsibleContent.appendChild($('div.collapsible-inner'));
@@ -414,6 +416,7 @@ export class ChatStatusDashboard extends DomWidget {
 					// Update status in header (plain text + icons only)
 					statusEl.textContent = '';
 					statusEl.append(...renderLabelWithIcons(e.entry.description));
+					statusEl.title = stripIcons(e.entry.description).trim();
 
 					// Re-render detail content
 					const newStore = new DisposableStore();

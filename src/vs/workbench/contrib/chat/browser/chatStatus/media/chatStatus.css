@@ -55,6 +55,11 @@
 	align-items: center;
 }
 
+.chat-status-bar-entry-tooltip .collapsible-label {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-status {
 	margin-left: auto;
 	font-size: 12px;
@@ -63,9 +68,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	display: flex;
-	align-items: center;
-	gap: 4px;
+	min-width: 0;
 }
 
 .chat-status-bar-entry-tooltip .section-description {
@@ -307,7 +310,7 @@
 }
 
 .chat-status-bar-entry-tooltip .model-selection .model-text {
-	flex-shrink: 0;
+	flex: 1;
 }
 
 .chat-status-bar-entry-tooltip .model-selection .model-action-bar {
@@ -320,8 +323,15 @@
 
 /* SelectBox containers */
 
+.chat-status-bar-entry-tooltip .model-select-container,
+.chat-status-bar-entry-tooltip .suggest-option-select-container {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
 .chat-status-bar-entry-tooltip .model-select-container .monaco-select-box,
 .chat-status-bar-entry-tooltip .suggest-option-select-container .monaco-select-box {
+	width: auto;
 	padding: 2px 23px 2px 8px;
 	height: 22px;
 	font-size: 12px;
@@ -337,7 +347,7 @@
 }
 
 .chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-text {
-	flex-shrink: 0;
+	flex: 1;
 }
 
 .chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar {
