@@ -423,9 +423,12 @@ export class ChatStatusDashboard extends DomWidget {
 					sectionDisposables.value = newStore;
 
 					if (detailEl) {
-						detailEl.textContent = '';
 						if (e.entry.detail) {
+							detailEl.textContent = '';
 							this.renderTextPlus(detailEl, e.entry.detail, newStore);
+						} else {
+							detailEl.remove();
+							detailEl = undefined;
 						}
 					} else if (e.entry.detail) {
 						detailEl = collapsibleInner.appendChild($('div.section-detail'));
@@ -433,16 +436,25 @@ export class ChatStatusDashboard extends DomWidget {
 					}
 
 					// Re-render Learn More link if needed
+					const updatedLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
+					const updatedLinkDesc = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
 					if (descriptionEl) {
-						const updatedLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
-						const updatedLinkDesc = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
-						descriptionEl.textContent = '';
 						if (updatedLink) {
+							descriptionEl.textContent = '';
 							const descText = updatedLinkDesc
 								? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
 								: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
 							this.renderTextPlus(descriptionEl, descText, newStore);
+						} else {
+							descriptionEl.remove();
+							descriptionEl = undefined;
 						}
+					} else if (updatedLink) {
+						descriptionEl = collapsibleInner.insertBefore($('div.section-description'), detailEl ?? null);
+						const descText = updatedLinkDesc
+							? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
+							: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
+						this.renderTextPlus(descriptionEl, descText, newStore);
 					}
 				}
 			}));
