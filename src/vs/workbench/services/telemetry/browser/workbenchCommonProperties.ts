@@ -70,7 +70,7 @@ export function resolveWorkbenchCommonProperties(
 	result['common.platform'] = Platform.PlatformToString(Platform.platform);
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = productIdentifier ?? 'web';
-	// __GDPR__COMMON__ "tscodeVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "gitVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// test-workbench_change start
 	if (productService?.gitVersion) {
 		result['tscode.version'] = productService.gitVersion;
