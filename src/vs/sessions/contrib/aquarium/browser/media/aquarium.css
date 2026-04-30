@@ -139,12 +139,12 @@
 /* Each strip is a clipped vertical slice of the VS Code logo; staggered
  * translateY produces a sine wave traveling along the body (the swim).
  * Front strips (--agents-aquarium-strip-index ~ 0) keep the species color;
- * back strips mix toward white for depth shading. 720ms / 10 strips approximately 72ms
+ * back strips mix toward white for depth shading. 720ms / 8 strips = 90ms
  * phase delay; negative delay starts each strip mid-cycle. */
 .agents-aquarium-fish-strip {
 	color: color-mix(in srgb, currentColor, white calc(var(--agents-aquarium-strip-index, 0) * 4%));
 	animation: agents-aquarium-body-wave 720ms linear infinite;
-	animation-delay: calc(var(--agents-aquarium-strip-index, 0) * -72ms);
+	animation-delay: calc(var(--agents-aquarium-strip-index, 0) * -90ms);
 }
 
 /* 5-keyframe sine approximation; linear timing lands closer to a true

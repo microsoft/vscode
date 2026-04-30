@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSCODE_LOGO_PATH } from './vscodeLogoPath.js';
+
 /**
  * VS Code logo "fish" used by the Agents window aquarium. Each fish is a small
  * SVG element styled with `color:` so the silhouette inherits via `currentColor`,
  * with animated body strips providing the swimming motion.
  */
-
-/** VS Code logo silhouette path (extracted from sessions/contrib/chat/browser/media/vscode-icon.svg). */
-const VSCODE_LOGO_PATH = 'M65.566 89.4264C66.889 89.9418 68.3976 89.9087 69.7329 89.2662L87.0271 80.9446C88.8444 80.0701 90 78.231 90 76.2132V19.7872C90 17.7695 88.8444 15.9303 87.0271 15.0559L69.7329 6.73395C67.9804 5.89069 65.9295 6.09724 64.3914 7.21543C64.1716 7.37517 63.9624 7.55352 63.7659 7.75007L30.6583 37.9548L16.2372 27.0081C14.8948 25.9891 13.0171 26.0726 11.7702 27.2067L7.14495 31.4141C5.61986 32.8014 5.61811 35.2007 7.14117 36.5902L19.6476 48.0001L7.14117 59.4099C5.61811 60.7995 5.61986 63.1988 7.14495 64.5861L11.7702 68.7934C13.0171 69.9276 14.8948 70.0111 16.2372 68.9921L30.6583 58.0453L63.7659 88.2501C64.2897 88.7741 64.9046 89.1688 65.566 89.4264ZM69.0128 28.9311L43.8917 48.0001L69.0128 67.069V28.9311Z';
 
 /** The three VS Code release channel colors used as fish "species". */
 export const enum FishSpecies {
@@ -118,7 +117,7 @@ export class Fish {
 	 * Write the current position/facing to the DOM.
 	 *
 	 * @param deltaSeconds seconds since last frame, used to ease facing toward
-	 *           velocity direction. Pass 0 for the initial paint.
+	 * velocity direction. Pass 0 for the initial paint.
 	 */
 	applyTransform(deltaSeconds: number = 0): void {
 		// Translate is on the outer element. Sub-pixel precision (2 decimals)
@@ -146,11 +145,9 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
  * Number of vertical strips the body is sliced into. More strips = smoother
- * wave (smaller per-strip phase delta), fewer visible seams. Kept moderate
- * because each strip = one path + one CSS animation per fish; with 50 fish
- * this contributes meaningfully to layer/animation work.
+ * wave, but each strip is one `<use>` node and one CSS animation per fish.
  */
-const NUM_BODY_STRIPS = 10;
+const NUM_BODY_STRIPS = 8;
 
 /** The body's bounding range in the original logo's user units. */
 const BODY_X_START = 5;
@@ -188,19 +185,9 @@ function ensureSharedDefs(targetDocument: Document): void {
 	container.style.overflow = 'hidden';
 	container.style.pointerEvents = 'none';
 
-	// One `<symbol>` containing the VS Code logo path. All strips reference
-	// this via `<use href="#agents-aquarium-fish-logo">`, so the path data
-	// is parsed exactly ONCE per session instead of FISH_COUNT * NUM_STRIPS.
-	const symbol = targetDocument.createElementNS(SVG_NS, 'symbol');
-	symbol.setAttribute('id', SHARED_LOGO_SYMBOL_ID);
-	symbol.setAttribute('viewBox', '0 0 96 96');
-	symbol.setAttribute('overflow', 'visible');
-	const logoPath = targetDocument.createElementNS(SVG_NS, 'path');
-	logoPath.setAttribute('d', VSCODE_LOGO_PATH);
-	logoPath.setAttribute('fill', 'currentColor');
-	logoPath.setAttribute('fill-rule', 'evenodd');
-	symbol.appendChild(logoPath);
-	container.appendChild(symbol);
+	// All strips reference this symbol via `<use href="#agents-aquarium-fish-logo">`,
+	// so the path data is parsed exactly ONCE per session instead of FISH_COUNT * NUM_STRIPS.
+	container.appendChild(createVSCodeLogoSymbol(targetDocument));
 
 	const defs = targetDocument.createElementNS(SVG_NS, 'defs');
 	for (let i = 0; i < NUM_BODY_STRIPS; i++) {
@@ -220,6 +207,21 @@ function ensureSharedDefs(targetDocument: Document): void {
 	container.appendChild(defs);
 	targetDocument.body.appendChild(container);
 	sharedDefsByDocument.set(targetDocument, container);
+}
+
+function createVSCodeLogoSymbol(targetDocument: Document): SVGSymbolElement {
+	const symbol = targetDocument.createElementNS(SVG_NS, 'symbol');
+	symbol.setAttribute('id', SHARED_LOGO_SYMBOL_ID);
+	symbol.setAttribute('viewBox', '0 0 96 96');
+	symbol.setAttribute('overflow', 'visible');
+
+	const logoPath = targetDocument.createElementNS(SVG_NS, 'path');
+	logoPath.setAttribute('d', VSCODE_LOGO_PATH);
+	logoPath.setAttribute('fill', 'currentColor');
+	logoPath.setAttribute('fill-rule', 'evenodd');
+	symbol.appendChild(logoPath);
+
+	return symbol;
 }
 
 /**

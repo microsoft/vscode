@@ -26,17 +26,24 @@ const FISH_MIN_SIZE = 22;
 const FISH_MAX_SIZE = 48;
 
 const SCATTER_RADIUS = 145;
+const SCATTER_RADIUS_SQ = SCATTER_RADIUS * SCATTER_RADIUS;
 const EAT_RADIUS = 14;
 const FOOD_DETECT_RADIUS = 160;
+const FOOD_DETECT_RADIUS_SQ = FOOD_DETECT_RADIUS * FOOD_DETECT_RADIUS;
 const MAX_FOOD = 12;
 /** Soft margin where fish start to turn back. */
 const WALL_MARGIN = 36;
 
 const BASE_SPEED = 24;
 const MAX_SPEED = 50;
+const MAX_SPEED_SQ = MAX_SPEED * MAX_SPEED;
 const PANIC_MAX_SPEED = 240;
+const PANIC_MAX_SPEED_SQ = PANIC_MAX_SPEED * PANIC_MAX_SPEED;
 const PANIC_DURATION_MS = 600;
 const EXIT_DURATION_MS = 900;
+
+/** Decorative effect: 30Hz keeps motion smooth enough while halving JS work. */
+const ACTIVE_FRAME_INTERVAL_MS = 1000 / 30;
 
 /** Per-fish per-second probability of starting a spontaneous burst. */
 const DART_RATE_PER_SECOND = 0.04;
@@ -475,7 +482,13 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	const tick = () => {
 		rafDisposable = undefined;
 		const now = performance.now();
-		const dtMs = Math.min(now - lastFrame, 100); // clamp big stalls
+		const elapsedMs = now - lastFrame;
+		if (elapsedMs < ACTIVE_FRAME_INTERVAL_MS) {
+			rafDisposable = scheduleAtNextAnimationFrame(targetWindow, tick);
+			return;
+		}
+
+		const dtMs = Math.min(elapsedMs, 100); // clamp big stalls
 		const dt = dtMs / 1000;
 		lastFrame = now;
 
@@ -554,7 +567,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			const mouseDeltaX = centerX - mouseX;
 			const mouseDeltaY = centerY - mouseY;
 			const mouseDistSq = mouseDeltaX * mouseDeltaX + mouseDeltaY * mouseDeltaY;
-			if (mouseDistSq < SCATTER_RADIUS * SCATTER_RADIUS) {
+			if (mouseDistSq < SCATTER_RADIUS_SQ) {
 				const mouseDist = Math.max(Math.sqrt(mouseDistSq), 1);
 				const force = (1 - mouseDist / SCATTER_RADIUS) * 1100;
 				accelX += (mouseDeltaX / mouseDist) * force;
@@ -564,7 +577,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 
 			// Seek nearest food within FOOD_DETECT_RADIUS
 			let nearestPellet: IFoodPellet | undefined;
-			let nearestDistSq = FOOD_DETECT_RADIUS * FOOD_DETECT_RADIUS;
+			let nearestDistSq = FOOD_DETECT_RADIUS_SQ;
 			for (const pellet of food) {
 				const foodDeltaX = pellet.positionX - centerX;
 				const foodDeltaY = pellet.positionY - centerY;
@@ -589,7 +602,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 
 			const speedSq = f.velocityX * f.velocityX + f.velocityY * f.velocityY;
 			const maxSpeed = now < f.panicUntil ? PANIC_MAX_SPEED : MAX_SPEED;
-			if (speedSq > maxSpeed * maxSpeed) {
+			const maxSpeedSq = now < f.panicUntil ? PANIC_MAX_SPEED_SQ : MAX_SPEED_SQ;
+			if (speedSq > maxSpeedSq) {
 				const speed = Math.sqrt(speedSq);
 				f.velocityX = (f.velocityX / speed) * maxSpeed;
 				f.velocityY = (f.velocityY / speed) * maxSpeed;
