@@ -1254,10 +1254,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		observedSubagentToolIds: Set<string>,
 	): void {
 		const initial = part$.get().toolCall;
-		// Subagent observers always treat tool calls as server-driven — even if
-		// `toolClientId` happens to match the local client, we don't want to
-		// invoke the tool locally a second time. Legacy behavior was the same.
-		if (opts.subAgentInvocationId === undefined && initial.toolClientId === this._config.connection.clientId) {
+		if (initial.toolClientId === this._config.connection.clientId) {
 			this._setupClientToolCall(initial, part$, store, opts);
 		} else {
 			this._setupServerToolCall(initial, part$, store, opts, observedSubagentToolIds);
@@ -1302,7 +1299,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			observedSubagentToolIds.add(toolCallId);
-			this._observeSubagentSession(opts.backendSession, toolCallId, opts.sink, store, observedSubagentToolIds);
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, observedSubagentToolIds);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -1877,6 +1874,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the caller disposes `disposables`.
 	 */
 	private _observeSubagentSession(
+		sessionResource: URI,
 		parentSession: URI,
 		parentToolCallId: string,
 		emitProgress: (parts: IChatProgress[]) => void,
@@ -1918,7 +1916,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				(turnId, _t$, turnStore) => {
 					turnStore.add(this._observeTurn({
 						backendSession: childUri,
-						sessionResource: childUri,
+						sessionResource,
 						turnId,
 						sink: emitProgress,
 						cancellationToken: cts.token,

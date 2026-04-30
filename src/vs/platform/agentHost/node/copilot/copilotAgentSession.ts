@@ -150,7 +150,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[] }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined }>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -206,6 +206,8 @@ export class CopilotAgentSession extends Disposable {
 	private _currentMarkdownPartId: string | undefined;
 	/** Current reasoning response part ID for the active turn. Reset on each new turn. */
 	private _currentReasoningPartId: string | undefined;
+	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
+	private _hasReportedActivity = false;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -612,6 +614,11 @@ export class CopilotAgentSession extends Disposable {
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.toolName ?? request.kind;
+			// Forward the tool's parentToolCallId (if any) so the host can
+			// route the resulting SessionToolCallReady to the correct
+			// subagent session — without it the action would land on the
+			// parent session, which has no matching SessionToolCallStart.
+			const parentToolCallId = this._activeToolCalls.get(toolCallId)?.parentToolCallId;
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				session: this.sessionUri,
@@ -627,6 +634,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				parentToolCallId,
 			});
 
 			const approved = await deferred.p;
@@ -992,6 +1000,21 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
+				// The CLI uses the `report_intent` tool to signal what the
+				// agent is currently doing. Surface this as session activity
+				// so the UI can show a live "what is the agent doing now?"
+				// hint while the turn is in progress.
+				if (e.data.toolName === 'report_intent') {
+					const intent = (e.data.arguments as { intent?: unknown } | undefined)?.intent;
+					if (typeof intent === 'string' && intent.length > 0) {
+						this._hasReportedActivity = true;
+						this._emitAction({
+							type: ActionType.SessionActivityChanged,
+							session: this._protocolSession(),
+							activity: intent,
+						});
+					}
+				}
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
@@ -1007,7 +1030,7 @@ export class CopilotAgentSession extends Disposable {
 				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId: e.data.parentToolCallId });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
@@ -1124,6 +1147,17 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			// Clear any in-progress activity description set during the
+			// turn (e.g. via the `report_intent` tool) — the agent is no
+			// longer doing anything once the turn completes.
+			if (this._hasReportedActivity) {
+				this._hasReportedActivity = false;
+				this._emitAction({
+					type: ActionType.SessionActivityChanged,
+					session: this._protocolSession(),
+					activity: undefined,
+				});
+			}
 			this._emitAction({
 				type: ActionType.SessionTurnComplete,
 				session: this._protocolSession(),

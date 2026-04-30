@@ -334,6 +334,7 @@ export class AgentHostStateManager extends Disposable {
 			const changes: Partial<SessionSummary> = {};
 			if (current.title !== lastNotified.title) { changes.title = current.title; }
 			if (current.status !== lastNotified.status) { changes.status = current.status; }
+			if (current.activity !== lastNotified.activity) { changes.activity = current.activity; }
 			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 			if (current.project !== lastNotified.project) { changes.project = current.project; }
 			if (current.model !== lastNotified.model) { changes.model = current.model; }
