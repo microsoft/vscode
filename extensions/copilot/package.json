@@ -2645,6 +2645,17 @@
 				"enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
 			},
 			{
+				"command": "github.copilot.chat.openTraces",
+				"title": "Open Agent Traces View",
+				"category": "Chat",
+				"icon": "$(graph)"
+			},
+			{
+				"command": "github.copilot.chat.openTrace",
+				"title": "Open Trace…",
+				"category": "Chat"
+			},
+			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
 				"category": "Copilot"

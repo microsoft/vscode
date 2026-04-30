@@ -33,6 +33,24 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			this._logService.trace('[OTel] Instrumentation disabled');
 		}
 
+		// Always-on SQLite persistence for the trace viewer UI.
+		// When NodeOTelService is active with dbSpanExporter.enabled=true, the SDK-side
+		// SqliteSpanExporter already writes via BSP. This subscription is the InMemoryOTelService
+		// path (default config) — InMemoryOTelService fires onDidCompleteSpan synchronously
+		// and we write through to SQLite so the trace viewer always has data.
+		// The NodeOTelService also fires onDidCompleteSpan for in-memory tracking; to avoid
+		// duplicate writes when dbSpanExporter is enabled, skip the subscription in that case.
+		if (!(this._otelService.config.enabled && this._otelService.config.dbSpanExporter)) {
+			this._register(this._otelService.onDidCompleteSpan(span => {
+				try {
+					this._sqliteStore.insertSpan(span);
+				} catch (err) {
+					// Best-effort persistence — don't let DB failures affect agent execution.
+					this._logService.trace(`[OTel] Trace viewer SQLite write failed: ${String(err)}`);
+				}
+			}));
+		}
+
 		this._fireActivatedTelemetry();
 
 		this._register(vscode.commands.registerCommand('github.copilot.chat.otel.flush', async () => {

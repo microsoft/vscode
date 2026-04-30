@@ -41,6 +41,7 @@ import { NotebookFollowCommands } from '../../notebook/vscode-node/followActions
 import { CopilotDebugCommandContribution } from '../../onboardDebug/vscode-node/copilotDebugCommandContribution';
 import { OnboardTerminalTestsContribution } from '../../onboardDebug/vscode-node/onboardTerminalTestsContribution';
 import { OTelContrib } from '../../otel/vscode-node/otelContrib';
+import { OTelViewerContrib } from '../../otelViewer/vscode-node/otelViewerContrib';
 import { PowerStateLogger } from '../../power/vscode-node/powerStateLogger';
 import { DebugCommandsContribution } from '../../prompt/vscode-node/debugCommands';
 import { RenameSuggestionsContrib } from '../../prompt/vscode-node/renameSuggestions';
@@ -102,6 +103,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(ChatSessionsContrib),
 	asContributionFactory(GitHubMcpContrib),
 	asContributionFactory(OTelContrib),
+	asContributionFactory(OTelViewerContrib),
 	asContributionFactory(SessionStoreTracker),
 	asContributionFactory(RemoteSessionExporter),
 ];

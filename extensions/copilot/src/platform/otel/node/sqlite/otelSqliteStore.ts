@@ -100,6 +100,24 @@ export interface SessionRow {
 	total_cached_tokens: number;
 }
 
+/** Aggregated row representing a single trace, used by the trace viewer list. */
+export interface TraceRow {
+	trace_id: string;
+	root_name: string | null;
+	agent_name: string | null;
+	model: string | null;
+	session_id: string | null;
+	started_at: number;
+	ended_at: number;
+	duration_ms: number;
+	span_count: number;
+	error_count: number;
+	llm_calls: number;
+	tool_calls: number;
+	total_input_tokens: number;
+	total_output_tokens: number;
+}
+
 // ── Store implementation ────────────────────────────────────────────────────────
 
 /**
@@ -246,6 +264,36 @@ export class OTelSqliteStore {
 		return this._ensureDb().prepare(
 			'SELECT * FROM sessions WHERE started_at >= ? ORDER BY started_at DESC'
 		).all(sinceMs) as unknown as SessionRow[];
+	}
+
+	/**
+	 * List all traces with aggregated metrics, ordered by most recent first.
+	 * Root span (the one with no parent in the trace) provides the name/agent.
+	 */
+	getTraces(limit?: number): TraceRow[] {
+		const sql = `
+			SELECT
+				s.trace_id AS trace_id,
+				(SELECT name FROM spans WHERE trace_id = s.trace_id AND parent_span_id IS NULL ORDER BY start_time_ms LIMIT 1) AS root_name,
+				MAX(s.agent_name) AS agent_name,
+				MAX(s.response_model) AS model,
+				MAX(COALESCE(s.conversation_id, s.chat_session_id)) AS session_id,
+				MIN(s.start_time_ms) AS started_at,
+				MAX(s.end_time_ms) AS ended_at,
+				MAX(s.end_time_ms) - MIN(s.start_time_ms) AS duration_ms,
+				COUNT(*) AS span_count,
+				SUM(CASE WHEN s.status_code = 2 THEN 1 ELSE 0 END) AS error_count,
+				SUM(CASE WHEN s.operation_name = 'chat' THEN 1 ELSE 0 END) AS llm_calls,
+				SUM(CASE WHEN s.operation_name = 'execute_tool' THEN 1 ELSE 0 END) AS tool_calls,
+				SUM(CASE WHEN s.operation_name = 'chat' THEN s.input_tokens ELSE 0 END) AS total_input_tokens,
+				SUM(CASE WHEN s.operation_name = 'chat' THEN s.output_tokens ELSE 0 END) AS total_output_tokens
+			FROM spans s
+			GROUP BY s.trace_id
+			ORDER BY started_at DESC
+			${limit ? 'LIMIT ?' : ''}
+		`;
+		const stmt = this._ensureDb().prepare(sql);
+		return (limit ? stmt.all(limit) : stmt.all()) as unknown as TraceRow[];
 	}
 
 	cleanup(maxAgeMs: number = DEFAULT_MAX_AGE_MS): number {
