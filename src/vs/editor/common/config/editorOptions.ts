@@ -752,6 +752,11 @@ export interface IEditorOptions {
 	 */
 	trimWhitespaceOnDelete?: boolean;
 	/**
+	 * Configuration options for case-transformation actions
+	 * (Transform to Uppercase / Lowercase / Title Case / Snake Case / Camel Case / Pascal Case / Kebab Case).
+	 */
+	transformCase?: ITransformCaseOptions;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -1540,6 +1545,57 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, IEditorComm
 		return {
 			insertSpace: boolean(input.insertSpace, this.defaultValue.insertSpace),
 			ignoreEmptyLines: boolean(input.ignoreEmptyLines, this.defaultValue.ignoreEmptyLines),
+		};
+	}
+}
+
+//#endregion
+
+//#region transformCase
+
+/**
+ * Configuration options for editor case-transformation actions
+ * (Transform to Uppercase / Lowercase / Title Case / Snake Case / Camel Case / Pascal Case / Kebab Case).
+ */
+export interface ITransformCaseOptions {
+	/**
+	 * When `true`, ranges classified as strings or comments by the active language's
+	 * tokenizer are left untouched by the case-transformation actions.
+	 * Defaults to `false` for backwards compatibility.
+	 */
+	skipStringsAndComments?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type EditorTransformCaseOptions = Readonly<Required<ITransformCaseOptions>>;
+
+class EditorTransformCase extends BaseEditorOption<EditorOption.transformCase, ITransformCaseOptions, EditorTransformCaseOptions> {
+
+	constructor() {
+		const defaults: EditorTransformCaseOptions = {
+			skipStringsAndComments: false,
+		};
+		super(
+			EditorOption.transformCase, 'transformCase', defaults,
+			{
+				'editor.transformCase.skipStringsAndComments': {
+					type: 'boolean',
+					default: defaults.skipStringsAndComments,
+					description: nls.localize('transformCase.skipStringsAndComments', "Controls whether the case-transformation actions (Transform to Uppercase, Lowercase, Title Case, Snake Case, Camel Case, Pascal Case, Kebab Case) leave ranges classified as strings or comments by the active language's tokenizer untouched.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: unknown): EditorTransformCaseOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as Unknown<ITransformCaseOptions>;
+		return {
+			skipStringsAndComments: boolean(input.skipStringsAndComments, this.defaultValue.skipStringsAndComments),
 		};
 	}
 }
@@ -5911,6 +5967,7 @@ export const enum EditorOption {
 	suggestSelection,
 	tabCompletion,
 	tabIndex,
+	transformCase,
 	trimWhitespaceOnDelete,
 	unicodeHighlighting,
 	unusualLineTerminators,
@@ -6721,6 +6778,7 @@ export const EditorOptions = {
 		EditorOption.tabIndex, 'tabIndex',
 		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
+	transformCase: register(new EditorTransformCase()),
 	trimWhitespaceOnDelete: register(new EditorBooleanOption(
 		EditorOption.trimWhitespaceOnDelete, 'trimWhitespaceOnDelete', false,
 		{ description: nls.localize('trimWhitespaceOnDelete', "Controls whether the editor will also delete the next line's indentation whitespace when deleting a newline.") }
