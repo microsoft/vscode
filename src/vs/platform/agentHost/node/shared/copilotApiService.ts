@@ -20,7 +20,9 @@ import { IProductService } from '../../../product/common/productService.js';
  * sensitive headers (`Authorization`, `Content-Type`, `X-Request-Id`,
  * `OpenAI-Intent`), so callers cannot override those.
  *
- * `signal` propagates to every fetch call (token mint + the API request).
+ * `signal` propagates to the outgoing API request but **not** to the
+ * shared token mint. The mint is deduped across concurrent callers, so
+ * a single caller's abort must not cancel it for everyone.
  */
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
@@ -104,8 +106,9 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  * - The token cache holds **one** entry. Callers that alternate between two
  *   GitHub tokens will pay a mint round-trip on every alternation; this is
  *   intentional — the agent host is single-tenant in practice.
- * - `AbortSignal` is forwarded to every network call (mint, messages, models)
- *   so cancellation propagates end-to-end.
+ * - `AbortSignal` is forwarded to the outgoing API request (messages, models)
+ *   but **not** to the shared token mint, so cancellation propagates to the
+ *   caller's own request without affecting concurrent callers sharing the mint.
  *
  * ## Error semantics
  *
@@ -453,7 +456,7 @@ export class CopilotApiService implements ICopilotApiService {
 			expiresAt,
 		};
 
-		this._logService.debug('[CopilotApiService] Token minted, expires_at:', expiresAt);
+		this._logService.debug('[CopilotApiService] Token minted, cacheValidUntil:', expiresAt, 'serverExpiresAt:', envelope.expires_at);
 
 		return envelope.token;
 	}
