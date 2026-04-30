@@ -773,7 +773,7 @@ export class ChatStatusDashboard extends DomWidget {
 			const overriddenHint = globalSetting.appendChild($('span.setting-overridden'));
 			const updateOverriddenHint = () => {
 				const obj = this.configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
-				const hasOverride = modeId && isObject(obj) && typeof obj[modeId] !== 'undefined';
+				const hasOverride = modeId && isObject(obj) && typeof obj[modeId] !== 'undefined' && Boolean(obj[modeId]) !== Boolean(obj['*']);
 				overriddenHint.textContent = hasOverride ? localize('settings.overridden', "(overridden)") : '';
 			};
 			updateOverriddenHint();

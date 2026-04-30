@@ -82,6 +82,8 @@ export interface IWorkspaceChunkSearchService extends IDisposable {
 	triggerIndexing(trigger: BuildIndexTriggerReason, onProgress: (message: string) => void, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<true, TriggerIndexingError>>;
 
 	deleteExternalIngestWorkspaceIndex(): Promise<void>;
+
+	getDiagnosticsDump(): AsyncIterable<string>;
 }
 
 
@@ -212,6 +214,15 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		}
 		return impl.deleteExternalIngestWorkspaceIndex();
 	}
+
+	async *getDiagnosticsDump(): AsyncIterable<string> {
+		const impl = await this.tryInit(true);
+		if (!impl) {
+			yield 'Workspace chunk search service not available.';
+			return;
+		}
+		yield* impl.getDiagnosticsDump();
+	}
 }
 
 class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceChunkSearchService {
@@ -279,6 +290,10 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 		return this._codeSearchChunkSearch.deleteExternalIngestWorkspaceIndex(
 			new TelemetryCorrelationId('WorkspaceChunkSearchService::deleteExternalIngestWorkspaceIndex'),
 			CancellationToken.None);
+	}
+
+	getDiagnosticsDump(): AsyncIterable<string> {
+		return this._codeSearchChunkSearch.getDiagnosticsDump();
 	}
 
 	async searchFileChunks(
@@ -634,6 +649,9 @@ export class NullWorkspaceChunkSearchService implements IWorkspaceChunkSearchSer
 	}
 	deleteExternalIngestWorkspaceIndex(): Promise<void> {
 		return Promise.resolve();
+	}
+	async *getDiagnosticsDump(): AsyncIterable<string> {
+		yield 'Workspace chunk search service not available.';
 	}
 	dispose(): void {
 		// noop
