@@ -190,6 +190,10 @@ export interface ICustomizationItem {
 	readonly actions?: readonly ICustomizationItemAction[];
 }
 
+export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
+	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
 /**
  * Provider interface for extension-contributed harnesses that supply
  * customization items directly from their SDK.

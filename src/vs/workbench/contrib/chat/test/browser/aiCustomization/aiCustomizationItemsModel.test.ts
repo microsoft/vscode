@@ -11,15 +11,17 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,6 +38,7 @@ suite('AICustomizationItemsModel', () => {
 		let providerA_didChange: Emitter<void>;
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
+		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider): IHarnessDescriptor {
 			return {
@@ -69,6 +72,7 @@ suite('AICustomizationItemsModel', () => {
 
 			activeHarness = observableValue('activeHarness', 'A');
 			availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptorA, descriptorB]);
+			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
 			instaService = workbenchInstantiationService({}, disposables);
 
@@ -113,7 +117,7 @@ suite('AICustomizationItemsModel', () => {
 			});
 
 			instaService.stub(IAgentPluginService, {
-				plugins: observableValue('test', []),
+				plugins,
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
 					setEnabled: () => { },
@@ -121,6 +125,21 @@ suite('AICustomizationItemsModel', () => {
 				},
 			});
 		});
+
+		function createLocalPlugin(name: string): IAgentPlugin {
+			return {
+				uri: URI.parse(`plugin-test://${name}`),
+				label: name,
+				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
+				remove: () => { },
+				hooks: observableValue('pluginHooks', []),
+				commands: observableValue('pluginCommands', []),
+				skills: observableValue('pluginSkills', []),
+				agents: observableValue('pluginAgents', []),
+				instructions: observableValue('pluginInstructions', []),
+				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+			};
+		}
 
 		teardown(() => disposables.dispose());
 
@@ -189,6 +208,134 @@ suite('AICustomizationItemsModel', () => {
 
 			const sourceA2 = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA1, sourceA2);
+		});
+
+		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/my-plugin/skills/my-skill/SKILL.md'),
+				type: PromptsType.skill,
+				name: 'My Skill',
+				storage: PromptsStorage.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				name: item.name,
+				storage: item.storage,
+			})), [{
+				name: 'My Skill',
+				storage: PromptsStorage.plugin,
+			}]);
+		});
+
+		test('preserves provider-supplied builtin storage when groupKey is omitted', async () => {
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/builtin/skills/github/SKILL.md'),
+				type: PromptsType.skill,
+				name: 'Built-in Skill',
+				storage: BUILTIN_STORAGE as unknown as PromptsStorage,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				name: item.name,
+				storage: item.storage,
+				groupKey: item.groupKey,
+				isBuiltin: item.isBuiltin,
+			})), [{
+				name: 'Built-in Skill',
+				storage: BUILTIN_STORAGE,
+				groupKey: BUILTIN_STORAGE,
+				isBuiltin: true,
+			}]);
+		});
+
+		test('plugin count includes provider-supplied plugin items', async () => {
+			providerA_items = [
+				{
+					uri: URI.parse('agent-host://test-authority/plugins/remote-one'),
+					type: 'plugin',
+					name: 'Remote One',
+					storage: PromptsStorage.plugin,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: undefined,
+				},
+				{
+					uri: URI.parse('agent-host://test-authority/plugins/remote-two'),
+					type: AICustomizationManagementSection.Plugins,
+					name: 'Remote Two',
+					storage: PromptsStorage.plugin,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: undefined,
+				},
+				{
+					uri: URI.parse('agent-host://test-authority/plugins/remote-two/skills/my-skill/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'My Skill',
+					storage: PromptsStorage.plugin,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('agent-host://test-authority/plugins/local-synced'),
+					type: 'plugin',
+					name: 'Local Synced',
+					storage: PromptsStorage.plugin,
+					groupKey: 'remote-client',
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: undefined,
+				},
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+
+			assert.strictEqual(count.get(), 2);
+		});
+
+		test('local plugin changes update plugin count without refetching provider customizations', async () => {
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/remote-one'),
+				type: 'plugin',
+				name: 'Remote One',
+				storage: PromptsStorage.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			const callsAfterInitialCount = providerA_callCount;
+
+			plugins.set([createLocalPlugin('local-one')], undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				count: count.get(),
+				providerA_callCount,
+			}, {
+				count: 2,
+				providerA_callCount: callsAfterInitialCount,
+			});
 		});
 	});
 });

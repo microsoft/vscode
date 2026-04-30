@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -14,7 +15,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItemProvider, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -24,8 +25,10 @@ import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomi
 /**
  * The set of sections whose items are sourced from the customization
  * harness pipeline (extension-contributed providers, sync providers,
- * and the prompts-service fallback). McpServers / Plugins / Models
- * have their own dedicated services and are not modeled here.
+ * and the prompts-service fallback). McpServers / Models have their
+ * own dedicated services and are not modeled here. Plugins keep a
+ * dedicated count observable because remote harnesses can contribute
+ * plugin rows through the same provider pipeline.
  */
 export const ITEMS_MODEL_SECTIONS = [
 	AICustomizationManagementSection.Agents,
@@ -71,6 +74,13 @@ export interface IAICustomizationItemsModel {
 	getCount(section: ItemsModelSection): IObservable<number>;
 
 	/**
+	 * Returns an observable of the Plugins section count. This combines
+	 * locally installed plugins with plugin rows supplied by the active
+	 * customization harness provider.
+	 */
+	getPluginCount(): IObservable<number>;
+
+	/**
 	 * The fallback item provider used when the active descriptor has neither
 	 * an `itemProvider` nor a `syncProvider`. Exposed for the debug report.
 	 */
@@ -104,6 +114,10 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
 	private readonly perSectionPending = new Map<ItemsModelSection, Promise<void>>();
+	private readonly remotePluginCount = observableValue<number>('aiCustomizationRemotePluginCount', 0);
+	private readonly pluginCount = derived(reader => this.agentPluginService.plugins.read(reader).length + this.remotePluginCount.read(reader));
+	private pluginCountObserved = false;
+	private pluginFetchSeq = 0;
 	/**
 	 * Sections that have been observed at least once. The model only fetches on
 	 * demand: first `getItems`/`getCount` for a section triggers an initial fetch,
@@ -118,7 +132,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILabelService labelService: ILabelService,
-		@IAgentPluginService agentPluginService: IAgentPluginService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
@@ -129,7 +143,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			workspaceContextService,
 			workspaceService,
 			labelService,
-			agentPluginService,
+			this.agentPluginService,
 			productService,
 		);
 		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
@@ -179,6 +193,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		return this.perSectionCount.get(section)!;
 	}
 
+	getPluginCount(): IObservable<number> {
+		this.markPluginCountObserved();
+		return this.pluginCount;
+	}
+
 	getActiveItemSource(): IAICustomizationItemSource {
 		return this.getOrCreateSource(this.harnessService.getActiveDescriptor());
 	}
@@ -198,6 +217,14 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		}
 		this.observedSections.add(section);
 		this.refetchSection(section, this.getActiveItemSource());
+	}
+
+	private markPluginCountObserved(): void {
+		if (this.pluginCountObserved || this._store.isDisposed) {
+			return;
+		}
+		this.pluginCountObserved = true;
+		this.refetchPluginCount(this.getActiveItemSource());
 	}
 
 	private getOrCreateSource(descriptor: IHarnessDescriptor): IAICustomizationItemSource {
@@ -232,6 +259,9 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		for (const section of this.observedSections) {
 			this.refetchSection(section, source);
 		}
+		if (this.pluginCountObserved) {
+			this.refetchPluginCount(source);
+		}
 	}
 
 	private refetchSection(section: ItemsModelSection, source: IAICustomizationItemSource): void {
@@ -259,6 +289,34 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			onUnexpectedError(e);
 		});
 		this.perSectionPending.set(section, pending);
+	}
+
+	private refetchPluginCount(source: IAICustomizationItemSource): void {
+		const seq = ++this.pluginFetchSeq;
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const provider = descriptor.itemProvider;
+		const pending = provider
+			? provider.provideChatSessionCustomizations(CancellationToken.None).then(items => {
+				return (items ?? []).filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client').length;
+			})
+			: Promise.resolve(0);
+
+		pending.then(count => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (this.pluginFetchSeq !== seq) {
+				return;
+			}
+			if (this.getActiveItemSource() !== source) {
+				return;
+			}
+			this.remotePluginCount.set(count, undefined);
+		}, e => {
+			if (!this._store.isDisposed) {
+				onUnexpectedError(e);
+			}
+		});
 	}
 }
 

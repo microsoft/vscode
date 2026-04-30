@@ -212,6 +212,7 @@ suite('aiCustomizationListWidget', () => {
 			instaService.stub(IAICustomizationItemsModel, {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
 				getActiveItemSource: () => ({ onDidChange: Event.None, fetchItems: async () => [] }),
 				getPromptsServiceItemProvider: () => ({ onDidChange: Event.None, provideChatSessionCustomizations: async () => undefined }),
 			});
