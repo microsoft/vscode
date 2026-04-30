@@ -364,10 +364,9 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	// When an action handler is registered we intercept clicks via `data-href`, so
 	// preserving the real `href` for the standard "external" link schemes
 	// (`http`, `https`, `mailto`) allows rich-text copy/paste to retain the actual
-	// URL instead of replacing every href in the copied rich text with the URL
-	// `vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/034f571df5/resources/app/out/vs/code/electron-browser/workbench/workbench.html`
-	// which is the result of how Electron rich-text copying resolving the absolute
-	// URL for links with href="".
+	// URL instead of replacing every href in the copied rich text with a URL like
+	// `vscode-file://.../workbench.html`, which is what Electron produces when it
+	// resolves the absolute URL for links with href="" during rich-text copying.
 	const preserveExternalHrefs = !!options.actionHandler;
 
 	// eslint-disable-next-line no-restricted-syntax
