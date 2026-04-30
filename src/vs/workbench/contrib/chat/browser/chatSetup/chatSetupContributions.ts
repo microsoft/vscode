@@ -41,6 +41,7 @@ import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } fro
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -387,7 +388,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.has('updateTitleBar').negate()
+							ContextKeyExpr.has('updateTitleBar').negate(),
+							InEditorZenModeContext.negate(),
 						),
 					}]
 				});

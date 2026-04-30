@@ -460,5 +460,6 @@ import './contrib/welcome/browser/welcome.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
+import './services/vscode/common/vsCodeThemeImporter.js';
 
 //#endregion

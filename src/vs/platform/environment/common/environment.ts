@@ -94,11 +94,26 @@ export interface IEnvironmentService {
 	agentSessionsWorkspace?: URI;
 
 	/**
+	 * When running as the embedded Agents app, the data home of the host
+	 * VS Code application (e.g. `~/.vscode-insiders`). This is the base
+	 * directory from which `hostUserRoamingDataHome`, `hostExtensionsHome`,
+	 * and similar host paths are derived. `undefined` when not running as
+	 * embedded.
+	 */
+	readonly hostUserHome?: URI;
+
+	/**
 	 * When running as the embedded Agents app, the user roaming data home of
 	 * the host VS Code application (i.e. the default profile's settings/User
 	 * directory). `undefined` when not running as embedded.
 	 */
 	readonly hostUserRoamingDataHome?: URI;
+
+	/**
+	 * When running as the embedded Agents app, the extensions directory of
+	 * the host VS Code application. `undefined` when not running as embedded.
+	 */
+	readonly hostExtensionsHome?: URI;
 
 	// --- Policy
 	policyFile?: URI;
