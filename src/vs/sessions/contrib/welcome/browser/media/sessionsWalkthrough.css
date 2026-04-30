@@ -376,7 +376,7 @@
 .sessions-walkthrough-get-started-btn {
 	padding: 8px 24px;
 	border-radius: 6px;
-	border: none;
+	border: 1px solid var(--vscode-button-border, transparent);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	font-size: 13px;
