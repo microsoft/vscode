@@ -252,11 +252,8 @@ export class AgentHostSessionAdapter implements ISession {
 	}
 
 	/**
-	 * Sets activity from a `SessionSummaryChanged` notification. Returns
-	 * `true` iff the description observable changed.
-	 *
-	 * Pass `activity: undefined` together with `hasActivity: false` to
-	 * indicate "no change" and only re-evaluate against `status`.
+	 * Sets the activity text from a `SessionSummaryChanged` notification.
+	 * Returns `true` iff the activity observable changed.
 	 */
 	setActivity(activity: string | undefined): boolean {
 		if (this._activity.get() !== activity) {
