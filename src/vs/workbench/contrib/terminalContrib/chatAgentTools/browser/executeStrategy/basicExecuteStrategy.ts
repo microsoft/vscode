@@ -118,9 +118,22 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
+			// Capture any command that is already executing in the terminal at
+			// strategy entry. We may send ETX (Ctrl+C) below to clear pending
+			// input from a prior interaction, which kills that prior command
+			// and produces an `onCommandFinished` event with exit code 130.
+			// Without this filter, the race below would resolve with the prior
+			// command's finished event before our new command has even started —
+			// causing the new command to be reported as having instantly exited
+			// 130 and cascading to every subsequent command on the same terminal.
+			const staleExecutingCommand = this._commandDetection.executingCommandObject;
+			const onCommandFinishedFiltered = staleExecutingCommand
+				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+				: this._commandDetection.onCommandFinished;
+
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);
 			const onDone = Promise.race([
-				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+				Event.toPromise(onCommandFinishedFiltered, store).then(e => {
 					// When shell integration is basic, it means that the end execution event is
 					// often misfired since we don't have command line verification. Because of this
 					// we make sure the prompt is idle after the end execution event happens.
