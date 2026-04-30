@@ -69,6 +69,13 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
+	/**
+	 * Tracks per-execute() DisposableStores so they can be cleaned up if the
+	 * strategy is disposed mid-flight, AND removed from this collection on
+	 * successful completion to avoid accumulating stale references when
+	 * execute() is invoked many times on the same strategy instance.
+	 */
+	private readonly _executionStores = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -82,9 +89,12 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
-		// Register with strategy lifetime so listeners are cleaned up if
-		// the strategy is disposed while execute() is still running.
-		this._register(store);
+		// Track with strategy lifetime so listeners are cleaned up if the
+		// strategy is disposed while execute() is still running. Using a
+		// dedicated DisposableStore (rather than this._register) lets us
+		// remove the entry on completion so we don't accumulate stale
+		// references across many execute() calls.
+		this._executionStores.add(store);
 
 		try {
 			// If the terminal is already disposed or its pty has already exited
@@ -260,7 +270,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				exitCode,
 			};
 		} finally {
-			store.dispose();
+			this._executionStores.delete(store);
 		}
 	}
 

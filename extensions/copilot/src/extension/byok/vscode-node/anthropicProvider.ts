@@ -16,7 +16,7 @@ import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagemen
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -472,7 +472,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				kind: SpanKind.CLIENT,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
-					[GenAiAttr.PROVIDER_NAME]: 'anthropic',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.ANTHROPIC,
 					[GenAiAttr.REQUEST_MODEL]: model.id,
 					[GenAiAttr.AGENT_NAME]: 'AnthropicBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,

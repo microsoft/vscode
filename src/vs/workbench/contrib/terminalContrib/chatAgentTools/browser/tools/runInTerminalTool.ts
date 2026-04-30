@@ -141,7 +141,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Use ${TerminalToolId.GetTerminalOutput} to check output before then`,
+		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.`,
 		'',
 		'Interactive Input Handling:',
 		'- When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.',
@@ -222,7 +222,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Use ${TerminalToolId.GetTerminalOutput} to check output before then
+- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.
 
 Interactive Input Handling:
 - When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.
@@ -323,7 +323,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: Only set 'timeout' when you want a hard cap on how long the tool tracks the command. Omit it to let the command run to completion. Package installs, builds, and long-running scripts should usually omit the timeout rather than guessing a value.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Use ${TerminalToolId.GetTerminalOutput} to check output before then. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: Only set 'timeout' when you want a hard cap on how long the tool tracks the command. Omit it to let the command run to completion. Package installs, builds, and long-running scripts should usually omit the timeout rather than guessing a value.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,

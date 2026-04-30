@@ -14,7 +14,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -548,7 +548,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
 					[GenAiAttr.AGENT_NAME]: 'copilotcli',
-					[GenAiAttr.PROVIDER_NAME]: 'github',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,

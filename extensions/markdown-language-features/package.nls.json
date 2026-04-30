@@ -1,6 +1,10 @@
 {
 	"displayName": "Markdown Language Features",
 	"description": "Provides rich language support for Markdown.",
+	"configuration.preview": "Preview",
+	"configuration.editor": "Language Features",
+	"configuration.validation": "Validation",
+	"configuration.advanced": "Advanced",
 	"markdown.copyImage.title": "Copy Image",
 	"markdown.openImage.title": "Open Image",
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the Markdown preview. Setting it to `true` creates a `<br>` for newlines inside paragraphs.",
