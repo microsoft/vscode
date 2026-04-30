@@ -14,7 +14,7 @@
 	justify-content: center;
 	background: var(--vscode-editor-background);
 	opacity: 1;
-	transition: opacity 200ms ease-out;
+	transition: opacity 200ms ease-out, background-color 200ms ease-out;
 }
 
 .sessions-walkthrough-overlay .hidden {
