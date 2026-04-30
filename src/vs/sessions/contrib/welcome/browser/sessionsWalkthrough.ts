@@ -484,7 +484,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const preview = append(card, $('div.sessions-walkthrough-theme-preview'));
 		const img = append(preview, $<HTMLImageElement>('img.sessions-walkthrough-theme-preview-img'));
 		img.alt = '';
-		img.src = FileAccess.asBrowserUri(`vs/workbench/contrib/welcomeOnboarding/browser/media/theme-preview-${theme.id}.svg`).toString(true);
+		img.src = FileAccess.asBrowserUri(`vs/sessions/contrib/welcome/browser/media/themePreviews/theme-preview-${theme.id}.svg`).toString(true);
 
 		// Label
 		const label = append(card, $('div.sessions-walkthrough-theme-label'));
