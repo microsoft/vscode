@@ -52,6 +52,7 @@ export class MockWorkspaceIndexStateReporter extends Disposable implements Works
 interface ChatStatusItemState {
 	readonly primary: {
 		readonly message: string;
+		readonly icon?: string;
 		readonly busy?: boolean;
 	};
 	readonly details?: {
@@ -154,6 +155,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 						return this._writeStatusItem({
 							primary: {
 								message: t('{0} repos with indexes', readyRepos.length),
+								icon: '$(warning)',
 							},
 							details: {
 								message: t(`[Try re-authenticating for {0} additional repos](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`, errorRepos.length),
@@ -164,6 +166,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 						return this._writeStatusItem({
 							primary: {
 								message: t('Index unavailable'),
+								icon: '$(error)',
 							},
 							details: {
 								message: t(`[Try re-authenticating](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`),
@@ -180,6 +183,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 							message: state.remoteIndexState.repos.every(repo => repo.status === CodeSearchRepoStatus.NotYetIndexed)
 								? t('Index not yet built')
 								: t('Index not yet built for a repo in the workspace'),
+							icon: '$(warning)',
 						},
 						details: {
 							message: `[${t`Build index`}](command:${buildRemoteIndexCommandId} "${t('Build Codebase Index')}")`,
@@ -202,7 +206,8 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				) {
 					return this._writeStatusItem({
 						primary: {
-							message: t('Index ready')
+							message: t('Index ready'),
+							icon: '$(check)',
 						},
 					});
 				}
@@ -212,6 +217,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					return this._writeStatusItem({
 						primary: {
 							message: t('Out of date'),
+							icon: '$(warning)',
 						},
 						details: {
 							message: `[${t`Update index`}](command:${buildRemoteIndexCommandId} "${t('Update Codebase Index')}")`,
@@ -231,6 +237,7 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		this._writeStatusItem({
 			primary: {
 				message: t('Codebase index not available'),
+				icon: '$(circle-slash)',
 			},
 			details: undefined
 		});
@@ -249,9 +256,11 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		this._statusItem.title = {
 			label: statusTitle,
 			link: codebaseSemanticSearchDocsLink,
+			helpText: t`Indexes your codebase for more relevant AI results.`,
 		};
 
 		this._statusItem.description = coalesce([
+			values.primary.icon,
 			values.primary.message,
 			values.primary.busy ? spinnerCodicon : undefined,
 		]).join(' ');

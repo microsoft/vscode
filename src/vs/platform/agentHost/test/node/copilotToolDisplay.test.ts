@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -290,6 +290,44 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 
 		test('read_bash with no parameters returns undefined', () => {
 			assert.strictEqual(getToolInputString('read_bash', undefined, undefined), undefined);
+		});
+	});
+});
+
+suite('skill events', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
+		const withPath = synthesizeSkillToolCall(
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+			'evt-123',
+		);
+		const noPath = synthesizeSkillToolCall(
+			{ name: 'plan' },
+			undefined,
+		);
+
+		assert.deepStrictEqual({
+			skillIsHidden: isHiddenTool('skill'),
+			withPathToolCallId: withPath.toolCallId,
+			withPathToolName: withPath.toolName,
+			withPathDisplayName: withPath.displayName,
+			withPathInvocation: withPath.invocationMessage,
+			withPathPastTense: withPath.pastTenseMessage,
+			noPathToolCallId: noPath.toolCallId,
+			noPathInvocation: noPath.invocationMessage,
+			noPathPastTense: noPath.pastTenseMessage,
+		}, {
+			skillIsHidden: true,
+			withPathToolCallId: 'synth-skill-evt-123',
+			withPathToolName: 'skill',
+			withPathDisplayName: 'Read Skill',
+			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			noPathToolCallId: 'synth-skill-2108d652',
+			noPathInvocation: 'Reading skill plan',
+			noPathPastTense: 'Read skill plan',
 		});
 	});
 });

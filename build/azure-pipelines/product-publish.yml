@@ -14,8 +14,6 @@ jobs:
     variables:
       - name: BUILDS_API_URL
         value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      - name: VSCODE_BUILD_HOUR
-        value: $[format('{0:HH}', pipeline.startTime)]
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -118,8 +116,10 @@ jobs:
 
       - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
         - script: node build/azure-pipelines/common/releaseBuild.ts
-          # Only release on the 05:00 and 17:00 UTC schedules (skip the 11:00 and 23:00 UTC schedules)
-          condition: and(succeeded(), or(eq(variables['VSCODE_BUILD_HOUR'], '05'), eq(variables['VSCODE_BUILD_HOUR'], '17')))
+          # Only release on the 5:00 and 17:00 UTC schedules (skip the 11:00 and 23:00 UTC schedules)
+          condition: and(succeeded(), or(
+            eq(variables['Build.CronSchedule.DisplayName'], 'Mon-Fri at 5:00 UTC (build, publish, and release)'),
+            eq(variables['Build.CronSchedule.DisplayName'], 'Mon-Fri at 17:00 UTC (build, publish, and release)')))
           env:
             PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
           displayName: Release build

@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { dirname } from '../../../base/common/path.js';
+import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -30,6 +36,13 @@ export const IAgentConfigurationService = createDecorator<IAgentConfigurationSer
  */
 export interface IAgentConfigurationService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires whenever a {@link ActionType.RootConfigChanged} action is
+	 * processed by the state manager, signalling that callers should
+	 * re-read any root config values they depend on.
+	 */
+	readonly onDidRootConfigChange: Event<void>;
 
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
@@ -60,16 +73,60 @@ export interface IAgentConfigurationService {
 	 * the state manager's reducer.
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
+
+	/**
+	 * Returns the host-level value for `key`, validating it against
+	 * `schema.definition[key]`. Invalid persisted values are logged and treated
+	 * as missing.
+	 */
+	getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
+		schema: ISchema<D>,
+		key: K,
+	): SchemaValue<D[K]> | undefined;
+
+	/**
+	 * Merges a partial config patch into the host-level value bag and persists
+	 * the updated values for future agent-host lifetimes.
+	 */
+	updateRootConfig(patch: Record<string, unknown>, replace?: boolean): void;
+
+	/**
+	 * Persists the current host-level value bag without mutating it.
+	 */
+	persistRootConfig(): void;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	private _rootConfigWrite = Promise.resolve();
+
+	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
+	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
+		private readonly _rootConfigResource?: URI,
 	) {
 		super();
+		// Merge our customization schema/values into the existing root config
+		// (which already carries platform properties like permissions) rather
+		// than replacing it.
+		const existing = this._stateManager.rootState.config;
+		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
+		this._stateManager.rootState.config = {
+			schema: {
+				type: 'object',
+				properties: { ...existing?.schema.properties, ...ownSchema.properties },
+			},
+			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
+		};
+
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.RootConfigChanged) {
+				this._onDidRootConfigChange.fire();
+			}
+		}));
 	}
 
 	getEffectiveValue<D extends SchemaDefinition, K extends keyof D & string>(
@@ -113,6 +170,56 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		});
 	}
 
+	getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
+		schema: ISchema<D>,
+		key: K,
+	): SchemaValue<D[K]> | undefined {
+		const root = this._stateManager.rootState.config?.values;
+		const raw = root?.[key];
+		if (raw === undefined) {
+			return undefined;
+		}
+		try {
+			schema.assertValid(key, raw);
+			return raw;
+		} catch (err) {
+			const reason = err instanceof ProtocolError ? err.message : String(err);
+			this._logService.warn(`[AgentConfigurationService] Host value for '${key}' failed schema validation, ignoring: ${reason}`);
+			return undefined;
+		}
+	}
+
+	updateRootConfig(patch: Record<string, unknown>, replace = false): void {
+		this._stateManager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: patch,
+			replace,
+		});
+		this.persistRootConfig();
+	}
+
+	persistRootConfig(): void {
+		if (!this._rootConfigResource) {
+			return;
+		}
+
+		const values = this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] };
+		const content = JSON.stringify(values, undefined, '\t');
+		const resource = this._rootConfigResource;
+
+		this._rootConfigWrite = this._rootConfigWrite
+			.catch(err => {
+				this._logService.warn('[AgentConfigurationService] Previous host config write failed', err);
+			})
+			.then(async () => {
+				await fs.promises.mkdir(dirname(resource.fsPath), { recursive: true });
+				await fs.promises.writeFile(resource.fsPath, `${content}\n`, 'utf8');
+			})
+			.catch(err => {
+				this._logService.error(`[AgentConfigurationService] Failed to persist host config to ${resource.fsPath}`, err);
+			});
+	}
+
 	/**
 	 * Yields the raw value bags that contribute to the effective config
 	 * for `session`, in precedence order: session, parent subagent
@@ -133,6 +240,25 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const host = this._stateManager.rootState.config?.values;
 		if (host) {
 			yield host;
+		}
+	}
+
+	private _loadPersistedRootConfig(): Record<string, unknown> {
+		const defaults = defaultAgentHostCustomizationConfigValues;
+		if (!this._rootConfigResource) {
+			return { ...defaults };
+		}
+
+		try {
+			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
+			const parsed = JSON.parse(raw) as Record<string, unknown>;
+			return agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults);
+		} catch (err) {
+			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
+			if (code !== 'ENOENT') {
+				this._logService.warn(`[AgentConfigurationService] Failed to read host config from ${this._rootConfigResource.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			return { ...defaults };
 		}
 	}
 }

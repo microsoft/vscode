@@ -33,6 +33,12 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 
 //#endregion
 
+//#region < --- Aquarium --- >
+
+export const SessionsAquariumActiveContext = new RawContextKey<boolean>('sessionsAquariumActive', false, localize('sessionsAquariumActive', "Whether the sessions aquarium overlay is active"));
+
+//#endregion
+
 //#region < --- Editor --- >
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));

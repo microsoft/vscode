@@ -32,7 +32,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
-import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionResponsePartAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	getActionEnvelope,
@@ -166,10 +166,23 @@ function getAcceptedAnswers(request: SessionInputRequest): Record<string, Sessio
 }
 
 function getMarkdownResponseText(c: TestProtocolClient): string {
-	return c.receivedNotifications(n => isActionNotification(n, 'session/responsePart'))
-		.map(notification => getActionEnvelope(notification).action as SessionResponsePartAction)
-		.flatMap(action => action.part.kind === ResponsePartKind.Markdown ? [action.part.content] : [])
-		.join('\n');
+	// Markdown content arrives as a `session/responsePart` action that opens
+	// the part with the first chunk, followed by `session/delta` actions
+	// appending subsequent chunks. Concatenate both to get the full text.
+	const markdownPartIds = new Set<string>();
+	const pieces: string[] = [];
+	for (const notification of c.receivedNotifications(n =>
+		isActionNotification(n, 'session/responsePart') || isActionNotification(n, 'session/delta')
+	)) {
+		const action = getActionEnvelope(notification).action;
+		if (action.type === 'session/responsePart' && action.part.kind === ResponsePartKind.Markdown) {
+			markdownPartIds.add(action.part.id);
+			pieces.push(action.part.content);
+		} else if (action.type === 'session/delta' && markdownPartIds.has(action.partId)) {
+			pieces.push(action.content);
+		}
+	}
+	return pieces.join('');
 }
 
 interface IDrivenTurnResult {
@@ -432,9 +445,18 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		createdSessions.length = 0;
 		client.close();
 
-		// Remove temp directories created during this test
+		// Remove temp directories created during this test. On Windows the
+		// agent subprocess can still hold handles to the working directory for
+		// a brief moment after `disposeSession` returns, which surfaces as
+		// EBUSY. Retry a few times to give the OS a chance to release the
+		// handle before failing the teardown.
 		for (const dir of tempDirs) {
-			rmSync(dir, { recursive: true, force: true });
+			try {
+				rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			} catch {
+				// Best-effort cleanup — leftover temp dirs in os.tmpdir() are
+				// harmless and shouldn't fail an otherwise passing test.
+			}
 		}
 		tempDirs.length = 0;
 	});
@@ -497,20 +519,28 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
 	});
 
-	test.skip('planning-mode session-state writes are auto-approved in default mode', async function () {
-		// TODO: re-enable once exit_plan_mode is fully supported in @github/copilot-sdk.
-		// The public SDK currently lacks agentMode: 'plan' on MessageOptions and
-		// respondToExitPlanMode() on the session, so the model never calls exit_plan_mode
-		// and sawInputRequest never becomes true.
-
+	test('planning-mode session-state writes are auto-approved in default mode', async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
 		tempDirs.push(tempDir);
 		const sessionUri = await createRealSession(client, 'real-sdk-plan-mode', createdSessions, URI.file(tempDir).toString());
 
+		// Switch the session into plan mode via the standard config-change flow
+		// before sending the first turn. The agent host reads this value at
+		// turn-start time and pushes it to the SDK via `rpc.mode.set`.
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/configChanged',
+				session: sessionUri,
+				config: { mode: 'plan' },
+			},
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
+
 		const planTurn = await driveTurnToCompletion(client, sessionUri, 'turn-plan',
-			'Enter plan mode for the trivial task "say hello". Write the shortest possible plan to your session plan.md, then stop at exit_plan_mode. Do not inspect or modify workspace files.', 1);
+			'Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the exit_plan_mode tool to ask me to approve it before writing any code.', 2);
 		assert.strictEqual(planTurn.sawPendingConfirmation, false, 'should not have received pending-confirmation toolCallReady while writing session-state plan.md');
 		assert.ok(planTurn.sawInputRequest, 'should reach the exit_plan_mode question so the test can continue the same session');
 
@@ -519,11 +549,26 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		);
 		assert.strictEqual(extraSessionNotificationsAfterPlan.length, 0, 'should not create a second session while answering the plan-mode question');
 
+		// Mirror what a real UI client would do after the user accepted the
+		// plan: update the session config so subsequent turns no longer run
+		// in plan mode. Without this the agent host would re-set the SDK's
+		// mode to 'plan' at the next send because the session config still
+		// holds the original 'plan' value.
+		client.notify('dispatchAction', {
+			clientSeq: 50,
+			action: {
+				type: 'session/configChanged',
+				session: sessionUri,
+				config: { mode: 'interactive' },
+			},
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
+
 		const followupTurn = await driveTurnToCompletion(client, sessionUri, 'turn-followup',
-			'What was the trivial task from the plan? Reply with exactly "say hello".', 10,
+			'What did the plan I just approved say to print? Reply with exactly "hello world".', 100,
 		);
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
-		assert.match(followupTurn.responseText, /say hello/i, 'follow-up turn should retain the original plan context');
+		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 
 		const extraSessionNotificationsAfterFollowup = client.receivedNotifications(n =>
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',

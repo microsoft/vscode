@@ -8,6 +8,7 @@ use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
 use crate::download_cache::DownloadCache;
+use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
@@ -23,9 +24,6 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use crate::log;
-use lazy_static::lazy_static;
-use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -33,6 +31,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -40,11 +39,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-lazy_static! {
-	static ref LISTENING_PORT_RE: Regex =
-		Regex::new(r"Extension host agent listening on (.+)").unwrap();
-	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
-}
+static LISTENING_PORT_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
+static WEB_UI_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -551,14 +549,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
-			self.logger,
-			self.logger.span("server.start").with_attributes(vec! {
-				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
-				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
-			}),
-			self._listen_on_socket(socket)
-		)?)
+		self._listen_on_socket(socket).await
 	}
 
 	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
@@ -612,10 +603,11 @@ impl<'a> ServerBuilder<'a> {
 		let cmd = cmd.creation_flags(
 			winapi::um::winbase::CREATE_NO_WINDOW
 				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
-				| get_should_use_breakaway_from_job()
-					.await
-					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
-					.unwrap_or_default(),
+				| if get_should_use_breakaway_from_job().await {
+					winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+				} else {
+					Default::default()
+				},
 		);
 
 		let child = cmd
@@ -803,6 +795,9 @@ fn parse_port_from(text: &str) -> Option<u16> {
 }
 
 pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
+	use crate::commands::output;
+	use console::style;
+
 	debug!(
 		log,
 		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
@@ -835,8 +830,25 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {addr}\n");
-	log.result(message);
+	let arrow = style("➜").green().bold();
+	let product = QUALITYLESS_PRODUCT_NAME;
+	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
+
+	println!();
+	println!(
+		"  {} {}",
+		style(format!("{product} Tunnel")).cyan().bold(),
+		style(format!("v{version}")).dim(),
+	);
+	println!();
+	output::print_banner_line("Tunnel", tunnel_name);
+	println!(
+		"  {}  {}  {}",
+		arrow,
+		style("Open:").bold(),
+		style(&addr).cyan(),
+	);
+	output::print_banner_footer();
 }
 
 pub async fn download_cli_into_cache(

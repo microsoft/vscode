@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface IQuotaSnapshotData {
-	readonly entitlement: number;
 	readonly overage_count: number;
 	readonly overage_permitted: boolean;
 	readonly percent_remaining: number;
-	readonly remaining: number;
 	readonly unlimited: boolean;
+	readonly quota_reset_at?: number;
+	readonly token_based_billing?: boolean;
 }
 
 export interface ILegacyQuotaSnapshotData {

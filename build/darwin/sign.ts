@@ -18,15 +18,68 @@ function getElectronVersion(): string {
 	return target;
 }
 
-function getEntitlementsForFile(filePath: string): string {
+const mainProvisioningProfilePath = path.join(baseDir, 'darwin', 'main.provisionprofile');
+const agentsProvisioningProfilePath = path.join(baseDir, 'darwin', 'agents.provisionprofile');
+
+function hasProvisioningProfile(): boolean {
+	return fs.existsSync(mainProvisioningProfilePath);
+}
+
+function getEntitlementsForFile(filePath: string, tempDir: string, useProvisioningProfile: boolean, teamId?: string): string {
 	if (filePath.includes(' Helper (GPU).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist');
 	} else if (filePath.includes(' Helper (Renderer).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
 	} else if (filePath.includes(' Helper (Plugin).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+	} else if (filePath.includes(' Helper.app')) {
+		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-entitlements.plist');
 	}
-	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
+	const entitlementsPath = path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
+	if (!useProvisioningProfile) {
+		// Without a provisioning profile, keychain-access-groups entitlement
+		// will cause signing failures. Strip it from the entitlements plist.
+		return getStrippedEntitlements(entitlementsPath, tempDir);
+	}
+	if (teamId) {
+		return getExpandedEntitlements(entitlementsPath, tempDir, teamId);
+	}
+	return entitlementsPath;
+}
+
+let _strippedEntitlementsPath: string | undefined;
+
+/**
+ * Returns a path to a copy of the entitlements plist with the
+ * keychain-access-groups key removed.
+ */
+function getStrippedEntitlements(entitlementsPath: string, tempDir: string): string {
+	if (!_strippedEntitlementsPath) {
+		const content = fs.readFileSync(entitlementsPath, 'utf8');
+		const stripped = content.replace(
+			/\s*<key>keychain-access-groups<\/key>\s*<array>[\s\S]*?<\/array>/,
+			''
+		);
+		_strippedEntitlementsPath = path.join(tempDir, 'app-entitlements-stripped.plist');
+		fs.writeFileSync(_strippedEntitlementsPath, stripped);
+	}
+	return _strippedEntitlementsPath;
+}
+
+let expandedEntitlementsPath: string | undefined;
+
+/**
+ * Returns a path to a copy of the entitlements plist with
+ * $(TeamIdentifierPrefix) expanded to the actual team identifier.
+ */
+function getExpandedEntitlements(entitlementsPath: string, tempDir: string, teamId: string): string {
+	if (!expandedEntitlementsPath) {
+		const content = fs.readFileSync(entitlementsPath, 'utf8');
+		const expanded = content.replace(/\$\(TeamIdentifierPrefix\)/g, teamId + '.');
+		expandedEntitlementsPath = path.join(tempDir, 'app-entitlements.plist');
+		fs.writeFileSync(expandedEntitlementsPath, expanded);
+	}
+	return expandedEntitlementsPath;
 }
 
 async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {
@@ -58,7 +111,7 @@ async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: num
 	throw lastError;
 }
 
-async function main(buildDir?: string): Promise<void> {
+async function main(buildDir?: string, skipProvisioningProfile?: boolean): Promise<void> {
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	const arch = process.env['VSCODE_ARCH'];
 	const identity = process.env['CODESIGN_IDENTITY'];
@@ -78,15 +131,42 @@ async function main(buildDir?: string): Promise<void> {
 		? path.resolve(appRoot, appName, 'Contents', 'Applications', `${product.embedded.nameLong}.app`, 'Contents', 'Info.plist')
 		: undefined;
 
+	const useProvisioningProfile = !skipProvisioningProfile && hasProvisioningProfile();
+	const resolvedProvisioningProfile = useProvisioningProfile ? mainProvisioningProfilePath : undefined;
+
+	let teamId: string | undefined;
+	if (resolvedProvisioningProfile) {
+		const profilePlist = await spawn('security', ['cms', '-D', '-i', resolvedProvisioningProfile]);
+		const teamIdMatch = /<key>TeamIdentifier<\/key>\s*<array>\s*<string>(.*?)<\/string>/s.exec(profilePlist);
+		if (teamIdMatch) {
+			teamId = teamIdMatch[1];
+			console.log(`Extracted TeamIdentifier from provisioning profile: ${teamId}`);
+		} else {
+			console.warn('Could not extract TeamIdentifier from provisioning profile; $(TeamIdentifierPrefix) will not be expanded');
+		}
+	}
+
+	// Embed the agents provisioning profile into the embedded app bundle
+	// before signing, since @electron/osx-sign only supports one top-level profile.
+	if (useProvisioningProfile && product.embedded && fs.existsSync(agentsProvisioningProfilePath)) {
+		const embeddedAppPath = path.join(appRoot, appName, 'Contents', 'Applications', `${product.embedded.nameLong}.app`);
+		if (fs.existsSync(embeddedAppPath)) {
+			const embeddedProfileDest = path.join(embeddedAppPath, 'Contents', 'embedded.provisionprofile');
+			fs.copyFileSync(agentsProvisioningProfilePath, embeddedProfileDest);
+			console.log(`Embedded agents provisioning profile into ${embeddedProfileDest}`);
+		}
+	}
+
 	const appOpts: SignOptions = {
 		app: path.join(appRoot, appName),
 		platform: 'darwin',
 		optionsForFile: (filePath) => ({
-			entitlements: getEntitlementsForFile(filePath),
+			entitlements: getEntitlementsForFile(filePath, tempDir, useProvisioningProfile, teamId),
 			hardenedRuntime: true,
 		}),
 		preAutoEntitlements: false,
-		preEmbedProvisioningProfile: false,
+		preEmbedProvisioningProfile: !!resolvedProvisioningProfile,
+		provisioningProfile: resolvedProvisioningProfile,
 		keychain: path.join(tempDir, 'buildagent.keychain'),
 		version: getElectronVersion(),
 		identity,
@@ -94,7 +174,8 @@ async function main(buildDir?: string): Promise<void> {
 
 	// Only overwrite plist entries for x64 and arm64 builds,
 	// universal will get its copy from the x64 build.
-	if (arch !== 'universal') {
+	// Skip when re-signing (skipProvisioningProfile) since entries already exist.
+	if (arch !== 'universal' && !skipProvisioningProfile) {
 		await spawn('plutil', [
 			'-insert',
 			'NSAppleEventsUsageDescription',
@@ -174,7 +255,10 @@ async function main(buildDir?: string): Promise<void> {
 }
 
 if (import.meta.main) {
-	main(process.argv[2]).catch(async err => {
+	const args = process.argv.slice(2);
+	const skipProvisioningProfile = args.includes('--skip-provisioning-profile');
+	const buildDir = args.filter(a => !a.startsWith('--'))[0];
+	main(buildDir, skipProvisioningProfile).catch(async err => {
 		console.error(err);
 		const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 		if (tempDir) {

@@ -45,10 +45,15 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
+import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
@@ -64,6 +69,9 @@ import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
@@ -185,6 +193,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: a.storage,
 					extensionId: a.extensionId ? new ExtensionIdentifier(a.extensionId) : undefined,
 				},
+				visibility: { userInvocable: true, agentInvocable: true },
 			})) as never[];
 		}
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
@@ -212,7 +221,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				description: f.description,
 				disableModelInvocation: false,
 				userInvocable: true,
-				when: undefined,
 			}));
 		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
@@ -228,7 +236,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: f.storage,
 					source: undefined,
 					extension: toExtensionInfo(f) as never,
-					when: undefined,
 				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;
@@ -251,17 +258,21 @@ function createMockHarnessService(activeHarnessId: string, descriptors: readonly
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
+		override findHarnessById(id: string) {
+			return descriptors.find(h => h.id === id);
+		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 
-function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string): IWorkbenchMcpServer {
+function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScope, description?: string, config?: IWorkbenchMcpServer['config']): IWorkbenchMcpServer {
 	return new class extends mock<IWorkbenchMcpServer>() {
 		override readonly id = id;
 		override readonly name = id;
 		override readonly label = label;
 		override readonly description = description ?? '';
+		override readonly config = config;
 		override readonly installState = McpServerInstallState.Installed;
 		override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
 			override readonly id = id;
@@ -383,6 +394,17 @@ const agentInstructions: IAgentInstructionFile[] = [
 ];
 
 const mcpWorkspaceServers = [
+	makeLocalMcpServer(
+		'component-explorer',
+		'component-explorer',
+		LocalMcpServerScope.Workspace,
+		'Component fixtures and screenshot tooling',
+		{
+			type: McpServerType.LOCAL,
+			command: 'npm',
+			args: ['exec', '--no', '--', 'component-explorer', 'mcp', '-p', './test/componentFixtures/component-explorer.json', '--use-daemon', '-vv'],
+		}
+	),
 	makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access'),
 	makeLocalMcpServer('mcp-github', 'GitHub', LocalMcpServerScope.Workspace, 'GitHub API'),
 	makeLocalMcpServer('mcp-redis', 'Redis', LocalMcpServerScope.Workspace, 'In-memory data store'),
@@ -554,6 +576,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 
+	// Holds a lazy reference to the model service so the ITextModelService mock
+	// (registered below) can create real ITextModel instances on demand. The
+	// management editor calls `createModelReference` when the user opens an
+	// item — fixtureUtils' default mock returns `{ textEditorModel: null }`,
+	// which crashes the editor. We populate this after the instantiation
+	// service is created.
+	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
+	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
+
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
@@ -562,6 +593,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
+				declare readonly _serviceBrand: undefined;
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					const modelService = modelServiceRef.value!;
+					const languageService = languageServiceRef.value!;
+					let model = modelService.getModel(resource);
+					if (!model) {
+						const languageId = languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? 'plaintext';
+						const languageSelection = languageService.createById(languageId);
+						model = modelService.createModel('', languageSelection, resource);
+					}
+					const onWillDispose = new Emitter<void>();
+					const textEditorModel: IResolvedTextEditorModel = {
+						textEditorModel: model,
+						onWillDispose: onWillDispose.event,
+						isReadonly: () => false,
+						isResolved: () => true,
+						isDisposed: () => false,
+						getLanguageId: () => model.getLanguageId(),
+						createSnapshot: () => model.createSnapshot(),
+						resolve: async () => { },
+						dispose: () => onWillDispose.dispose(),
+					};
+					return { object: textEditorModel, dispose: () => { } };
+				}
+				override canHandleResource() { return true; }
+				override registerTextModelContentProvider() { return { dispose: () => { } }; }
+			}());
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -590,6 +649,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			// AICustomizationItemsModel is the single source of truth for items
+			// in the editor. Register the real implementation — it will resolve
+			// items via the mock prompts service / harness service above.
+			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }
@@ -640,6 +703,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
 				override readonly onDidChangeDirty = Event.None;
+				override readonly onDidSave = Event.None;
+				override isDirty(_resource: URI) { return false; }
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
@@ -733,7 +798,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
 			// Allow any async setInput to settle.
 			await waitForAnimationFrames(2);
 			await new Promise(resolve => setTimeout(resolve, 250));
@@ -851,7 +916,8 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 	await new Promise(resolve => setTimeout(resolve, 50));
 }
 
-// ============================================================================
+// 
+  ========================================================================
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
@@ -1091,6 +1157,96 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget));
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
+}
+
+// ============================================================================
+// Embedded compact detail widgets — standalone (no host editor)
+// ============================================================================
+
+function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined): void {
+	const width = 480;
+	const height = 320;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+				override readonly onChange = Event.None;
+				override readonly onReset = Event.None;
+				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
+				override async open() { /* no-op in fixture */ }
+			}());
+		},
+	});
+
+	// Mirror the host editor's class so the scoped CSS selectors apply.
+	const host = DOM.append(ctx.container, DOM.$('.ai-customization-management-editor'));
+	host.style.height = '100%';
+	host.style.width = '100%';
+	host.style.overflow = 'auto';
+
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedMcpServerDetail, host));
+	if (server) {
+		detail.setInput(server);
+	}
+}
+
+function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPluginItem | undefined): void {
+	const width = 480;
+	const height = 320;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+		},
+	});
+
+	const host = DOM.append(ctx.container, DOM.$('.ai-customization-management-editor'));
+	host.style.height = '100%';
+	host.style.width = '100%';
+	host.style.overflow = 'auto';
+
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedAgentPluginDetail, host));
+	if (item) {
+		detail.setInput(item);
+	}
+}
+
+function makeInstalledPluginItem(name: string, description: string): IAgentPluginItem {
+	return {
+		kind: AgentPluginItemKind.Installed,
+		name,
+		description,
+		marketplace: 'GitHub',
+		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), true),
+	};
+}
+
+function makeMarketplacePluginItem(name: string, description: string): IAgentPluginItem {
+	return {
+		kind: AgentPluginItemKind.Marketplace,
+		name,
+		description,
+		source: 'GitHub',
+		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `acme/${name.toLowerCase()}` },
+		marketplace: 'GitHub',
+		marketplaceType: MarketplaceType.Copilot,
+		marketplaceReference: {
+			rawValue: `acme/${name.toLowerCase()}`,
+			displayLabel: `acme/${name.toLowerCase()}`,
+			cloneUrl: `https://github.com/acme/${name.toLowerCase()}`,
+			canonicalId: `github:acme/${name.toLowerCase()}`,
+			cacheSegments: ['github', 'acme', name.toLowerCase()],
+			kind: MarketplaceReferenceKind.GitHubShorthand,
+			githubRepo: `acme/${name.toLowerCase()}`,
+		},
+	};
 }
 
 // ============================================================================
@@ -1373,6 +1529,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// MCP server detail view in a narrow viewport — catches embedded header overflow
+	// and the single-tab configuration layout used by local workspace servers.
+	McpServerDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			openFirstItem: true,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1381,5 +1550,53 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),
+	}),
+
+	PluginDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			openFirstItem: true,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	// Standalone embedded MCP detail widget (compact split-pane component).
+	// Workspace-scope server with a description.
+	EmbeddedMcpDetailWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace')),
+	}),
+
+	// Standalone embedded MCP detail widget — user-scope server.
+	EmbeddedMcpDetailUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session')),
+	}),
+
+	// Standalone embedded MCP detail widget — empty / no input state.
+	EmbeddedMcpDetailEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedMcpDetail(ctx, undefined),
+	}),
+
+	// Standalone embedded plugin detail widget — installed plugin.
+	EmbeddedPluginDetailInstalled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
+	}),
+
+	// Standalone embedded plugin detail widget — marketplace plugin.
+	EmbeddedPluginDetailMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeMarketplacePluginItem('Sentry', 'Error monitoring and performance tracing')),
+	}),
+
+	// Standalone embedded plugin detail widget — empty / no input state.
+	EmbeddedPluginDetailEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEmbeddedPluginDetail(ctx, undefined),
 	}),
 });

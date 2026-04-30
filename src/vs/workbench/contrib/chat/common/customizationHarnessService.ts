@@ -20,6 +20,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { SessionType } from './chatSessionsService.js';
 import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -55,6 +56,15 @@ export interface ISectionOverride {
 	 * (e.g. `.instructions.md`).
 	 */
 	readonly fileExtension?: string;
+}
+
+export interface ICustomizationItemAction {
+	readonly id: string;
+	readonly label: string;
+	readonly tooltip?: string;
+	readonly icon?: ThemeIcon;
+	readonly enabled?: boolean;
+	run(): void | Promise<void>;
 }
 
 /**
@@ -129,25 +139,32 @@ export interface IHarnessDescriptor {
 	 */
 	readonly supportsTroubleshoot?: boolean;
 	/**
-	 * When set, this harness supports syncing local customizations to a
-	 * remote target. The UI shows local items with sync checkboxes when
-	 * this harness is active.
+	 * When set, this harness uses an opt-out sync model where all eligible
+	 * local customizations are synced by default. The UI shows disable
+	 * affordances when this harness is active.
 	 */
 	readonly syncProvider?: ICustomizationSyncProvider;
+	/**
+	 * Optional plugin-management actions shown in the Plugins section toolbar.
+	 * Harnesses can use these to replace the default local install/create
+	 * actions with environment-specific commands (for example, configuring
+	 * plugins on a remote agent host).
+	 */
+	readonly pluginActions?: readonly ICustomizationItemAction[];
 }
 
 /**
  * Represents a customization item provided by any source.
  */
 export interface ICustomizationItem {
+	/** Optional stable identity used by list widgets when URI alone is not unique. */
+	readonly itemKey?: string;
 	readonly uri: URI;
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
 	/** Storage origin (local, user, extension, plugin). Set by providers that know the source. */
 	readonly storage?: PromptsStorage;
-	/** Display name of the contributing extension (e.g. "GitHub Copilot Chat"). */
-	readonly extensionLabel?: string;
 	/** The extension identifier that contributed this customization, if any. */
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
@@ -164,6 +181,13 @@ export interface ICustomizationItem {
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
 	readonly badgeTooltip?: string;
+	/**
+	 * Whether this customization item can be invoked by the user.
+	 * Relevant for prompt / skill and custom agents
+	 */
+	readonly userInvocable?: boolean;
+	/** Optional inline/context-menu actions specific to this item. */
+	readonly actions?: readonly ICustomizationItemAction[];
 }
 
 /**
@@ -182,35 +206,16 @@ export interface ICustomizationItemProvider {
 }
 
 /**
- * Provider interface for harnesses that support syncing local customizations
- * to a remote target (e.g. a remote agent host).
+ * Provider interface for harnesses that use an opt-out sync model.
  *
- * The UI shows local customization items with sync checkboxes when the
- * active harness has a sync provider. Selected items are persisted and
- * automatically included in the active client's customization set.
+ * Every eligible local customization is synced by default; the user
+ * can disable individual items. The persisted set captures only the
+ * user's opt-outs.
  */
 export interface ICustomizationSyncProvider {
-	/**
-	 * Fires when the set of selected sync items changes.
-	 */
 	readonly onDidChange: Event<void>;
-	/**
-	 * Returns the URIs of local customizations currently selected for syncing.
-	 */
-	getSelectedUris(): readonly URI[];
-	/**
-	 * Updates the set of local customization URIs selected for syncing.
-	 */
-	setSelectedUris(uris: readonly URI[]): void;
-	/**
-	 * Returns whether the given URI is currently selected for syncing.
-	 */
-	isSelected(uri: URI): boolean;
-	/**
-	 * Toggles the sync selection state for a single URI.
-	 * @param type Optional prompt type for file-level sync tracking.
-	 */
-	toggleUri(uri: URI, type?: PromptsType): void;
+	isDisabled(uri: URI): boolean;
+	setDisabled(uri: URI, disabled: boolean): void;
 }
 
 /**
@@ -643,11 +648,10 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				result.push({
 					uri: item.uri,
 					type: item.type as PromptsType.prompt | PromptsType.skill,
-					name: item.name,
+					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri }, item.name) : item.name,
 					description: item.description,
-					userInvocable: true, // todo we need a way for providers to specify this if some items aren't user-invocable`
+					userInvocable: item.userInvocable ?? true,
 					storage: item.storage ?? PromptsStorage.local,
-					when: undefined,
 					sessionTypes: [sessionType],
 				});
 			}
@@ -680,7 +684,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 		const result: ICustomAgent[] = [];
 		for (const item of items) {
-			if ((item.enabled !== false) && item.type === PromptsType.agent) {
+			if (item.type === PromptsType.agent) {
 				const promptFile = await this.promptsService.parseNew(item.uri, token);
 				const extra = {
 					name: item.name,
@@ -689,6 +693,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					hooks: undefined,
 					source: getSource(item),
 					type: PromptsType.agent,
+					enabled: item.enabled !== false,
 				};
 				result.push(CustomAgent.fromParsedPromptFile(promptFile, extra));
 			}
@@ -697,24 +702,13 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	public async resolvePromptSlashCommand(name: string, sessionType: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined> {
-		const harness = this.findHarnessById(sessionType);
-		if (!harness || !harness.itemProvider) {
-			return this.promptsService.resolvePromptSlashCommand(name, sessionType, token);
-		}
-
-		const items = await harness.itemProvider.provideChatSessionCustomizations(token);
-		const item = items?.find(cmd => cmd.name === name);
-		if (item) {
-			const parsedPromptFile = await this.promptsService.parseNew(item.uri, token);
+		const commands = await this.getSlashCommands(sessionType, token);
+		const command = commands.find(cmd => cmd.name === name);
+		if (command) {
+			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
-				uri: item.uri,
-				type: item.type as PromptsType.prompt | PromptsType.skill,
-				name: item.name,
-				description: item.description,
-				userInvocable: parsedPromptFile.header?.userInvocable ?? true,
-				storage: item.storage ?? PromptsStorage.local,
-				when: undefined,
-				sessionTypes: [sessionType],
+				...command,
+				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
 				parsedPromptFile,
 			};
 		}

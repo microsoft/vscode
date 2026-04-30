@@ -17,9 +17,11 @@ import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -27,8 +29,8 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
-import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
+import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
@@ -196,6 +198,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -212,7 +215,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
 			description: displayName,
-			group: 'folders',
+			group: SESSION_WORKSPACE_GROUP_REMOTE,
 			icon: Codicon.remote,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -258,10 +261,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		const web = this.isWebPlatform;
 		return {
 			description: web ? undefined : new MarkdownString().appendText(this.label),
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => {
 				const uriForDescription = project?.uri ?? workingDirectory;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: web ? undefined : this.label, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description });
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, web ? undefined : this.label, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
@@ -505,14 +509,18 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	// -- Workspaces ----------------------------------------------------------
 
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitState);
+	}
+
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
 		return {
 			label: this.isWebPlatform ? folderName : `${folderName} [${this.label}]`,
 			description: this._labelService.getUriLabel(dirname(uri), { relative: false }),
-			group: this.label,
+			group: SESSION_WORKSPACE_GROUP_REMOTE,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}

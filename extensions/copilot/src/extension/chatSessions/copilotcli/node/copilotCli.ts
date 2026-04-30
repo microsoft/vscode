@@ -19,6 +19,7 @@ import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -198,7 +199,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
-				multiplier,
+				pricing: multiplier,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
@@ -357,7 +358,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
 		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			if (isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
+			if (customAgent.enabled && isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
 				return this.toCustomAgent(customAgent)?.agent;
 			}
 		}
@@ -382,19 +383,25 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
+		const knownAgents = new ResourceSet();
 		for (const agent of await this.getSDKAgents()) {
+			const sourceUri = agent.path ? URI.file(agent.path) : URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` });
+			knownAgents.add(sourceUri);
 			merged.set(agent.name.toLowerCase(), {
 				agent: this.cloneAgent(agent),
-				sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` }),
+				sourceUri,
 			});
 		}
 		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			if (!isEnabledForCopilotCLI(customAgent)) {
+			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
 				continue;
 			}
 			// Skip legacy .chatmode.md files — they are a deprecated format
 			// and should not appear in the Copilot CLI agent list.
 			if (customAgent.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+				continue;
+			}
+			if (knownAgents.has(customAgent.uri)) {
 				continue;
 			}
 			const info = this.toCustomAgent(customAgent);

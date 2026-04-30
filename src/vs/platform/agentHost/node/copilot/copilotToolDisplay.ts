@@ -6,9 +6,10 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
+import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentToolReadyEvent } from '../../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -55,6 +56,8 @@ const enum CopilotToolName {
 	WebFetch = 'web_fetch',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
+	Skill = 'skill',
+	ExitPlanMode = 'exit_plan_mode',
 }
 
 /** Parameters for the `bash` / `powershell` shell tools. */
@@ -170,9 +173,16 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 /**
  * Tools that should not be shown to the user. These are internal tools
  * used by the CLI for its own purposes (e.g., reporting intent to the model).
+ *
+ * `skill` is hidden because the SDK already emits a richer `skill.invoked`
+ * lifecycle event with the resolved skill file path; the agent session
+ * synthesizes a tool-start/complete pair from that event so the UI can
+ * render a clickable file link instead of just the skill name. See
+ * {@link synthesizeSkillToolCall}.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
+	CopilotToolName.Skill,
 ]);
 
 /**
@@ -240,6 +250,7 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
+		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Plan");
 		default: return toolName;
 	}
 }
@@ -314,6 +325,8 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -393,9 +406,98 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolComplete.exitPlanMode', "Exited plan mode");
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}
+}
+
+// =============================================================================
+// Skill event synthesis
+//
+// The Copilot SDK emits a `skill` tool call (which we hide) and, separately, a
+// `skill.invoked` lifecycle event with the resolved skill file path. We turn
+// the latter into a synthesized tool-start/complete pair so clients can render
+// a clickable file link to the SKILL.md the agent loaded -- matching the
+// existing `view`-tool display style. Live and replay paths share this helper
+// so they stay in lock-step (see also the mirrored-pair gotcha for tool-call
+// display in this file).
+// =============================================================================
+
+/** Subset of the SDK's `skill.invoked` payload that the synth helper needs. */
+export interface ICopilotSkillInvokedData {
+	readonly name: string;
+	readonly path?: string;
+	readonly description?: string;
+}
+
+/**
+ * Builds a stable synthetic tool call id for a `skill.invoked` event so
+ * reconnect/replay produces the same id as the original live emit. The id
+ * is used unencoded as a path segment (e.g. by `ChatResponseResource.createUri`),
+ * so it must not contain characters like `/` -- we hash any fallback values
+ * that could carry filesystem paths or arbitrary text.
+ */
+export function getSkillSyntheticToolCallId(eventId: string | undefined, data: ICopilotSkillInvokedData): string {
+	if (eventId) {
+		return `synth-skill-${eventId}`;
+	}
+	const seed = data.path ?? data.name;
+	return `synth-skill-${hash(seed).toString(16)}`;
+}
+
+/**
+ * Synthesized data for a `skill.invoked` tool call. Used by both the live
+ * session handler and the history-replay mapper so the two paths render
+ * identically. Callers wrap this into protocol actions or {@link Turn}
+ * data; this helper avoids any agent-protocol coupling.
+ */
+export interface ISynthesizedSkillToolCall {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly invocationMessage: StringOrMarkdown;
+	readonly pastTenseMessage: StringOrMarkdown;
+}
+
+/**
+ * Synthesizes the data for a `skill.invoked` tool call (a tool-start /
+ * tool-complete pair). Returns the constituent fields without coupling to
+ * any specific event or action shape — callers compose them into protocol
+ * actions or {@link Turn} entries as needed.
+ */
+export function synthesizeSkillToolCall(
+	data: ICopilotSkillInvokedData,
+	eventId: string | undefined,
+): ISynthesizedSkillToolCall {
+	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
+	const displayName = localize('toolName.skill', "Read Skill");
+	// Use the skill name as the link text rather than the basename: every skill
+	// file is named SKILL.md, so `Reading skill [plan]` reads better than the
+	// always-identical `Reading skill [SKILL.md]`. The client may further upgrade
+	// this link to a rich pill based on the `SKILL.md` basename. Skill names and
+	// paths come from the SDK / agent host and are escaped to prevent markdown
+	// injection from a malicious skill author.
+	// Escape only the characters that would break out of markdown link text
+	// syntax (`\` and `]`); a full markdown escape would leave visible
+	// backslashes in renderers (like the skill pill) that extract link text
+	// without re-parsing markdown.
+	const escapedName = escapeMarkdownLinkLabel(data.name);
+	const skillLink = data.path ? `[${escapedName}](${URI.file(data.path)})` : undefined;
+	const invocationMessage: StringOrMarkdown = skillLink
+		? md(localize('toolInvoke.skill', "Reading skill {0}", skillLink))
+		: localize('toolInvoke.skillName', "Reading skill {0}", data.name);
+	const pastTenseMessage: StringOrMarkdown = skillLink
+		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
+		: localize('toolComplete.skillName', "Read skill {0}", data.name);
+	return {
+		toolCallId,
+		toolName: CopilotToolName.Skill,
+		displayName,
+		invocationMessage,
+		pastTenseMessage,
+	};
 }
 
 export function getToolInputString(toolName: string, parameters: Record<string, unknown> | undefined, rawArguments: string | undefined): string | undefined {
@@ -541,7 +643,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: IAgentToolReadyEvent['permissionKind'];
+	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
 	/** File path extracted from the request. */
 	permissionPath?: string;
 } {

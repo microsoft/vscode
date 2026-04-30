@@ -69,6 +69,7 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
@@ -166,7 +167,8 @@ class ChangesButtonBarWidget extends Disposable {
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
 			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
+			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR' ||
+			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
 		) {
 			const customLabel = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
@@ -201,7 +203,8 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
-			action.id === 'agentSession.markAsDone'
+			action.id === 'agentSession.markAsDone' ||
+			isAgentHostSkillButtonId(action.id)
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
 		}
@@ -639,6 +642,9 @@ export class ChangesViewPane extends ViewPane {
 			const changes = changesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
+			// Read session state so this autorun re-runs when git state (e.g. branch name)
+			// arrives asynchronously, since the tree root label depends on it.
+			this.viewModel.activeSessionStateObs.read(reader);
 
 			if (!this.tree || isLoading) {
 				return;

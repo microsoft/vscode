@@ -309,24 +309,15 @@ allGroups            = derived(permissionModeGroup, folderGroup)
 
 An `autorun` reads `allGroups` and writes to `state.groups`. This is the only place `state.groups` is written — the pipeline is the single source of truth for the UI.
 
-### Lifetime Management (WeakRef + FinalizationRegistry)
+### Lifetime Management (onDidDispose)
 
-The `autorun`'s closure holds a `WeakRef<ChatSessionInputState>` rather than a direct reference. This is required because the shared observables (`_workspaceFolders`, `_bypassPermissionsEnabled`) hold strong references to the autorun's observer. Without the `WeakRef`, each `state` object would be transitively reachable through the shared observable → autorun → closure → state chain, and would never be garbage collected.
-
-When VS Code discards a `ChatSessionInputState`, the `WeakRef` lets the GC collect it. The `FinalizationRegistry` (`_stateAutorunRegistry`) then fires and calls `store.dispose()`, which unsubscribes all autoruns for that state.
-
-```
-SharedObservable ──strong──► autorun observer
-                                     │
-                                  WeakRef    ← allows GC of state
-                                     │
-                              state.groups (written on change)
-```
+Each pipeline's `store` is disposed via `state.onDidDispose`:
 
 ```typescript
-_stateAutorunRegistry = new FinalizationRegistry<DisposableStore>(store => store.dispose())
-// registered as: _stateAutorunRegistry.register(state, pipeline.store)
+pipeline.store.add(state.onDidDispose(() => pipeline.store.dispose()));
 ```
+
+When VS Code discards a `ChatSessionInputState`, the `onDidDispose` event fires and deterministically cleans up all autoruns for that state. The `onDidDispose` subscription is itself registered on the pipeline store, so it is cleaned up as part of disposal.
 
 ### External Permission Mode Updates
 
@@ -344,16 +335,13 @@ pipeline.store.add(autorun(reader => {
 }));
 ```
 
-This autorun is registered on `pipeline.store`, so it is disposed along with all other pipeline autoruns when the state is GC'd.
+This autorun is registered on `pipeline.store`, so it is disposed along with all other pipeline autoruns when the state is disposed.
 
 ### Session-Started Signal
 
-The `isSessionStarted` observable controls whether folder items carry `locked: true`. It is set in two places:
+The `isSessionStarted` observable controls whether folder items carry `locked: true`. It is set to `true` when `getChatSessionInputState` is called with a `sessionResource` — i.e., whenever VS Code provides a resource for the session. This covers both existing on-disk sessions and sessions that have been started (where a resource has been assigned).
 
-- **Restoring an existing session** (new-state path): `pipeline.isSessionStarted.set(true, undefined)` in `_setupInputState` when `isExistingSession` is true.
-- **First message sent** (new-untitled session): `ClaudeChatSessionContentProvider.createHandler()` calls `markSessionStarted(inputState)`, which looks up the pipeline from `_statePipelines` and sets `isSessionStarted` to `true`. This is how the folder gets locked after the user submits their first prompt.
-
-`_statePipelines` is a `WeakMap<ChatSessionInputState, InputStateReactivePipeline>` that enables these external mutations. The `WeakMap` does not prevent GC of state objects (WeakMap keys are held weakly), so it complements rather than interferes with the `FinalizationRegistry`.
+For the `previousInputState` path, the lock state is recovered from the items themselves: `_computeSeedValues` checks for `locked: true` on folder items and restores `isSessionStarted` accordingly.
 
 ### Critical Invariant: Subscribe After Both Branches
 

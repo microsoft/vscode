@@ -74,6 +74,10 @@ describe('CopilotCLITools', () => {
 			const input = '<pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/> Body';
 			expect(stripReminders(input)).toBe('Body');
 		});
+		it('removes user_query blocks', () => {
+			const input = '<user_query>Hidden prompt</user_query> Visible';
+			expect(stripReminders(input)).toBe('Visible');
+		});
 		it('removes multiple constructs mixed', () => {
 			const input = '<reminder>x</reminder>One<current_datetime>y</current_datetime> <pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/>Two';
 			// Current behavior compacts content without guaranteeing spacing
@@ -1299,4 +1303,3 @@ describe('CopilotCLITools', () => {
 		});
 	});
 });
-

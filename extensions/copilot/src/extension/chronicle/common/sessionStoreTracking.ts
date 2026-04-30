@@ -3,9 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GenAiAttr } from '../../../platform/otel/common/genAiAttributes';
+import type { ICompletedSpanData } from '../../../platform/otel/common/otelService';
+
 /**
- * Helpers for extracting file paths and refs from tool calls.
+ * Helpers for extracting file paths and refs from tool calls,
+ * plus shared constants for session store truncation limits.
  */
+
+// ── Truncation limits (shared by sessionStoreTracker and sessionReindexer) ──
+
+/** Maximum characters stored for user_message. */
+export const MAX_USER_MESSAGE_LENGTH = 100;
+
+/** Maximum characters stored for assistant_response. */
+export const MAX_ASSISTANT_RESPONSE_LENGTH = 1000;
+
+/** Maximum characters stored for session summary. */
+export const MAX_SUMMARY_LENGTH = 100;
+
+/**
+ * Truncate a string to at most `maxLength` stored characters, appending '...' if truncated.
+ * The returned value, including the truncation suffix, never exceeds `maxLength`.
+ * Returns `undefined` for falsy input.
+ */
+export function truncateForStore(value: string | undefined, maxLength: number): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	if (value.length <= maxLength) {
+		return value;
+	}
+	const ellipsis = '...';
+	if (maxLength <= ellipsis.length) {
+		return ellipsis.slice(0, maxLength);
+	}
+	return value.slice(0, maxLength - ellipsis.length).trimEnd() + ellipsis;
+}
+
+/** Terminal/shell tool names that may produce refs. */
+export function isTerminalTool(toolName: string): boolean {
+	return toolName === 'runInTerminal' || toolName === 'run_in_terminal';
+}
+
+/**
+ * Extract tool arguments from an OTel span.
+ * Parses the serialized JSON from gen_ai.tool.call.arguments attribute.
+ * @internal Exported for testing.
+ */
+export function extractToolArgs(span: ICompletedSpanData): Record<string, unknown> {
+	const serialized = span.attributes[GenAiAttr.TOOL_CALL_ARGUMENTS];
+	if (typeof serialized === 'string') {
+		try {
+			return JSON.parse(serialized) as Record<string, unknown>;
+		} catch {
+			// ignore parse errors
+		}
+	}
+	return {};
+}
 
 /** Tools whose arguments contain a file path being modified or read. */
 const FILE_TRACKING_TOOLS = new Set([
@@ -183,4 +239,63 @@ export function extractRepoFromMcpTool(toolArgs: unknown): string | undefined {
  */
 export function isGitHubMcpTool(toolName: string): boolean {
 	return GH_MCP_PREFIXES.some(prefix => toolName.startsWith(prefix));
+}
+
+/** Truncation suffix appended by truncateForOTel. */
+const OTEL_TRUNCATION_MARKER = '...[truncated';
+
+/**
+ * Extract assistant response text from the gen_ai.output.messages span attribute.
+ * Handles both valid JSON and truncated JSON (where truncateForOTel cut the
+ * JSON structure mid-string and appended a suffix).
+ *
+ * Expected format: [{"role":"assistant","parts":[{"type":"text","content":"..."}]}]
+ *
+ * @internal Exported for testing.
+ */
+export function extractAssistantResponse(outputMessagesRaw: string | undefined): string | undefined {
+	if (!outputMessagesRaw) {
+		return undefined;
+	}
+
+	// Fast path: try full JSON parse for non-truncated input
+	try {
+		const messages = JSON.parse(outputMessagesRaw) as { role: string; parts: { type: string; content: string }[] }[];
+		const parts = messages
+			.filter(m => m.role === 'assistant')
+			.flatMap(m => m.parts)
+			.filter(p => p.type === 'text')
+			.map(p => p.content);
+		return parts.length > 0 ? parts.join('\n') : undefined;
+	} catch {
+		// JSON parse failed — likely truncated by truncateForOTel
+	}
+
+	// Fallback: extract text from truncated JSON by matching the serialized
+	// assistant text-part prefix, then reading until the truncation marker.
+	if (!outputMessagesRaw.includes(OTEL_TRUNCATION_MARKER)) {
+		return undefined;
+	}
+	const assistantTextContentPrefix = '"type":"text","content":"';
+	const prefixStart = outputMessagesRaw.indexOf(assistantTextContentPrefix);
+	if (prefixStart === -1) {
+		return undefined;
+	}
+	const textStart = prefixStart + assistantTextContentPrefix.length;
+	const truncationIdx = outputMessagesRaw.indexOf(OTEL_TRUNCATION_MARKER, textStart);
+	if (truncationIdx === -1) {
+		return undefined;
+	}
+	const extracted = outputMessagesRaw.slice(textStart, truncationIdx);
+	if (extracted.length === 0) {
+		return undefined;
+	}
+	// The extracted text is JSON-escaped (e.g. \" \n \\). Unescape by wrapping
+	// in quotes and parsing as a JSON string value.
+	try {
+		return JSON.parse(`"${extracted}"`) as string;
+	} catch {
+		// If unescape fails (e.g. truncation mid-escape), return the raw text
+		return extracted;
+	}
 }

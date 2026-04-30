@@ -172,8 +172,8 @@ export class PromptValidator {
 							const loc = this.labelService.getUriLabel(resolved);
 							report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 						}
-					} catch {
-						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}'`);
+					} catch (e) {
+						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}': ${e.message}`);
 					}
 				})());
 			}
@@ -852,7 +852,7 @@ export class PromptValidator {
 		}
 
 		// Collect available agent names
-		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const agents = (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
 		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
 

@@ -17,11 +17,13 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, RootAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
+import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -71,6 +73,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -103,7 +106,14 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		this._logService.info('[AgentHost:renderer] MessagePort acquired, creating client...');
 
 		const store = this._register(new DisposableStore());
-		const client = store.add(new MessagePortClient(port, `agentHost:window`));
+		// Use clientId as the IPC ctx so the agent host can route reverse-RPC
+		// calls (vscode-agent-client filesystem reads) back to this renderer
+		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
+		const client = store.add(new MessagePortClient(port, this.clientId));
+		// Serve filesystem reverse-RPCs from the local file service. The
+		// agent host registers an authority on its
+		// AgentHostClientFileSystemProvider that calls back through this channel.
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService));
 		this._clientEventually.complete(client);
 
 		store.add(this._proxy.onDidAction(e => {
@@ -160,7 +170,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	unsubscribe(resource: URI): void {
 		this._proxy.unsubscribe(resource);
 	}
-	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
@@ -180,7 +190,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: RootAction | SessionAction | TerminalAction): void {
+	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this.clientId, seq);
 	}
