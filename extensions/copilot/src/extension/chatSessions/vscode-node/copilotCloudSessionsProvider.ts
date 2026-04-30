@@ -398,6 +398,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				if (!resource) {
 					return;
 				}
+				// Check if this is a task-based session — if so, PR commands aren't available
+				const identity = this._backend.parseSessionId(resource);
+				if (identity?.type === 'task') {
+					vscode.window.showInformationMessage(l10n.t('This session doesn\'t have a pull request yet. Use "Create Pull Request" to create one.'));
+					return;
+				}
 				pullRequestNumber = SessionIdForPr.parsePullRequestNumber(resource);
 			}
 
@@ -462,6 +468,38 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				},
 			});
 		this._register(vscode.commands.registerCommand('github.copilot.chat.openPullRequestReroute', openPullRequestReroute));
+
+		// Create PR on demand for task-based sessions
+		this._register(vscode.commands.registerCommand('github.copilot.chat.createPullRequestForTask', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
+			try {
+				const resource = sessionItemOrResource instanceof vscode.Uri
+					? sessionItemOrResource
+					: sessionItemOrResource?.resource;
+				if (!resource) {
+					return;
+				}
+				const identity = this._backend.parseSessionId(resource);
+				if (!identity || identity.type !== 'task') {
+					this.logService.warn('createPullRequestForTask: not a task-based session');
+					return;
+				}
+				const repoIds = await getRepoId(this._gitService);
+				const repoId = repoIds?.[0];
+				if (!repoId) {
+					vscode.window.showErrorMessage(l10n.t('No active repository found to create pull request.'));
+					return;
+				}
+				// Import task API client types for the response
+				const { StubTaskApiClient } = await import('./taskApiBackend');
+				const taskApiClient = new StubTaskApiClient(this.logService);
+				const prResult = await taskApiClient.createPRForTask(repoId.org, repoId.repo, identity.taskId);
+				vscode.window.showInformationMessage(l10n.t('Pull request #{0} created successfully.', prResult.number));
+				this.refresh();
+			} catch (err) {
+				this.logService.error(`createPullRequestForTask failed: ${err}`);
+				vscode.window.showErrorMessage(l10n.t('Failed to create pull request: {0}', String(err)));
+			}
+		}));
 
 		// Command for browsing repositories in the repository picker
 		const openRepositoryCommand = async (sessionItemResource?: vscode.Uri): Promise<string | undefined> => {

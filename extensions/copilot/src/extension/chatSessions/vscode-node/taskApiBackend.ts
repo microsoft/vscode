@@ -91,8 +91,9 @@ function taskToSessionInfo(task: Task): SessionInfo {
 /**
  * Task API backend — implements CloudAgentBackend using Mission Control's Task API.
  *
- * This is the "new" backend. MVP uses create_pull_request: true so the existing
- * PR-based UI continues working during the transition period.
+ * This is the "new" backend. When the feature flag is fully enabled,
+ * create_pull_request defaults to false — PRs are created on demand
+ * via the createPRForTask endpoint instead of automatically.
  *
  * Design principles:
  *  - Data-oriented: return raw data, not VS Code UI parts
@@ -125,7 +126,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 			event_content: params.prompt,
 			problem_statement: problemStatement,
 			base_ref: params.baseRef,
-			create_pull_request: true, // MVP — keeps PR-based UI working
+			create_pull_request: false, // PR-less by default — PRs created on demand
 			event_type: 'visual_studio_code_remote_agent_tool_invoked',
 		};
 
