@@ -539,6 +539,13 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionCustomizationProvider',
 	},
 	{
+		key: 'chat/customizations/embeddedEditor/title',
+		id: MenuId.for('AICustomizationManagementEmbeddedEditorTitle'),
+		description: localize('menus.chatCustomizationsEmbeddedEditorTitle', "The title bar of the embedded editor inside the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
 		key: 'chat/editor/inlineGutter',
 		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),

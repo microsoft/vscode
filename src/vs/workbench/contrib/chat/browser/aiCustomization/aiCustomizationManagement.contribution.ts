@@ -48,6 +48,7 @@ import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AICustomizationManagementCommands,
+	AICustomizationManagementEmbeddedEditorTitleMenuId,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
 	BUILTIN_STORAGE,
@@ -210,8 +211,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID,
-			title: localize2('open', "Open"),
-			icon: Codicon.goToFile,
+			title: localize2('openInEditor', "Open in Editor"),
+			icon: Codicon.openInWindow,
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
@@ -453,6 +454,19 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID, title: localize('open', "Open") },
 	group: '1_open',
+	order: 1,
+});
+
+// Embedded editor title bar — surfaces the Open in Editor action prominently
+// so users can jump from the modal-style editor to a full editor (with file
+// explorer + chat) without losing context.
+MenuRegistry.appendMenuItem(AICustomizationManagementEmbeddedEditorTitleMenuId, {
+	command: {
+		id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID,
+		title: localize2('openInEditor', "Open in Editor"),
+		icon: Codicon.openInWindow,
+	},
+	group: 'navigation',
 	order: 1,
 });
 

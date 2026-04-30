@@ -87,6 +87,15 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<str
 export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationManagementEditorTitle');
 
 /**
+ * Menu ID for actions in the embedded editor header (shown when editing a single
+ * customization file inside the management editor). VS Code and extensions can
+ * contribute commands here. Use the standard item context keys
+ * (`aiCustomizationManagementItemType`, `aiCustomizationManagementItemStorage`,
+ * `aiCustomizationManagementItemUri`) to scope contributions.
+ */
+export const AICustomizationManagementEmbeddedEditorTitleMenuId = MenuId.for('AICustomizationManagementEmbeddedEditorTitle');
+
+/**
  * Menu ID for the AI Customization Management Editor item context menu.
  */
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');

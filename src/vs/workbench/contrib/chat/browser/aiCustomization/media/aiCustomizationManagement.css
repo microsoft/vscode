@@ -1239,6 +1239,10 @@
 	opacity: 1;
 }
 
+.ai-customization-management-editor .editor-header-toolbar {
+	flex-shrink: 0;
+}
+
 .ai-customization-management-editor .embedded-editor-container {
 	flex: 1;
 	overflow: hidden;
