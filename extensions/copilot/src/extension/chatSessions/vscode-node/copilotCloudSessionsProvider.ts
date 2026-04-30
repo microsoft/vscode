@@ -36,6 +36,7 @@ import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, JOB
 import { CloudAgentBackend } from './cloudAgentBackend';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { JobsApiBackend } from './jobsApiBackend';
+import { StubTaskApiClient, TaskApiBackend } from './taskApiBackend';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
 
@@ -294,7 +295,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 	) {
 		super();
-		this._backend = new JobsApiBackend(this._octoKitService, this.logService);
+		// Feature flag: select Task API backend when enabled.
+		// Default off — existing Jobs API behavior is unchanged.
+		const useTaskApi = false; // TODO: Wire to experimentationService.isEnabled('copilot.taskApi')
+		if (useTaskApi) {
+			const taskApiClient = new StubTaskApiClient(this.logService);
+			this._backend = new TaskApiBackend(taskApiClient, this._octoKitService, this.logService);
+		} else {
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService);
+		}
 		this.registerCommands();
 
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
