@@ -1,3 +1,27 @@
+import { normalizeResponsesInput } from "../responsesApi";
+
+describe("normalizeResponsesInput (regression)", () => {
+	it("normalizes empty type to message and drops empty items", () => {
+		const input = [
+			{ type: "message", role: "user", content: "hello" },
+			{ type: "", role: "assistant", content: "hi" },
+			{ type: "" }
+		];
+		const expected = [
+			{ type: "message", role: "user", content: "hello" },
+			{ type: "message", role: "assistant", content: "hi" }
+		];
+		expect(normalizeResponsesInput(input)).toEqual(expected);
+	});
+	it("preserves valid tool and reasoning items", () => {
+		const input = [
+			{ type: "tool_search_call", foo: 1 },
+			{ type: "function_call_output", bar: 2 },
+			{ type: "reasoning", baz: 3 }
+		];
+		expect(normalizeResponsesInput(input)).toEqual(input);
+	});
+});
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
