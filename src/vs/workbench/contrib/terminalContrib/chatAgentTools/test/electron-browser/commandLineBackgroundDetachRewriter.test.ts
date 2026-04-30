@@ -257,4 +257,60 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 			strictEqual(rewriter.rewrite(createOptions('echo hello', 'cmd.exe', OperatingSystem.Windows, true)), undefined);
 		});
 	});
+
+	suite('Interactive front-end skip', () => {
+		const interactives = [
+			'expect setup_vm.exp',
+			'gdb ./a.out',
+			'lldb ./a.out',
+			'passwd',
+			'vim file.txt',
+			'nano notes.md',
+			'less /var/log/syslog',
+			'sftp user@host',
+			'telnet host 23',
+			'psql',
+			'psql mydb',
+			'mysql -u root',
+			'ssh user@host',
+			'sudo apt-get install -y foo',
+		];
+		for (const cmd of interactives) {
+			test(`should skip detach-wrap for interactive: ${cmd}`, () => {
+				strictEqual(rewriter.rewrite(createOptions(cmd, '/bin/bash', OperatingSystem.Linux, true)), undefined);
+			});
+		}
+
+		test('should still wrap psql when -c is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('psql -c "select 1"', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup psql -c "select 1" &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'psql -c "select 1"',
+			});
+		});
+
+		test('should still wrap mysql when -e is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('mysql -e "show databases"', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup mysql -e "show databases" &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'mysql -e "show databases"',
+			});
+		});
+
+		test('should still wrap ssh when running a remote command (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('ssh -T user@host', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup ssh -T user@host &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'ssh -T user@host',
+			});
+		});
+
+		test('should still wrap sudo when -n is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('sudo -n systemctl restart nginx', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup sudo -n systemctl restart nginx &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'sudo -n systemctl restart nginx',
+			});
+		});
+	});
 });

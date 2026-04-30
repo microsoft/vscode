@@ -40,7 +40,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService productService: IProductService,
 	) {
 		super(stateService, uriIdentityService, environmentService, fileService, logService);
 		this.agentPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, environmentService.userHome, productService.dataFolderName));
@@ -58,7 +58,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (!hostUserRoamingDataHome) {
 			return defaultProfile;
 		}
-		const hostAgentPluginsHome = getHostAgentPluginsPath(this.nativeEnvironmentService, this.productService);
+		const hostAgentPluginsHome = getHostAgentPluginsPath(this.nativeEnvironmentService);
 		return {
 			...defaultProfile,
 			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
@@ -77,27 +77,12 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 }
 
-function getHostAgentPluginsPath(environmentService: INativeEnvironmentService, productService: IProductService): string | undefined {
-	if (!(process as INodeProcess).isEmbeddedApp) {
+function getHostAgentPluginsPath(environmentService: INativeEnvironmentService): string | undefined {
+	const hostUserHome = environmentService.hostUserHome;
+	if (!hostUserHome) {
 		return undefined;
 	}
-	if (!environmentService.isBuilt) {
-		return undefined;
-	}
-
-	const quality = productService.quality;
-	let hostDataFolderName: string;
-	if (quality === 'stable') {
-		hostDataFolderName = '.vscode';
-	} else if (quality === 'insider') {
-		hostDataFolderName = '.vscode-insiders';
-	} else if (quality === 'exploration') {
-		hostDataFolderName = '.vscode-exploration';
-	} else {
-		return undefined;
-	}
-
-	return getAgentPluginsPath(environmentService.args, environmentService.userHome, hostDataFolderName);
+	return joinPath(hostUserHome, 'agent-plugins').fsPath;
 }
 
 function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI, dataFolderName: string): string {

@@ -191,7 +191,7 @@ export class ClaudeOTelTracker {
 			this._currentSpan.setAttribute(CopilotChatAttr.TURN_COUNT, message.num_turns);
 		}
 		if (message.total_cost_usd !== undefined) {
-			this._currentSpan.setAttribute('copilot_chat.total_cost_usd', message.total_cost_usd);
+			this._currentSpan.setAttribute(CopilotChatAttr.TOTAL_COST_USD, message.total_cost_usd);
 		}
 		const responseModel = message.modelUsage ? Object.keys(message.modelUsage)[0] : undefined;
 		if (responseModel) {

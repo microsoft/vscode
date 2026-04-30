@@ -54,6 +54,14 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
+	/**
+	 * Tracks per-execute() DisposableStores so they can be cleaned up if the
+	 * strategy is disposed mid-flight, AND removed from this collection on
+	 * successful completion to avoid accumulating stale references when
+	 * execute() is invoked many times on the same strategy instance.
+	 */
+	private readonly _executionStores = this._register(new DisposableStore());
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
@@ -65,24 +73,53 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
-		// Register the store with this strategy's disposable chain so that if
-		// the strategy is disposed while execute() is still running (e.g. the
-		// session is torn down), accumulated Event.toPromise listeners on
-		// shared emitters like onCommandFinished are cleaned up immediately.
-		this._register(store);
+		// Track the store so that if the strategy is disposed while execute()
+		// is still running (e.g. the session is torn down), accumulated
+		// Event.toPromise listeners on shared emitters like onCommandFinished
+		// are cleaned up immediately. Using a dedicated DisposableStore (rather
+		// than this._register) lets us remove the entry on completion so we
+		// don't accumulate stale references across many execute() calls.
+		this._executionStores.add(store);
 		try {
-			// Ensure xterm is available
-			this._log('Waiting for xterm');
-			const xterm = await this._instance.xtermReadyPromise;
-			if (!xterm) {
-				throw new Error('Xterm is not available');
+			// If the terminal is already disposed or its pty has already exited
+			// (e.g. the shell from a previous command died before this one was
+			// requested), Event.toPromise(onExit/onDisposed) will subscribe to an
+			// emitter that has already fired and never resolves, hanging the
+			// run-in-terminal tool until the agent's outer timeout. Detect this
+			// up front and resolve immediately with the captured exit code.
+			if (this._instance.isDisposed) {
+				this._log('Terminal already disposed at strategy entry');
+				throw new Error('The terminal was closed');
 			}
-			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
+			if (this._instance.exitCode !== undefined) {
+				this._log(`Terminal pty already exited at strategy entry (code=${this._instance.exitCode})`);
+				return {
+					output: undefined,
+					exitCode: this._instance.exitCode,
+					additionalInformation: `Command exited with code ${this._instance.exitCode}`,
+				};
+			}
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
+			// Capture any command that is already executing in the terminal at
+			// strategy entry. `runCommand` (called below) may send ETX (Ctrl+C)
+			// to clear stale prompt input, which kills that prior command and
+			// produces an `onCommandFinished` event with exit code 130. Without
+			// this filter, the race below resolves with the prior command's
+			// finished event before our new command has even started — causing
+			// the new command to be reported as having instantly exited 130 and
+			// cascading to every subsequent command on the same terminal.
+			const staleExecutingCommand = this._commandDetection.executingCommandObject;
+			const onCommandFinishedFiltered = staleExecutingCommand
+				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+				: this._commandDetection.onCommandFinished;
+
+			// Subscribe to terminal lifecycle events BEFORE any awaits so that we
+			// don't miss events that fire while we're waiting for xterm to be
+			// ready (e.g. the pty exits during xtermReadyPromise resolution).
 			const onDone = Promise.race([
-				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+				Event.toPromise(onCommandFinishedFiltered, store).then(e => {
 					this._log('onDone via end event');
 					return {
 						'type': 'success',
@@ -100,10 +137,18 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					this._log(`onDone via process exit (${formatExitCodeOrError(exitCodeOrError)})`);
 					return { type: 'processExit', exitCodeOrError } as const;
 				}),
-				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval).then(() => {
+				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService).then(() => {
 					this._log('onDone via idle prompt');
 				}),
 			]);
+
+			// Ensure xterm is available
+			this._log('Waiting for xterm');
+			const xterm = await this._instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Xterm is not available');
+			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
@@ -190,7 +235,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				exitCode,
 			};
 		} finally {
-			store.dispose();
+			this._executionStores.delete(store);
 		}
 	}
 

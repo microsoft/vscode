@@ -276,12 +276,21 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.availableBreakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
 		const breakpointOptions = this.buildBreakpointOptions();
 
-		const index = this.availableBreakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
+		const index = this.availableBreakpoints.findIndex(bp => this.breakpoint?.triggeredBy === bp.getId());
+
+		let selectedIndex = 0;
+
 		if (index !== -1) {
 			this.triggeredByBreakpointInput = this.availableBreakpoints[index];
+			selectedIndex = index + 1;
+		} else if (!this.breakpoint?.triggeredBy && this.availableBreakpoints.length > 0) {
+			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
+			selectedIndex = 1;
+		} else {
+			this.triggeredByBreakpointInput = undefined;
 		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
+		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, selectedIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.store.add(selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -337,25 +346,16 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private updateTriggerBreakpointList(): void {
 		this.availableBreakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
 
-		let selectedIndex = 0; // Default to "None"
+		let selectedIndex = 0;
 
 		if (this.triggeredByBreakpointInput) {
 			const newIndex = this.availableBreakpoints.findIndex(bp => bp.getId() === this.triggeredByBreakpointInput?.getId());
 			if (newIndex !== -1) {
 				selectedIndex = newIndex + 1;
 			} else {
-				// The selected breakpoint was removed, clear the selection
 				this.triggeredByBreakpointInput = undefined;
 			}
 		}
-
-		// If no triggeredByBreakpointInput is set and there are available breakpoints, select the first one by default
-		if (!this.triggeredByBreakpointInput && this.availableBreakpoints.length > 0) {
-			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
-			selectedIndex = 1;
-		}
-
-		// If still no available breakpoints, keep "None" selected and triggeredByBreakpointInput undefined
 
 		const breakpointOptions = this.buildBreakpointOptions();
 		this.selectBreakpointBox.setOptions(breakpointOptions, selectedIndex);

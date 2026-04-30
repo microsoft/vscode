@@ -49,9 +49,15 @@ export function matchesAnyBranchProtectionPattern(branchName: string, patterns: 
 /**
  * Reads `git.branchProtection` from configuration and normalizes the result
  * into an array of trimmed, non-empty pattern strings.
+ *
+ * The `git.branchProtection` setting is `resource`-scoped, so the value can
+ * differ between workspace folders. Pass the session's working directory (or
+ * project URI as a fallback) as `resource` so we read the setting in the
+ * scope of the folder VS Code actually has loaded rather than the host
+ * window's active workspace.
  */
-export function readBranchProtectionPatterns(configurationService: IConfigurationService): readonly string[] {
-	const raw = configurationService.getValue<unknown>('git.branchProtection') ?? [];
+export function readBranchProtectionPatterns(configurationService: IConfigurationService, resource?: URI): readonly string[] {
+	const raw = configurationService.getValue<unknown>('git.branchProtection', { resource }) ?? [];
 	const list = Array.isArray(raw) ? raw : [raw];
 	return list
 		.map(p => typeof p === 'string' ? p.trim() : '')
