@@ -159,7 +159,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		// --- Dismissal: backdrop tap + Escape -------------------------------
 		disposables.add(Gesture.addTarget(backdrop));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			disposables.add(dom.addDisposableListener(backdrop, eventType, () => finish()));
+			disposables.add(dom.addDisposableListener(backdrop, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				finish();
+			}));
 		}
 		disposables.add(dom.addDisposableListener(targetDocument, dom.EventType.KEY_DOWN, e => {
 			if (new StandardKeyboardEvent(e).equals(KeyCode.Escape)) {
@@ -168,9 +171,8 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			}
 		}));
 
-		// Focus management: focus the selected host or the first focusable item.
-		const focusTarget = focusRefs.firstCheckedHost ?? focusRefs.firstHost ?? focusRefs.rediscover;
-		focusTarget?.focus();
+		// Focus the currently selected host when the sheet opens.
+		focusRefs.firstCheckedHost?.focus();
 	}
 
 	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
@@ -228,14 +230,17 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 			check.append(...renderLabelWithIcons(`$(${Codicon.check.id})`));
 		}
 
-		const select = () => {
+		const select = (e?: Event) => {
+			if (e) {
+				dom.EventHelper.stop(e, true);
+			}
 			this._filterService.setSelectedProviderId(host.providerId);
 			finish();
 		};
 
 		disposables.add(Gesture.addTarget(row));
-		disposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, select));
-		disposables.add(dom.addDisposableListener(row, TouchEventType.Tap, select));
+		disposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, e => select(e)));
+		disposables.add(dom.addDisposableListener(row, TouchEventType.Tap, e => select(e)));
 		return row;
 	}
 
@@ -272,7 +277,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		update();
 		disposables.add(this._filterService.onDidChangeDiscovering(update));
 
-		const trigger = () => {
+		const trigger = (e?: Event) => {
+			if (e) {
+				dom.EventHelper.stop(e, true);
+			}
 			if (this._filterService.isDiscovering) {
 				return;
 			}
@@ -280,8 +288,8 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		};
 
 		disposables.add(Gesture.addTarget(action));
-		disposables.add(dom.addDisposableListener(action, dom.EventType.CLICK, trigger));
-		disposables.add(dom.addDisposableListener(action, TouchEventType.Tap, trigger));
+		disposables.add(dom.addDisposableListener(action, dom.EventType.CLICK, e => trigger(e)));
+		disposables.add(dom.addDisposableListener(action, TouchEventType.Tap, e => trigger(e)));
 		return action;
 	}
 }
