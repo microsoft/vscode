@@ -29,6 +29,7 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
+import { ITerminalService } from '../../../platform/terminal/common/terminalService';
 
 export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -83,6 +84,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
 	}
@@ -109,8 +111,13 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	private async getEndpoint() {
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
+		const shellType = this.terminalService.terminalShellType;
 
 		if (useAgenticProxy) {
+			// Our custom models are not trained for powershell yet. Fall back to main agent endpoint.
+			if (shellType === 'powershell') {
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
+			}
 			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL
 			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
 			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
