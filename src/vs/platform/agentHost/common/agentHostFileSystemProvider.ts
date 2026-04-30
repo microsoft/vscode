@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { type IAgentConnection } from './agentService.js';
-import { ContentEncoding, type IDirectoryEntry, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult } from './state/protocol/commands.js';
+import { ContentEncoding, type DirectoryEntry, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 
 /**
  * Interface for performing resource operations on a remote endpoint.
@@ -20,11 +20,11 @@ import { ContentEncoding, type IDirectoryEntry, type IResourceDeleteParams, type
  * filesystems (server→client) satisfy this contract.
  */
 export interface IRemoteFilesystemConnection {
-	resourceList(uri: URI): Promise<IResourceListResult>;
-	resourceRead(uri: URI): Promise<IResourceReadResult>;
-	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult>;
-	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult>;
-	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult>;
+	resourceList(uri: URI): Promise<ResourceListResult>;
+	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
+	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
+	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
 }
 
 /**
@@ -91,7 +91,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 		const decoded = this._decodeUri(resource);
-		if (decoded.scheme === 'session-db') {
+		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob') {
 			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
@@ -197,7 +197,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		return connection;
 	}
 
-	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
+	private async _listDirectory(authority: string, resource: URI): Promise<readonly DirectoryEntry[]> {
 		const connection = this._getConnection(authority);
 		try {
 			const originalUri = this._decodeUri(resource);

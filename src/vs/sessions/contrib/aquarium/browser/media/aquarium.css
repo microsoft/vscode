@@ -1,0 +1,294 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Agents aquarium. All decorative layers use pointer-events:none; mouse
+ * handling is done at the workbench main container level. See aquariumOverlay.ts. */
+
+/* --- Water --- */
+
+/* Make the chat bar a positioning context for the water layer (its first
+ * child) and keep its real children above the decorative water — without
+ * explicit z-index, positioned siblings paint after non-positioned ones. */
+.monaco-workbench .part.chatbar {
+	position: relative;
+}
+.monaco-workbench .part.chatbar > .title,
+.monaco-workbench .part.chatbar > .content {
+	position: relative;
+	z-index: 1;
+}
+
+.agents-aquarium-water {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 0;
+	border-radius: 12px;
+	opacity: 0;
+	transition: opacity 320ms ease-out;
+	/* Linear (not radial) — bands far less than radial alpha gradients. */
+	background: linear-gradient(160deg,
+			rgba(36, 191, 165, 0.06) 0%,
+			rgba(0, 122, 204, 0.05) 55%,
+			rgba(188, 63, 188, 0.05) 100%);
+}
+
+.agents-aquarium-water.visible {
+	opacity: 1;
+}
+
+/* Two soft drifting accent glows. We use radial-gradient softness inside
+ * each pseudo (not `filter: blur()`) so the parent's `overflow: hidden`
+ * doesn't clip the blur radius and leave a hard edge. Circles are sized
+ * larger than visible so the falloff has somewhere to fade into. */
+.agents-aquarium-water::before,
+.agents-aquarium-water::after {
+	content: '';
+	position: absolute;
+	width: 140%;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	pointer-events: none;
+	will-change: transform;
+}
+
+.agents-aquarium-water::before {
+	top: -70%;
+	left: -50%;
+	background: radial-gradient(closest-side, rgba(36, 191, 165, 0.10), rgba(36, 191, 165, 0.05) 35%, transparent 75%);
+	animation: agents-aquarium-float-a 18s ease-in-out infinite alternate;
+}
+
+.agents-aquarium-water::after {
+	bottom: -70%;
+	right: -50%;
+	background: radial-gradient(closest-side, rgba(0, 122, 204, 0.10), rgba(0, 122, 204, 0.05) 35%, transparent 75%);
+	animation: agents-aquarium-float-b 22s ease-in-out infinite alternate;
+}
+
+/* translate3d so the GPU composites instead of re-rasterizing each frame. */
+@keyframes agents-aquarium-float-a {
+	0% {
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+	50% {
+		transform: translate3d(8%, 6%, 0) scale(1.05);
+	}
+	100% {
+		transform: translate3d(-5%, 10%, 0) scale(0.97);
+	}
+}
+
+@keyframes agents-aquarium-float-b {
+	0% {
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+	50% {
+		transform: translate3d(-6%, -8%, 0) scale(1.03);
+	}
+	100% {
+		transform: translate3d(5%, -4%, 0) scale(1.07);
+	}
+}
+
+/* --- Fish --- */
+
+.agents-aquarium-fish-layer,
+.agents-aquarium-food-layer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+/* No drop-shadow / blur filter: those force a software rasterization pass
+ * per fish per frame (~10x paint cost at 50 fish). */
+.agents-aquarium-fish {
+	position: absolute;
+	top: 0;
+	left: 0;
+	will-change: transform, opacity;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 360ms ease-out;
+}
+
+/* JS sets per-fish transition-delay before adding `.visible` for staggered
+ * entry; the exit handler drives the fade-out via inline styles. */
+.agents-aquarium-fish.visible {
+	opacity: 1;
+}
+
+/* No transition on the inner: facing is eased in JS each frame via
+ * Fish.applyTransform so it stays in sync with the swim direction. */
+.agents-aquarium-fish-inner {
+	width: 100%;
+	height: 100%;
+	transform-origin: center;
+}
+
+.agents-aquarium-fish svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+	overflow: visible;
+}
+
+/* Each strip is a clipped vertical slice of the VS Code logo; staggered
+ * translateY produces a sine wave traveling along the body (the swim).
+ * Front strips (--agents-aquarium-strip-index ~ 0) keep the species color;
+ * back strips mix toward white for depth shading. 720ms / 8 strips = 90ms
+ * phase delay; negative delay starts each strip mid-cycle. */
+.agents-aquarium-fish-strip {
+	color: color-mix(in srgb, currentColor, white calc(var(--agents-aquarium-strip-index, 0) * 4%));
+	animation: agents-aquarium-body-wave 720ms linear infinite;
+	animation-delay: calc(var(--agents-aquarium-strip-index, 0) * -90ms);
+}
+
+/* 5-keyframe sine approximation; linear timing lands closer to a true
+ * sinusoid than 2-keyframe ease-in-out (which over-emphasizes extremes). */
+@keyframes agents-aquarium-body-wave {
+	0% {
+		transform: translateY(0);
+	}
+	25% {
+		transform: translateY(3.5px);
+	}
+	50% {
+		transform: translateY(0);
+	}
+	75% {
+		transform: translateY(-3.5px);
+	}
+	100% {
+		transform: translateY(0);
+	}
+}
+
+/* --- Food pellets --- */
+
+.agents-aquarium-food {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 6px;
+	height: 6px;
+	margin: -3px 0 0 -3px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 35% 35%, #ffd56a, #c98a17 80%);
+	box-shadow: 0 0 4px rgba(255, 200, 80, 0.6);
+	pointer-events: none;
+	will-change: transform;
+}
+
+/* --- Toggle button (anchored to the chat bar) --- */
+
+.agents-aquarium-toggle {
+	position: absolute;
+	top: 12px;
+	right: 14px;
+	z-index: 100;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--vscode-foreground, #cccccc);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	cursor: pointer;
+	opacity: 0.5;
+	transition: opacity 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.agents-aquarium-toggle:hover {
+	opacity: 1;
+	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
+}
+
+/* `.monaco-workbench` prefix to match the workbench's own `button:focus`
+ * rule so we win the cascade without resorting to !important. */
+.monaco-workbench button.agents-aquarium-toggle:focus {
+	outline: none;
+}
+.monaco-workbench button.agents-aquarium-toggle:focus-visible {
+	opacity: 1;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.agents-aquarium-toggle.active {
+	opacity: 1;
+	color: var(--vscode-icon-foreground, var(--vscode-foreground, #cccccc));
+}
+.agents-aquarium-toggle .codicon {
+	font-size: 14px;
+}
+
+/* Off-state icon: the agents window logo (same asset as the mobile chat
+ * shell's workspace picker). Theme-swapped under `.vs` / `.hc-light`. */
+.agents-aquarium-toggle-logo {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	background: url('../../../../browser/media/sessions-logo-light.svg') center / contain no-repeat;
+	transform-origin: 50% 50%;
+	/* Brief attention-grabbing wiggle every 12s. Keyframes hold the rest
+	 * pose for ~93% of the cycle and only animate during the first ~7%. */
+	animation: agents-aquarium-toggle-wiggle 12s ease-in-out infinite;
+}
+
+.vs .agents-aquarium-toggle-logo,
+.hc-light .agents-aquarium-toggle-logo {
+	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
+}
+
+/* No need to nag once the user is engaging with the button. */
+.agents-aquarium-toggle:hover .agents-aquarium-toggle-logo,
+.agents-aquarium-toggle:focus-visible .agents-aquarium-toggle-logo {
+	animation: none;
+}
+
+@keyframes agents-aquarium-toggle-wiggle {
+	0% {
+		transform: rotate(0deg) scale(1);
+	}
+	1.5% {
+		transform: rotate(-12deg) scale(1.08);
+	}
+	3% {
+		transform: rotate(10deg) scale(1.08);
+	}
+	4.5% {
+		transform: rotate(-8deg) scale(1.05);
+	}
+	6% {
+		transform: rotate(6deg) scale(1.03);
+	}
+	7% {
+		transform: rotate(0deg) scale(1);
+	}
+	100% {
+		transform: rotate(0deg) scale(1);
+	}
+}
+
+/* --- Reduced motion --- */
+
+@media (prefers-reduced-motion: reduce) {
+	.agents-aquarium-fish-strip,
+	.agents-aquarium-water::before,
+	.agents-aquarium-water::after,
+	.agents-aquarium-toggle-logo {
+		animation: none;
+	}
+
+	.agents-aquarium-water,
+	.agents-aquarium-fish {
+		transition: none;
+	}
+}

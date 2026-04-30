@@ -70,13 +70,27 @@ type ICompletionModelCapabilities = {
 	type: 'completion';
 	family: string;
 	tokenizer: TokenizerType;
-}
+};
 
 export enum ModelSupportedEndpoint {
 	ChatCompletions = '/chat/completions',
 	Responses = '/responses',
 	WebSocketResponses = 'ws:/responses',
 	Messages = '/v1/messages'
+}
+
+export interface IModelTokenPrices {
+	batch_size: number;
+	cache_price: number;
+	input_price: number;
+	output_price: number;
+}
+
+export interface IModelBilling {
+	is_premium?: boolean;
+	multiplier?: number;
+	restricted_to?: string[];
+	token_prices?: IModelTokenPrices;
 }
 
 export interface IModelAPIResponse {
@@ -90,10 +104,10 @@ export interface IModelAPIResponse {
 	version: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
-	billing?: { is_premium: boolean; multiplier: number; restricted_to?: string[] };
+	billing?: IModelBilling;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
-	custom_model?: { key_name: string; owner_name: string };
+	custom_model?: CustomModel;
 }
 
 export type IChatModelInformation = IModelAPIResponse & {

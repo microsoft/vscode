@@ -33,7 +33,7 @@ You MUST check compilation output before running ANY script or declaring work co
 
 ### TypeScript compilation steps
 - Monitor the `start-watch-tasks` task outputs for real-time compilation errors as you make changes
-- This task runs `npm: watch:tsc-extension`,`npm: watch:tsc-extension-web`, `npm: watch:tsc-simulation-workbench`, and `npm: watch:esbuild` to incrementally compile the project
+- This task runs `npm: watch:typecheck-extension`,`npm: watch:typecheck-extension-web`, `npm: watch:typecheck-simulation-workbench`, and `npm: watch:esbuild` to incrementally compile the project
 - Start the task if it's not already running in the background
 
 ## Project Architecture

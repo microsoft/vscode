@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -72,7 +73,7 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
 }
 
-export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest) => {
+export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
 	const toolsService = accessor.get<IToolsService>(IToolsService);
 	const testService = accessor.get<ITestProvider>(ITestProvider);
 	const tasksService = accessor.get<ITasksService>(ITasksService);
@@ -80,7 +81,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
-	const model = await endpointProvider.getChatEndpoint(request);
+	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
 
@@ -119,6 +120,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
 
+	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
+	allowTools[ToolName.Skill] = skillToolEnabled;
+
+	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
+
 	if (model.family.includes('grok-code')) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
@@ -140,8 +146,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	if (model.family.toLowerCase().includes('gemini-3') && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gemini3MultiReplaceString, experimentationService)) {
 		allowTools[ToolName.MultiReplaceString] = true;
 	}
-
-	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
@@ -388,7 +392,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@ILogService private readonly logService: ILogService,
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
-		@IOTelService override readonly otelService: IOTelService,
+		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
@@ -444,6 +448,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
+		// When the "last two messages" cache breakpoint strategy is enabled,
+		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
+		// will place breakpoints on the last two merged messages instead.
+		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -454,7 +463,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled,
+			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -621,11 +630,20 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction applied after budget exceeded (roundId=${bgResult.toolCallRoundId})`);
 						this._applySummaryToRounds(bgResult, promptContext);
 						this._persistSummaryOnTurn(bgResult, promptContext, contextLengthBefore);
-						this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'applied', contextRatio, promptContext);
 						didSummarizeThisIteration = true;
-						// Re-render with the compacted history
-						const renderer = PromptRenderer.create(this.instantiationService, endpoint, this.prompt, { ...props, promptContext });
-						result = await renderer.render(progress, token);
+						try {
+							const reRenderer = PromptRenderer.create(this.instantiationService, endpoint, this.prompt, { ...props, promptContext });
+							result = await reRenderer.render(progress, token);
+							this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'applied', contextRatio, promptContext);
+						} catch (reRenderError) {
+							if (reRenderError instanceof BudgetExceededError) {
+								this.logService.debug(`[ConversationHistorySummarizer] re-render after background compaction still exceeded budget — falling back`);
+								this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'appliedButReRenderFailed', contextRatio, promptContext);
+								result = await renderWithoutSummarization('budget exceeded after background compaction applied', { ...props, promptContext });
+							} else {
+								throw reRenderError;
+							}
+						}
 					} else {
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction produced no usable result after budget exceeded — falling back to synchronous summarization`);
 						this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'noResult', contextRatio, promptContext);
@@ -694,8 +712,13 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
 					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
 					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
 					this._lastModelCapabilities = {
-						enableThinking: !isAnthropicFamily(this.endpoint) || ToolCallingLoop.messagesContainThinking(strippedMessages),
+						enableThinking: !shouldDisableThinking,
 						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
 						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
@@ -713,7 +736,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		addCacheBreakpoints(result.messages);
+		if (!useLastTwoMessagesCacheBPs) {
+			addCacheBreakpoints(result.messages);
+		}
 
 		if (this.request.command === 'error') {
 			// Should trigger a 400
@@ -886,6 +911,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					const numRoundsInCurrentTurn = rounds.length;
 					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
 						?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
+					const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 					/* __GDPR__
 						"summarizedConversationHistory" : {
 							"owner": "bhavyau",
@@ -897,6 +923,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
 							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
+							"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
 							"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
 							"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
 							"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
@@ -915,6 +942,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						chatRequestId: associatedRequestId,
 						lastUsedTool,
 						requestId: response.requestId,
+						promptTypes,
 					}, {
 						numRounds,
 						turnIndex: history.length,
@@ -1116,7 +1144,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				"owner": "bhavyau",
 				"comment": "Tracks background compaction orchestration decisions and outcomes in the agent loop.",
 				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The code path that triggered background compaction consumption." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the background compaction result was applied or produced no usable result." },
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced)." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this background compaction was consumed during." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },

@@ -45,11 +45,11 @@ const baseNodeBuildOptions = {
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',
-	mainFields: ["module", "main"], // needed for jsonc-parser,
+	mainFields: ['module', 'main'], // needed for jsonc-parser,
 	define: {
 		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': JSON.stringify(JSON.stringify({
-			proxyHttpUrl: "",
-			proxyHttpsUrl: ""
+			proxyHttpUrl: '',
+			proxyHttpsUrl: ''
 		}))
 	},
 } satisfies esbuild.BuildOptions;
@@ -183,7 +183,6 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/parser/node/parserWorker.ts', out: 'worker2' },
 		{ in: './src/platform/tokenizer/node/tikTokenizerWorker.ts', out: 'tikTokenizerWorker' },
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
-		{ in: './src/platform/tfidf/node/tfidfWorker.ts', out: 'tfidfWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
 		{ in: './src/extension/chatSessions/vscode-node/copilotCLIShim.ts', out: 'copilotCLIShim' },
@@ -233,7 +232,7 @@ const nodeSimulationBuildOptions = {
 const nodeSimulationWorkbenchUIBuildOptions = {
 	...baseNodeBuildOptions,
 	platform: 'browser', // @ulugbekna: important to target 'browser' for correct bundling using 'window'
-	mainFields: ["browser", "module", "main"],
+	mainFields: ['browser', 'module', 'main'],
 	entryPoints: [
 		{ in: './test/simulation/workbench/simulationWorkbench.tsx', out: 'simulationWorkbench' },
 	],
@@ -278,8 +277,8 @@ const typeScriptServerPluginBuildOptions = {
 	sourcesContent: false,
 	treeShaking: true,
 	external: [
-		"typescript",
-		"typescript/lib/tsserverlibrary"
+		'typescript',
+		'typescript/lib/tsserverlibrary',
 	],
 	entryPoints: [
 		{ in: './src/extension/typescriptContext/serverPlugin/src/node/main.ts', out: 'main' },

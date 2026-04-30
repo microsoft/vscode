@@ -13,17 +13,24 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
 	modelDescription: 'Open a new browser page in the integrated browser at the given URL.',
+	inputSchema: {
+		...OpenBrowserToolData.inputSchema,
+		required: ['url'],
+		$comment: undefined
+	}
 };
 
 export class OpenBrowserToolNonAgentic implements IToolImpl {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -52,7 +59,8 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existingResult = await getExistingPagesResult(this.editorService, undefined, params.url, { excludeIds: true });
+			const existingPages = findExistingPagesByHost(this.browserViewService, params.url!);
+			const existingResult = await getExistingPagesResult(this.editorService, existingPages, { excludeIds: true });
 			if (existingResult) {
 				return existingResult;
 			}
@@ -61,7 +69,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, preserveFocus: true, viewState: { url: params.url } } });
 
 		return {
 			content: [{

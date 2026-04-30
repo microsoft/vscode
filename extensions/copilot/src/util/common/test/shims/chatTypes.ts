@@ -110,6 +110,13 @@ export class ChatResponseWarningPart {
 	}
 }
 
+export class ChatResponseInfoPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location;
 	constructor(value: vscode.Uri | vscode.Location) {
@@ -476,6 +483,12 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
 }
 
 export enum ChatRequestEditedFileEventKind {

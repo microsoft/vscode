@@ -41,6 +41,7 @@ import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } fro
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -59,9 +60,8 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
+	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
@@ -384,11 +384,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
-							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
+
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.has('updateTitleBar').negate()
+							ContextKeyExpr.has('updateTitleBar').negate(),
+							InEditorZenModeContext.negate(),
 						),
 					}]
 				});
@@ -462,11 +463,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class EnableOveragesAction extends Action2 {
+		class ManageAdditionalSpendAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.chat.manageOverages',
-					title: localize2('manageOverages', "Manage GitHub Copilot Overages"),
+					id: 'workbench.action.chat.manageAdditionalSpend',
+					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Additional Spend"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -475,6 +476,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planMax,
 							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
@@ -486,6 +488,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planMax,
 								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
@@ -499,7 +502,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(defaultChat.manageOveragesUrl));
+				openerService.open(URI.parse(defaultChat.manageOverageUrl));
 			}
 		}
 
@@ -510,7 +513,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
-		registerAction2(EnableOveragesAction);
+		registerAction2(ManageAdditionalSpendAction);
 
 		//#endregion
 
@@ -830,7 +833,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }
 

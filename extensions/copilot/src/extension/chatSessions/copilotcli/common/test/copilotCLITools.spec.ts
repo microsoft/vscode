@@ -74,6 +74,10 @@ describe('CopilotCLITools', () => {
 			const input = '<pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/> Body';
 			expect(stripReminders(input)).toBe('Body');
 		});
+		it('removes user_query blocks', () => {
+			const input = '<user_query>Hidden prompt</user_query> Visible';
+			expect(stripReminders(input)).toBe('Visible');
+		});
 		it('removes multiple constructs mixed', () => {
 			const input = '<reminder>x</reminder>One<current_datetime>y</current_datetime> <pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/>Two';
 			// Current behavior compacts content without guaranteeing spacing
@@ -152,6 +156,17 @@ describe('CopilotCLITools', () => {
 			const markdownParts = parts.filter(p => p instanceof ChatResponseMarkdownPart);
 			expect(markdownParts).toHaveLength(1);
 			expect((markdownParts[0] as any).value?.value || (markdownParts[0] as any).value).toContain('All tests are passing.');
+		});
+
+		it('preserves response details on the final rebuilt response turn', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi there' } }
+			];
+			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, 'Base • 2x');
+			expect(turns).toHaveLength(2);
+			const responseTurn = turns[1] as ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'Base • 2x' });
 		});
 
 		it('converts file attachments to references on user messages', () => {
@@ -1288,4 +1303,3 @@ describe('CopilotCLITools', () => {
 		});
 	});
 });
-

@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -31,7 +31,7 @@ import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
-import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { CustomModel, IChatModelInformation, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
@@ -112,6 +112,28 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
+const AIC_DIVISOR = 1_000_000_000;
+const TOKENS_PER_MILLION = 1_000_000;
+
+/**
+ * Converts raw billing token prices into normalized AICs per million tokens.
+ *
+ * Raw prices are divided by {@link AIC_DIVISOR} to get AICs, then scaled
+ * so the result is always "per 1M tokens" regardless of the original batch_size.
+ */
+function normalizeTokenPricing(tokenPrices: IModelTokenPrices | undefined): IChatEndpointTokenPricing | undefined {
+	if (!tokenPrices) {
+		return undefined;
+	}
+	const { batch_size, input_price, output_price, cache_price } = tokenPrices;
+	const scale = TOKENS_PER_MILLION / batch_size;
+	return {
+		inputPrice: (input_price / AIC_DIVISOR) * scale,
+		outputPrice: (output_price / AIC_DIVISOR) * scale,
+		cacheReadTokenPrice: (cache_price / AIC_DIVISOR) * scale,
+	};
+}
+
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -135,6 +157,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 
@@ -165,6 +188,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		this.tokenPricing = normalizeTokenPricing(modelMetadata.billing?.token_prices);
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -173,7 +197,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model);
+		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model, this._configurationService, this._expService);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;

@@ -68,6 +68,120 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 				forDisplay: 'flask run',
 			});
 		});
+
+		test('should not duplicate trailing & when command already backgrounds itself', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('pypi-server ... &', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup pypi-server ... &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'pypi-server ... &',
+			});
+		});
+
+		test('should not duplicate trailing & when command ends with chained background command', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cd /app && python3 service.py &', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup cd /app && python3 service.py &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cd /app && python3 service.py &',
+			});
+		});
+
+		test('should trim trailing whitespace before detecting existing &', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('node server.js &   ', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup node server.js &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'node server.js &   ',
+			});
+		});
+	});
+
+	suite('POSIX shell -c wrapping for compound commands and builtins', () => {
+		test('for loop should be wrapped using bash shell path', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('for i in $(seq 1 90); do echo $i; sleep 1; done', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'for i in $(seq 1 90); do echo $i; sleep 1; done' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'for i in $(seq 1 90); do echo $i; sleep 1; done',
+			});
+		});
+
+		test('while loop should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('while true; do sleep 1; done', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'while true; do sleep 1; done' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'while true; do sleep 1; done',
+			});
+		});
+
+		test('if statement should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('if [ -f file ]; then cat file; fi', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'if [ -f file ]; then cat file; fi' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'if [ -f file ]; then cat file; fi',
+			});
+		});
+
+		test('eval builtin should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('eval $SETUP_ENV && opam install coq --yes', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'eval $SETUP_ENV && opam install coq --yes' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'eval $SETUP_ENV && opam install coq --yes',
+			});
+		});
+
+		test('set builtin should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('set -e; cmd1; cmd2', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'set -e; cmd1; cmd2' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'set -e; cmd1; cmd2',
+			});
+		});
+
+		test('export builtin should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('export PATH="/usr/local/bin:$PATH"; myapp', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'export PATH="/usr/local/bin:$PATH"; myapp' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'export PATH="/usr/local/bin:$PATH"; myapp',
+			});
+		});
+
+		test('dot-source builtin should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('. /etc/profile; myapp', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c '. /etc/profile; myapp' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: '. /etc/profile; myapp',
+			});
+		});
+
+		test('relative path ./script should NOT be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('./start.sh', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup ./start.sh &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: './start.sh',
+			});
+		});
+
+		test('brace group should be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('{ cmd1; cmd2; }', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c '{ cmd1; cmd2; }' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: '{ cmd1; cmd2; }',
+			});
+		});
+
+		test('single quotes in command should be properly escaped', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions(`for f in *.txt; do echo 'file:' $f; done`, '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/bash -c 'for f in *.txt; do echo '\\''file:'\\'' $f; done' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: `for f in *.txt; do echo 'file:' $f; done`,
+			});
+		});
+
+		test('simple external command should NOT be wrapped in shell -c', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('python3 app.py', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup python3 app.py &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'python3 app.py',
+			});
+		});
 	});
 
 	suite('POSIX (zsh)', () => {
@@ -78,6 +192,14 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 				forDisplay: 'node server.js',
 			});
 		});
+
+		test('for loop should be wrapped using zsh shell path', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('for i in $(seq 1 10); do echo $i; done', '/bin/zsh', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /bin/zsh -c 'for i in $(seq 1 10); do echo $i; done' &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'for i in $(seq 1 10); do echo $i; done',
+			});
+		});
 	});
 
 	suite('POSIX (fish)', () => {
@@ -86,6 +208,22 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 				rewritten: 'nohup ruby app.rb &',
 				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 				forDisplay: 'ruby app.rb',
+			});
+		});
+
+		test('for loop should be wrapped using fish shell path with double-quote escaping', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('for i in (seq 1 10); echo $i; end', '/usr/bin/fish', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /usr/bin/fish -c "for i in (seq 1 10); echo $i; end" &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'for i in (seq 1 10); echo $i; end',
+			});
+		});
+
+		test('compound command with double quotes should be escaped for fish', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('for f in *.txt; echo "file: $f"; end', '/usr/bin/fish', OperatingSystem.Linux, true)), {
+				rewritten: `nohup /usr/bin/fish -c "for f in *.txt; echo \\"file: $f\\"; end" &`,
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'for f in *.txt; echo "file: $f"; end',
 			});
 		});
 	});
@@ -117,6 +255,62 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should return undefined for non-PowerShell Windows shell', () => {
 			strictEqual(rewriter.rewrite(createOptions('echo hello', 'cmd.exe', OperatingSystem.Windows, true)), undefined);
+		});
+	});
+
+	suite('Interactive front-end skip', () => {
+		const interactives = [
+			'expect setup_vm.exp',
+			'gdb ./a.out',
+			'lldb ./a.out',
+			'passwd',
+			'vim file.txt',
+			'nano notes.md',
+			'less /var/log/syslog',
+			'sftp user@host',
+			'telnet host 23',
+			'psql',
+			'psql mydb',
+			'mysql -u root',
+			'ssh user@host',
+			'sudo apt-get install -y foo',
+		];
+		for (const cmd of interactives) {
+			test(`should skip detach-wrap for interactive: ${cmd}`, () => {
+				strictEqual(rewriter.rewrite(createOptions(cmd, '/bin/bash', OperatingSystem.Linux, true)), undefined);
+			});
+		}
+
+		test('should still wrap psql when -c is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('psql -c "select 1"', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup psql -c "select 1" &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'psql -c "select 1"',
+			});
+		});
+
+		test('should still wrap mysql when -e is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('mysql -e "show databases"', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup mysql -e "show databases" &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'mysql -e "show databases"',
+			});
+		});
+
+		test('should still wrap ssh when running a remote command (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('ssh -T user@host', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup ssh -T user@host &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'ssh -T user@host',
+			});
+		});
+
+		test('should still wrap sudo when -n is passed (non-interactive)', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('sudo -n systemctl restart nginx', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup sudo -n systemctl restart nginx &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'sudo -n systemctl restart nginx',
+			});
 		});
 	});
 });

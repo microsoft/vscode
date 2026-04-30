@@ -72,6 +72,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async close(): Promise<void> { }
 
+	async vacuumInto(_targetPath: string): Promise<void> { }
+
 	dispose(): void { }
 
 	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
@@ -89,6 +91,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(): Promise<void> { }
 
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
+
+	async whenIdle(): Promise<void> { }
 
 	private _toEditRecords(edits: (IFileEditRecord & IFileEditContent)[]): IFileEditRecord[] {
 		return edits.map(({ beforeContent: _, afterContent: _2, ...metadata }) => metadata);
@@ -130,6 +134,7 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 		tryOpenDatabase: async () => createReference(database),
 		deleteSessionData: async () => { },
 		cleanupOrphanedData: async () => { },
+		whenIdle: async () => { },
 	};
 }
 
@@ -142,11 +147,37 @@ export function createNullSessionDataService(): ISessionDataService {
 		tryOpenDatabase: async () => undefined,
 		deleteSessionData: async () => { },
 		cleanupOrphanedData: async () => { },
+		whenIdle: async () => { },
 	};
 }
 
 export function encodeString(text: string): Uint8Array {
 	return new TextEncoder().encode(text);
+}
+
+/**
+ * Returns a no-op {@link IAgentHostGitService} suitable for tests that
+ * exercise the {@link AgentService} but don't care about git state.
+ * Tests that DO care about git state should pass their own implementation.
+ */
+export function createNoopGitService(): import('../../node/agentHostGitService.js').IAgentHostGitService {
+	return {
+		_serviceBrand: undefined,
+		isInsideWorkTree: async () => false,
+		getCurrentBranch: async () => undefined,
+		getDefaultBranch: async () => undefined,
+		getBranches: async () => [],
+		getRepositoryRoot: async () => undefined,
+		getWorktreeRoots: async () => [],
+		addWorktree: async () => { },
+		addExistingWorktree: async () => { },
+		removeWorktree: async () => { },
+		branchExists: async () => false,
+		hasUncommittedChanges: async () => false,
+		getSessionGitState: async () => undefined,
+		computeSessionFileDiffs: async () => undefined,
+		showBlob: async () => undefined,
+	};
 }
 
 function createReference<T>(object: T): IReference<T> {

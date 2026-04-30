@@ -48,6 +48,7 @@ import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
@@ -57,6 +58,39 @@ const MAX_EDITOR_HEIGHT = 200;
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
+}
+
+/**
+ * Randomized, friendly placeholders shown in the new-session chat input
+ * to add a bit of personality. One is picked per widget instance, avoiding
+ * an immediate repeat of the previous pick.
+ */
+const RANDOM_PLACEHOLDERS = [
+	localize('sessionsChatInput.placeholder.whatAreYouBuilding', "What are you building?"),
+	localize('sessionsChatInput.placeholder.whatWillYouShipToday', "What will you ship today?"),
+	localize('sessionsChatInput.placeholder.describeWhatYouWantToBuild', "Describe what you want to build"),
+	localize('sessionsChatInput.placeholder.whatsYourNextMilestone', "What's your next milestone?"),
+	localize('sessionsChatInput.placeholder.whatAreYouTryingToAchieve', "What are you trying to achieve?"),
+	localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea"),
+	localize('sessionsChatInput.placeholder.whatsTheGoal', "What's the goal?"),
+	localize('sessionsChatInput.placeholder.whatWillYouCreate', "What will you create?"),
+	localize('sessionsChatInput.placeholder.whatFeatureAreYouDreamingUp', "What feature are you dreaming up?"),
+	localize('sessionsChatInput.placeholder.describeTheOutcome', "Describe the outcome you want"),
+	localize('sessionsChatInput.placeholder.whatProblemAreYouSolving', "What problem are you solving?"),
+	localize('sessionsChatInput.placeholder.whatsNextOnYourRoadmap', "What's next on your roadmap?"),
+	localize('sessionsChatInput.placeholder.whatWouldYouLikeToAutomate', "What would you like to automate?"),
+	localize('sessionsChatInput.placeholder.whatWillYouLaunch', "What will you launch?"),
+	localize('sessionsChatInput.placeholder.describeYourMission', "Describe your mission"),
+];
+
+let lastPlaceholderIndex = -1;
+function getRandomChatInputPlaceholder(): string {
+	let index = Math.floor(Math.random() * RANDOM_PLACEHOLDERS.length);
+	if (index === lastPlaceholderIndex) {
+		index = (index + 1) % RANDOM_PLACEHOLDERS.length;
+	}
+	lastPlaceholderIndex = index;
+	return RANDOM_PLACEHOLDERS[index];
 }
 
 // #region --- New Chat Widget ---
@@ -146,6 +180,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const editorOverflowWidgetsDomNode = dom.append(root, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
 
+		// Notification widget above the input area
+		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
+		const notificationWidget = this._register(this.instantiationService.createInstance(ChatInputNotificationWidget));
+		notificationContainer.appendChild(notificationWidget.domNode);
+
 		// Input area inside the input slot
 		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));
 
@@ -232,7 +271,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
 			ariaLabel: this._getAriaLabel(),
-			placeholder: this.options.placeholder,
+			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
 			lineHeight: 20,
@@ -384,7 +423,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			title: localize('send', "Send"),
 			ariaLabel: localize('send', "Send"),
 		}));
-		sendButton.icon = Codicon.send;
+		sendButton.icon = Codicon.arrowUp;
 		this._register(sendButton.onDidClick(() => this._send()));
 	}
 

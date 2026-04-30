@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { type FileRow, type RefRow, type SessionRow, type TurnRow, ISessionStore } from '../../../platform/chronicle/common/sessionStore';
@@ -14,11 +15,17 @@ import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IExtensionContribution } from '../../common/contributions';
 import {
+	MAX_ASSISTANT_RESPONSE_LENGTH,
+	MAX_SUMMARY_LENGTH,
+	extractAssistantResponse,
 	extractFilePath,
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
 	extractRepoFromMcpTool,
+	extractToolArgs,
 	isGitHubMcpTool,
+	isTerminalTool,
+	truncateForStore,
 } from '../common/sessionStoreTracking';
 
 /** How often to flush buffered writes to SQLite (ms). */
@@ -68,6 +75,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	/** Per-session turn counter to avoid collisions between buffered writes and DB state. */
 	private readonly _turnCounters = new Map<string, number>();
 
+	/** Tool spans received before session was initialized, keyed by session ID. */
+	private readonly _pendingToolSpans = new Map<string, ICompletedSpanData[]>();
+
 	constructor(
 		@ISessionStore private readonly _sessionStore: ISessionStore,
 		@IOTelService private readonly _otelService: IOTelService,
@@ -80,7 +90,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 		// Only set up span listener and flush timer when the feature is enabled.
 		// Uses autorun to react if the setting changes at runtime.
-		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService);
+		const featureEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.LocalIndexEnabled, this._expService);
 		const spanListenerStore = this._register(new DisposableStore());
 		this._register(autorun(reader => {
 			spanListenerStore.clear();
@@ -100,7 +110,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 "sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
-"opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." }
+"opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." },
+"filesCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of files tracked in first write." },
+"refsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of refs tracked in first write." },
+"pendingSpansProcessed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of pending tool spans processed on session init." }
 }
 */
 				this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.localStore', {
@@ -124,6 +137,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				this._initializedSessions.delete(sessionId);
 				this._lastSessionTimestamp.delete(sessionId);
 				this._turnCounters.delete(sessionId);
+				this._pendingToolSpans.delete(sessionId);
 			}));
 		}));
 	}
@@ -151,6 +165,17 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			// Only track sessions that have an invoke_agent span (real user interactions).
 			// Skip internal LLM calls (title generation, progress messages, etc.)
 			if (!this._initializedSessions.has(sessionId)) {
+				// Queue tool spans to process after session initialization
+				// (tool spans complete before their parent invoke_agent span)
+				if (operationName === GenAiOperationName.EXECUTE_TOOL) {
+					let pending = this._pendingToolSpans.get(sessionId);
+					if (!pending) {
+						pending = [];
+						this._pendingToolSpans.set(sessionId, pending);
+					}
+					pending.push(span);
+					return;
+				}
 				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
 					return;
 				}
@@ -185,19 +210,32 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _initSession(sessionId: string, span: ICompletedSpanData): void {
 		this._initializedSessions.add(sessionId);
-		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode' });
 
 		const sessionSource = (span.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode', agent_name: sessionSource, ...(cwd ? { cwd } : {}) });
 
 		// Track the source of the very first session for firstWrite telemetry
 		if (!this._firstWriteSessionSource) {
 			this._firstWriteSessionSource = sessionSource;
 		}
 
+		// Process any tool spans that arrived before session was initialized
+		const pendingSpans = this._pendingToolSpans.get(sessionId);
+		const pendingCount = pendingSpans?.length ?? 0;
+		if (pendingSpans) {
+			this._pendingToolSpans.delete(sessionId);
+			for (const toolSpan of pendingSpans) {
+				this._handleToolSpan(sessionId, toolSpan);
+			}
+		}
+
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 			operation: 'sessionInit',
 			sessionSource,
-		}, {});
+		}, {
+			pendingSpansProcessed: pendingCount,
+		});
 	}
 
 	private _backfillFromSpanAttributes(sessionId: string, span: ICompletedSpanData): void {
@@ -206,9 +244,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const userRequest = span.attributes[CopilotChatAttr.USER_REQUEST] as string | undefined;
 
 		if (branch || remoteUrl || userRequest) {
-			const summary = userRequest
-				? (userRequest.length > 100 ? userRequest.slice(0, 100).trim() + '...' : userRequest)
-				: undefined;
+			const summary = truncateForStore(userRequest, MAX_SUMMARY_LENGTH);
 
 			this._bufferSessionUpsert({
 				id: sessionId,
@@ -226,7 +262,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		}
 
 		const turnIndex = span.attributes[CopilotChatAttr.TURN_INDEX] as number | undefined;
-		const toolArgs = this._extractToolArgs(span);
+		const toolArgs = extractToolArgs(span);
 
 		// Extract file path
 		const filePath = extractFilePath(toolName, toolArgs);
@@ -253,7 +289,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		}
 
 		// Track refs from terminal/shell tool
-		if (toolName === 'runInTerminal' || toolName === 'run_in_terminal') {
+		if (isTerminalTool(toolName)) {
 			const resultText = span.attributes['gen_ai.tool.result'] as string | undefined;
 			const refs = extractRefsFromTerminal(toolArgs, resultText);
 			for (const ref of refs) {
@@ -287,14 +323,15 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const existingSession = this._buffer.sessions.get(sessionId);
 		if (!existingSession?.summary) {
 			const firstMessage = userMessages[0]?.content ?? userRequest;
-			if (firstMessage) {
-				const summary = firstMessage.length > 100 ? firstMessage.slice(0, 100).trim() + '...' : firstMessage;
+			const summary = truncateForStore(firstMessage, MAX_SUMMARY_LENGTH);
+			if (summary) {
 				this._bufferSessionUpsert({ id: sessionId, summary });
 			}
 		}
 
-		// Extract assistant response from OUTPUT_MESSAGES attribute
-		const assistantResponse = this._extractAssistantResponse(span);
+		// Extract assistant response from OUTPUT_MESSAGES attribute, truncated for storage
+		const fullResponse = extractAssistantResponse(span.attributes[GenAiAttr.OUTPUT_MESSAGES] as string | undefined);
+		const assistantResponse = truncateForStore(fullResponse, MAX_ASSISTANT_RESPONSE_LENGTH);
 
 		// Use in-memory turn counter to avoid collisions with buffered-but-unflushed turns.
 		// Initialize from DB on first use, then increment in memory.
@@ -314,28 +351,6 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 					? { assistant_response: assistantResponse }
 					: {}),
 			});
-		}
-	}
-
-	/**
-	 * Extract assistant response text from gen_ai.output.messages attribute.
-	 * Format: [{"role":"assistant","parts":[{"type":"text","content":"..."}]}]
-	 */
-	private _extractAssistantResponse(span: ICompletedSpanData): string | undefined {
-		const raw = span.attributes[GenAiAttr.OUTPUT_MESSAGES] as string | undefined;
-		if (!raw) {
-			return undefined;
-		}
-		try {
-			const messages = JSON.parse(raw) as { role: string; parts: { type: string; content: string }[] }[];
-			const parts = messages
-				.filter(m => m.role === 'assistant')
-				.flatMap(m => m.parts)
-				.filter(p => p.type === 'text')
-				.map(p => p.content);
-			return parts.length > 0 ? parts.join('\n') : undefined;
-		} catch {
-			return undefined;
 		}
 	}
 
@@ -423,7 +438,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 					operation: 'firstWrite',
 					sessionSource: this._firstWriteSessionSource ?? 'unknown',
-				}, {});
+				}, {
+					filesCount: filesToFlush.length,
+					refsCount: refsToFlush.length,
+				});
 			}
 		} catch (err) {
 
@@ -433,25 +451,5 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 			}, { opsCount: totalOps });
 		}
-	}
-
-	// ── Utilities ────────────────────────────────────────────────────────
-
-	private _extractToolArgs(span: ICompletedSpanData): Record<string, unknown> {
-		const args: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(span.attributes)) {
-			if (key.startsWith('gen_ai.tool.input.')) {
-				args[key.slice('gen_ai.tool.input.'.length)] = value;
-			}
-		}
-		const serialized = span.attributes['gen_ai.tool.input'];
-		if (typeof serialized === 'string') {
-			try {
-				return JSON.parse(serialized);
-			} catch {
-				// ignore parse errors
-			}
-		}
-		return args;
 	}
 }

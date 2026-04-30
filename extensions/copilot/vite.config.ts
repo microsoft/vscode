@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line no-restricted-imports
 import * as path from 'path';
 import { loadEnv } from 'vite';
 import topLevelAwait from 'vite-plugin-top-level-await';

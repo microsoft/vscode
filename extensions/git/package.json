@@ -2770,7 +2770,7 @@
         {
           "command": "git.openChange",
           "group": "navigation@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges && !isSessionsWindow"
         },
         {
           "command": "git.stashApplyEditor",
@@ -2786,37 +2786,37 @@
         {
           "command": "git.stage",
           "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges && !isSessionsWindow"
         },
         {
           "command": "git.unstage",
           "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges && !isSessionsWindow"
         },
         {
           "command": "git.stage",
           "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         },
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         },
         {
           "command": "git.unstage",
           "group": "2_git@3",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git && !isSessionsWindow"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@4",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git && !isSessionsWindow"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@5",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file && !isSessionsWindow"
         }
       ],
       "editor/context": [
@@ -3740,7 +3740,7 @@
             "%config.addAICoAuthor.all%"
           ],
           "scope": "resource",
-          "default": "all",
+          "default": "chatAndAgent",
           "description": "%config.addAICoAuthor%"
         },
         "git.ignoreSubmodules": {

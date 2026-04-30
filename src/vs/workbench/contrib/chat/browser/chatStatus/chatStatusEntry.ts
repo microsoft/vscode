@@ -18,11 +18,12 @@ import { IInlineCompletionsService } from '../../../../../editor/browser/service
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { $ as h, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { isNewUser } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -31,6 +32,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
+	private readonly entryAnchor = h('span');
 
 	private runningSessionsCount: number;
 
@@ -42,10 +44,37 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
+
+		this._register(CommandsRegistry.registerCommand('workbench.action.chat.openCopilotStatus', () => {
+			const target = this.entryAnchor.parentElement;
+			if (!target) {
+				return;
+			}
+
+			const store = new DisposableStore();
+			const content = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
+			const hover = this.hoverService.showInstantHover({
+				content,
+				target,
+				persistence: { hideOnKeyDown: true, sticky: true },
+				appearance: { maxHeightRatio: 0.9 },
+			}, true);
+			if (hover) {
+				store.add(hover);
+				store.add(disposableWindowInterval(mainWindow, () => {
+					if (!content.isConnected) {
+						store.dispose();
+					}
+				}, 2000));
+			} else {
+				store.dispose();
+			}
+		}));
 
 		this.update();
 
@@ -85,7 +114,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting) || e.affectsConfiguration(ChatConfiguration.SignInTitleBarEnabled)) {
+			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting)) {
 				this.update();
 			}
 		}));
@@ -113,18 +142,17 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
 
-			// Finish Setup
+			// Sign In
 			if (
 				this.chatEntitlementService.sentiment.later ||	// user skipped setup
 				entitlement === ChatEntitlement.Available ||	// user is entitled
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
 			) {
-				const finishSetup = localize('finishSetup', "Finish Setup");
+				const signIn = localize('signInSetup', "Sign In");
 
-				text = `$(copilot) ${finishSetup}`;
-				ariaLabel = finishSetup;
-				kind = 'prominent';
+				text = `$(copilot) ${signIn}`;
+				ariaLabel = signIn;
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
@@ -148,17 +176,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signInExperiment = this.configurationService.getValue<boolean>(ChatConfiguration.SignInTitleBarEnabled);
-				if (signInExperiment) {
-					const signIn = localize('signIn', "Sign In");
-					text = `$(copilot) ${signIn}`;
-					ariaLabel = signIn;
-				} else {
-					const signedOut = localize('notSignedIn', "Signed out");
-					text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOut}`;
-					ariaLabel = signedOut;
-					kind = 'prominent';
-				}
+				const signIn = localize('signIn', "Sign In");
+				text = `$(copilot) ${signIn}`;
+				ariaLabel = signIn;
 			}
 
 			// Free Quota Exceeded
@@ -197,6 +217,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			command: ShowTooltipCommand,
 			showInAllWindows: true,
 			kind,
+			content: this.entryAnchor,
 			tooltip: {
 				element: (token: CancellationToken) => {
 					const store = new DisposableStore();

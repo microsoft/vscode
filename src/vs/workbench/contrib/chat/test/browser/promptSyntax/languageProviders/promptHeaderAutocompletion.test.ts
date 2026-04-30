@@ -37,7 +37,6 @@ suite('PromptHeaderAutocompletion', () => {
 	setup(async () => {
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -78,7 +77,8 @@ suite('PromptHeaderAutocompletion', () => {
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
 		};
 
 		const parser = new PromptFileParser();

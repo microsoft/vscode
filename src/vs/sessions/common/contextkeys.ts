@@ -33,8 +33,21 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 
 //#endregion
 
+//#region < --- Aquarium --- >
+
+export const SessionsAquariumActiveContext = new RawContextKey<boolean>('sessionsAquariumActive', false, localize('sessionsAquariumActive', "Whether the sessions aquarium overlay is active"));
+
+//#endregion
+
 //#region < --- Editor --- >
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
+
+//#endregion
+
+//#region < --- Mobile Layout --- >
+
+export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
+export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
 
 //#endregion

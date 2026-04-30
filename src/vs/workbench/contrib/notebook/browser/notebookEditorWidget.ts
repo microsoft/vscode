@@ -216,7 +216,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension?: DOM.Dimension;
-	private _position?: DOM.IDomPosition;
 	private _shadowElement?: HTMLElement;
 	private _cellLayoutManager: NotebookCellLayoutManager | undefined;
 
@@ -417,13 +416,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		const container = creationOptions.codeWindow ? this.layoutService.getContainer(creationOptions.codeWindow) : this.layoutService.mainContainer;
-		this._register(editorGroupsService.getPart(container).onDidScroll(e => {
-			if (!this._shadowElement || !this._isVisible) {
-				return;
-			}
-
-			this.layoutContainerOverShadowElement(this._shadowElement, this._dimension, this._position);
-		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
 
@@ -1882,7 +1874,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && !this._shadowElement) {
 			this._dimension = dimension;
-			this._position = position;
 			return;
 		}
 
@@ -1896,20 +1887,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			// In floating windows, we need to ensure that the
 			// container is ready for us to compute certain
 			// layout related properties.
-			whenContainerStylesLoaded.then(() => this.layoutNotebook(dimension, shadowElement, position));
+			whenContainerStylesLoaded.then(() => this.layoutNotebook(dimension, shadowElement));
 		} else {
-			this.layoutNotebook(dimension, shadowElement, position);
+			this.layoutNotebook(dimension, shadowElement);
 		}
 
 	}
 
-	private layoutNotebook(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition) {
+	private layoutNotebook(dimension: DOM.Dimension, shadowElement?: HTMLElement) {
 		if (shadowElement) {
 			this._shadowElement = shadowElement;
 		}
 
 		this._dimension = dimension;
-		this._position = position;
 		const newBodyHeight = this.getBodyHeight(dimension.height) - this.getLayoutInfo().stickyHeight;
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
@@ -1926,7 +1916,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayContainer.inert = false;
 
-		this.layoutContainerOverShadowElement(shadowElement ?? this._shadowElement, dimension, position);
+		this.layoutContainerOverShadowElement(shadowElement ?? this._shadowElement);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1939,21 +1929,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	private layoutContainerOverShadowElement(shadowElement: HTMLElement | undefined, dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
-		if (!shadowElement) {
+	private layoutContainerOverShadowElement(anchorElement: HTMLElement | undefined): void {
+		if (!anchorElement) {
 			return;
 		}
 
 		const modalEditorContainer = this.editorGroupsService.activeModalEditorPart?.modalElement;
-		let clippingContainer: HTMLElement | undefined;
-		if (DOM.isHTMLElement(modalEditorContainer)) {
-			clippingContainer = modalEditorContainer;
-		} else {
-			clippingContainer = this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
-		}
+		const isModal = DOM.isHTMLElement(modalEditorContainer) && modalEditorContainer.contains(anchorElement);
+		const clippingContainer = isModal ? undefined : this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 
 		this._overlayContainer.style.visibility = 'visible';
-		this._overlayLayout.layoutOverAnchorElement(shadowElement, { clippingContainer, fallbackDimension: dimension, fallbackPosition: position });
+		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 		this._overlayLayout.reapplyLayoutStyles();
 	}
 

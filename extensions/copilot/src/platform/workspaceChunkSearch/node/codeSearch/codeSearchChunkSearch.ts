@@ -24,7 +24,6 @@ import { ChatResponseWarningPart } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../authentication/common/authenticationUpgrade';
 import { FileChunkAndScore } from '../../../chunking/common/chunk';
-import { ComputeBatchInfo } from '../../../chunking/common/chunkingEndpointClient';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { RelativePattern } from '../../../filesystem/common/fileTypes';
@@ -33,16 +32,13 @@ import { Change } from '../../../git/vscode/git';
 import { logExecTime, LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';
 import { IAdoCodeSearchService } from '../../../remoteCodeSearch/common/adoCodeSearchService';
-import { CodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
+import { SemanticCodeSearchResult } from '../../../remoteCodeSearch/common/remoteCodeSearch';
 import { ICodeSearchAuthenticationService } from '../../../remoteCodeSearch/node/codeSearchRepoAuth';
 import { isGitHubRemoteRepository } from '../../../remoteRepositories/common/utils';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { StrategySearchResult, StrategySearchSizing, WorkspaceChunkQueryWithEmbeddings, WorkspaceChunkSearchOptions } from '../../common/workspaceChunkSearch';
-import { EmbeddingsChunkSearch } from '../embeddingsChunkSearch';
-
-import { WorkspaceChunkEmbeddingsIndex } from '../workspaceChunkEmbeddingsIndex';
 import { IWorkspaceFileIndex } from '../workspaceFileIndex';
 import { AdoCodeSearchRepo, BuildIndexTriggerReason, CodeSearchRepo, CodeSearchRepoStatus, GithubCodeSearchRepo, TriggerIndexingError, TriggerRemoteIndexingError } from './codeSearchRepo';
 import { ExternalIngestClient } from './externalIngestClient';
@@ -69,7 +65,6 @@ export interface CodeSearchRemoteIndexState {
 
 type DiffSearchResult = StrategySearchResult & {
 	readonly strategyId: string;
-	readonly embeddingsComputeInfo?: ComputeBatchInfo;
 };
 
 interface AvailableSuccessMetadata {
@@ -108,8 +103,6 @@ export class CodeSearchChunkSearch extends Disposable {
 
 	private readonly _workspaceDiffTracker: Lazy<CodeSearchWorkspaceDiffTracker>;
 
-	private readonly _embeddingsChunkSearch: EmbeddingsChunkSearch;
-
 	private readonly _onDidChangeIndexState = this._register(new Emitter<void>());
 	public readonly onDidChangeIndexState = this._onDidChangeIndexState.event;
 
@@ -128,7 +121,6 @@ export class CodeSearchChunkSearch extends Disposable {
 
 	private readonly _repoTracker: CodeSearchRepoTracker;
 
-	private readonly _embeddingsIndex: WorkspaceChunkEmbeddingsIndex;
 	private readonly _externalIngestIndex: Lazy<ExternalIngestIndex>;
 
 	constructor(
@@ -149,9 +141,6 @@ export class CodeSearchChunkSearch extends Disposable {
 	) {
 		super();
 
-		this._embeddingsIndex = this._register(instantiationService.createInstance(WorkspaceChunkEmbeddingsIndex, this._embeddingType));
-		this._embeddingsChunkSearch = this._register(instantiationService.createInstance(EmbeddingsChunkSearch, this._embeddingsIndex));
-
 		this._repoTracker = this._register(instantiationService.createInstance(CodeSearchRepoTracker));
 		this._externalIngestIndex = new Lazy(() => {
 			const client = instantiationService.createInstance(ExternalIngestClient);
@@ -168,10 +157,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the authentication state changes, update repos
-		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			this.updateRepoStatuses(undefined, new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
-		}));
+		// When the github authentication state changes, update repos only if the session actually changed
+		{
+			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
+			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			this._register(this._authenticationService.onDidAuthenticationChange(() => {
+				const anySessionId = this._authenticationService.anyGitHubSession?.id;
+				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
+				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+					return;
+				}
+				lastAnyGitHubSessionId = anySessionId;
+				lastPermissiveGitHubSessionId = permissiveSessionId;
+				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
+			}));
+		}
 
 		this._register(Event.any(
 			this._authenticationService.onDidAdoAuthenticationChange,
@@ -544,13 +544,13 @@ export class CodeSearchChunkSearch extends Disposable {
 					localSearchCts.cancel();
 					throw e;
 				})
-				: Promise.resolve({ chunks: [], outOfSync: false });
+				: Promise.resolve<SemanticCodeSearchResult>({ chunks: [], outOfSync: false });
 
 			const localSearchOperation = raceTimeout(this.searchLocalDiff(diffArray, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
 				localSearchCts.cancel();
 			});
 
-			let codeSearchResults: CodeSearchResult | undefined;
+			let codeSearchResults: SemanticCodeSearchResult | undefined;
 			let localResults: DiffSearchResult | undefined;
 			try {
 				codeSearchResults = await raceCancellationError(codeSearchOperation, token);
@@ -573,8 +573,7 @@ export class CodeSearchChunkSearch extends Disposable {
 					"diffSearchStrategy": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Search strategy for the diff" },
 					"chunkCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of returned chunks just from code search" },
 					"locallyChangedFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of files that are different than the code search index" },
-					"codeSearchOutOfSync": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tracks if the local commit we think code search has indexed matches what code search actually has indexed" },
-					"embeddingsRecomputedFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of files that needed to have their embeddings recomputed. Only logged when embeddings search is used" }
+					"codeSearchOutOfSync": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Tracks if the local commit we think code search has indexed matches what code search actually has indexed" }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('codeSearchChunkSearch.search.success', {
@@ -585,7 +584,6 @@ export class CodeSearchChunkSearch extends Disposable {
 				chunkCount: codeSearchResults?.chunks.length ?? 0,
 				locallyChangedFileCount: diffArray.length,
 				codeSearchOutOfSync: codeSearchResults?.outOfSync ? 1 : 0,
-				embeddingsRecomputedFileCount: localResults?.embeddingsComputeInfo?.recomputedFileCount ?? 0,
 			});
 
 			this._logService.trace(`CodeSearchChunkSearch.searchWorkspace: codeSearchResults: ${codeSearchResults?.chunks.length}, localResults: ${localResults?.chunks.length}`);
@@ -657,44 +655,20 @@ export class CodeSearchChunkSearch extends Disposable {
 	private async searchLocalDiff(diffArray: readonly URI[], sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
 		const innerTelemetryInfo = telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff');
 
-		// If external ingest is enabled, we always want to search it as well as it tracks files outside of the code search repos
-		if (this.isExternalIngestEnabled()) {
-			// Also force it to search the local diff too so we can can override stale code-search results.
-			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
-
-			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
-			if (externalResult) {
-				const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
-				const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
-				return { chunks: filtered, strategyId: 'externalIngest' };
-			}
+		if (!this.isExternalIngestEnabled()) {
 			return undefined;
 		}
 
-		// Otherwise, the fallback to local searching using embeddings
-		if (!diffArray.length) {
-			return { chunks: [], strategyId: 'skipped' };
+		// Force it to search the local diff too so we can override stale code-search results.
+		await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
+
+		const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
+		if (externalResult) {
+			const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
+			const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
+			return { chunks: filtered, strategyId: 'externalIngest' };
 		}
-
-		const subSearchOptions: WorkspaceChunkSearchOptions = {
-			...options,
-			globPatterns: {
-				exclude: options.globPatterns?.exclude,
-				include: diffArray.map(uri => new RelativePattern(uri, '*')),
-			}
-		};
-
-		const embeddingsMaxFiles = this._configService.getExperimentBasedConfig(ConfigKey.Advanced.WorkspaceMaxDiffSizeBeforeUsingExternalIngest, this._experimentationService);
-
-		if (diffArray.length <= embeddingsMaxFiles) {
-			const batchInfo = new ComputeBatchInfo();
-			const result = await this._embeddingsChunkSearch.searchSubsetOfFiles(sizing, query, diffArray, subSearchOptions, { info: innerTelemetryInfo, batchInfo }, token);
-			return { ...result, strategyId: 'localEmbeddings', embeddingsComputeInfo: batchInfo };
-		} else {
-			// No way to search out-of-sync files; caller will use code search results alone and warn the user
-			this._logService.debug(`CodeSearchChunkSearch.searchLocalDiff: ${diffArray.length} out-of-sync files exceeds threshold (${embeddingsMaxFiles}), skipping local diff search`);
-			return undefined;
-		}
+		return undefined;
 	}
 
 	@LogExecTime(self => self._logService, 'CodeSearchChunkSearch::doCodeSearch', function (execTime, status) {
@@ -709,7 +683,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('codeSearchChunkSearch.perf.doCodeSearchWithRetry', { status }, { execTime });
 	})
-	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult | undefined> {
+	private async doCodeSearch(query: WorkspaceChunkQueryWithEmbeddings, repos: readonly CodeSearchRepo[], sizing: StrategySearchSizing, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult | undefined> {
 		const results = await Promise.all(repos.map(repo => {
 			return repo.searchRepo({ silent: true }, this._embeddingType, query.queryText, sizing.maxResultCountHint, options, telemetryInfo, token);
 		}));

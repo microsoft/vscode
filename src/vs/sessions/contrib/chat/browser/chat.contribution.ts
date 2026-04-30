@@ -9,7 +9,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
+import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -17,6 +17,7 @@ import { IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../com
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
+import './openInVSCodeWidget.js';
 import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -37,6 +38,8 @@ import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetH
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
+import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -100,7 +103,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			storageId: ChatViewContainerId,
 			hideIfEmpty: true,
 			order: 1,
-			windowVisibility: WindowVisibility.Sessions,
+			windowEnablement: WindowEnablement.Sessions,
 		}, ViewContainerLocation.ChatBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
 		viewsRegistry.registerViews([{
@@ -113,7 +116,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
 			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext.negate()),
-			windowVisibility: WindowVisibility.Sessions
+			windowEnablement: WindowEnablement.Sessions
 		}, {
 			id: SessionsViewId,
 			containerIcon: chatViewContainer.icon,
@@ -124,7 +127,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(NewChatViewPane),
 			when: IsNewChatSessionContext,
-			windowVisibility: WindowVisibility.Sessions,
+			windowEnablement: WindowEnablement.Sessions,
 		}, {
 			id: NewChatInSessionViewId,
 			containerIcon: chatViewContainer.icon,
@@ -135,7 +138,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(NewChatInSessionViewPane),
 			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext),
-			windowVisibility: WindowVisibility.Sessions,
+			windowEnablement: WindowEnablement.Sessions,
 		}], chatViewContainer);
 	}
 }
@@ -147,6 +150,7 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 registerWorkbenchContribution2(RegisterChatViewContainerContribution.ID, RegisterChatViewContainerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);

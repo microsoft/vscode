@@ -6,9 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -22,10 +20,10 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, sectionToPromptType } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -35,7 +33,6 @@ import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/butto
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
@@ -43,15 +40,13 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ProviderCustomizationItemSource } from './aiCustomizationItemSource.js';
-import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -122,7 +117,6 @@ interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
 	readonly actionBar: ActionBar;
-	readonly syncCheckboxContainer: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
@@ -241,7 +235,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -251,8 +244,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
-		const syncCheckboxContainer = DOM.append(leftSection, $('.item-sync-checkbox'));
-		syncCheckboxContainer.style.display = 'none';
 		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
@@ -271,7 +262,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			container,
 			actionsContainer,
 			actionBar,
-			syncCheckboxContainer,
 			typeIcon,
 			nameLabel,
 			badge,
@@ -286,25 +276,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.elementDisposables.clear();
 		const element = entry.item;
 
-		// Sync checkbox: shown for syncable local items
-		if (element.syncable) {
-			templateData.syncCheckboxContainer.style.display = '';
-			const title = element.synced
-				? localize('unsyncItem', "Remove {0} from sync", element.name)
-				: localize('syncItem', "Add {0} to sync", element.name);
-			const checkbox = templateData.elementDisposables.add(
-				new Checkbox(title, !!element.synced, defaultCheckboxStyles)
-			);
-			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
-			templateData.elementDisposables.add(checkbox.onChange(() => {
-				const syncProvider = this.harnessService.getActiveDescriptor().syncProvider;
-				syncProvider?.toggleUri(element.uri, element.promptType);
-			}));
-		} else {
-			templateData.syncCheckboxContainer.style.display = 'none';
-			templateData.syncCheckboxContainer.replaceChildren();
-		}
-
 		// Type icon: use per-item override or fall back to prompt type
 		templateData.typeIcon.className = 'item-type-icon';
 		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(element.typeIcon ?? promptTypeToIcon(element.promptType)));
@@ -314,8 +285,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			let content: string;
 			if (element.isBuiltin) {
 				content = `${element.name}\n${localize('builtinSource', "Built-in")}`;
-			} else if (element.extensionLabel) {
-				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionLabel)}`;
+			} else if (element.extensionId) {
+				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
 			} else {
 				const isWorkspaceItem = element.storage === PromptsStorage.local;
 				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
@@ -437,7 +408,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, element.disabled],
-			[AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, this.harnessService.getActiveDescriptor().supportsTroubleshoot ?? false],
 		];
 		if (element.storage) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage]);
@@ -470,21 +440,20 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 }
 
 /**
- * Maps section ID to prompt type.
+ * Maps a UI section to the items-model section, or `undefined` if the
+ * section isn't sourced from the customization harness pipeline (e.g.
+ * MCP Servers, Plugins, Models — those have their own services).
  */
-export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
+function toItemsModelSection(section: AICustomizationManagementSection): ItemsModelSection | undefined {
 	switch (section) {
 		case AICustomizationManagementSection.Agents:
-			return PromptsType.agent;
 		case AICustomizationManagementSection.Skills:
-			return PromptsType.skill;
 		case AICustomizationManagementSection.Instructions:
-			return PromptsType.instructions;
-		case AICustomizationManagementSection.Hooks:
-			return PromptsType.hook;
 		case AICustomizationManagementSection.Prompts:
+		case AICustomizationManagementSection.Hooks:
+			return section;
 		default:
-			return PromptsType.prompt;
+			return undefined;
 	}
 }
 
@@ -522,17 +491,17 @@ export class AICustomizationListWidget extends Disposable {
 	private emptyStateSubtext!: HTMLElement;
 
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
-	private allItems: IAICustomizationListItem[] = [];
+	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
+	private _layoutDeferred = false;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
-	private _loadItemsSeq = 0;
 
 	private readonly delayedFilter = new Delayer<void>(200);
-	private readonly itemNormalizer: AICustomizationItemNormalizer;
-	private readonly promptsServiceItemProvider: PromptsServiceCustomizationItemProvider;
-	private cachedItemSource: { descriptorId: string; source: IAICustomizationItemSource } | undefined;
+
+	/** Subscription to the items model for the current section; refreshed on setSection. */
+	private readonly currentSectionSubscription = this._register(new MutableDisposable());
 
 	private readonly _onDidSelectItem = this._register(new Emitter<IAICustomizationListItem>());
 	readonly onDidSelectItem: Event<IAICustomizationListItem> = this._onDidSelectItem.event;
@@ -554,70 +523,33 @@ export class AICustomizationListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
-		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IProductService private readonly productService: IProductService,
+		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super();
-		this.itemNormalizer = new AICustomizationItemNormalizer(
-			this.workspaceContextService,
-			this.workspaceService,
-			this.labelService,
-			this.agentPluginService,
-			this.productService,
-		);
-		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
-			() => this.harnessService.getActiveDescriptor(),
-			this.promptsService,
-			this.workspaceService,
-			this.productService,
-		);
 		this.element = $('.ai-customization-list-widget');
 		this.create();
 
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.refresh()));
+		// Re-render the add button when the active project root or harness changes.
+		// Item discovery itself is owned by the items model; we just rebind the
+		// per-section subscription so the UI follows whichever harness is active.
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.updateAddButton();
-			this.refresh();
 		}));
-
-		// Re-filter when the active harness changes
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			this.updateAddButton();
-			this.refresh();
 		}));
-
-		// Refresh when available harnesses change (external provider registered/unregistered)
-		this._register(autorun(reader => {
-			this.harnessService.availableHarnesses.read(reader);
-			this.refresh();
-		}));
-
-		// Subscribe to the active item source's onDidChange event.
-		// Read both activeHarness and availableHarnesses so that the
-		// subscription is re-established when a new provider harness
-		// registers (availableHarnesses changes) even if activeHarness
-		// was already set to the harness id from persisted state.
-		const itemSourceChangeDisposable = this._register(new MutableDisposable());
-		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			this.cachedItemSource = undefined;
-			const activeDescriptor = this.harnessService.getActiveDescriptor();
-			itemSourceChangeDisposable.value = this.getItemSource(activeDescriptor).onDidChange(() => this.refresh());
-		}));
-
 	}
 
 	private create(): void {
@@ -774,7 +706,6 @@ export class AICustomizationListWidget extends Disposable {
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
-			[AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, this.harnessService.getActiveDescriptor().supportsTroubleshoot ?? false],
 		];
 		if (item.storage) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage]);
@@ -825,16 +756,34 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Sets the current section and loads items for that section.
+	 * Sets the current section and binds the list to the model's per-section
+	 * observable. Returns once the initial fetch for the section has resolved
+	 * so that callers (e.g. tests/fixtures) can rely on rendered output
+	 * reflecting at least one fetch.
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		this.currentSection = section;
 		this.updateSectionHeader();
-		await this.loadItems();
-		if (this._store.isDisposed) {
+
+		const modelSection = toItemsModelSection(section);
+		if (!modelSection) {
+			this.currentSectionSubscription.clear();
+			this.allItems = [];
+			this.filterItems();
+			this._onDidChangeItemCount.fire(0);
+			this.updateAddButton();
 			return;
 		}
+
+		const observable = this.itemsModel.getItems(modelSection);
+		this.currentSectionSubscription.value = autorun(reader => {
+			const items = observable.read(reader);
+			this.allItems = items;
+			this.filterItems();
+			this._onDidChangeItemCount.fire(items.length);
+		});
 		this.updateAddButton();
+		await this.itemsModel.whenSectionLoaded(modelSection);
 	}
 
 	/**
@@ -1112,79 +1061,36 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Refreshes the current section's items.
+	 *
+	 * Item discovery is owned by `IAICustomizationItemsModel`. This method
+	 * pulls the current value from the model and re-renders. Callers do not
+	 * need to invoke this in response to data change events — the per-section
+	 * autorun bound in `setSection` already does that.
 	 */
-	async refresh(): Promise<void> {
-		await this.loadItems();
+	refresh(): void {
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.applyItemsFromModel();
 		this.updateAddButton();
 	}
 
-	/**
-	 * Loads items for the current section.
-	 * Uses a sequence counter so that stale results from concurrent
-	 * calls (e.g. overlapping autorun refreshes) are discarded.
-	 */
-	private async loadItems(): Promise<void> {
-		const section = this.currentSection;
-		const seq = ++this._loadItemsSeq;
-		let items: IAICustomizationListItem[];
-		try {
-			items = await this.fetchItemsForSection(section);
-		} catch (err) {
-			onUnexpectedError(err);
-			items = [];
-		}
-
-		if (this._store.isDisposed || this.currentSection !== section || this._loadItemsSeq !== seq) {
-			return; // disposed, section changed, or a newer load started while loading
-		}
-
-		this.allItems = items;
+	private applyItemsFromModel(): void {
+		const section = toItemsModelSection(this.currentSection);
+		this.allItems = section ? this.itemsModel.getItems(section).get() : [];
 		this.filterItems();
-		this._onDidChangeItemCount.fire(items.length);
+		this._onDidChangeItemCount.fire(this.allItems.length);
 	}
 
 	/**
 	 * Computes the item count for a given section without updating the display.
-	 * Uses the same loading and filtering logic as `loadItems` for consistency.
+	 * Reads from the items model so the count is consistent with what the
+	 * editor and sidebar render. Returns 0 for sections not modeled here
+	 * (McpServers / Plugins / Models — those have their own services).
 	 */
-	async computeItemCountForSection(section: AICustomizationManagementSection): Promise<number> {
-		const items = await this.fetchItemsForSection(section);
-		return items.length;
-	}
-
-	/**
-	 * Fetches and filters items for a given section.
-	 * Delegates to the item source selected by the active harness.
-	 */
-	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
-		const promptType = sectionToPromptType(section);
-		return this.getItemSource(this.harnessService.getActiveDescriptor()).fetchItems(promptType);
-	}
-
-	/**
-	 * Returns the rich, browser-internal item source for a harness descriptor.
-	 * The source is cached per descriptor id and reused across fetch and
-	 * subscription calls to avoid redundant event composition.
-	 */
-	private getItemSource(descriptor: ReturnType<ICustomizationHarnessService['getActiveDescriptor']>): IAICustomizationItemSource {
-		if (this.cachedItemSource && this.cachedItemSource.descriptorId === descriptor.id) {
-			return this.cachedItemSource.source;
-		}
-		const itemProvider = descriptor.itemProvider ?? (descriptor.syncProvider ? undefined : this.promptsServiceItemProvider);
-		const source = new ProviderCustomizationItemSource(
-			itemProvider,
-			descriptor.syncProvider,
-			this.promptsService,
-			this.workspaceService,
-			this.fileService,
-			this.pathService,
-			this.itemNormalizer,
-		);
-		this.cachedItemSource = { descriptorId: descriptor.id, source };
-		return source;
+	computeItemCountForSection(section: AICustomizationManagementSection): number {
+		const modelSection = toItemsModelSection(section);
+		return modelSection ? this.itemsModel.getCount(modelSection).get() : 0;
 	}
 
 	/**
@@ -1193,7 +1099,7 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Applies the search query to items, returning matched items with highlight info.
 	 */
-	private applySearchFilter(items: IAICustomizationListItem[]): IAICustomizationListItem[] {
+	private applySearchFilter(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
 		if (!this.searchQuery.trim()) {
 			return items.map(item => ({ ...item, nameMatches: undefined, descriptionMatches: undefined }));
 		}
@@ -1270,84 +1176,61 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Groups normalized list items for display.
-	 * When a syncProvider is present, shows remote items + local sync items.
-	 * Otherwise, groups items by normalized storage/groupKey.
+	 * Groups items by normalized storage/groupKey.
 	 */
 	private groupMatchedItems(matchedItems: IAICustomizationListItem[]): void {
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		// Standard provider layout: group by inferred storage/groupKey.
+		// Instructions use semantic categories (matching core path) so
+		// that provider-supplied groupKeys like 'context-instructions'
+		// are routed to the correct collapsible header.
+		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
+			this.currentSection === AICustomizationManagementSection.Instructions
+				? [
+					{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
+					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
+					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
+					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+				]
+				: [
+					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+				];
 
-		if (activeDescriptor.syncProvider) {
-			// Sync layout: remote items flat, then local items with sync checkboxes
-			const remoteItems = matchedItems.filter(i => !i.syncable);
-			const localItems = matchedItems.filter(i => i.syncable);
-			const entries: IListEntry[] = [];
-
-			for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
-				entries.push({ type: 'file-item' as const, item });
-			}
-
-			if (localItems.length > 0) {
-				const syncedCount = localItems.filter(i => i.synced).length;
-				entries.push({
-					type: 'group-header' as const,
-					id: 'group-sync-local',
-					groupKey: 'sync-local',
-					label: localize('localGroup', "Local"),
-					icon: Codicon.folder,
-					count: syncedCount,
-					isFirst: remoteItems.length === 0,
-					description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
-					collapsed: false,
-				});
-				const sorted = localItems.sort((a, b) => {
-					if (a.synced !== b.synced) {
-						return a.synced ? -1 : 1;
-					}
-					return a.name.localeCompare(b.name);
-				});
-				for (const item of sorted) {
-					entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
+		for (const item of matchedItems) {
+			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
+			let group = groups.find(g => g.groupKey === key);
+			if (!group) {
+				// Dynamically create a group for unknown groupKeys from providers
+				let label: string;
+				switch (key) {
+					case 'remote-host':
+						label = localize('remoteHostGroupShort', "Remote");
+						break;
+					case 'remote-client':
+						label = localize('remoteClientGroupShort', "Local");
+						break;
+					default:
+						label = formatDisplayName(key);
 				}
-			}
-
-			this.displayEntries = entries;
-		} else {
-			// Standard provider layout: group by inferred storage/groupKey.
-			// Instructions use semantic categories (matching core path) so
-			// that provider-supplied groupKeys like 'context-instructions'
-			// are routed to the correct collapsible header.
-			const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
-				this.currentSection === AICustomizationManagementSection.Instructions
-					? [
-						{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
-						{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
-						{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
-						{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-						{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-						{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-						{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
-					]
-					: [
-						{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-						{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-						{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-						{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-						{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
-					];
-
-			for (const item of matchedItems) {
-				const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
-				let group = groups.find(g => g.groupKey === key);
-				if (!group) {
-					// Dynamically create a group for unknown groupKeys from providers
-					group = { groupKey: key, label: formatDisplayName(key), icon: Codicon.folder, description: '', items: [] };
+				group = { groupKey: key, label, icon: Codicon.folder, description: '', items: [] };
+				// Insert dynamic groups before the built-in group so it always stays last.
+				const builtinIdx = groups.findIndex(g => g.groupKey === BUILTIN_STORAGE);
+				if (builtinIdx >= 0) {
+					groups.splice(builtinIdx, 0, group);
+				} else {
 					groups.push(group);
 				}
-				group.items.push(item);
 			}
-
-			this.buildGroupedEntries(groups);
+			group.items.push(item);
 		}
+
+		this.buildGroupedEntries(groups);
 
 		this.commitDisplayEntries();
 	}
@@ -1496,12 +1379,20 @@ export class AICustomizationListWidget extends Disposable {
 		this.searchInput.layout();
 
 		// Measure sibling elements to calculate the remaining space for the list.
-		// When offsetHeight returns 0 the container just became visible
-		// after display:none and the browser hasn't reflowed yet — defer
-		// layout to the next frame so measurements are accurate.
+		// When offsetHeight returns 0 the container may have just become visible
+		// after display:none and the browser hasn't reflowed yet — defer layout
+		// once so measurements are accurate. Only retry once to avoid an endless
+		// loop when the widget is created while permanently hidden.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
-		if (searchBarHeight === 0) {
-			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(height, width));
+		if (searchBarHeight === 0 && !this._layoutDeferred) {
+			this._layoutDeferred = true;
+			DOM.getWindow(this.element).requestAnimationFrame(() => {
+				try {
+					this.layout(height, width);
+				} finally {
+					this._layoutDeferred = false;
+				}
+			});
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;
@@ -1522,8 +1413,6 @@ export class AICustomizationListWidget extends Disposable {
 	 * Generates a debug report for the current section.
 	 */
 	async generateDebugReport(): Promise<string> {
-		// Ensure items are loaded before capturing the snapshot
-		await this.loadItems();
 		if (this._store.isDisposed) {
 			return '';
 		}
@@ -1532,9 +1421,11 @@ export class AICustomizationListWidget extends Disposable {
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
-			{ allItems: this.allItems, displayEntries: this.displayEntries },
+			{ allItems: this.allItems as IAICustomizationListItem[], displayEntries: this.displayEntries },
 			activeDescriptor,
-			this.promptsServiceItemProvider,
+			this.itemsModel.getPromptsServiceItemProvider(),
+			this.harnessService,
+			this.agentPluginService,
 		);
 	}
 }

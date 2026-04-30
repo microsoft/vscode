@@ -5,65 +5,296 @@
 
 import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
+import * as cp from 'child_process';
+import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Codicon } from '../../../../util/vs/base/common/codicons';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, Uri } from '../../../../vscodeTypes';
+import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, MarkdownString, Uri } from '../../../../vscodeTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems, clearTodoList } from '../common/copilotCLITools';
+import { clearTodoList, enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, stripReminders, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
+import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext } from '../common/pendingRequestContext';
 import { getCopilotCLISessionDir } from './cliHelpers';
+import { SessionIdForCLI } from '../common/utils';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 import { handleExitPlanMode } from './exitPlanModeHandler';
+import { type McCommand, type McEvent, type McSessionCreateResult, MissionControlApiClient } from './missionControlApiClient';
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { TodoSqlQuery } from './todoSqlQuery';
-import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from './userInputHelpers';
 
 /**
  * Known commands that can be sent to a CopilotCLI session instead of a free-form prompt.
  */
-export type CopilotCLICommand = 'compact' | 'plan' | 'fleet';
+export type CopilotCLICommand = 'compact' | 'plan' | 'fleet' | 'remote';
 
 /**
  * The set of all known CopilotCLI commands.  Used by callers that need to
  * distinguish a slash-command from a regular prompt at runtime.
  */
-export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'plan', 'fleet'] as const;
+export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'plan', 'fleet', 'remote'] as const;
 
-export const builtinSlashSCommands = {
-	commit: '/commit',
-	sync: '/sync',
-	merge: '/merge',
-	createPr: '/create-pr',
-	createDraftPr: '/create-draft-pr',
-	updatePr: '/update-pr',
-};
+/**
+ * Shared Mission Control state keyed by SDK session ID.
+ * CopilotCLISession instances are recreated per request, so MC state
+ * must be stored externally to persist across turns.
+ */
+interface McSharedState {
+	mcSessionId: string;
+	mcFrontendUrl?: string;
+	mcEventBuffer: McEvent[];
+	mcCompletedCommandIds: string[];
+	mcPendingPermissionRequests: Map<string, { resolve(result: PermissionRequestResult): void }>;
+	mcPendingUserInputRequests?: Set<McPendingUserInputRequest>;
+	mcFlushInterval: ReturnType<typeof setInterval> | undefined;
+	mcPollInterval: ReturnType<typeof setInterval> | undefined;
+	mcLastEventId: string | null;
+	mcLastSubmitAttemptTimeMs: number;
+	mcProcessedCommandIds: Set<string>;
+	mcPendingCommandCompletionIds?: Set<string>;
+	/** Reference to the SDK session for steering from the command poller. */
+	mcSdkSession: Session;
+	/** Dispose function for the persistent on('*') listener for MC events. */
+	mcEventListenerDispose: (() => void) | undefined;
+	/** VS Code session resource URI for routing steering through the chat UI. */
+	mcSessionResource: import('vscode').Uri;
+}
+const mcStateBySessionId = new Map<string, McSharedState>();
+
+const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
+
+interface McPermissionResponseCommandData {
+	readonly promptId?: string;
+	readonly approved?: boolean;
+	readonly scope?: 'once' | 'session';
+}
+
+interface UserInputResponse {
+	readonly answer: string;
+	readonly wasFreeform: boolean;
+}
+
+interface McPendingUserInputRequest {
+	readonly requestId: string;
+	readonly toolCallId?: string;
+	resolve(result: UserInputResponse | undefined): void;
+}
+
+interface McAskUserResponsePayload {
+	readonly requestId?: string;
+	readonly promptId?: string;
+	readonly toolCallId?: string;
+	readonly answer?: string;
+	readonly wasFreeform?: boolean;
+	readonly freeText?: string | null;
+	readonly selected?: readonly string[];
+	readonly skipped?: boolean;
+	readonly response?: {
+		readonly answer?: string;
+		readonly wasFreeform?: boolean;
+		readonly freeText?: string | null;
+		readonly selected?: readonly string[];
+		readonly skipped?: boolean;
+	};
+}
+
+const skippedMissionControlEventTypes = new Set([
+	'assistant.message_delta',
+	'assistant.streaming_delta',
+	'session.shutdown',
+	'session.error',
+	'session.usage_info',
+	'assistant.usage',
+	'pending_messages.modified',
+	'session.mcp_server_status_changed',
+	'session.mcp_servers_loaded',
+	'session.skills_loaded',
+	'session.tools_updated',
+]);
+
+function shouldForwardMissionControlEvent(event: { type?: string; data?: unknown }): boolean {
+	const eventType = event.type ?? 'unknown';
+	if (skippedMissionControlEventTypes.has(eventType)) {
+		return false;
+	}
+
+	if (eventType === 'tool.execution_start' || eventType === 'tool.execution_complete') {
+		const toolName = typeof event.data === 'object' && event.data !== null && 'toolName' in event.data
+			? event.data.toolName
+			: undefined;
+		if (toolName === 'report_intent') {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function getMissionControlCommandIdFromEvent(event: { type?: string; data?: unknown }): string | undefined {
+	if (event.type !== 'user.message') {
+		return undefined;
+	}
+
+	const source = typeof event.data === 'object' && event.data !== null && 'source' in event.data
+		? event.data.source
+		: undefined;
+	return typeof source === 'string' && source.startsWith('command-')
+		? source.slice('command-'.length)
+		: undefined;
+}
+
+function getMissionControlSessionTitleFromEvent(event: { type?: string; data?: unknown }): string | undefined {
+	if (event.type !== 'session.title_changed') {
+		return undefined;
+	}
+
+	const title = typeof event.data === 'object' && event.data !== null && 'title' in event.data
+		? event.data.title
+		: undefined;
+	return typeof title === 'string' && title.trim().length > 0 ? title : undefined;
+}
+
+function getMissionControlEventData(event: { type?: string; data?: unknown }): Record<string, unknown> {
+	if (!event.data || typeof event.data !== 'object') {
+		return {};
+	}
+
+	const data = event.data as Record<string, unknown>;
+	if (event.type === 'user.message') {
+		const content = data.content;
+		if (typeof content !== 'string') {
+			return data;
+		}
+
+		const sanitizedContent = stripReminders(content);
+		return sanitizedContent === content ? data : { ...data, content: sanitizedContent };
+	}
+
+	if (event.type !== 'tool.execution_start') {
+		return data;
+	}
+
+	const toolName = data.toolName;
+	if (toolName !== 'bash' && toolName !== 'powershell' && toolName !== 'task') {
+		return data;
+	}
+
+	const args = data.arguments;
+	if (!args || typeof args !== 'object' || !('description' in args)) {
+		return data;
+	}
+
+	const { description: _description, ...sanitizedArgs } = args as Record<string, unknown>;
+	return { ...data, arguments: sanitizedArgs };
+}
+
+function getMissionControlPendingCommandCompletionIds(state: McSharedState): Set<string> {
+	state.mcPendingCommandCompletionIds ??= new Set();
+	return state.mcPendingCommandCompletionIds;
+}
+
+function getMissionControlPendingUserInputRequests(state: McSharedState): Set<McPendingUserInputRequest> {
+	state.mcPendingUserInputRequests ??= new Set();
+	return state.mcPendingUserInputRequests;
+}
+
+function getMissionControlPendingUserInputRequest(state: McSharedState, payload: McAskUserResponsePayload | undefined): McPendingUserInputRequest | undefined {
+	const pendingRequests = [...getMissionControlPendingUserInputRequests(state)];
+	const identifiers = [
+		payload?.requestId,
+		payload?.promptId,
+		payload?.toolCallId,
+	].filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+	if (identifiers.length > 0) {
+		return pendingRequests.find(request =>
+			identifiers.includes(request.requestId) ||
+			(typeof request.toolCallId === 'string' && identifiers.includes(request.toolCallId))
+		);
+	}
+
+	return pendingRequests.length === 1 ? pendingRequests[0] : undefined;
+}
+
+function toSdkUserInputResponse(answer: IQuestionAnswer | undefined): UserInputResponse {
+	if (!answer) {
+		return { answer: '', wasFreeform: false };
+	}
+
+	if (answer.freeText) {
+		return { answer: answer.freeText, wasFreeform: true };
+	}
+
+	return { answer: answer.selected.join(', '), wasFreeform: false };
+}
+
+function getMcAskUserResponse(payload: McAskUserResponsePayload | undefined, rawContent: string): UserInputResponse | undefined {
+	const response = payload?.response ?? payload;
+	const answer = typeof response?.answer === 'string'
+		? response.answer
+		: typeof response?.freeText === 'string'
+			? response.freeText
+			: Array.isArray(response?.selected)
+				? response.selected.filter((value): value is string => typeof value === 'string').join(', ')
+				: response?.skipped
+					? ''
+					: payload === undefined
+						? rawContent
+						: undefined;
+
+	if (answer === undefined) {
+		return undefined;
+	}
+
+	return {
+		answer,
+		wasFreeform: typeof response?.wasFreeform === 'boolean'
+			? response.wasFreeform
+			: typeof response?.freeText === 'string',
+	};
+}
+
+function maybeAcknowledgeMissionControlCommandFromEvent(state: McSharedState, event: { type?: string; data?: unknown }): void {
+	const commandId = getMissionControlCommandIdFromEvent(event);
+	if (!commandId) {
+		return;
+	}
+
+	if (getMissionControlPendingCommandCompletionIds(state).delete(commandId)) {
+		state.mcCompletedCommandIds.push(commandId);
+	}
+}
+
+export { builtinSlashCommands as builtinSlashSCommands } from '../../common/builtinSlashCommands';
 
 /**
  * Either a free-form prompt **or** a known command.
  */
 export type CopilotCLISessionInput =
-	| { readonly prompt: string }
-	| { readonly prompt?: string; readonly command: CopilotCLICommand };
+	| { readonly prompt: string; readonly source?: SendOptions['source'] }
+	| { readonly prompt?: string; readonly command: CopilotCLICommand; readonly source?: SendOptions['source'] };
 
 function getPromptLabel(input: CopilotCLISessionInput): string {
 	if ('command' in input) {
@@ -112,10 +343,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public readonly onDidChangeStatus = this._statusChange.event;
 
-	private _permissionRequested?: PermissionRequest;
-	public get permissionRequested(): PermissionRequest | undefined {
-		return this._permissionRequested;
-	}
 	private _title?: string;
 	public get title(): string | undefined {
 		return this._title;
@@ -138,6 +365,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
+	private readonly _missionControlApiClient: MissionControlApiClient;
+
+	/** Get or create shared MC state for this SDK session. */
+	private get _mcState(): McSharedState | undefined {
+		return mcStateBySessionId.get(this.sessionId);
+	}
 
 	/** Callback to propagate trace context to the SDK's OtelLifecycle. */
 	private _updateSdkTraceContext: ((traceparent?: string, tracestate?: string) => void) | undefined;
@@ -168,9 +401,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
+		this._missionControlApiClient = this.instantiationService.createInstance(MissionControlApiClient);
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
 	}
 
@@ -250,7 +485,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Handles a steering request – a message sent while the session is already
+	 * Handles a steering request - a message sent while the session is already
 	 * busy with a previous request.
 	 *
 	 * The steering prompt is sent to the SDK with `mode: 'immediate'` (via
@@ -313,7 +548,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
 					[GenAiAttr.AGENT_NAME]: 'copilotcli',
-					[GenAiAttr.PROVIDER_NAME]: 'github',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
@@ -439,6 +674,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
+				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
+				// Forward events to Mission Control if remote control is active
+				this._bufferMcEvent(event);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('permission.requested', async (event) => {
 				const permissionRequest = event.data.permissionRequest;
@@ -447,7 +685,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Auto-approve all requests when the permission level allows it.
 				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-					this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
@@ -456,47 +694,55 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const pendingData = permissionRequest.toolCallId ? pendingToolInvocations.get(permissionRequest.toolCallId) : undefined;
 				const toolParentCallId = pendingData ? pendingData[2] : undefined;
 				const toolInvocationToken = this._toolInvocationToken as unknown as never;
+				const resolveLocalPermissionResponse = (permissionToken: CancellationToken): Promise<PermissionRequestResult> => {
+					switch (permissionRequest.kind) {
+						case 'read':
+							return handleReadPermission(
+								this.sessionId, permissionRequest, toolParentCallId,
+								this.attachments, this._imageSupport, this.workspace, this.workspaceService,
+								this._toolsService, toolInvocationToken, this.logService, permissionToken,
+							);
+						case 'write':
+							return handleWritePermission(
+								this.sessionId, permissionRequest, toolData, toolParentCallId,
+								this._stream, editTracker, this.workspace, this.workspaceService,
+								this.instantiationService, this._toolsService, toolInvocationToken, this.logService, permissionToken,
+							);
+						case 'shell':
+							return handleShellPermission(
+								permissionRequest, toolParentCallId,
+								this.workspace, this._toolsService, toolInvocationToken, this.logService, permissionToken,
+							);
+						case 'mcp':
+							return handleMcpPermission(
+								permissionRequest, toolParentCallId,
+								this._toolsService, toolInvocationToken, this.logService, permissionToken,
+							);
+						default:
+							return showInteractivePermissionPrompt(
+								permissionRequest, toolParentCallId,
+								this._toolsService, toolInvocationToken, this.logService, permissionToken,
+							);
+					}
+				};
 
 				try {
 					let response: PermissionRequestResult;
 					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-						response = { kind: 'approved' };
-					} else {
-						switch (permissionRequest.kind) {
-							case 'read':
-								response = await handleReadPermission(
-									this.sessionId, permissionRequest, toolParentCallId,
-									this.attachments, this._imageSupport, this.workspace, this.workspaceService,
-									this._toolsService, toolInvocationToken, this.logService, token,
-								);
-								break;
-							case 'write':
-								response = await handleWritePermission(
-									this.sessionId, permissionRequest, toolData, toolParentCallId,
-									this._stream, editTracker, this.workspace, this.workspaceService,
-									this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
-								);
-								break;
-							case 'shell':
-								response = await handleShellPermission(
-									permissionRequest, toolParentCallId,
-									this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
-								);
-								break;
-							case 'mcp':
-								response = await handleMcpPermission(
-									permissionRequest, toolParentCallId,
-									this._toolsService, toolInvocationToken, this.logService, token,
-								);
-								break;
-							default:
-								response = await showInteractivePermissionPrompt(
-									permissionRequest, toolParentCallId,
-									this._toolsService, toolInvocationToken, this.logService, token,
-								);
-								break;
+						response = { kind: 'approve-once' };
+					} else if (this._mcState) {
+						const permissionResolutionTokenSource = new CancellationTokenSource(token);
+						try {
+							response = await Promise.race([
+								resolveLocalPermissionResponse(permissionResolutionTokenSource.token),
+								this._waitForMcPermissionResponse(this._mcState, permissionRequest, requestId, permissionResolutionTokenSource.token),
+							]);
+						} finally {
+							permissionResolutionTokenSource.dispose(true);
 						}
+					} else {
+						response = await resolveLocalPermissionResponse(token);
 					}
 
 					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
@@ -553,24 +799,35 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					allowFreeformInput: event.data.allowFreeform,
 					header: event.data.question,
 				};
-				const answer = await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token);
-				flushPendingInvocationMessages();
-				if (!answer) {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: '', wasFreeform: false });
-					return;
-				}
-				if (answer.freeText) {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: answer.freeText, wasFreeform: true });
+				let response: UserInputResponse;
+				if (this._mcState) {
+					const userInputResolutionTokenSource = new CancellationTokenSource(token);
+					const localQuestionPromise = this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, userInputResolutionTokenSource.token, event.data.toolCallId);
+					const remoteQuestionPromise = this._waitForMcUserInputResponse(this._mcState, event.data.requestId, event.data.toolCallId, userInputResolutionTokenSource.token);
+					try {
+						const result = await Promise.race([
+							localQuestionPromise.then(answer => ({ source: 'local' as const, response: toSdkUserInputResponse(answer) })),
+							remoteQuestionPromise.then(result => ({ source: 'remote' as const, response: result })),
+						]);
+						if (result.source === 'remote' && result.response && event.data.toolCallId) {
+							await this._userQuestionHandler.notifyQuestionCarouselAnswer?.(event.data.toolCallId, userInputRequest, result.response);
+						}
+						response = result.response ?? { answer: '', wasFreeform: false };
+					} finally {
+						userInputResolutionTokenSource.dispose(true);
+					}
 				} else {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: answer.selected.join(', '), wasFreeform: false });
+					response = toSdkUserInputResponse(await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token, event.data.toolCallId));
 				}
+				flushPendingInvocationMessages();
+				this._sdkSession.respondToUserInput(event.data.requestId, response);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.title_changed', (event) => {
 				this._title = event.data.title;
 				this._onDidChangeTitle.fire(event.data.title);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('user.message', (event) => {
-				sdkRequestId = event.id;
+				sdkRequestId = sdkRequestId ?? event.id;
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
 				if (this._stream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
@@ -703,7 +960,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				this._stream?.markdown(`\n\n❌ Error: (${event.data.errorType}) ${event.data.message}`);
+				this._stream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -791,7 +1048,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			this._stream?.markdown(`\n\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+			this._stream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
 			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
 			if (error instanceof Error) {
@@ -890,6 +1147,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					await this._startFleetAndWaitForIdle(input);
 					break;
 				}
+				case 'remote': {
+					await this._handleRemoteControl(input);
+					break;
+				}
 			}
 		} else {
 			if ('command' in input && input.command === 'plan') {
@@ -902,6 +1163,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
+			}
+			if (input.source) {
+				sendOptions.source = input.source;
 			}
 			await this._sdkSession.send(sendOptions);
 		}
@@ -930,6 +1194,707 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Fleet error: ${error}`);
 		}
+	}
+
+	/**
+	 * Handle `/remote` command — prints status or enables/disables Mission
+	 * Control remote control for this session by calling the Copilot API directly.
+	 */
+	private async _handleRemoteControl(input: CopilotCLISessionInput): Promise<void> {
+		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIRemoteEnabled)) {
+			this._stream?.markdown(l10n.t('The /remote command is experimental and not enabled. Set `github.copilot.chat.cli.remote.enabled` to `true` in settings to use it.'));
+			return;
+		}
+
+		const args = ('prompt' in input ? input.prompt : '')?.trim().toLowerCase();
+		const isCurrentlyActive = !!this._mcState;
+		if (!args) {
+			this._showRemoteControlStatus();
+			return;
+		}
+		if (args !== 'on' && args !== 'off') {
+			this._stream?.markdown(l10n.t('Usage: /remote, /remote on, /remote off'));
+			return;
+		}
+		if (args === 'on' && isCurrentlyActive) {
+			this._showRemoteControlStatus();
+			return;
+		}
+		if (args === 'off' && !isCurrentlyActive) {
+			this._showRemoteControlStatus();
+			return;
+		}
+
+		try {
+			if (args === 'off') {
+				await this._teardownRemoteControl();
+				this._stream?.markdown(l10n.t('Remote control disabled.'));
+				return;
+			}
+
+			this._stream?.progress(l10n.t('Enabling remote control...'));
+
+			// Step 1: Get GitHub token
+			const session = await this._authenticationService.getGitHubSession('any', { silent: true });
+			if (!session?.accessToken) {
+				this._stream?.markdown(l10n.t('Unable to enable remote control: no GitHub authentication available.'));
+				return;
+			}
+			const githubToken = session.accessToken;
+
+			// Step 2: Resolve git context (owner/repo)
+			const workingDir = getWorkingDirectory(this._workspaceInfo);
+			if (!workingDir) {
+				this._stream?.markdown(l10n.t('Unable to enable remote control: no workspace folder found.'));
+				return;
+			}
+
+			const nwo = await this._resolveGitHubNwo(workingDir);
+			if (!nwo) {
+				this._stream?.markdown(l10n.t('Unable to enable remote control: this workspace is not a GitHub repository.'));
+				return;
+			}
+
+			// Step 3: Resolve numeric owner/repo IDs via GitHub API
+			const repoResponse = await fetch(`https://api.github.com/repos/${nwo.owner}/${nwo.repo}`, {
+				headers: { 'Authorization': `token ${githubToken}`, 'Accept': 'application/json' },
+			});
+			if (!repoResponse.ok) {
+				this._stream?.markdown(l10n.t('Unable to enable remote control: could not resolve repository {0}/{1}.', nwo.owner, nwo.repo));
+				return;
+			}
+			const repoData = await repoResponse.json() as { id: number; owner: { id: number } };
+
+			// Step 4: Create Mission Control session
+			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+			this.logService.info('[CopilotCLISession] Creating MC session');
+
+			let mcData: McSessionCreateResult;
+			try {
+				mcData = await this._missionControlApiClient.createSession(repoData.owner.id, repoData.id, agentTaskId, {});
+			} catch (err) {
+				if (err instanceof PermissiveAuthRequiredError) {
+					this._stream?.markdown(l10n.t('Unable to enable remote control: additional GitHub permissions are required.'));
+					return;
+				}
+				throw err;
+			}
+
+			const taskId = mcData.taskId;
+
+			// Step 5: Store MC state in the shared map (keyed by SDK session ID)
+			// so it persists across CopilotCLISession instances.
+			const sharedState: McSharedState = {
+				mcSessionId: mcData.id,
+				mcFrontendUrl: undefined,
+				mcEventBuffer: [],
+				mcCompletedCommandIds: [],
+				mcPendingPermissionRequests: new Map(),
+				mcFlushInterval: undefined,
+				mcPollInterval: undefined,
+				mcLastEventId: null,
+				mcLastSubmitAttemptTimeMs: Date.now(),
+				mcProcessedCommandIds: new Set(),
+				mcPendingCommandCompletionIds: new Set(),
+				mcSdkSession: this._sdkSession,
+				mcEventListenerDispose: undefined,
+				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
+			};
+			mcStateBySessionId.set(this.sessionId, sharedState);
+			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+
+			// Step 6: Send the initial session.start event — MC requires this to
+			// transition out of "Fueling the runtime engines..." loading state.
+			const sessionStartEvent = this._createMcEvent('session.start', {
+				sessionId: sharedState.mcSessionId,
+				version: 1,
+				producer: 'copilot-developer-cli',
+				copilotVersion: '1.0.0',
+				startTime: new Date().toISOString(),
+				remoteSteerable: true,
+				context: {
+					cwd: workingDir,
+					gitRoot: workingDir,
+					repository: `${nwo.owner}/${nwo.repo}`,
+				},
+			});
+			sharedState.mcEventBuffer.push(sessionStartEvent);
+
+			// Also send a session.remote_steerable_changed event to explicitly
+			// enable steering on the MC web UI.
+			sharedState.mcEventBuffer.push(this._createMcEvent('session.remote_steerable_changed', {
+				remoteSteerable: true,
+			}));
+
+			const sessionTitle = await this._getMissionControlSessionTitle();
+			if (sessionTitle) {
+				sharedState.mcEventBuffer.push(this._createMcEvent('session.title_changed', {
+					title: sessionTitle,
+				}, true));
+			}
+
+			// Step 7b: Replay existing conversation history so the MC web UI
+			// shows all messages that occurred before /remote was invoked.
+			// Only replay conversation-content events — skip session lifecycle
+			// events that would override the remoteSteerable state we just set.
+			const replayableTypes = new Set([
+				'user.message', 'assistant.message', 'assistant.turn_start',
+				'assistant.turn_complete', 'tool.execution_start',
+				'tool.execution_complete',
+			]);
+			const existingEvents = this._sdkSession.getEvents();
+			let replayed = 0;
+			for (const event of existingEvents) {
+				const e = event as { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null };
+				if (e.type && replayableTypes.has(e.type)) {
+					this._bufferMcEvent(e);
+					replayed++;
+				}
+			}
+			this.logService.info(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
+
+			await this._flushMcEvents();
+
+			// Step 7c: Register a persistent on('*') listener on the SDK session
+			// so that events emitted between requests (e.g. from MC steering sends)
+			// are captured and forwarded to MC. Per-request listeners are disposed
+			// after each request completes, so this persistent listener fills the gap.
+			const sessionId = this.sessionId;
+			sharedState.mcEventListenerDispose = this._sdkSession.on('*', (event) => {
+				const state = mcStateBySessionId.get(sessionId);
+				if (!state) { return; }
+				// Use the static helper instead of this._bufferMcEvent to avoid
+				// relying on the instance that started MC (it may be stale).
+				const eventType = (event as { type?: string }).type ?? 'unknown';
+				const e = event as { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null; ephemeral?: boolean };
+				if (!shouldForwardMissionControlEvent(e)) {
+					return;
+				}
+				const updatedTitle = getMissionControlSessionTitleFromEvent(e);
+				if (updatedTitle) {
+					this._title = updatedTitle;
+				}
+				maybeAcknowledgeMissionControlCommandFromEvent(state, e);
+				if (e.id && e.timestamp) {
+					state.mcEventBuffer.push({
+						id: e.id,
+						timestamp: e.timestamp,
+						parentId: e.parentId ?? state.mcLastEventId ?? null,
+						ephemeral: e.ephemeral,
+						type: eventType,
+						data: getMissionControlEventData(e),
+					});
+					state.mcLastEventId = e.id;
+				} else {
+					const id = crypto.randomUUID();
+					state.mcEventBuffer.push({
+						id,
+						timestamp: new Date().toISOString(),
+						parentId: state.mcLastEventId ?? null,
+						type: eventType,
+						data: getMissionControlEventData(e),
+					});
+					state.mcLastEventId = id;
+				}
+			});
+
+			// Step 8: Construct and display the frontend URL
+			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
+			sharedState.mcFrontendUrl = frontendUrl;
+			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
+
+			// Render a persistent inline info banner using the proposed
+			// `stream.info()` API (blue background + blue info icon, matches
+			// the native chat info notification style). The button uses
+			// `vscode.open` so it opens the URL externally without invoking
+			// the model, and the banner stays visible after click.
+			const banner = new MarkdownString(
+				`**${l10n.t('Remote control is enabled.')}** ` +
+				l10n.t('You can open this session from any device.')
+			);
+			this._stream?.info(banner);
+			this._stream?.button({
+				command: 'vscode.open',
+				arguments: [Uri.parse(frontendUrl)],
+				title: l10n.t('Open on GitHub'),
+			});
+
+			// Step 9: Start continuous event exporter and command poller
+			this._startMcEventExporter();
+			this._startMcCommandPoller();
+		} catch (error) {
+			this.logService.error(`[CopilotCLISession] Remote control error: ${error}`);
+			this._stream?.markdown(l10n.t('Unable to enable remote control: {0}', error instanceof Error ? error.message : String(error)));
+		}
+	}
+
+	private _showRemoteControlStatus(): void {
+		const state = this._mcState;
+		if (!state) {
+			this._stream?.markdown(l10n.t('Remote control is disabled. Use /remote on to enable it.'));
+			return;
+		}
+
+		const message = state.mcFrontendUrl
+			? l10n.t('Remote control is enabled. Use /remote off to disable it. Session URL: {0}', state.mcFrontendUrl)
+			: l10n.t('Remote control is enabled. Use /remote off to disable it.');
+		this._stream?.markdown(message);
+		if (state.mcFrontendUrl) {
+			this._stream?.button({
+				command: 'vscode.open',
+				arguments: [Uri.parse(state.mcFrontendUrl)],
+				title: l10n.t('Open on GitHub'),
+			});
+		}
+	}
+
+	/**
+	 * Disable remote control for an active Mission Control session.
+	 */
+	private async _teardownRemoteControl(): Promise<void> {
+		// Stop local scheduling first so no more commands or periodic flushes race
+		// with the final disabled-state transition we send to Mission Control.
+		this._stopMcCommandPoller();
+		this._stopMcEventExporter(false);
+
+		const state = this._mcState;
+		if (!state) {
+			this.logService.info('[CopilotCLISession] No active MC session to tear down');
+			return;
+		}
+
+		// Clean up the persistent event listener
+		if (state.mcEventListenerDispose) {
+			state.mcEventListenerDispose();
+			state.mcEventListenerDispose = undefined;
+		}
+		for (const pendingRequest of state.mcPendingPermissionRequests.values()) {
+			pendingRequest.resolve({ kind: 'denied-interactively-by-user' });
+		}
+		state.mcPendingPermissionRequests.clear();
+		for (const pendingRequest of getMissionControlPendingUserInputRequests(state)) {
+			pendingRequest.resolve(undefined);
+		}
+		getMissionControlPendingUserInputRequests(state).clear();
+
+		state.mcEventBuffer.push(this._createMcEvent('session.remote_steerable_changed', {
+			remoteSteerable: false,
+		}));
+		state.mcEventBuffer.push(this._createMcEvent('session.idle', {}));
+		await this._flushMcEvents();
+
+		mcStateBySessionId.delete(this.sessionId);
+		this.logService.info(`[CopilotCLISession] Disabled MC remote control for session ${state.mcSessionId}`);
+	}
+
+	/**
+	 * Parse owner/repo from the git remote URL of a working directory.
+	 */
+	private _resolveGitHubNwo(workingDirectory: vscode.Uri): Promise<{ owner: string; repo: string } | undefined> {
+		return new Promise((resolve) => {
+			cp.execFile('git', ['remote', 'get-url', 'origin'], { cwd: workingDirectory.fsPath, timeout: 5000 }, (_error, stdout) => {
+				if (!stdout) {
+					resolve(undefined);
+					return;
+				}
+				const url = stdout.trim();
+				const match = url.match(/github\.com[:/](?<owner>[^/]+)\/(?<repo>[^/]+?)(?:\.git)?$/);
+				if (match?.groups) {
+					resolve({ owner: match.groups.owner, repo: match.groups.repo });
+				} else {
+					resolve(undefined);
+				}
+			});
+		});
+	}
+
+	// -- Mission Control event exporter -----------------------------------
+
+	/**
+	 * Start listening to SDK events and flushing them to Mission Control.
+	 * Events are batched and sent every 500ms.
+	 */
+	private _startMcEventExporter(): void {
+		this._stopMcEventExporter();
+		const state = this._mcState;
+		if (!state) { return; }
+
+		// Event buffering is handled by _bufferMcEvent(), which is called from
+		// the per-send on('*') handler. We only need the flush interval here.
+		state.mcFlushInterval = setInterval(() => {
+			this._flushMcEvents().catch(err => {
+				this.logService.warn(`[CopilotCLISession] MC event flush failed: ${err}`);
+			});
+		}, 500);
+
+		this.logService.info('[CopilotCLISession] MC event exporter started');
+	}
+
+	/** Stop the MC event exporter. */
+	private _stopMcEventExporter(clearBuffer = true): void {
+		const state = this._mcState;
+		if (state?.mcFlushInterval) {
+			clearInterval(state.mcFlushInterval);
+			state.mcFlushInterval = undefined;
+		}
+		if (state && clearBuffer) {
+			state.mcEventBuffer.length = 0;
+		}
+	}
+
+	/**
+	 * Buffer an SDK event for Mission Control. Called from the per-send
+	 * on('*') handler so that events are captured on every turn.
+	 */
+	private _bufferMcEvent(event: { type?: string; data?: unknown; id?: string; timestamp?: string; parentId?: string | null; ephemeral?: boolean }): void {
+		const state = this._mcState;
+		const eventType = event.type ?? 'unknown';
+		if (!state) {
+			return;
+		}
+		if (!shouldForwardMissionControlEvent(event)) {
+			return;
+		}
+		const updatedTitle = getMissionControlSessionTitleFromEvent(event);
+		if (updatedTitle) {
+			this._title = updatedTitle;
+		}
+		maybeAcknowledgeMissionControlCommandFromEvent(state, event);
+		this.logService.trace(`[CopilotCLISession] MC buffered event: ${eventType}`);
+
+		// If the SDK event already has a UUID id, pass it through directly
+		// to preserve the event identity chain. Otherwise create a new event.
+		if (event.id && event.timestamp) {
+			const mcEvent: McEvent = {
+				id: event.id,
+				timestamp: event.timestamp,
+				parentId: event.parentId ?? state.mcLastEventId ?? null,
+				ephemeral: event.ephemeral,
+				type: eventType,
+				data: getMissionControlEventData(event),
+			};
+			state.mcLastEventId = event.id;
+			state.mcEventBuffer.push(mcEvent);
+		} else {
+			state.mcEventBuffer.push(this._createMcEvent(eventType, getMissionControlEventData(event)));
+		}
+	}
+
+	/** Create an MC event with a UUID v4 ID and parentId chain. */
+	private _createMcEvent(type: string, data: Record<string, unknown>, ephemeral?: boolean): McEvent {
+		const state = this._mcState;
+		const id = crypto.randomUUID();
+		const event: McEvent = {
+			id,
+			timestamp: new Date().toISOString(),
+			parentId: state?.mcLastEventId ?? null,
+			ephemeral,
+			type,
+			data,
+		};
+		if (state) {
+			state.mcLastEventId = id;
+		}
+		return event;
+	}
+
+	private async _getMissionControlSessionTitle(): Promise<string | undefined> {
+		const liveTitle = this._title?.trim();
+		if (liveTitle) {
+			return liveTitle;
+		}
+
+		const sessionEvents = this._sdkSession.getEvents() as readonly { type?: string; data?: unknown }[];
+		for (let i = sessionEvents.length - 1; i >= 0; i--) {
+			const eventTitle = getMissionControlSessionTitleFromEvent(sessionEvents[i]);
+			if (eventTitle) {
+				return eventTitle;
+			}
+		}
+
+		const customTitle = (await this._chatSessionMetadataStore.getCustomTitle(this.sessionId))?.trim();
+		if (customTitle) {
+			return customTitle;
+		}
+
+		for (const event of sessionEvents) {
+			if (event.type !== 'user.message') {
+				continue;
+			}
+			const content = typeof event.data === 'object' && event.data !== null && 'content' in event.data
+				? event.data.content
+				: undefined;
+			if (typeof content === 'string') {
+				const sanitizedContent = stripReminders(content).trim();
+				if (sanitizedContent.length > 0) {
+					return sanitizedContent;
+				}
+			}
+		}
+
+		const pendingTitle = this._pendingPrompt?.trim();
+		return pendingTitle || undefined;
+	}
+
+	private _waitForMcPermissionResponse(
+		state: McSharedState,
+		permissionRequest: PermissionRequest,
+		requestId: string,
+		token: CancellationToken,
+	): Promise<PermissionRequestResult> {
+		const promptId = permissionRequest.toolCallId ?? requestId;
+		return new Promise<PermissionRequestResult>(resolve => {
+			let settled = false;
+			const cancellationListener = token.onCancellationRequested(() => {
+				complete({ kind: 'denied-interactively-by-user' });
+			});
+			const complete = (result: PermissionRequestResult) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				state.mcPendingPermissionRequests.delete(promptId);
+				cancellationListener?.dispose();
+				resolve(result);
+			};
+
+			state.mcPendingPermissionRequests.set(promptId, { resolve: complete });
+		});
+	}
+
+	private _waitForMcUserInputResponse(
+		state: McSharedState,
+		requestId: string,
+		toolCallId: string | undefined,
+		token: CancellationToken,
+	): Promise<UserInputResponse | undefined> {
+		return new Promise<UserInputResponse | undefined>(resolve => {
+			let settled = false;
+			const complete = (result: UserInputResponse | undefined) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				getMissionControlPendingUserInputRequests(state).delete(pendingRequest);
+				cancellationListener?.dispose();
+				resolve(result);
+			};
+			const pendingRequest: McPendingUserInputRequest = {
+				requestId,
+				toolCallId,
+				resolve: complete,
+			};
+			const cancellationListener = token.onCancellationRequested(() => {
+				complete(undefined);
+			});
+
+			getMissionControlPendingUserInputRequests(state).add(pendingRequest);
+		});
+	}
+
+	/**
+	 * Flush buffered events to the Mission Control API.
+	 */
+	private async _flushMcEvents(): Promise<void> {
+		const state = this._mcState;
+		if (!state || !state.mcSessionId) {
+			return;
+		}
+
+		const completedCommandIds = state.mcCompletedCommandIds.splice(0);
+		const shouldSendKeepAlive =
+			state.mcEventBuffer.length === 0 &&
+			completedCommandIds.length === 0 &&
+			Date.now() - state.mcLastSubmitAttemptTimeMs >= MISSION_CONTROL_KEEPALIVE_INTERVAL_MS;
+		if (state.mcEventBuffer.length === 0 && completedCommandIds.length === 0 && !shouldSendKeepAlive) {
+			return;
+		}
+
+		state.mcLastSubmitAttemptTimeMs = Date.now();
+		const events = state.mcEventBuffer.splice(0, 500);
+
+		const eventTypes = events.map(e => e.type).join(', ');
+		this.logService.info(`[CopilotCLISession] Flushing ${events.length} MC event(s): [${eventTypes}]${completedCommandIds.length ? ` with ${completedCommandIds.length} completed command(s)` : ''}${shouldSendKeepAlive ? ' (keepalive)' : ''}`);
+
+		try {
+			const success = await this._missionControlApiClient.submitEvents(state.mcSessionId, events, completedCommandIds);
+			if (!success) {
+				// Re-queue events on failure (but don't grow unbounded)
+				if (state.mcEventBuffer.length < 2000) {
+					state.mcEventBuffer.unshift(...events);
+				}
+				state.mcCompletedCommandIds.unshift(...completedCommandIds);
+			} else {
+				this.logService.info(`[CopilotCLISession] MC event flush OK: ${events.length} event(s)`);
+			}
+		} catch (err) {
+			state.mcCompletedCommandIds.unshift(...completedCommandIds);
+			this.logService.warn(`[CopilotCLISession] MC event submission error: ${err}`);
+		}
+	}
+
+	// -- Mission Control command poller -----------------------------------
+
+	/**
+	 * Start polling Mission Control for steering commands from the web UI.
+	 * Polls every 3 seconds.
+	 */
+	private _startMcCommandPoller(): void {
+		this._stopMcCommandPoller();
+		const state = this._mcState;
+		if (!state) { return; }
+
+		// Capture sessionId for use in the closure — avoid relying on `this`
+		// which may be a stale CopilotCLISession instance.
+		const sessionId = this.sessionId;
+		const logService = this.logService;
+		const missionControlApiClient = this._missionControlApiClient;
+
+		state.mcPollInterval = setInterval(() => {
+			const currentState = mcStateBySessionId.get(sessionId);
+			if (!currentState || !currentState.mcSessionId) {
+				return;
+			}
+			CopilotCLISession._pollMcCommandsStatic(sessionId, currentState, missionControlApiClient, logService).catch(err => {
+				logService.warn(`[CopilotCLISession] MC command poll failed: ${err}`);
+			});
+		}, 3000);
+
+		this.logService.info('[CopilotCLISession] MC command poller started');
+	}
+
+	/** Stop the MC command poller. */
+	private _stopMcCommandPoller(): void {
+		const state = this._mcState;
+		if (state?.mcPollInterval) {
+			clearInterval(state.mcPollInterval);
+			state.mcPollInterval = undefined;
+		}
+	}
+
+	/**
+	 * Poll Mission Control for pending commands and process them.
+	 * Static method to avoid capturing a stale `this` reference.
+	 */
+	private static async _pollMcCommandsStatic(sessionId: string, state: McSharedState, missionControlApiClient: MissionControlApiClient, logService: { info(msg: string): void; warn(msg: string): void }): Promise<void> {
+		try {
+			const commands = await missionControlApiClient.getPendingCommands(state.mcSessionId);
+			const pendingCommandIds = new Set(commands.map(cmd => cmd.id));
+			for (const processedId of state.mcProcessedCommandIds) {
+				if (!pendingCommandIds.has(processedId)) {
+					state.mcProcessedCommandIds.delete(processedId);
+				}
+			}
+
+			for (const cmd of commands) {
+				if (cmd.state !== 'in_progress' || state.mcProcessedCommandIds.has(cmd.id)) {
+					continue;
+				}
+				state.mcProcessedCommandIds.add(cmd.id);
+				logService.info(`[CopilotCLISession] Processing MC command: ${cmd.type ?? 'user_message'} (${cmd.id})`);
+
+				switch (cmd.type) {
+					case 'abort':
+						for (const pendingRequest of state.mcPendingPermissionRequests.values()) {
+							pendingRequest.resolve({ kind: 'denied-interactively-by-user' });
+						}
+						state.mcPendingPermissionRequests.clear();
+						for (const pendingRequest of getMissionControlPendingUserInputRequests(state)) {
+							pendingRequest.resolve(undefined);
+						}
+						getMissionControlPendingUserInputRequests(state).clear();
+						state.mcSdkSession.abort();
+						break;
+					case 'ask_user_response': {
+						let responsePayload: McAskUserResponsePayload | undefined;
+						const trimmedContent = cmd.content.trim();
+						if (trimmedContent.startsWith('{')) {
+							try {
+								const parsed = JSON.parse(trimmedContent) as unknown;
+								if (parsed && typeof parsed === 'object') {
+									responsePayload = parsed as McAskUserResponsePayload;
+								}
+							} catch (error) {
+								logService.warn(`[CopilotCLISession] Failed to parse MC ask_user_response payload (${cmd.id}): ${error}`);
+							}
+						}
+
+						const pendingRequest = getMissionControlPendingUserInputRequest(state, responsePayload);
+						if (!pendingRequest) {
+							logService.warn(`[CopilotCLISession] No pending MC ask_user request found for command ${cmd.id}`);
+							break;
+						}
+
+						const response = getMcAskUserResponse(responsePayload, trimmedContent);
+						if (!response) {
+							logService.warn(`[CopilotCLISession] MC ask_user response missing answer payload (${cmd.id})`);
+							break;
+						}
+
+						pendingRequest.resolve(response);
+						break;
+					}
+					case 'permission_response': {
+						const responseData = CopilotCLISession._parseMcJsonCommand<McPermissionResponseCommandData>(cmd, logService);
+						const promptId = responseData?.promptId;
+						if (!promptId) {
+							logService.warn(`[CopilotCLISession] MC permission response missing promptId (${cmd.id})`);
+							break;
+						}
+						const pendingRequest = state.mcPendingPermissionRequests.get(promptId);
+						if (!pendingRequest) {
+							logService.warn(`[CopilotCLISession] No pending MC permission request found for prompt ${promptId}`);
+							break;
+						}
+						pendingRequest.resolve(responseData?.approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
+						break;
+					}
+					case 'user_message':
+					default: {
+						// Route steering messages through the VS Code chat UI so
+						// they appear in the chat panel with proper rendering.
+						const vsCodeApi = require('vscode') as typeof import('vscode');
+						getMissionControlPendingCommandCompletionIds(state).add(cmd.id);
+						setPendingCopilotCLIRequestContext(sessionId, {
+							prompt: cmd.content,
+							attachments: [],
+							source: `command-${cmd.id}`,
+						});
+						vsCodeApi.commands.executeCommand(
+							'workbench.action.chat.openSessionWithPrompt.copilotcli',
+							{
+								resource: state.mcSessionResource,
+								prompt: cmd.content,
+							}
+						).then(undefined, err => {
+							clearPendingCopilotCLIRequestContext(sessionId);
+							getMissionControlPendingCommandCompletionIds(state).delete(cmd.id);
+							state.mcCompletedCommandIds.push(cmd.id);
+							logService.warn(`[CopilotCLISession] MC steering send failed: ${err}`);
+						});
+						break;
+					}
+				}
+
+				if (cmd.type !== 'user_message' && cmd.type !== undefined) {
+					state.mcCompletedCommandIds.push(cmd.id);
+				}
+			}
+		} catch {
+			// Silently ignore polling errors
+		}
+	}
+
+	private static _parseMcJsonCommand<T extends object>(cmd: McCommand, logService: { warn(msg: string): void }): T | undefined {
+		try {
+			const parsed = JSON.parse(cmd.content) as unknown;
+			if (parsed && typeof parsed === 'object') {
+				return parsed as T;
+			}
+		} catch (error) {
+			logService.warn(`[CopilotCLISession] Failed to parse MC command payload (${cmd.id}): ${error}`);
+		}
+		return undefined;
 	}
 
 	addUserMessage(content: string) {
@@ -1222,4 +2187,3 @@ function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { catego
 	}
 	return details.length > 0 ? details : undefined;
 }
-

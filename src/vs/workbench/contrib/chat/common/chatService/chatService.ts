@@ -59,6 +59,12 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	isRateLimited?: boolean;
+	/**
+	 * If true, the error is an expected operational condition (e.g. user-actionable
+	 * configuration, network connectivity, missing dependency) and should not be
+	 * logged as a `chatAgentError` telemetry event.
+	 */
+	isExpectedError?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;
@@ -287,6 +293,11 @@ export interface IChatTaskResult {
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
+}
+
+export interface IChatInfoMessage {
+	content: IMarkdownString;
+	kind: 'info';
 }
 
 export interface IChatAgentVulnerabilityDetails {
@@ -1105,6 +1116,7 @@ export type IChatProgress =
 	| IChatTaskResult
 	| IChatCommandButton
 	| IChatWarningMessage
+	| IChatInfoMessage
 	| IChatTextEdit
 	| IChatNotebookEdit
 	| IChatWorkspaceEdit
@@ -1448,7 +1460,7 @@ export interface IChatSendRequestOptions {
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
-	agentHostSessionConfig?: Record<string, string>;
+	agentHostSessionConfig?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;

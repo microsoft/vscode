@@ -47,7 +47,7 @@ import { getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo'
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { type CopilotCLIModelInfo, type ICopilotCLIModels, type ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
-import { CopilotCLISession, CopilotCLISessionInput } from '../../copilotcli/node/copilotcliSession';
+import { CopilotCLISession, CopilotCLISessionInput, ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIMCPHandler } from '../../copilotcli/node/mcpHandler';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from '../../copilotcli/node/test/testHelpers';
@@ -250,6 +250,7 @@ function createChatContext(sessionId: string, isUntitled: boolean, ...requests: 
 
 class TestCopilotCLISession extends CopilotCLISession {
 	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
 	public static statusOverride?: vscode.ChatSessionStatus;
@@ -262,6 +263,10 @@ class TestCopilotCLISession extends CopilotCLISession {
 			return TestCopilotCLISession.handleRequestHook(request, input);
 		}
 		return TestCopilotCLISession.nextHandleRequestResult ?? Promise.resolve();
+	}
+	override setPermissionLevel(level: string | undefined): void {
+		this.permissionLevel = level;
+		super.setPermissionLevel(level);
 	}
 }
 
@@ -327,7 +332,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			}
 		});
 		sdk = {
-			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), noopTelemetryBinder: {} })),
+			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), AutoModeSessionManager: class { }, noopTelemetryBinder: {} })),
 			getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'valid-token', host: 'https://github.com' })),
 		} as unknown as ICopilotCLISDK;
 		const services = disposables.add(createExtensionUnitTestingServices());
@@ -392,19 +397,21 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any);
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
 		} as unknown as IInstantiationService;
 		customSessionTitleService = new CustomSessionTitleService(new MockExtensionContext() as unknown as IVSCodeExtensionContext, accessor.get(IInstantiationService), logService, new MockChatSessionMetadataStore());
-		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService())));
+		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), models as unknown as ICopilotCLIModels));
 
 		manager = await sessionService.getSessionManager() as unknown as MockCliSdkSessionManager;
 		contentProvider = new class extends mock<CopilotCLIChatSessionContentProvider>() {
 			override notifySessionOptionsChange = vi.fn((_resource: vscode.Uri, _updates: ReadonlyArray<{ optionId: string; value: string | vscode.ChatSessionProviderOptionItem }>): void => {
 				// tracked by vi.fn
 			});
+			override trackActiveSession = vi.fn();
+			override untrackActiveSession = vi.fn();
 		}();
 		folderRepositoryManager = new CopilotCLIFolderRepositoryManager(
 			worktree,
@@ -414,7 +421,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			workspaceService,
 			logService,
 			tools,
-			fileSystem
+			fileSystem,
+			new MockChatSessionMetadataStore()
 		);
 
 		instantiationService = accessor.get(IInstantiationService);
@@ -465,6 +473,71 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests.length).toBe(1);
 		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], model: { model: 'base' }, authInfo, token });
+	});
+
+	it('uses permissionLevel from initial session options', async () => {
+		const request = new TestChatRequest('Say hi');
+		const context = createChatContext('temp-new', true, request);
+		(context.chatSessionContext as { initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }> }).initialSessionOptions = [{ optionId: 'permissionLevel', value: 'autopilot' }];
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		await participant.createHandler()(request, context, stream, token);
+
+		expect(cliSessions.length).toBe(1);
+		expect(cliSessions[0].permissionLevel).toBe('autopilot');
+	});
+
+	it('applies live permissionLevel option changes to an active session', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const activeSession = {
+			sessionId: 'sdk-session',
+			setPermissionLevel: vi.fn(),
+		} as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('untitled-session', activeSession.sessionId);
+		provider.trackActiveSession('untitled-session', activeSession);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/untitled-session'), [
+			{ optionId: 'permissionLevel', value: 'autopilot' }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(activeSession.setPermissionLevel).toHaveBeenCalledWith('autopilot');
+	});
+
+	it('scopes live permissionLevel changes to the targeted session', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const sessionA = { sessionId: 'sdk-a', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		const sessionB = { sessionId: 'sdk-b', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('resource-a', sessionA.sessionId);
+		itemProvider.untitledSessionIdMapping.set('resource-b', sessionB.sessionId);
+		provider.trackActiveSession('resource-a', sessionA);
+		provider.trackActiveSession('resource-b', sessionB);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/resource-b'), [
+			{ optionId: 'permissionLevel', value: 'autopilot' }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(sessionB.setPermissionLevel).toHaveBeenCalledWith('autopilot');
+		expect(sessionA.setPermissionLevel).not.toHaveBeenCalled();
+	});
+
+	it('clears permissionLevel on an active session when option value is undefined', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const activeSession = { sessionId: 'sdk-session', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('untitled-session', activeSession.sessionId);
+		provider.trackActiveSession('untitled-session', activeSession);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/untitled-session'), [
+			{ optionId: 'permissionLevel', value: undefined }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(activeSession.setPermissionLevel).toHaveBeenCalledWith(undefined);
 	});
 
 	it('uses worktree workingDirectory when isolation is enabled for a new untitled session', async () => {

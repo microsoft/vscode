@@ -1013,6 +1013,30 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class FocusQuestionCarouselTerminalAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.focusQuestionCarouselTerminal';
+
+		constructor() {
+			super({
+				id: FocusQuestionCarouselTerminalAction.ID,
+				title: localize2('interactiveSession.focusQuestionCarouselTerminal.label', "Chat: Focus Terminal from Question Carousel"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.chatQuestionCarouselHasTerminal),
+				keybinding: [{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.Alt | KeyCode.KeyT,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatQuestionCarousel, ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.chatQuestionCarouselHasTerminal),
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.lastFocusedWidget?.focusQuestionCarouselTerminal();
+		}
+	});
+
 	registerAction2(class FocusTipAction extends Action2 {
 		static readonly ID = 'workbench.action.chat.focusTip';
 
@@ -1085,42 +1109,12 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class ToggleSessionCloudSyncAction extends Action2 {
-		private static readonly _settingKey = 'github.copilot.chat.sessionSearch.cloudSync.enabled';
-		constructor() {
-			super({
-				id: 'workbench.action.chat.toggleSessionCloudSync',
-				title: localize2('chat.toggleSessionCloudSync', "Sync Chat Sessions to Cloud"),
-				category: CHAT_CATEGORY,
-				f1: false,
-				toggled: ContextKeyExpr.equals(`config.${ToggleSessionCloudSyncAction._settingKey}`, true),
-				menu: [{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
-					order: 2,
-					group: '4_logs'
-				}, {
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
-					order: 2,
-					group: '4_logs'
-				}]
-			});
-		}
-
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const configurationService = accessor.get(IConfigurationService);
-			const currentValue = configurationService.getValue<boolean>(ToggleSessionCloudSyncAction._settingKey);
-			await configurationService.updateValue(ToggleSessionCloudSyncAction._settingKey, !currentValue);
-		}
-	});
-
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.manageSettings',
-				title: localize2('manageChat', "Manage Chat"),
+				title: localize2('manageChat', "Manage Copilot Settings"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ContextKeyExpr.and(
@@ -1128,7 +1122,8 @@ export function registerChatActions() {
 						ChatContextKeys.Entitlement.planFree,
 						ChatContextKeys.Entitlement.planEdu,
 						ChatContextKeys.Entitlement.planPro,
-						ChatContextKeys.Entitlement.planProPlus
+						ChatContextKeys.Entitlement.planProPlus,
+						ChatContextKeys.Entitlement.planMax
 					),
 					nonEnterpriseCopilotUsers
 				),

@@ -7,36 +7,38 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { ActionType, NotificationType, IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction, type ITerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, SessionLifecycle, type IRootState, type ISessionState, type ISessionSummary, type ITurn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
 /**
  * Server-side state manager for the sessions process protocol.
  *
  * Maintains the authoritative state tree (root + per-session), applies actions
  * through pure reducers, assigns monotonic sequence numbers, and emits
- * {@link IActionEnvelope}s for subscribed clients.
+ * {@link ActionEnvelope}s for subscribed clients.
  */
 export class AgentHostStateManager extends Disposable {
 
 	private _serverSeq = 0;
 
-	private _rootState: IRootState;
-	private readonly _sessionStates = new Map<string, ISessionState>();
+	private _rootState: RootState;
+	private readonly _sessionStates = new Map<string, SessionState>();
 
 	/** Tracks which session URI each active turn belongs to, keyed by turnId. */
 	private readonly _activeTurnToSession = new Map<string, string>();
 
 	/** Last summary sent to clients (via sessionAdded or sessionSummaryChanged). */
-	private readonly _lastNotifiedSummaries = new Map<string, ISessionSummary>();
+	private readonly _lastNotifiedSummaries = new Map<string, SessionSummary>();
 	/** Sessions whose summary changed since the last flush. */
 	private readonly _dirtySummaries = new Set<string>();
 	private readonly _summaryNotifyScheduler = this._register(new RunOnceScheduler(() => this._flushSummaryNotifications(), 100));
 
-	private readonly _onDidEmitEnvelope = this._register(new Emitter<IActionEnvelope>());
-	readonly onDidEmitEnvelope: Event<IActionEnvelope> = this._onDidEmitEnvelope.event;
+	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
@@ -46,6 +48,19 @@ export class AgentHostStateManager extends Disposable {
 	) {
 		super();
 		this._rootState = createRootState();
+		// Seed the host-level configuration schema + default values so that
+		// RootConfigChanged actions can merge into it, and clients see the
+		// schema immediately upon subscribing to `agenthost:/root`. See
+		// `platformRootSchema` for the set of platform-owned properties.
+		this._rootState = {
+			...this._rootState,
+			config: {
+				schema: platformRootSchema.toProtocol(),
+				values: platformRootSchema.validateOrDefault({}, {
+					[SessionConfigKey.Permissions]: { allow: [], deny: [] } satisfies IPermissionsValue,
+				}),
+			},
+		};
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
@@ -55,16 +70,20 @@ export class AgentHostStateManager extends Disposable {
 
 	// ---- State accessors ----------------------------------------------------
 
-	get rootState(): IRootState {
+	get rootState(): RootState {
 		return this._rootState;
 	}
 
-	getSessionState(session: URI): ISessionState | undefined {
+	getSessionState(session: URI): SessionState | undefined {
 		return this._sessionStates.get(session);
 	}
 
 	get serverSeq(): number {
 		return this._serverSeq;
+	}
+
+	getSessionUris(): string[] {
+		return [...this._sessionStates.keys()];
 	}
 
 	/**
@@ -115,7 +134,7 @@ export class AgentHostStateManager extends Disposable {
 	 * Creates a new session in state with `lifecycle: 'creating'`.
 	 * Returns the initial session state.
 	 */
-	createSession(summary: ISessionSummary): ISessionState {
+	createSession(summary: SessionSummary): SessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[AgentHostStateManager] Session already exists: ${key}`);
@@ -145,14 +164,14 @@ export class AgentHostStateManager extends Disposable {
 	 * notification because the session is already known to clients via
 	 * `listSessions`.
 	 */
-	restoreSession(summary: ISessionSummary, turns: ITurn[]): ISessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[]): SessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[AgentHostStateManager] Session already exists (restore): ${key}`);
 			return this._sessionStates.get(key)!;
 		}
 
-		const state: ISessionState = {
+		const state: SessionState = {
 			...createSessionState(summary),
 			lifecycle: SessionLifecycle.Ready,
 			turns,
@@ -200,6 +219,21 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
+	// ---- Session meta -------------------------------------------------------
+
+	/**
+	 * Replaces `state._meta` on a session by dispatching a
+	 * {@link ActionType.SessionMetaChanged} action so the change flows
+	 * through the action envelope (and thus to all live subscribers).
+	 *
+	 * The full `_meta` object is replaced (not merged) so callers stay in
+	 * control of the convention for their own keys; use the `withSessionXxx`
+	 * helpers in `sessionState.ts` to combine slots.
+	 */
+	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
+		this.dispatchServerAction({ type: ActionType.SessionMetaChanged, session, _meta: meta });
+	}
+
 	// ---- Turn tracking ------------------------------------------------------
 
 	/**
@@ -219,7 +253,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state via the reducer and emitted as an
 	 * envelope with no origin (server-produced).
 	 */
-	dispatchServerAction(action: IStateAction): void {
+	dispatchServerAction(action: StateAction): void {
 		this._applyAndEmit(action, undefined);
 	}
 
@@ -228,22 +262,22 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: ISessionAction | ITerminalAction, origin: IActionOrigin): unknown {
+	dispatchClientAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
 		return this._applyAndEmit(action, origin);
 	}
 
 	// ---- Internal -----------------------------------------------------------
 
-	private _applyAndEmit(action: IStateAction, origin: IActionOrigin | undefined): unknown {
+	private _applyAndEmit(action: StateAction, origin: ActionOrigin | undefined): unknown {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
-			this._rootState = rootReducer(this._rootState, action as IRootAction, this._log);
+			this._rootState = rootReducer(this._rootState, action as RootAction, this._log);
 			resultingState = this._rootState;
 		}
 
 		if (isSessionAction(action)) {
-			const sessionAction = action as ISessionAction;
+			const sessionAction = action as SessionAction;
 			const key = sessionAction.session;
 			const state = this._sessionStates.get(key);
 			if (state) {
@@ -276,7 +310,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		// Emit envelope
-		const envelope: IActionEnvelope = {
+		const envelope: ActionEnvelope = {
 			action,
 			serverSeq: ++this._serverSeq,
 			origin,
@@ -297,15 +331,13 @@ export class AgentHostStateManager extends Disposable {
 			}
 
 			const current = state.summary;
-			const changes: Partial<ISessionSummary> = {};
+			const changes: Partial<SessionSummary> = {};
 			if (current.title !== lastNotified.title) { changes.title = current.title; }
 			if (current.status !== lastNotified.status) { changes.status = current.status; }
 			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 			if (current.project !== lastNotified.project) { changes.project = current.project; }
 			if (current.model !== lastNotified.model) { changes.model = current.model; }
 			if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-			if (current.isRead !== lastNotified.isRead) { changes.isRead = current.isRead; }
-			if (current.isDone !== lastNotified.isDone) { changes.isDone = current.isDone; }
 			if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
 
 			this._lastNotifiedSummaries.set(session, current);

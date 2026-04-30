@@ -274,6 +274,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					onDidChangeDefaultAccount: Event.None,
 					onDidChangePolicyData: Event.None,
 					policyData: null,
+					currentDefaultAccount: null,
 					copilotTokenInfo: null,
 					onDidChangeCopilotTokenInfo: Event.None,
 					getDefaultAccount: async () => null,

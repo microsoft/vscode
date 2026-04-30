@@ -84,6 +84,8 @@ The Agent Sessions titlebar includes a command center with a custom title bar wi
 The widget:
 - Extends `BaseActionViewItem` and renders a clickable label showing the active session title
 - Shows kind icon (provider type icon), session title, repository folder name, and the active git branch/worktree name in parentheses when available, plus the changes summary (+insertions -deletions)
+- Uses spacing between titlebar groups instead of vertical separator bars, and shows the session title metadata without the previous dot separator before the folder/worktree label
+- Keeps the command center focused on the session picker widget itself, without an adjacent "Mark as Done" action button
 - Truncates the repository/worktree metadata with ellipsis before truncating the primary AI-generated session title when command center space is constrained
 - On click, opens the `AgentSessionsPicker` quick pick to switch between sessions
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
@@ -104,6 +106,7 @@ The Agent Sessions titlebar includes a custom left toolbar that appears after th
 | Action | ID | Location | Behavior |
 |--------|-----|----------|----------|
 | Toggle Sidebar | `workbench.action.agentToggleSidebarVisibility` | Left toolbar (`TitleBarLeft`) | Toggles primary sidebar visibility |
+| Agent Host Filter | `sessions.agentHostFilter.pick` | Left toolbar (`TitleBarLeft`) | Dropdown indicator of the host the workbench is scoped to; lets the user switch hosts when more than one is known. When no hosts are known the pill becomes a re-discover trigger (refresh icon; click calls `IAgentHostFilterService.rediscover()`). Renders via a custom `HostFilterActionViewItem`. |
 | Run Script | `workbench.action.agentSessions.runScript` | Right toolbar (`TitleBarRight`) | Split button: runs configured script or shows configure dialog |
 | Open... | (submenu) | Right toolbar (`TitleBarRight`) | Split button submenu: Open Terminal, Open in VS Code |
 | Toggle Secondary Sidebar | `workbench.action.agentToggleSecondarySidebarVisibility` | Right toolbar (`TitleBarRight`) | Toggles auxiliary bar visibility |
@@ -121,9 +124,10 @@ The Run Script action:
 - Registered in `contrib/chat/browser/runScriptAction.ts`
 
 The Open... action:
-- Displayed as a split button via `Menus.OpenSubMenu` on `Menus.TitleBarRight`
+- Contributed on `Menus.TitleBarSessionMenu` and laid out on `Menus.TitleBarRightLayout`
 - Contains "Open Terminal" (opens terminal at session worktree) and "Open in VS Code" (opens worktree in new VS Code window)
-- Registered in `contrib/chat/browser/chat.contribution.ts`
+- The "Open in VS Code" titlebar widget mirrors the core "Open in Agents" affordance: the product icon is greyscale at rest, returns to full color on hover/focus while respecting reduced-motion preferences, uses secondary-button hover chrome, and draws a separator before the adjacent Run split button
+- "Open in VS Code" is contributed in `contrib/chat/browser/openInVSCode.contribution.ts`, and its custom titlebar widget is registered in `contrib/chat/browser/openInVSCodeWidget.ts` (imported from `contrib/chat/browser/chat.contribution.ts`)
 
 ### 3.5 Panel Title Actions
 
@@ -140,7 +144,7 @@ The account widget is rendered in the **right side of the titlebar** as a custom
 - Registered in `contrib/accountMenu/browser/account.contribution.ts`
 - Uses the `Menus.TitleBarRightLayout` menu
 - Shows the signed-in GitHub profile image when available, and falls back to the existing account codicon when it is not
-- Gives the GitHub profile image a subtle 1px circular border using the titlebar command center border tokens so the avatar stays legible against nearby chrome in both active and inactive window states
+- Renders the GitHub profile image at `18px × 18px` inside the `22px × 22px` titlebar widget, and gives it a subtle 1px circular border using the titlebar command center border tokens so the avatar stays legible against nearby chrome in both active and inactive window states
 - Opens a combined account and Copilot status hover panel with sign-in/sign-out, settings, and update actions
 
 ---
@@ -171,12 +175,14 @@ This structure places the sidebar at the root level spanning the full window hei
 | Part | Default Size |
 |------|--------------|
 | Sidebar | 300px width |
-| Auxiliary Bar | 300px width |
+| Auxiliary Bar | 380px width |
 | Chat Bar | Remaining space |
 | Panel | 300px height |
 | Titlebar | Determined by `minimumHeight` (~30px) |
 
-The sessions sidebar can be resized down to a minimum width of 170px.
+The sessions sidebar can be resized down to a minimum width of 170px (desktop) or 270px (web, sized to fit the titlebar's left toolbar which includes the host filter combo).
+
+The sessions auxiliary bar can generally be resized down to 270px. When the main editor part is visible (i.e. any editor is open in the main editor area adjacent to the auxiliary bar), the sash no longer snaps it closed; the titlebar toggle action still hides and shows the auxiliary bar as before. This behavior is automatic and applies to all editor types without requiring an explicit allowlist.
 
 ### 4.3 Editor Modal
 
@@ -206,7 +212,7 @@ The setting `workbench.editor.useModal` is an enum with three values:
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
 - `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
-The sessions default configuration also sets `workbench.notifications.position` to `'top-right'` so toast notifications anchor in the top-right corner of the sessions window without changing the default notification placement in the regular workbench.
+The sessions default configuration also sets `workbench.notifications.position` to `'bottom-right'` so notifications anchor in the bottom-right corner of the sessions window without changing the default notification placement in the regular workbench. The sessions-specific stylesheet adjusts both notification center and toast offsets to `15px` from the bottom/right or bottom/left edges, and to `top: 40px; right: 15px;` for the top-right placement. Because the shared workbench notification controllers also compute a top-right inline offset for custom titlebar windows, the sessions workbench reapplies its fixed `40px` top offset after those controllers run so the sessions-only placement stays stable.
 
 
 ---
@@ -252,6 +258,7 @@ setPartHidden(hidden: boolean, part: Parts): void
 - **Editor Part:**
     - The main editor part is hidden by default but can be shown for explicit editor workflows that target the main editor part
     - Modal editor opens do not change the current main editor visibility state
+    - The sessions **Maximize Editor** action temporarily hides the panel when the visible panel is the terminal view, and the matching **Restore Editor** action reopens that terminal panel if maximize hid it
   - All editors open via `MODAL_GROUP` into the `ModalEditorPart` overlay, which manages its own lifecycle
 
 ### 6.2 Part Sizing
@@ -378,7 +385,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 |---------|----------------|---------------------|
 | Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
-| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible |
+| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
 | Auto-hide support | Configurable | Disabled |
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
@@ -426,15 +433,15 @@ Each agent session part uses separate storage keys to avoid conflicts with regul
 
 ### 9.5 Part Borders and Card Appearance
 
-Parts manage their own border and background styling via the `updateStyles()` method. In the default light theme, the sessions workbench surface uses the off-white workbench/sidebar background while the card-like chat, auxiliary bar, and panel surfaces use the brighter editor background. Light themes also override the chat, auxiliary bar, and panel card border color in CSS to use `editorWidget.border`, giving those cards a darker outline. Dark and high-contrast mappings continue to use the existing part border tokens. The optional shell gradient treatment is gated behind the application setting `sessions.experimental.shellGradientBackground`. When that setting is disabled, the sessions shell uses the same solid sidebar/grid backgrounds and sidebar view styling as the upstream default experience. When enabled, the sessions shell adds a single root-level background layer in `browser/media/style.css` (`.agent-sessions-workbench.experimental-shell-gradient-background::before`) that sits behind the workbench parts and falls back to the normal solid shell background when `color-mix(...)` is unavailable. When supported, the layer derives its tint from the theme's primary accent signal in `button.background`. The gradient runs from the base shell color at the top-left toward a gentle, deliberately low-contrast accent tint in the bottom-right; light themes use a transparentized accent overlay to preserve a bit more of the original accent hue without letting it dominate the shell, dark themes use shallower direct mixes into the shell background, and high-contrast themes disable the gradient entirely for accessibility. Titlebar/sidebar wrappers are made transparent so that one shared layer reads continuously across the whole window chrome without clipping at part boundaries. These surfaces use a **card appearance** with CSS variables for background and border:
+Parts manage their own border and background styling via the `updateStyles()` method. In the default light theme, the sessions workbench surface uses the off-white workbench/sidebar background while the card-like chat, auxiliary bar, and panel surfaces use the brighter editor background. Light themes also override the chat, auxiliary bar, and panel card border color in CSS to use `editorWidget.border`, giving those cards a darker outline. Dark and high-contrast mappings continue to use the existing part border tokens. The sessions shell now applies its accent-tinted gradient treatment by default via a single root-level background layer in `browser/media/style.css` (`.agent-sessions-workbench.shell-gradient-background::before`) that sits behind the workbench parts and falls back to the normal solid shell background when `color-mix(...)` is unavailable. When supported, the layer derives its tint from the theme's primary accent signal in `button.background`. The gradient runs from the base shell color at the top-left toward a gentle, deliberately low-contrast accent tint in the bottom-right; light themes use a transparentized accent overlay to preserve a bit more of the original accent hue without letting it dominate the shell, dark themes use shallower direct mixes into the shell background, and high-contrast themes disable the gradient entirely for accessibility. Titlebar/sidebar wrappers are made transparent so that one shared layer reads continuously across the whole window chrome without clipping at part boundaries. These surfaces use a **card appearance** with CSS variables for background and border:
 
 | Part | Styling | Notes |
 |------|---------|-------|
-| Sidebar | Right border via `SIDE_BAR_BORDER` / `contrastBorder` | Flush appearance; when `sessions.experimental.shellGradientBackground` is enabled, the sidebar wrappers are transparent so the shared root shell gradient reads through continuously |
+| Sidebar | Right border via `SIDE_BAR_BORDER` / `contrastBorder` | Flush appearance; the sidebar wrappers are transparent so the shared root shell gradient reads through continuously |
 | Chat Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsChatBarBackground`; remains a solid view surface so chat content is unaffected |
 | Auxiliary Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsAuxiliaryBarBackground` / `PANEL_BORDER`; remains a solid view surface so files/changes content is unaffected |
 | Panel | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsPanelBackground` / `PANEL_BORDER`; remains a solid view surface so terminal/debug content is unaffected |
-| Titlebar | Simplified sessions titlebar part | When `sessions.experimental.shellGradientBackground` is enabled, its wrappers are transparent so the shared root shell gradient reads through the top chrome as one continuous surface |
+| Titlebar | Simplified sessions titlebar part | Its wrappers are transparent so the shared root shell gradient reads through the top chrome as one continuous surface |
 
 The sessions workbench also scopes its resize sash styling in `browser/media/style.css`, rounding the sash hover indicator and orthogonal drag handles so the layout chrome matches the card surfaces.
 Both sessions chat input surfaces keep the unfocused `editorWidget.border` outline in light themes, but switch to `focusBorder` while focused so the new-chat view and the active chat input match the core workbench chat widget focus treatment.
@@ -658,6 +665,20 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-28 | Updated the sessions "Open in VS Code" titlebar widget to match the core "Open in Agents" affordance more closely: the product icon is greyscale by default, animates back to full color on hover/focus when motion is enabled, uses secondary-button hover chrome instead of quality-tinted backgrounds, and draws a separator before the Run split button. |
+| 2026-04-27 | Made the sessions shell gradient background the default treatment by removing the `sessions.experimental.shellGradientBackground` opt-in, always applying the root shell gradient layer, and renaming the workbench CSS hook to `shell-gradient-background`. |
+| 2026-04-23 | Updated mobile layout policy platform detection to use shared `platform.isMobile`, and reduced phone-layout CSS `!important` usage where selector specificity already provides stable overrides. |
+| 2026-04-22 | Increased the sessions titlebar account widget's GitHub profile image from `16px × 16px` to `18px × 18px` while keeping the existing `22px × 22px` control footprint and avatar border treatment. |
+| 2026-04-22 | Added sessions-only toast offset overrides so notification toasts now use `right: 15px` in the default bottom-right placement and `left: 15px` in the bottom-left placement, matching the notification center spacing. |
+| 2026-04-22 | Added a sessions-workbench notification offset override so the shared notification controllers no longer push top-right notifications down to `42px`; sessions now reapply a fixed `40px` top offset for top-right notification center/toast placement. |
+| 2026-04-22 | Generalized the auxiliary bar snap-close prevention to trigger whenever the main editor part is visible (any editor type), so the behavior now applies automatically without maintaining an editor-type allowlist. |
+| 2026-04-22 | Updated the sessions auxiliary bar sizing rules so attached diff editors and integrated browser editors keep the normal 270px auxiliary-bar minimum width while disabling sash snap-to-close in that state, and the titlebar toggle continues to hide/show the secondary sidebar normally. |
+| 2026-04-22 | Updated the sessions **Maximize Editor** and **Restore Editor** actions so maximize hides the panel only when the terminal view is currently visible, and restore reopens that terminal panel when maximize hid it. |
+| 2026-04-21 | Renamed the command-center "Add Chat" titlebar action to "New Sub-Session" so the plus-button tooltip matches the sub-session workflow. |
+| 2026-04-21 | Removed the remaining left-margin spacing after the titlebar's VS Code and session-picker items, and dropped the command-center "Mark as Done" checkmark button next to the active session title. |
+| 2026-04-21 | Removed the titlebar's vertical separator bars in favor of spacing-only group separation, and removed the dot separator between the active session title and its folder/worktree metadata. |
+| 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
+| 2026-04-21 | Moved the sessions-only default notification placement to bottom-right and documented the sessions-specific notification center offsets: `15px` from the bottom/right or bottom/left edges, and `top: 40px; right: 15px;` for top-right placement. |
 | 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |
