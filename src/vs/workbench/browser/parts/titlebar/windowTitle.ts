@@ -64,7 +64,7 @@ export class WindowTitle extends Disposable {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
 	get value() { return this.title ?? ''; }

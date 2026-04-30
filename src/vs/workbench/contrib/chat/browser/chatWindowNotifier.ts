@@ -11,14 +11,14 @@ import { autorunDelta, autorunIterableDelta } from '../../../../base/common/obse
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
-import { IChatService } from '../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService/chatService.js';
+import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
+import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { IChatWidgetService } from './chat.js';
-import { AcceptToolConfirmationActionId, IToolConfirmationActionContext } from './actions/chatToolActions.js';
 
 /**
  * Observes all live chat models and triggers OS notifications when any model
@@ -35,7 +35,6 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IHostService private readonly _hostService: IHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -71,7 +70,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 	private async _notifyIfNeeded(sessionResource: URI, info: IChatRequestNeedsInputInfo): Promise<void> {
 		// Check configuration
-		if (!this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnConfirmation);
+		if (mode === ChatNotificationMode.Off) {
 			return;
 		}
 
@@ -79,43 +79,112 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 
-		// Only notify if window doesn't have focus
-		if (targetWindow.document.hasFocus()) {
+		const isFocused = targetWindow.document.hasFocus();
+		if (mode !== ChatNotificationMode.Always && isFocused) {
 			return;
 		}
 
 		// Clear any existing notification for this session
 		this._clearNotification(sessionResource);
 
-		// Focus window in notify mode (flash taskbar/dock)
-		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		// Focus window in notify mode (flash taskbar/dock) if not already focused
+		if (!isFocused) {
+			await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		}
 
 		// Create OS notification
-		const notificationTitle = info.title ? localize('chatTitle', "Chat: {0}", info.title) : localize('chat.untitledChat', "Untitled Chat");
+		const notificationTitle = info.title ? localize('chatTitle', "Session: {0}", info.title) : localize('chat.untitledChat', "Untitled Session");
 
 		const cts = new CancellationTokenSource();
 		this._activeNotifications.set(sessionResource, toDisposable(() => cts.dispose(true)));
 
+		// Determine if the pending input is for a question carousel
+		const isQuestionCarousel = this._isQuestionCarouselPending(sessionResource);
+
 		try {
+			const actionLabel = isQuestionCarousel
+				? localize('openChatAction', "Open Session")
+				: localize('allowAction', "Allow");
+
 			const result = await this._hostService.showToast({
 				title: this._sanitizeOSToastText(notificationTitle),
-				body: info.detail ? this._sanitizeOSToastText(info.detail) : localize('notificationDetail', "Approval needed to continue."),
-				actions: [localize('allowAction', "Allow")],
+				body: this._getNotificationBody(sessionResource, info, isQuestionCarousel),
+				actions: [actionLabel],
 			}, cts.token);
+
+			if (result.actionIndex === 0 && !isQuestionCarousel && this._confirmAllow(sessionResource)) {
+				return; // skip focusing/opening chat if we successfully confirmed the tool invocation from the toast action
+			}
 
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
 				const widget = await this._chatWidgetService.openSession(sessionResource);
 				widget?.focusInput();
-
-				if (result.actionIndex === 0 /* Allow */) {
-					await this._commandService.executeCommand(AcceptToolConfirmationActionId, { sessionResource } satisfies IToolConfirmationActionContext);
-				}
 			}
 		} finally {
 			this._clearNotification(sessionResource);
 		}
+	}
+
+	private _confirmAllow(sessionResource: URI): boolean {
+		const model = this._chatService.getSession(sessionResource);
+		const lastResponse = model?.lastRequest?.response;
+		if (!lastResponse) {
+			return false;
+		}
+		for (const part of lastResponse.response.value) {
+			const state = part.kind === 'toolInvocation' ? part.state.get() : undefined;
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				state.confirm({ type: ToolConfirmKind.UserAction });
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _getNotificationBody(sessionResource: URI, info: IChatRequestNeedsInputInfo, isQuestionCarousel: boolean): string {
+		if (isQuestionCarousel) {
+			return localize('questionCarouselDetail', "Questions need your input.");
+		}
+		const terminalCommand = this._getPendingTerminalCommand(sessionResource);
+		if (terminalCommand) {
+			return this._sanitizeOSToastText(terminalCommand);
+		}
+		if (info.detail) {
+			return this._sanitizeOSToastText(info.detail);
+		}
+		return localize('notificationDetail', "Approval needed to continue.");
+	}
+
+	private _getPendingTerminalCommand(sessionResource: URI): string | undefined {
+		const model = this._chatService.getSession(sessionResource);
+		const lastResponse = model?.lastRequest?.response;
+		if (!lastResponse?.response?.value) {
+			return undefined;
+		}
+		for (const part of lastResponse.response.value) {
+			if (part.kind === 'toolInvocation' && part.toolSpecificData?.kind === 'terminal') {
+				const state = part.state.get();
+				if (state?.type !== IChatToolInvocation.StateKind.WaitingForConfirmation && state?.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					continue;
+				}
+				const terminalData = migrateLegacyTerminalToolSpecificData(part.toolSpecificData);
+				return terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+			}
+		}
+		return undefined;
+	}
+
+	private _isQuestionCarouselPending(sessionResource: URI): boolean {
+		const model = this._chatService.getSession(sessionResource);
+		const lastResponse = model?.lastRequest?.response;
+		if (!lastResponse) {
+			return false;
+		}
+		return lastResponse.response.value.some(
+			part => part.kind === 'questionCarousel' && !part.isUsed
+		);
 	}
 
 	private _sanitizeOSToastText(text: string): string {

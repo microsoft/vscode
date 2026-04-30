@@ -103,6 +103,19 @@ export interface ITerminalInstanceService {
 }
 
 /**
+ * A lightweight command detection source for terminals connected via the Agent Host Protocol.
+ * Provides a subset of {@link ICommandDetectionCapability} driven by AHP protocol actions
+ * (`terminal/commandExecuted`, `terminal/commandFinished`) rather than local shell integration.
+ */
+export interface IAhpTerminalCommandSource extends IDisposable {
+	readonly commands: readonly ITerminalCommand[];
+	readonly executingCommandObject: ITerminalCommand | undefined;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
+	readonly onCommandFinished: Event<ITerminalCommand>;
+	getCommandById(id: string): ITerminalCommand | undefined;
+}
+
+/**
  * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
  * Acts as a communication mechanism for chat-related terminal features.
  */
@@ -111,6 +124,8 @@ export interface IChatTerminalToolProgressPart {
 	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
+	toggleOutputFromAction(): Promise<void>;
+	continueInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
@@ -164,13 +179,6 @@ export interface ITerminalChatService {
 	 * @returns The chat session resource if found, undefined otherwise
 	 */
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
-	/**
-	 * @deprecated Use getChatSessionResourceForInstance instead
-	 * Returns the chat session ID for a given terminal instance, if it has been registered.
-	 * @param instance The terminal instance to look up
-	 * @returns The chat session ID if found, undefined otherwise
-	 */
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -251,6 +259,22 @@ export interface ITerminalChatService {
 	 * Event fired when a terminal tool invocation should continue in the background.
 	 */
 	readonly onDidContinueInBackground: Event<string>;
+
+	/**
+	 * Register an AHP command source for a tool session. The source provides command detection
+	 * events for terminals connected via the Agent Host Protocol.
+	 * @param terminalToolSessionId The tool session ID to associate with the source
+	 * @param source The AHP command source
+	 * @returns A disposable that unregisters the source when disposed
+	 */
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable;
+
+	/**
+	 * Retrieve the AHP command source for a given tool session.
+	 * @param terminalToolSessionId The tool session ID to look up
+	 * @returns The AHP command source if registered, undefined otherwise
+	 */
+	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined;
 }
 
 /**
@@ -527,6 +551,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
 	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
+	/**
+	 * Moves a visible terminal instance to the background. The terminal process
+	 * remains alive but the instance is removed from its group/editor and tracked
+	 * internally so it can later be shown again via {@link showBackgroundTerminal}.
+	 */
+	moveToBackground(instance: ITerminalInstance): void;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -602,6 +632,13 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+
+	/**
+	 * Whether a particular command should skip the shell and go to be handled like a regular
+	 * keybinding instead.
+	 * @param commandId The command ID to check.
+	 */
+	shouldCommandSkipShell(commandId: string): boolean;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
@@ -623,7 +660,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance>;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
@@ -834,6 +871,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
 	readonly domElement: HTMLElement;
+	readonly isVisible: boolean;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;
@@ -1154,7 +1192,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean, commandId?: string): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean, commandLineForMetadata?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -1506,6 +1544,21 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * and resetting cursor position to the origin.
 	 */
 	reset(): void;
+
+	/**
+	 * Updates the terminal configuration from current settings.
+	 */
+	updateConfig(): void;
+
+	/**
+	 * Updates the terminal theme from the current color theme.
+	 */
+	updateTheme(): void;
+
+	/**
+	 * Updates the xterm log level to match the given VS Code log level.
+	 */
+	updateLogLevel(): void;
 
 	/**
 	 * Access to the terminal buffer for reading cursor position and content.

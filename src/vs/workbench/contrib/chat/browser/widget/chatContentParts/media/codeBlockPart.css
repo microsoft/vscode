@@ -21,6 +21,7 @@
 	line-height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
 	z-index: 100;
 	max-width: 70%;
 	text-overflow: ellipsis;
@@ -32,7 +33,6 @@
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
-	border-radius: 3px;
 	right: 10px;
 }
 
@@ -50,7 +50,6 @@
 .interactive-result-code-block .interactive-result-code-block-toolbar:focus-within,
 .interactive-result-code-block.focused .interactive-result-code-block-toolbar {
 	opacity: 1;
-	border-radius: 2px;
 	pointer-events: auto;
 }
 
@@ -79,7 +78,7 @@
 .interactive-result-code-block,
 .interactive-result-code-block .monaco-editor,
 .interactive-result-code-block .monaco-editor .overflow-guard {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .interactive-result-code-block .interactive-result-vulns {

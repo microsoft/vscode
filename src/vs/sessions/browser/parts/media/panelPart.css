@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the top title border because we draw our own */
+.monaco-workbench .part.panel.bottom .composite.title {
+	border-top-width: 0;
+}
+
+/* ===== Modern action label styling for sessions panel ===== */
+
+/* Hide the underline indicator for non-focused, non-checked items; keep it for focus-visible and checked */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible):not(.checked) .active-item-indicator:before {
+	display: none !important;
+}
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .active-item-indicator:before {
+	display: block !important;
+}
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	display: block !important;
+}
+
+/* Make icon action items 24px tall */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	height: 24px;
+}
+
+.agent-sessions-workbench .part.panel > .title {
+	padding-left: 6px;
+	padding-right: 6px;
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+/* Active/checked state: background container instead of underline */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent) !important;
+	border-radius: 4px;
+}
+
+/* Override base workbench panel content background for terminal */
+.agent-sessions-workbench .part.panel > .content .monaco-editor,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .part.panel > .content .pane-body,
+.agent-sessions-workbench .part.panel > .content .chat-debug-editor,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
+	--vscode-panel-background: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
+	background: var(--vscode-agentsPanel-background) !important;
+}
+
+/* Terminal body background */
+.agent-sessions-workbench .part.panel .terminal-wrapper {
+	background-color: var(--vscode-agentsPanel-background);
+}

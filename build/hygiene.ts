@@ -28,6 +28,21 @@ interface VinylFileWithLines extends VinylFile {
 }
 
 /**
+ * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
+ * Returns an error message if mismatched, or undefined if OK.
+ */
+export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
+	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+	const copilotPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions/copilot/package.json'), 'utf8'));
+	const expected = `^${rootPkg.version}`;
+	const actual = copilotPkg?.engines?.vscode;
+	if (actual !== expected) {
+		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
@@ -70,7 +85,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			}
 			// Please do not add symbols that resemble ASCII letters!
 			// eslint-disable-next-line no-misleading-character-class
-			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯🧪✍️⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
+			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯🧪✍️⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷—·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
 			if (m) {
 				console.error(
 					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
@@ -121,11 +136,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const formatting = es.map(function (file: any, cb) {
 		try {
 			const rawInput = file.contents!.toString('utf8');
-			const rawOutput = formatter.format(file.path, rawInput);
-
-			const original = rawInput.replace(/\r\n/gm, '\n');
-			const formatted = rawOutput.replace(/\r\n/gm, '\n');
-			if (original !== formatted) {
+			if (!formatter.verifyFormatting(file.path, rawInput)) {
 				console.error(
 					`File not formatted. Run the 'Format Document' command to fix it:`,
 					file.relative
@@ -290,6 +301,15 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
+					// Check copilot engines.vscode version if relevant files are staged
+					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
+						const copilotError = checkCopilotEnginesVersion(process.cwd());
+						if (copilotError) {
+							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
 					console.log('Reading git index versions...');
 
 					createGitIndexVinyls(some)

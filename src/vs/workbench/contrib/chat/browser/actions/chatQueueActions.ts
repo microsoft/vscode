@@ -6,11 +6,11 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -18,7 +18,28 @@ import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
-const queueingEnabledCondition = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingEnabled}`, true);
+const editingQueue = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Queue);
+const editingSteer = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Steer);
+const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
+
+const queuingActionsPresent = ContextKeyExpr.and(
+	ContextKeyExpr.or(ChatContextKeys.requestInProgress, editingQueueOrSteer),
+	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
+);
+
+const steerIsDefault = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingDefaultAction}`, 'steer');
+const queueIsDefault = steerIsDefault.negate();
+
+// The effective default respects the editing context: when editing a queued/steer
+// message, the default matches that message type regardless of the config setting.
+const effectiveDefaultIsQueue = ContextKeyExpr.or(
+	ContextKeyExpr.and(queueIsDefault, editingQueueOrSteer.negate()),
+	editingQueue
+);
+const effectiveDefaultIsSteer = ContextKeyExpr.or(
+	ContextKeyExpr.and(steerIsDefault, editingQueueOrSteer.negate()),
+	editingSteer
+);
 
 export interface IChatRemovePendingRequestContext {
 	sessionResource: URI;
@@ -45,25 +66,24 @@ export class ChatQueueMessageAction extends Action2 {
 			icon: Codicon.add,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				queueingEnabledCondition,
-				ChatContextKeys.requestInProgress,
-				ChatContextKeys.inputHasText
-			),
-			keybinding: {
+
+			precondition: ChatContextKeys.inputHasText,
+			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.requestInProgress,
-					queueingEnabledCondition
+					effectiveDefaultIsSteer,
+				),
+				primary: KeyMod.Alt | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib + 1
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					queuingActionsPresent,
+					effectiveDefaultIsQueue,
 				),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
-			},
-			menu: [{
-				id: MenuId.ChatExecuteQueue,
-				group: 'navigation',
-				order: 1,
-			}]
+			}],
 		});
 	}
 
@@ -76,6 +96,12 @@ export class ChatQueueMessageAction extends Action2 {
 
 		const inputValue = widget.getInput();
 		if (!inputValue.trim()) {
+			return;
+		}
+
+		// If no request is in progress, send as a normal message instead of queuing
+		if (!widget.viewModel.model.requestInProgress.get()) {
+			widget.acceptInput();
 			return;
 		}
 
@@ -91,28 +117,26 @@ export class ChatSteerWithMessageAction extends Action2 {
 			id: ChatSteerWithMessageAction.ID,
 			title: localize2('chat.steerWithMessage', "Steer with Message"),
 			tooltip: localize('chat.steerWithMessage.tooltip', "Send this message at the next opportunity, signaling the current request to yield"),
-			icon: Codicon.arrowRight,
+			icon: Codicon.arrowUp,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				queueingEnabledCondition,
-				ChatContextKeys.requestInProgress,
-				ChatContextKeys.inputHasText
-			),
-			keybinding: {
+			precondition: ChatContextKeys.inputHasText,
+			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.requestInProgress,
-					queueingEnabledCondition
+					queuingActionsPresent,
+					effectiveDefaultIsSteer,
+				),
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib + 1
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					effectiveDefaultIsQueue,
 				),
 				primary: KeyMod.Alt | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
-			},
-			menu: [{
-				id: MenuId.ChatExecuteQueue,
-				group: 'navigation',
-				order: 2,
-			}]
+			}],
 		});
 	}
 
@@ -125,6 +149,12 @@ export class ChatSteerWithMessageAction extends Action2 {
 
 		const inputValue = widget.getInput();
 		if (!inputValue.trim()) {
+			return;
+		}
+
+		// If no request is in progress, send as a normal message instead of steering
+		if (!widget.viewModel.model.requestInProgress.get()) {
+			widget.acceptInput();
 			return;
 		}
 
@@ -147,7 +177,6 @@ export class ChatRemovePendingRequestAction extends Action2 {
 				group: 'navigation',
 				order: 4,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -172,6 +201,43 @@ export class ChatRemovePendingRequestAction extends Action2 {
 	}
 }
 
+export class ChatEditPendingRequestAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.editPendingRequest';
+
+	constructor() {
+		super({
+			id: ChatEditPendingRequestAction.ID,
+			title: localize2('chat.editPendingRequest', "Edit"),
+			icon: Codicon.edit,
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatMessageTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequest,
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'hover'),
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'input')
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const [context] = args;
+
+		if (!isRequestVM(context) || !context.pendingKind) {
+			return;
+		}
+
+		const widget = widgetService.getWidgetBySessionResource(context.sessionResource);
+		widget?.startEditing(context.id);
+	}
+}
+
 export class ChatSendPendingImmediatelyAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.sendPendingImmediately';
 
@@ -187,7 +253,6 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 				group: 'navigation',
 				order: 3,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -195,7 +260,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
@@ -226,7 +291,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		];
 
 		chatService.setPendingRequests(context.sessionResource, reordered);
-		chatService.cancelCurrentRequestForSession(context.sessionResource);
+		await chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
 		chatService.processPendingRequests(context.sessionResource);
 	}
 }
@@ -245,11 +310,8 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
-					ChatContextKeys.hasPendingRequests
-				)
-			}]
+				when: ChatContextKeys.hasPendingRequests,
+			}],
 		});
 	}
 
@@ -274,22 +336,34 @@ export function registerChatQueueActions(): void {
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
 	registerAction2(ChatRemovePendingRequestAction);
+	registerAction2(ChatEditPendingRequestAction);
 	registerAction2(ChatSendPendingImmediatelyAction);
 	registerAction2(ChatRemoveAllPendingRequestsAction);
 
-	// Register the queue submenu as a split button dropdown in the execute toolbar
-	// This shows "Add to Queue" / "Steer with Message" when a request is in progress and input has text
+	// Register the queue submenu in the execute toolbar.
+	// The custom ChatQueuePickerActionItem (registered via IActionViewItemService)
+	// replaces the default rendering with a dropdown that shows hover descriptions.
+	// We still need items in ChatExecuteQueue so the menu system treats it as non-empty.
+	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
+		command: { id: ChatQueueMessageAction.ID, title: localize2('chat.queueMessage', "Add to Queue"), icon: Codicon.add },
+		group: 'navigation',
+		order: 1,
+	});
+	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
+		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.arrowUp },
+		group: 'navigation',
+		order: 2,
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 		submenu: MenuId.ChatExecuteQueue,
 		title: localize2('chat.queueSubmenu', "Queue"),
 		icon: Codicon.listOrdered,
 		when: ContextKeyExpr.and(
-			queueingEnabledCondition,
-			ChatContextKeys.requestInProgress,
-			ChatContextKeys.inputHasText
+			queuingActionsPresent,
+			ChatContextKeys.inputHasText,
 		),
 		group: 'navigation',
 		order: 4,
-		isSplitButton: { togglePrimaryAction: true }
 	});
 }

@@ -138,6 +138,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
+		if (this._hoverPointer) {
+			this._hover.containerDomNode.classList.add('with-pointer');
+		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
@@ -183,6 +186,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		} else if (dom.isHTMLElement(options.content)) {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
+
+			// Watch for size changes from dynamic HTML content (e.g. collapsible regions).
+			const resizeObserver = new ResizeObserver(() => {
+				this.layout();
+				this._onRequestLayout.fire();
+			});
+			resizeObserver.observe(contentsElement);
+			this._register(toDisposable(() => resizeObserver.disconnect()));
 
 		} else {
 			const markdown = options.content;

@@ -87,6 +87,11 @@ import { InspectProfilingService as V8InspectProfilingService } from '../../../p
 import { IV8InspectProfilingService } from '../../../platform/profiling/common/profiling.js';
 import { IExtensionsScannerService } from '../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionsScannerService } from '../../../platform/extensionManagement/node/extensionsScannerService.js';
+import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
+import { ITunnelAgentHostMainService, ITunnelAgentHostHostingService, TUNNEL_AGENT_HOST_CHANNEL, TUNNEL_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { TunnelAgentHostMainService } from '../../../platform/agentHost/node/tunnelAgentHostService.js';
+import { TunnelHostMainService } from '../../../platform/agentHost/node/tunnelHostMainService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
@@ -132,6 +137,13 @@ import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagement
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
+import { IMeteredConnectionService } from '../../../platform/meteredConnection/common/meteredConnection.js';
+import { MeteredConnectionChannelClient, METERED_CONNECTION_CHANNEL } from '../../../platform/meteredConnection/common/meteredConnectionIpc.js';
+import { PlaywrightChannel } from '../../../platform/browserView/node/playwrightChannel.js';
+import { AgentNetworkFilterService } from '../../../platform/networkFilter/common/networkFilterService.js';
+import { NullTerminalSandboxService } from '../../../platform/sandbox/common/terminalSandboxService.js';
+import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
+import { LocalGitService } from '../../../platform/git/node/localGitService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -295,6 +307,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
+		// Metered Connection
+		const meteredConnectionService = this._register(new MeteredConnectionChannelClient(mainProcessService.getChannel(METERED_CONNECTION_CHANNEL)));
+		services.set(IMeteredConnectionService, meteredConnectionService);
+
 		// Download
 		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
@@ -318,9 +334,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date, productService.telemetryAppName),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
+				meteredConnectionService,
 			}, configurationService, productService);
 		} else {
 			telemetryService = NullTelemetryService;
@@ -394,6 +411,18 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Web Content Extractor
 		services.set(ISharedWebContentExtractorService, new SyncDescriptor(SharedWebContentExtractorService));
 
+		// Local Git
+		services.set(ILocalGitService, new SyncDescriptor(LocalGitService, undefined, false /* proxied to other processes */));
+
+		// SSH Remote Agent Host
+		services.set(ISSHRemoteAgentHostMainService, new SyncDescriptor(SSHRemoteAgentHostMainService, undefined, true));
+
+		// Tunnel Agent Host
+		services.set(ITunnelAgentHostMainService, new SyncDescriptor(TunnelAgentHostMainService, undefined, true));
+
+		// Tunnel Host (hosting local agent host for remote connections)
+		services.set(ITunnelAgentHostHostingService, new SyncDescriptor(TunnelHostMainService, undefined, true));
+
 		return new InstantiationService(services);
 	}
 
@@ -460,6 +489,27 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(ISharedWebContentExtractorService), this._store);
 		this.server.registerChannel('sharedWebContentExtractor', webContentExtractorChannel);
+
+		// Playwright
+		const agentNetworkFilterService = this._register(new AgentNetworkFilterService(accessor.get(IConfigurationService), new NullTerminalSandboxService()));
+		const playwrightChannel = this._register(new PlaywrightChannel(this.server, accessor.get(IMainProcessService), accessor.get(ILogService), agentNetworkFilterService));
+		this.server.registerChannel('playwright', playwrightChannel);
+
+		// Local Git
+		const localGitChannel = ProxyChannel.fromService(accessor.get(ILocalGitService), this._store);
+		this.server.registerChannel('localGit', localGitChannel);
+
+		// SSH Remote Agent Host
+		const sshRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(ISSHRemoteAgentHostMainService), this._store);
+		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
+
+		// Tunnel Agent Host
+		const tunnelAgentHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostMainService), this._store);
+		this.server.registerChannel(TUNNEL_AGENT_HOST_CHANNEL, tunnelAgentHostChannel);
+
+		// Tunnel Host
+		const tunnelHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostHostingService), this._store);
+		this.server.registerChannel(TUNNEL_HOST_CHANNEL, tunnelHostChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

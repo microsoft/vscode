@@ -220,6 +220,24 @@ export class Separator implements IAction {
 		return out;
 	}
 
+	/**
+	 * Removes leading, trailing, and consecutive duplicate separators in-place and returns the actions.
+	 */
+	public static clean(actions: IAction[]): IAction[] {
+		while (actions.length > 0 && actions[0].id === Separator.ID) {
+			actions.shift();
+		}
+		while (actions.length > 0 && actions[actions.length - 1].id === Separator.ID) {
+			actions.pop();
+		}
+		for (let i = actions.length - 2; i >= 0; i--) {
+			if (actions[i].id === Separator.ID && actions[i + 1].id === Separator.ID) {
+				actions.splice(i + 1, 1);
+			}
+		}
+		return actions;
+	}
+
 	static readonly ID = 'vs.actions.separator';
 
 	readonly id: string = Separator.ID;

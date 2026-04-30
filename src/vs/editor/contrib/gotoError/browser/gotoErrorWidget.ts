@@ -294,6 +294,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	override dispose(): void {
 		this._callOnDispose.dispose();
+		this._onDidSelectRelatedInformation.dispose();
 		super.dispose();
 	}
 

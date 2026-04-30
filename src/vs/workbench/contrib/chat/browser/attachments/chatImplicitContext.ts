@@ -26,11 +26,11 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -163,6 +163,14 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
+	private findActiveBrowserEditor(): BrowserEditorInput | undefined {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane?.input instanceof BrowserEditorInput) {
+			return activeEditorPane.input;
+		}
+		return undefined;
+	}
+
 	private findActiveNotebookEditor(): INotebookEditor | undefined {
 		return getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
 	}
@@ -172,6 +180,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
+		const useSuggestedContext = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 		let newValue: Location | URI | StringChatContextValue | undefined;
 		let isSelection = false;
 
@@ -183,7 +192,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
 			} else {
-				if (this.configurationService.getValue('chat.implicitContext.suggestedContext')) {
+				if (useSuggestedContext) {
 					newValue = model.uri;
 				} else {
 					const visibleRanges = codeEditor?.getVisibleRanges();
@@ -246,6 +255,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 
+		const browser = this.findActiveBrowserEditor();
+		if (browser?.isSharingAvailable && useSuggestedContext) {
+			newValue = browser.resource;
+		}
+
 		const uri = newValue instanceof URI ? newValue : (isStringImplicitContextValue(newValue) ? undefined : newValue?.uri);
 		if (uri && (
 			await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token) ||
@@ -258,8 +272,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const isPromptFile = languageId && getPromptsTypeForLanguageId(languageId) !== undefined;
-
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
@@ -267,8 +279,14 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
-			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
-				widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+			if ((setting === 'always' || setting === 'first' && isFirstInteraction)) {
+				// When there's a non-code active editor (e.g. Settings is open), preserve
+				// existing values so the attachment bar stays visible.
+				// But when there's no active editor at all, clear the values.
+				const hasActiveEditor = !!this.editorService.activeEditor;
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor) {
+					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+				}
 			} else {
 				widget.input.implicitContext.setValues([]);
 			}
@@ -294,6 +312,7 @@ export class ChatImplicitContexts extends Disposable {
 
 	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = this._register(new DisposableMap());
 	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
+	private _enabled = false;
 
 	setValues(values: ImplicitContextWithSelection[]): void {
 		this._valuesDisposables.clear();
@@ -308,6 +327,7 @@ export class ChatImplicitContexts extends Disposable {
 		for (const value of definedValues) {
 			const implicitContext = new ChatImplicitContext();
 			implicitContext.setValue(value.value, value.isSelection);
+			implicitContext.enabled = this._enabled;
 			const disposableStore = new DisposableStore();
 			disposableStore.add(implicitContext.onDidChangeValue(() => {
 				this._onDidChangeValue.fire();
@@ -327,6 +347,7 @@ export class ChatImplicitContexts extends Disposable {
 	}
 
 	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
 		this.values.forEach((v) => v.enabled = enabled);
 	}
 
@@ -381,6 +402,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	get name(): string {
 		if (URI.isUri(this.value)) {
+			if (this.value.scheme === Schemas.vscodeBrowser) {
+				return `browser`;
+			}
 			return `file:${basename(this.value)}`;
 		}
 		if (isLocation(this.value)) {
@@ -466,6 +490,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	public toBaseEntries(): IChatRequestVariableEntry[] {
 		if (!this.value) {
+			return [];
+		}
+
+		if (URI.isUri(this.value) && this.value.scheme === Schemas.vscodeBrowser) {
 			return [];
 		}
 

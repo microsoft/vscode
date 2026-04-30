@@ -318,6 +318,8 @@ export class TestingExplorerView extends ViewPane {
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
+			case TestCommandId.CoverageSelectedAction:
+				return this.getRunGroupDropdown(TestRunProfileBitset.Coverage, action, options);
 			case TestCommandId.StartContinousRun:
 			case TestCommandId.StopContinousRun:
 				return this.getContinuousRunDropdown(action, options);
@@ -431,7 +433,9 @@ export class TestingExplorerView extends ViewPane {
 			title: defaultAction.label,
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
-				: icons.testingDebugAllIcon,
+				: group === TestRunProfileBitset.Debug
+					? icons.testingDebugAllIcon
+					: icons.testingCoverageAllIcon,
 		}, undefined, undefined, undefined, undefined);
 
 		return this.instantiationService.createInstance(
@@ -625,7 +629,7 @@ class ResultSummaryView extends Disposable {
 
 		count.textContent = `${counts.passed}/${counts.totalWillBeRun}`;
 		this.countHover.update(getTestProgressText(counts));
-		this.renderActivityBadge(counts);
+		this.renderActivityBadge(counts, live.length > 0);
 
 		if (!this.elementsWereAttached) {
 			dom.clearNode(this.container);
@@ -634,15 +638,21 @@ class ResultSummaryView extends Disposable {
 		}
 	}
 
-	private renderActivityBadge(countSummary: CountSummary) {
-		if (countSummary && this.badgeType !== TestingCountBadge.Off && countSummary[this.badgeType] !== 0) {
-			if (this.lastBadge instanceof NumberBadge && this.lastBadge.number === countSummary[this.badgeType]) {
+	private renderActivityBadge(countSummary: CountSummary, isRunning: boolean) {
+		if (isRunning) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof IconBadge && this.lastBadge.icon === spinningLoading) {
+				return;
+			}
+
+			this.lastBadge = new IconBadge(spinningLoading, () => localize('testingRunningBadge', 'Tests are running'));
+		} else if (countSummary && this.badgeType !== TestingCountBadge.Off && countSummary[this.badgeType] !== 0) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof NumberBadge && this.lastBadge.number === countSummary[this.badgeType]) {
 				return;
 			}
 
 			this.lastBadge = new NumberBadge(countSummary[this.badgeType], num => this.getLocalizedBadgeString(this.badgeType, num));
 		} else if (this.crService.isEnabled()) {
-			if (this.lastBadge instanceof IconBadge && this.lastBadge.icon === icons.testingContinuousIsOn) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof IconBadge && this.lastBadge.icon === icons.testingContinuousIsOn) {
 				return;
 			}
 
@@ -681,10 +691,10 @@ class TestingExplorerViewModel extends Disposable {
 	private filter: TestsFilter;
 	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
-	private readonly revealTimeout = new MutableDisposable();
+	private readonly revealTimeout = this._register(new MutableDisposable());
 	private readonly _viewMode: IContextKey<TestExplorerViewMode>;
 	private readonly _viewSorting: IContextKey<TestExplorerViewSorting>;
-	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
+	private readonly welcomeVisibilityEmitter = this._register(new Emitter<WelcomeExperience>());
 	private readonly actionRunner = this._register(new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined)));
 	private readonly lastViewState: StoredValue<ISerializedTestTreeCollapseState>;
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;

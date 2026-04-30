@@ -25,10 +25,10 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	private static DECORATION_COUNT = 0;
 
-	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
+	private readonly _onDidChangeLineHeight = this._register(new Emitter<Set<LineHeightChangingDecoration>>());
 	public readonly onDidChangeLineHeight = this._onDidChangeLineHeight.event;
 
-	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
+	private readonly _onDidChangeFont = this._register(new Emitter<Set<LineFontChangingDecoration>>());
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
 	private _fontAnnotatedString: IAnnotatedString<IFontTokenAnnotation> = new AnnotatedString<IFontTokenAnnotation>();

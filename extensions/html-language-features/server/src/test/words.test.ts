@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import assert from 'assert';
-import * as words from '../utils/strings';
-import * as fs from 'fs';
-import * as path from 'path';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as words from '../utils/strings.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 suite('HTML Language Configuration', () => {
-	const config = JSON.parse((fs.readFileSync(path.join(__dirname, '../../../../html/language-configuration.json')).toString()));
+	const config = JSON.parse((fs.readFileSync(path.join(import.meta.dirname, '../../../../html/language-configuration.json')).toString()));
 
 	function createRegex(str: string | { pattern: string; flags: string }): RegExp {
 		if (typeof str === 'string') {

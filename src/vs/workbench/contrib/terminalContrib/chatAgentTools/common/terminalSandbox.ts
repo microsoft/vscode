@@ -14,11 +14,8 @@ export interface ITerminalSandboxRuntimeConfig {
 	};
 	filesystem?: {
 		denyRead?: string[];
+		allowRead?: string[];
 		allowWrite?: string[];
 		denyWrite?: string[];
 	};
-}
-
-export interface ITerminalSandboxSettings extends ITerminalSandboxRuntimeConfig {
-	enabled?: boolean;
 }

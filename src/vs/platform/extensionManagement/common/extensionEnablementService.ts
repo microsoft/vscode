@@ -14,7 +14,7 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	declare readonly _serviceBrand: undefined;
 
-	private _onDidChangeEnablement = new Emitter<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>();
+	private _onDidChangeEnablement = this._register(new Emitter<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>());
 	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }> = this._onDidChangeEnablement.event;
 	private readonly storageManager: StorageManager;
 

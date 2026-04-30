@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, restartRequiredIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -700,6 +700,34 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
+export class ExtensionRestartRequiredWidget extends ExtensionWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly container: HTMLElement,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.disposables.clear();
+		this.container.innerText = '';
+
+		const runtimeState = this.extension?.runtimeState;
+		const reason = typeof runtimeState?.reason === 'string' ? runtimeState.reason : '';
+
+		// Only show "Restart Required" when the runtime state reason clearly indicates
+		// a restart or reload is needed, to avoid mislabeling other runtime actions.
+		if (runtimeState && /restart|reload/i.test(reason)) {
+			const element = append(this.container, $('span.extension-restart-required' + ThemeIcon.asCSSSelector(restartRequiredIcon)));
+			append(this.container, $('span.extension-restart-required-label', undefined, localize('restart required', "Restart Required")));
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, reason));
+		}
+	}
+}
+
 export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 	constructor(
@@ -815,7 +843,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		markdown.appendMarkdown(`**`).appendText(this.extension.displayName).appendMarkdown(`**`);
 		if (semver.valid(this.extension.version)) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
@@ -866,7 +894,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(this.extension.description);
 			markdown.appendText(`\n`);
 		}
 

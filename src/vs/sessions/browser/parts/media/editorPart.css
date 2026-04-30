@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench .part.editor:not(.modal-editor-part) {
+	margin: 0 0 0 0;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-right-width: 0;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-top-left-radius: 8px;
+	border-bottom-left-radius: 8px;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench.nosidebar.nochatbar .part.editor:not(.modal-editor-part) {
+	margin-left: 10px;
+}
+
+/* Editor Layout Actions Toolbar */
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	padding-right: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
+	display: block;
+	align-self: center;
+	width: 1px;
+	height: 16px;
+	margin: 0 4px;
+	background-color: var(--vscode-titleBar-activeForeground);
+	opacity: 0.3;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
+	display: block;
+	cursor: default;
+	flex: initial;
+	padding: 0 0 0 4px;
+	height: var(--editor-group-tab-height);
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions.hidden {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions .action-item {
+	margin-right: 4px;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-layout-actions {
+	/* When tabs are wrapped, position the trailing editor actions at the end of the very last row */
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
+	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
+	display: none;
+}
+
+/* Modal Editor Part */
+
+.agent-sessions-workbench .part.editor.modal-editor-part .modal-editor-action-container .action-label.codicon.codicon-open-in-window {
+	transform: rotate(180deg);
+}

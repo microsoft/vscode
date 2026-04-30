@@ -1,0 +1,16 @@
+[
+  {
+    "name": "rubyOnRailsApp",
+    "question": "/setupTests rspec",
+    "expectations": {
+      "filePatterns": ["^spec/.*_spec\\.rb$"],
+      "installCommandPattern": "bundle install",
+      "runCommandPattern": "bundle exec rspec"
+    },
+    "files": [
+      "app/controllers/application_controller.rb",
+      "Gemfile",
+      "config/application.rb"
+    ]
+  }
+]

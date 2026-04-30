@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { debounce } from '../../../base/common/decorators.js';
@@ -539,6 +537,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	dispose(): void {
 		this._disposed = true;
 		this._onDidDispose.fire();
+		this._onDidUpdateResourceStates.dispose();
+		this._onDidDispose.dispose();
 	}
 }
 
@@ -939,6 +939,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
 
+		this._onDidChangeSelection.dispose();
 		this._onDidDispose.fire();
 		this._onDidDispose.dispose();
 	}
@@ -1024,6 +1025,24 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
+
+		Event.once(sourceControl.onDidDispose)(() => {
+			this.logService.trace('ExtHostSCM#disposeSourceControl', extension.identifier.value, id, label, rootUri);
+
+			this._sourceControls.delete(sourceControl.handle);
+
+			const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
+			if (sourceControls) {
+				const index = sourceControls.indexOf(sourceControl);
+				if (index !== -1) {
+					sourceControls.splice(index, 1);
+				}
+
+				if (sourceControls.length === 0) {
+					this._sourceControlsByExtension.delete(extension.identifier);
+				}
+			}
+		});
 
 		return sourceControl;
 	}

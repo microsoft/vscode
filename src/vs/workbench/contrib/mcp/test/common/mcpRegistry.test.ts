@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -17,20 +18,28 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpSandboxConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, Replacement } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../../chat/common/enablement.js';
+import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from '../../common/mcpConfiguration.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
+import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
+import { McpCollisionEnablementModel } from '../../common/mcpService.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { IMcpPotentialSandboxBlock, LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
 class TestConfigurationResolverService {
@@ -135,6 +144,39 @@ class TestMcpRegistry extends McpRegistry {
 	}
 }
 
+class TestMcpSandboxService implements IMcpSandboxService {
+	declare readonly _serviceBrand: undefined;
+	public callCount = 0;
+	public enabled = false;
+	public lastLaunchCallArgs: { serverDef: McpServerDefinition; launch: McpServerLaunch; remoteAuthority: string | undefined; configTarget: ConfigurationTarget } | undefined;
+
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+		this.callCount++;
+		this.lastLaunchCallArgs = { serverDef, launch, remoteAuthority, configTarget };
+
+		if (this.enabled && launch.type === McpServerTransportType.Stdio) {
+			return Promise.resolve({
+				...launch,
+				command: 'sandboxed-command',
+			});
+		}
+
+		return Promise.resolve(launch);
+	}
+
+	isEnabled(serverDef: McpServerDefinition): Promise<boolean> {
+		return Promise.resolve(this.enabled);
+	}
+
+	getSandboxConfigSuggestionMessage(_serverLabel: string, _potentialBlocks: readonly IMcpPotentialSandboxBlock[], _existingSandboxConfig?: IMcpSandboxConfiguration): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
+		return undefined;
+	}
+
+	applySandboxConfigSuggestion(_serverDef: McpServerDefinition, _mcpResource: URI, _configTarget: ConfigurationTarget, _potentialBlocks: readonly IMcpPotentialSandboxBlock[], _suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -148,6 +190,7 @@ suite('Workbench - MCP - Registry', () => {
 	let logger: ILogger;
 	let trustNonceBearer: { trustedAtNonce: string | undefined };
 	let taskManager: McpTaskManager;
+	let testMcpSandboxService: TestMcpSandboxService;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
@@ -155,6 +198,7 @@ suite('Workbench - MCP - Registry', () => {
 		testDialogService = new TestDialogService();
 		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
+		testMcpSandboxService = new TestMcpSandboxService();
 
 		const services = new ServiceCollection(
 			[IConfigurationService, configurationService],
@@ -163,8 +207,10 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[ILogService, store.add(new NullLogService())],
+			[INotificationService, new TestNotificationService()],
 			[IOutputService, upcast({ showChannel: () => { } })],
 			[IDialogService, testDialogService],
+			[IMcpSandboxService, testMcpSandboxService],
 			[IProductService, {}],
 		);
 
@@ -183,6 +229,7 @@ suite('Workbench - MCP - Registry', () => {
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			scope: StorageScope.APPLICATION,
 			configTarget: ConfigurationTarget.USER,
+			order: 0,
 		};
 
 		// Create base definition that can be reused
@@ -197,6 +244,7 @@ suite('Workbench - MCP - Registry', () => {
 				env: {},
 				envFile: undefined,
 				cwd: '/test',
+				sandbox: undefined
 			}
 		};
 	});
@@ -259,6 +307,7 @@ suite('Workbench - MCP - Registry', () => {
 				},
 				envFile: undefined,
 				cwd: '/test',
+				sandbox: undefined
 			},
 			variableReplacement: {
 				section: 'mcp',
@@ -333,6 +382,57 @@ suite('Workbench - MCP - Registry', () => {
 
 		// Verify the launch configuration passed to _replaceVariablesInLaunch was the custom one
 		assert.deepStrictEqual((connection.launchDefinition as McpServerTransportStdio).env, { CUSTOM_ENV: 'value' });
+
+		connection.dispose();
+	});
+
+	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
+		testMcpSandboxService.enabled = true;
+		const mcpResource = URI.file('/test/mcp.json');
+
+		const sandboxCollection: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } = {
+			...testCollection,
+			id: 'sandbox-collection',
+			remoteAuthority: 'ssh-remote+test',
+			presentation: {
+				origin: mcpResource,
+			},
+		};
+
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			id: 'sandbox-server',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'test-command',
+				args: ['--flag'],
+				env: {},
+				envFile: undefined,
+				cwd: '/test',
+				sandbox: undefined
+			},
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		sandboxCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(sandboxCollection));
+
+		const connection = await registry.resolveConnection({
+			collectionRef: sandboxCollection,
+			definitionRef: definition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		}) as McpServerConnection;
+
+		assert.ok(connection);
+		assert.strictEqual(testMcpSandboxService.callCount, 1);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.serverDef, definition);
+		assert.deepStrictEqual(testMcpSandboxService.lastLaunchCallArgs?.launch, definition.launch);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.remoteAuthority, 'ssh-remote+test');
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.configTarget, ConfigurationTarget.USER);
+		assert.strictEqual((connection.launchDefinition as McpServerTransportStdio).command, 'sandboxed-command');
 
 		connection.dispose();
 	});
@@ -603,6 +703,276 @@ suite('Workbench - MCP - Registry', () => {
 		});
 	});
 
+	suite('Server Label Collision Enablement', () => {
+		let enablementModel: McpCollisionEnablementModel;
+		let baseEnablement: EnablementModel;
+
+		function createCollectionWithServers(
+			id: string,
+			order: number,
+			servers: { id: string; label: string }[],
+		): McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } {
+			return {
+				id,
+				label: `Collection ${id}`,
+				remoteAuthority: null,
+				order,
+				serverDefinitions: observableValue('serverDefs', servers.map(s => ({
+					...baseDefinition,
+					id: s.id,
+					label: s.label,
+				}))),
+				trustBehavior: McpServerTrust.Kind.Trusted,
+				scope: StorageScope.APPLICATION,
+				configTarget: ConfigurationTarget.USER,
+			};
+		}
+
+		function setupModel() {
+			baseEnablement = store.add(new EnablementModel('mcp.enablement.test', testStorageService));
+			const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
+			enablementModel = new McpCollisionEnablementModel(baseEnablement, registry, collisionBehavior);
+		}
+
+		test('disables lower-priority servers with same label', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-a', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('does not disable servers with different labels', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'Server A' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-b', label: 'Server B' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-b')));
+		});
+
+		test('label collision is case-insensitive', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-a', label: 'my server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('respects collection order for priority', () => {
+			const col2 = createCollectionWithServers('col-2', 200, [{ id: 'col-2.srv-a', label: 'My Server' }]);
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			store.add(registry.registerCollection(col2));
+			store.add(registry.registerCollection(col1));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('enabling a colliding server disables others with same label', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-a', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Enable the lower-priority server explicitly
+			enablementModel.setEnabled('col-2.srv-a', ContributionEnablementState.EnabledWorkspace);
+
+			// col-2 is now enabled, col-1 should be disabled (set to DisabledWorkspace)
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.strictEqual(enablementModel.readEnabled('col-1.srv-a'), ContributionEnablementState.DisabledWorkspace);
+		});
+
+		test('no collision effect when behavior is "suffix"', () => {
+			configurationService.setUserConfiguration('chat.mcp.collisionBehavior', McpCollisionBehavior.Suffix);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === 'chat.mcp.collisionBehavior',
+			} as unknown as IConfigurationChangeEvent);
+
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-a', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Both should be enabled when collision behavior is "suffix"
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('non-winner becomes enabled when winner is explicitly disabled', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-a', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Explicitly disable the winner
+			enablementModel.setEnabled('col-1.srv-a', ContributionEnablementState.DisabledProfile);
+
+			// col-1 is disabled, col-2 becomes the first enabled server in the group
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('updates when server definitions change', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'Server A' }]);
+			const col2: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } = {
+				...createCollectionWithServers('col-2', 100, []),
+			};
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Initially no collision — both enabled
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+
+			// Add a conflicting server to col2
+			col2.serverDefinitions.set([{ ...baseDefinition, id: 'col-2.srv-a', label: 'Server A' }], undefined);
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+		});
+
+		test('three-way collision: only highest priority is enabled', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv', label: 'My Server' }]);
+			const col3 = createCollectionWithServers('col-3', 200, [{ id: 'col-3.srv', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			store.add(registry.registerCollection(col3));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-3.srv')));
+		});
+
+		test('three-way collision: enabling lowest disables both others', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv', label: 'My Server' }]);
+			const col3 = createCollectionWithServers('col-3', 200, [{ id: 'col-3.srv', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			store.add(registry.registerCollection(col3));
+			setupModel();
+
+			enablementModel.setEnabled('col-3.srv', ContributionEnablementState.EnabledWorkspace);
+
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-3.srv')));
+		});
+
+		test('disabling winner cascades to next in priority', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv', label: 'My Server' }]);
+			const col3 = createCollectionWithServers('col-3', 200, [{ id: 'col-3.srv', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			store.add(registry.registerCollection(col3));
+			setupModel();
+
+			// Disable the winner — col-2 (next priority) becomes the active one
+			enablementModel.setEnabled('col-1.srv', ContributionEnablementState.DisabledProfile);
+
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-3.srv')));
+		});
+
+		test('both servers in same collection with same label: only first enabled', () => {
+			const col = createCollectionWithServers('col-1', 0, [
+				{ id: 'col-1.srv-a', label: 'My Server' },
+				{ id: 'col-1.srv-b', label: 'My Server' },
+			]);
+			store.add(registry.registerCollection(col));
+			setupModel();
+
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv-b')));
+		});
+
+		test('EnabledWorkspace non-winner still suppressed if winner also enabled', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Manually set both to EnabledWorkspace in the base model
+			baseEnablement.setEnabled('col-1.srv', ContributionEnablementState.EnabledWorkspace);
+			baseEnablement.setEnabled('col-2.srv', ContributionEnablementState.EnabledWorkspace);
+
+			// Even though both are explicitly enabled, only the higher-priority one wins
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv')));
+		});
+
+		test('remove clears collision override and restores default behavior', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv', label: 'My Server' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv', label: 'My Server' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Enable col-2, which disables col-1 via DisabledWorkspace
+			enablementModel.setEnabled('col-2.srv', ContributionEnablementState.EnabledWorkspace);
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+
+			// Remove both overrides — restores default collision behavior
+			enablementModel.remove('col-1.srv');
+			enablementModel.remove('col-2.srv');
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv')));
+		});
+
+		test('non-colliding servers in same collection as colliding ones are unaffected', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [
+				{ id: 'col-1.srv-a', label: 'My Server' },
+				{ id: 'col-1.srv-b', label: 'Unique Server' },
+			]);
+			const col2 = createCollectionWithServers('col-2', 100, [
+				{ id: 'col-2.srv-a', label: 'My Server' },
+				{ id: 'col-2.srv-c', label: 'Another Unique' },
+			]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			// Colliding servers: only col-1's wins
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(!isContributionEnabled(enablementModel.readEnabled('col-2.srv-a')));
+			// Non-colliding servers: both enabled
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-b')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-c')));
+		});
+
+		test('setEnabled with non-colliding server does not affect others', () => {
+			const col1 = createCollectionWithServers('col-1', 0, [{ id: 'col-1.srv-a', label: 'Server A' }]);
+			const col2 = createCollectionWithServers('col-2', 100, [{ id: 'col-2.srv-b', label: 'Server B' }]);
+			store.add(registry.registerCollection(col1));
+			store.add(registry.registerCollection(col2));
+			setupModel();
+
+			enablementModel.setEnabled('col-2.srv-b', ContributionEnablementState.EnabledWorkspace);
+
+			// No collision group — col-1 should be unaffected
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-1.srv-a')));
+			assert.ok(isContributionEnabled(enablementModel.readEnabled('col-2.srv-b')));
+		});
+	});
+
 	suite('Trust Flow', () => {
 		/**
 		 * Helper to create a test MCP collection with a specific trust behavior
@@ -616,6 +986,7 @@ suite('Workbench - MCP - Registry', () => {
 				trustBehavior,
 				scope: StorageScope.APPLICATION,
 				configTarget: ConfigurationTarget.USER,
+				order: 0,
 			};
 		}
 
@@ -634,6 +1005,7 @@ suite('Workbench - MCP - Registry', () => {
 					env: {},
 					envFile: undefined,
 					cwd: '/test',
+					sandbox: undefined
 				}
 			};
 		}

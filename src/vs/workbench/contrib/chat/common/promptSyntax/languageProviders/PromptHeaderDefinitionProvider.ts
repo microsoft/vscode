@@ -9,8 +9,8 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Definition, DefinitionProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IChatModeService } from '../../chatModes.js';
-import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptHeaderAttributes } from '../promptFileParser.js';
+import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 
 export class PromptHeaderDefinitionProvider implements DefinitionProvider {
@@ -39,7 +39,7 @@ export class PromptHeaderDefinitionProvider implements DefinitionProvider {
 		}
 
 		const agentAttr = header.getAttribute(PromptHeaderAttributes.agent) ?? header.getAttribute(PromptHeaderAttributes.mode);
-		if (agentAttr && agentAttr.value.type === 'string' && agentAttr.range.containsPosition(position)) {
+		if (agentAttr && agentAttr.value.type === 'scalar' && agentAttr.range.containsPosition(position)) {
 			const agent = this.chatModeService.findModeByName(agentAttr.value.value);
 			if (agent && agent.uri) {
 				return {

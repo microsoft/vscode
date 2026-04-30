@@ -5,7 +5,7 @@
 
 import { homedir } from 'os';
 import { NativeParsedArgs } from '../common/argv.js';
-
+import { INodeProcess } from '../../../base/common/platform.js';
 // This file used to be a pure JS file and was always
 // importing `path` from node.js even though we ship
 // our own version of the library and prefer to use
@@ -46,7 +46,11 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 
 	// 0. Running out of sources has a fixed productName
 	if (process.env['VSCODE_DEV']) {
-		productName = 'code-oss-dev';
+		if ((process as INodeProcess).isEmbeddedApp) {
+			productName = 'agents-oss-dev';
+		} else {
+			productName = 'code-oss-dev';
+		}
 	}
 
 	// 1. Support portable mode
@@ -56,7 +60,7 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 	}
 
 	// 2. Support global VSCODE_APPDATA environment variable
-	let appDataPath = process.env['VSCODE_APPDATA'];
+	const appDataPath = process.env['VSCODE_APPDATA'];
 	if (appDataPath) {
 		return join(appDataPath, productName);
 	}
@@ -69,6 +73,16 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 	if (cliPath) {
 		return cliPath;
 	}
+
+	return getDefaultUserDataPath(productName);
+}
+
+/**
+ * Returns the default user data path for a given product name using
+ * the platform-specific application data directory.
+ */
+export function getDefaultUserDataPath(productName: string): string {
+	let appDataPath: string | undefined;
 
 	// 4. Otherwise check per platform
 	switch (process.platform) {

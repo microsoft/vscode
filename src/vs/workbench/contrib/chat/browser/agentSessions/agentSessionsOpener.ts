@@ -103,7 +103,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		}
 
 		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
-		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource))) {
+		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource.scheme))) {
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
 			options = { ...options, revealIfOpened: true };
 		}

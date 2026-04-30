@@ -7,6 +7,7 @@ import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { parse as parseJsonc } from '../../../../base/common/jsonc.js';
+import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -383,10 +384,10 @@ export class McpAddConfigurationCommand {
 		});
 
 		const loadingAction = await new Promise<{ id: LoadAction; helpUri?: URI } | undefined>(resolve => {
-			loadingQuickPick.onDidAccept(() => resolve(loadingQuickPick.selectedItems[0]));
-			loadingQuickPick.onDidHide(() => resolve(undefined));
+			loadingQuickPickStore.add(loadingQuickPick.onDidAccept(() => resolve(loadingQuickPick.selectedItems[0])));
+			loadingQuickPickStore.add(loadingQuickPick.onDidHide(() => resolve(undefined)));
 			loadingQuickPick.show();
-		}).finally(() => loadingQuickPick.dispose());
+		}).finally(() => loadingQuickPickStore.dispose());
 
 		switch (loadingAction?.id) {
 			case LoadAction.Retry:
@@ -616,7 +617,7 @@ export class McpInstallFromManifestCommand {
 			filters: [{ name: localize('mcp.installFromManifest.filter', "MCP Manifest"), extensions: ['json'] }],
 			canSelectFiles: true,
 			canSelectMany: false,
-			openLabel: localize({ key: 'mcp.installFromManifest.openLabel', comment: ['&& denotes a mnemonic'] }, "&&Install")
+			openLabel: mnemonicButtonLabel(localize({ key: 'mcp.installFromManifest.openLabel', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		});
 
 		if (!result?.[0]) {

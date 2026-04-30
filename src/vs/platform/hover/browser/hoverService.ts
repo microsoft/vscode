@@ -248,6 +248,7 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
+		this._currentDelayedHover?.dispose();
 		this._currentDelayedHover = undefined;
 
 		if (options.content === '') {
@@ -556,7 +557,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		if (targetElement.title !== '') {
 			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
-			console.trace('Stack trace:', targetElement.title);
+			// console.trace('Stack trace:', targetElement.title);
 			targetElement.title = '';
 		}
 
@@ -639,6 +640,16 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
+				return;
+			}
+			// Clean up stale reference if the hover was dismissed externally
+			if (hoverWidget?.isDisposed) {
+				hoverWidget = undefined;
+			}
+			// If focus is returning from a dismissed hover (e.g. Esc) or
+			// from window reactivation (e.g. Alt-tab), don't re-show.
+			const fromHover = isHTMLElement(e.relatedTarget) && e.relatedTarget.closest('.monaco-hover');
+			if (fromHover || !e.relatedTarget) {
 				return;
 			}
 			if (!eventIsRelatedToTarget(e, targetElement)) {

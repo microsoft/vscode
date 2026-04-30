@@ -6,7 +6,7 @@
 import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions, l10n, LogOutputChannel } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable, extractFilePathFromArgs } from './util';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
-import { CredentialsProvider, Credentials } from './api/git';
+import type { CredentialsProvider, Credentials } from './api/git';
 import { ITerminalEnvironmentProvider } from './terminal';
 import { AskpassPaths } from './askpassManager';
 

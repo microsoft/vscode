@@ -112,18 +112,17 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
 
-			// Finish Setup
+			// Sign In
 			if (
 				this.chatEntitlementService.sentiment.later ||	// user skipped setup
 				entitlement === ChatEntitlement.Available ||	// user is entitled
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
 			) {
-				const finishSetup = localize('finishSetup', "Finish Setup");
+				const signIn = localize('signInSetup', "Sign In");
 
-				text = `$(copilot) ${finishSetup}`;
-				ariaLabel = finishSetup;
-				kind = 'prominent';
+				text = `$(copilot) ${signIn}`;
+				ariaLabel = signIn;
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
@@ -147,11 +146,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signedOutWarning = localize('notSignedIn', "Signed out");
-
-				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
-				ariaLabel = signedOutWarning;
-				kind = 'prominent';
+				const signIn = localize('signIn', "Sign In");
+				text = `$(copilot) ${signIn}`;
+				ariaLabel = signIn;
 			}
 
 			// Free Quota Exceeded
@@ -196,7 +193,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					store.add(token.onCancellationRequested(() => {
 						store.dispose();
 					}));
-					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store);
+					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
 
 					// todo@connor4312/@benibenj: workaround for #257923
 					store.add(disposableWindowInterval(mainWindow, () => {

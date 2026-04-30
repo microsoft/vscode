@@ -1,0 +1,37 @@
+{
+	"perfRegression": {
+		// VS Code version, "insiders", or a commit hash (7-40 hex chars)
+		"baselineBuild": "1.116.0",
+
+		// Number of benchmark iterations per scenario
+		"runsPerScenario": 5,
+
+		// Default fraction above baseline that triggers a regression (0.2 = 20%).
+		// Per-metric overrides below take precedence when set.
+		"regressionThreshold": 0.2,
+
+		// Per-metric regression thresholds.
+		// - A plain number (0-1) is a fraction, e.g. 0.2 = 20% above baseline.
+		// - A string ending in the metric's unit (e.g. "100ms") is an absolute delta.
+		// Metrics not listed here use regressionThreshold above.
+		"metricThresholds": {
+			"timeToFirstToken": "100ms",
+			"timeToComplete": 0.2,
+			"layoutCount": 0.2,
+			"recalcStyleCount": 0.2,
+			"forcedReflowCount": 0.2,
+			"longTaskCount": 0.2,
+			"longAnimationFrameCount": 0.2
+		}
+	},
+	"memLeaks": {
+		// Number of open→work→reset cycles
+		"iterations": 3,
+
+		// Max acceptable total residual heap growth in MB.
+		// Each iteration cycles through ALL scenarios (text, code blocks,
+		// tool calls, thinking, terminal, multi-turn, etc.), so this needs
+		// to account for V8 internal caches that aren't immediately reclaimed.
+		"leakThresholdMB": 10
+	}
+}

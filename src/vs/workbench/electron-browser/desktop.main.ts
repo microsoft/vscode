@@ -63,10 +63,8 @@ import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
-import { WorkbenchModeService } from '../services/layout/browser/workbenchModeService.js';
-import { IWorkbenchModeService } from '../services/layout/common/workbenchModeService.js';
 
 export class DesktopMain extends Disposable {
 
@@ -217,14 +215,15 @@ export class DesktopMain extends Disposable {
 
 		// Policies
 		let policyService: IPolicyService;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
-		if (this.configuration.policiesData) {
-			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
+		const policyChannel = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : undefined;
+		const accountPolicy = new AccountPolicyService(logService, defaultAccountService, policyChannel);
+		if (policyChannel) {
 			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
 		} else {
 			policyService = accountPolicy;
 		}
 		serviceCollection.set(IPolicyService, policyService);
+		serviceCollection.set(IAccountPolicyGateService, accountPolicy);
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
@@ -323,16 +322,6 @@ export class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
-
-		// Workbench Mode
-		const workbenchModeService: WorkbenchModeService = this._register(new WorkbenchModeService(configurationService, fileService, environmentService, uriIdentityService, logService, storageService));
-		serviceCollection.set(IWorkbenchModeService, workbenchModeService);
-
-		try {
-			await workbenchModeService.initialize();
-		} catch (error) {
-			logService.error('Error while initializing workbench mode service', error);
-		}
 
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);

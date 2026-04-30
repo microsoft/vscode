@@ -123,20 +123,21 @@ export function registerChatExportActions() {
 				let options: IChatEditorOptions;
 
 				if (opts?.target === 'chatViewPane') {
-					const modelRef = chatService.loadSessionFromContent(data);
-					if (!modelRef) {
-						return;
+					const modelRef = chatService.loadSessionFromData(data, 'ChatImportExport#importToChatView');
+					try {
+						sessionResource = modelRef.object.sessionResource;
+						resolvedTarget = ChatViewPaneTarget;
+						options = { pinned: true };
+						await widgetService.openSession(sessionResource, resolvedTarget, options);
+					} finally {
+						modelRef.dispose();
 					}
-					sessionResource = modelRef.object.sessionResource;
-					resolvedTarget = ChatViewPaneTarget;
-					options = { pinned: true };
 				} else {
 					sessionResource = ChatEditorInput.getNewEditorUri();
 					resolvedTarget = ACTIVE_GROUP;
 					options = { target: { data }, pinned: true };
+					await widgetService.openSession(sessionResource, resolvedTarget, options);
 				}
-
-				await widgetService.openSession(sessionResource, resolvedTarget, options);
 			} catch (err) {
 				throw err;
 			}

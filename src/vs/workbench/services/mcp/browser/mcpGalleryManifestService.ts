@@ -78,9 +78,9 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 
 		this.mcpGalleryManifest = manifest;
 		if (this.mcpGalleryManifest) {
-			this.logService.info('MCP Registry configured:', this.mcpGalleryManifest.url);
+			this.logService.trace('MCP Registry configured:', this.mcpGalleryManifest.url);
 		} else {
-			this.logService.info('No MCP Registry configured');
+			this.logService.trace('No MCP Registry configured');
 		}
 		this.currentStatus = this.mcpGalleryManifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 		this._onDidChangeMcpGalleryManifest.fire(this.mcpGalleryManifest);
