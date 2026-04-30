@@ -174,6 +174,7 @@ function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementSe
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+		chatEntitlementService.entitlement === ChatEntitlement.Max ||
 		chatEntitlementService.entitlement === ChatEntitlement.Business ||
 		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 		chatEntitlementService.isInternal;

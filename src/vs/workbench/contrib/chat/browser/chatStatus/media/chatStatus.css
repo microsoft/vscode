@@ -55,6 +55,38 @@
 	align-items: center;
 }
 
+.chat-status-bar-entry-tooltip .collapsible-label {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-status {
+	margin-left: auto;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .section-description {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .section-description .monaco-link {
+	white-space: nowrap;
+}
+
+.chat-status-bar-entry-tooltip .section-detail {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
 .chat-status-bar-entry-tooltip .collapsible-content {
 	display: grid;
 	grid-template-rows: 1fr;
@@ -262,6 +294,12 @@
 	color: var(--vscode-disabledForeground);
 }
 
+.chat-status-bar-entry-tooltip .settings .setting .setting-overridden {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
 /* Model Selection */
 
 .chat-status-bar-entry-tooltip .model-selection {
@@ -281,6 +319,22 @@
 
 .chat-status-bar-entry-tooltip .model-selection .model-action-bar .codicon {
 	color: var(--vscode-descriptionForeground);
+}
+
+/* SelectBox containers */
+
+.chat-status-bar-entry-tooltip .model-select-container,
+.chat-status-bar-entry-tooltip .suggest-option-select-container {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .model-select-container .monaco-select-box,
+.chat-status-bar-entry-tooltip .suggest-option-select-container .monaco-select-box {
+	width: auto;
+	padding: 2px 23px 2px 8px;
+	height: 22px;
+	font-size: 12px;
 }
 
 /* Provider Options */

@@ -67,6 +67,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 				// Extension is disabled / git is not available so we say all repositories are discovered
 				this._onDidFinishInitialRepositoryDiscovery.fire();
+				this._isInitialized.set(true, undefined);
 			}));
 		}
 	}

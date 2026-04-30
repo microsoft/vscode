@@ -430,6 +430,14 @@ export interface IAgent {
 	truncateSession?(session: URI, turnId?: string): Promise<void>;
 
 	/**
+	 * Notifies the provider that a session's archived state has changed.
+	 * Providers may use this to clean up or restore per-session resources
+	 * (for example, removing a session-owned worktree on archive and
+	 * recreating it on unarchive). Optional.
+	 */
+	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
+
+	/**
 	 * Receives client-provided customization refs and syncs them (e.g. copies
 	 * plugin files to local storage). Returns per-customization status with
 	 * local plugin directories.

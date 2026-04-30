@@ -816,6 +816,10 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionIsArchivedChanged: {
 				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
+				const agent = this._options.getAgent(action.session);
+				agent?.onArchivedChanged?.(URI.parse(action.session), action.isArchived).catch(err => {
+					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${action.session}`, err);
+				});
 				break;
 			}
 			case ActionType.SessionConfigChanged: {

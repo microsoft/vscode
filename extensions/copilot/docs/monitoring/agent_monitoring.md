@@ -71,6 +71,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
 | `github.copilot.chat.otel.outfile` | string | `""` | File path for JSON-lines output |
+| `github.copilot.chat.otel.dbSpanExporter.enabled` | boolean | `false` | Persist OTel spans to a local SQLite database for the **Chat: Export Agent Traces DB** command. Implicitly enables OTel. |
 
 ### Environment Variables
 
@@ -97,7 +98,14 @@ OTel is **off by default** with zero overhead. It activates when:
 
 - `COPILOT_OTEL_ENABLED=true`, or
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
-- `github.copilot.chat.otel.enabled` is `true`
+- `github.copilot.chat.otel.enabled` is `true`, or
+- `github.copilot.chat.otel.dbSpanExporter.enabled` is `true` (the SDK pipeline must be active to feed the SQLite store).
+
+### Commands
+
+| Command | Description |
+|---|---|
+| **Chat: Export Agent Traces DB** (`github.copilot.chat.otel.exportAgentTracesDB`) | Export the local SQLite span database to a `.db` file. Only available when `github.copilot.chat.otel.dbSpanExporter.enabled` is `true`. |
 
 
 ---
@@ -562,8 +570,9 @@ In your trace viewer, filter by `service.name` to see traces from specific agent
 
 | `service.name` | Source |
 |---|---|
-| `copilot-chat` | Foreground agent, CLI wrapper, and Claude agent spans |
+| `copilot-chat` | Foreground agent, CLI wrapper, and Claude agent spans (extension-emitted) |
 | `github-copilot` | CLI SDK native spans + CLI terminal |
+| `claude-code` | Claude Code subprocess SDK telemetry (when `CLAUDE_CODE_ENABLE_TELEMETRY` is forwarded) |
 
 Within the `copilot-chat` service, distinguish agent types by `gen_ai.agent.name`:
 

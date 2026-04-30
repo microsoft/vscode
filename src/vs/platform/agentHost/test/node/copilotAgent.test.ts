@@ -48,6 +48,10 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	repositoryRoot: URI | undefined = undefined;
 	addedWorktrees: { repositoryRoot: URI; worktree: URI; branchName: string; startPoint: string }[] = [];
+	addedExistingWorktrees: { repositoryRoot: URI; worktree: URI; branchName: string }[] = [];
+	removedWorktrees: { repositoryRoot: URI; worktree: URI }[] = [];
+	existingBranches = new Set<string>();
+	dirtyWorkingDirectories = new Set<string>();
 
 	async isInsideWorkTree(): Promise<boolean> { return false; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
@@ -57,8 +61,20 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
 		this.addedWorktrees.push({ repositoryRoot, worktree, branchName, startPoint });
+		this.existingBranches.add(branchName);
 	}
-	async removeWorktree(): Promise<void> { }
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
+	}
+	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
+		this.removedWorktrees.push({ repositoryRoot, worktree });
+	}
+	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
+		return this.existingBranches.has(branchName);
+	}
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
+	}
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -629,5 +645,169 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('onArchivedChanged removes the worktree on archive and recreates it on unarchive', async () => {
+			const sessionId = 'archive-cleanup-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+				}, sessionId);
+				assert.ok(workingDir, 'worktree must be created');
+				// Simulate the worktree directory existing on disk so the archive
+				// path's existence-check passes; the test git service has no real repo.
+				await fs.mkdir(workingDir!.fsPath, { recursive: true });
+
+				await agent.onArchivedChanged(session, true);
+				assert.deepStrictEqual(
+					gitService.removedWorktrees.map(r => r.worktree.fsPath),
+					[workingDir!.fsPath],
+					'archive must remove the worktree once it is clean and the branch is preserved',
+				);
+
+				// Simulate that the worktree directory is gone after removal.
+				await fs.rm(workingDir!.fsPath, { recursive: true, force: true });
+
+				await agent.onArchivedChanged(session, false);
+				assert.deepStrictEqual(
+					gitService.addedExistingWorktrees.map(r => ({ worktree: r.worktree.fsPath, branchName: r.branchName })),
+					[{ worktree: workingDir!.fsPath, branchName: gitService.addedWorktrees[0].branchName }],
+					'unarchive must recreate the worktree using the preserved branch',
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('onArchivedChanged skips removal when worktree has uncommitted changes', async () => {
+			const sessionId = 'archive-skip-dirty-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-dirty');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+				}, sessionId);
+				await fs.mkdir(workingDir!.fsPath, { recursive: true });
+				gitService.dirtyWorkingDirectories.add(workingDir!.fsPath);
+
+				await agent.onArchivedChanged(session, true);
+				assert.deepStrictEqual(gitService.removedWorktrees, [], 'must not remove a dirty worktree');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('onArchivedChanged skips removal when branch is missing', async () => {
+			const sessionId = 'archive-skip-no-branch-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-nobranch');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+				}, sessionId);
+				await fs.mkdir(workingDir!.fsPath, { recursive: true });
+				// Drop the branch so cleanup must skip.
+				gitService.existingBranches.clear();
+
+				await agent.onArchivedChanged(session, true);
+				assert.deepStrictEqual(gitService.removedWorktrees, [], 'must not remove a worktree whose branch is missing');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('onArchivedChanged is a no-op when no worktree metadata is persisted', async () => {
+			const sessionId = 'archive-no-meta-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const gitService = new TestAgentHostGitService();
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.onArchivedChanged(session, true);
+				await agent.onArchivedChanged(session, false);
+				assert.deepStrictEqual({
+					removed: gitService.removedWorktrees,
+					addedExisting: gitService.addedExistingWorktrees,
+				}, { removed: [], addedExisting: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('onArchivedChanged unarchive skips when worktree directory already exists', async () => {
+			const sessionId = 'unarchive-existing-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-exists');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+				}, sessionId);
+				await fs.mkdir(workingDir!.fsPath, { recursive: true });
+
+				await agent.onArchivedChanged(session, false);
+				assert.deepStrictEqual(gitService.addedExistingWorktrees, [], 'must not recreate a worktree whose directory already exists');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 	});
 });
