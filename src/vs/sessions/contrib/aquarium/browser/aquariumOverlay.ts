@@ -46,9 +46,9 @@ const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
 
 interface IFoodPellet {
 	readonly element: HTMLDivElement;
-	x: number;
-	y: number;
-	vy: number;
+	positionX: number;
+	positionY: number;
+	fallSpeed: number;
 }
 
 /**
@@ -313,9 +313,9 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	const updateBounds = () => {
 		bounds.width = water.clientWidth;
 		bounds.height = water.clientHeight;
-		const r = water.getBoundingClientRect();
-		waterScreenOffset.left = r.left;
-		waterScreenOffset.top = r.top;
+		const rect = water.getBoundingClientRect();
+		waterScreenOffset.left = rect.left;
+		waterScreenOffset.top = rect.top;
 	};
 
 	const fish: Fish[] = [];
@@ -324,8 +324,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	const resizeObserver = new ResizeObserver(() => {
 		updateBounds();
 		for (const f of fish) {
-			f.x = Math.min(f.x, Math.max(0, bounds.width - f.size));
-			f.y = Math.min(f.y, Math.max(0, bounds.height - f.size));
+			f.positionX = Math.min(f.positionX, Math.max(0, bounds.width - f.size));
+			f.positionY = Math.min(f.positionY, Math.max(0, bounds.height - f.size));
 		}
 	});
 	resizeObserver.observe(water);
@@ -338,10 +338,10 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 		const f = new Fish({
 			species: pickRandomSpecies(),
 			size,
-			x: randomBetween(0, Math.max(1, bounds.width - size)),
-			y: randomBetween(0, Math.max(1, bounds.height - size)),
-			vx: Math.cos(angle) * speed,
-			vy: Math.sin(angle) * speed,
+			positionX: randomBetween(0, Math.max(1, bounds.width - size)),
+			positionY: randomBetween(0, Math.max(1, bounds.height - size)),
+			velocityX: Math.cos(angle) * speed,
+			velocityY: Math.sin(angle) * speed,
 		}, targetWindow.document);
 		fish.push(f);
 	}
@@ -454,7 +454,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 		el.className = 'agents-aquarium-food';
 		el.style.transform = `translate(${dropX}px, ${dropY}px)`;
 		foodLayer.appendChild(el);
-		food.push({ element: el, x: dropX, y: dropY, vy: randomBetween(20, 35) });
+		food.push({ element: el, positionX: dropX, positionY: dropY, fallSpeed: randomBetween(20, 35) });
 	}
 
 	let lastFrame = performance.now();
@@ -498,9 +498,9 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	function updateFood(dt: number): void {
 		for (let i = food.length - 1; i >= 0; i--) {
 			const pellet = food[i];
-			pellet.y += pellet.vy * dt;
-			pellet.element.style.transform = `translate(${pellet.x.toFixed(1)}px, ${pellet.y.toFixed(1)}px)`;
-			if (pellet.y > bounds.height + 10) {
+			pellet.positionY += pellet.fallSpeed * dt;
+			pellet.element.style.transform = `translate(${pellet.positionX.toFixed(1)}px, ${pellet.positionY.toFixed(1)}px)`;
+			if (pellet.positionY > bounds.height + 10) {
 				removeFood(pellet);
 			}
 		}
@@ -509,8 +509,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	function updateFish(dt: number): void {
 		const now = performance.now();
 		for (const f of fish) {
-			const centerX = f.x + f.size / 2;
-			const centerY = f.y + f.size / 2;
+			const centerX = f.positionX + f.size / 2;
+			const centerY = f.positionY + f.size / 2;
 
 			// Wall steering: turn the heading (not just acceleration) away from
 			// walls, otherwise fish park against the edge with their thrust
@@ -533,8 +533,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			// Spontaneous dart with brief panic so it can exceed normal max speed.
 			if (Math.random() < DART_RATE_PER_SECOND * dt) {
 				const dartAngle = Math.random() * Math.PI * 2;
-				f.vx += Math.cos(dartAngle) * DART_IMPULSE;
-				f.vy += Math.sin(dartAngle) * DART_IMPULSE;
+				f.velocityX += Math.cos(dartAngle) * DART_IMPULSE;
+				f.velocityY += Math.sin(dartAngle) * DART_IMPULSE;
 				f.panicUntil = now + PANIC_DURATION_MS;
 			}
 
@@ -566,8 +566,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			let nearestPellet: IFoodPellet | undefined;
 			let nearestDistSq = FOOD_DETECT_RADIUS * FOOD_DETECT_RADIUS;
 			for (const pellet of food) {
-				const foodDeltaX = pellet.x - centerX;
-				const foodDeltaY = pellet.y - centerY;
+				const foodDeltaX = pellet.positionX - centerX;
+				const foodDeltaY = pellet.positionY - centerY;
 				const distSq = foodDeltaX * foodDeltaX + foodDeltaY * foodDeltaY;
 				if (distSq < nearestDistSq) {
 					nearestDistSq = distSq;
@@ -579,28 +579,28 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
 				} else {
-					accelX += (nearestPellet.x - centerX) / nearestDist * 200;
-					accelY += (nearestPellet.y - centerY) / nearestDist * 200;
+					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
+					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;
 				}
 			}
 
-			f.vx += accelX * dt;
-			f.vy += accelY * dt;
+			f.velocityX += accelX * dt;
+			f.velocityY += accelY * dt;
 
-			const speedSq = f.vx * f.vx + f.vy * f.vy;
+			const speedSq = f.velocityX * f.velocityX + f.velocityY * f.velocityY;
 			const maxSpeed = now < f.panicUntil ? PANIC_MAX_SPEED : MAX_SPEED;
 			if (speedSq > maxSpeed * maxSpeed) {
 				const speed = Math.sqrt(speedSq);
-				f.vx = (f.vx / speed) * maxSpeed;
-				f.vy = (f.vy / speed) * maxSpeed;
+				f.velocityX = (f.velocityX / speed) * maxSpeed;
+				f.velocityY = (f.velocityY / speed) * maxSpeed;
 			}
 
-			f.x += f.vx * dt;
-			f.y += f.vy * dt;
+			f.positionX += f.velocityX * dt;
+			f.positionY += f.velocityY * dt;
 
 			// Hard clamp safety net.
-			f.x = clamp(f.x, -f.size * 0.25, bounds.width - f.size * 0.75);
-			f.y = clamp(f.y, -f.size * 0.25, bounds.height - f.size * 0.75);
+			f.positionX = clamp(f.positionX, -f.size * 0.25, bounds.width - f.size * 0.75);
+			f.positionY = clamp(f.positionY, -f.size * 0.25, bounds.height - f.size * 0.75);
 
 			f.applyTransform(dt);
 		}

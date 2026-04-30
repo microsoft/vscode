@@ -27,11 +27,11 @@ const SPECIES_COLOR: Record<FishSpecies, string> = {
 
 /** Pick a random species, weighted Stable > Insiders > Exploration. */
 export function pickRandomSpecies(): FishSpecies {
-	const r = Math.random();
-	if (r < 0.5) {
+	const roll = Math.random();
+	if (roll < 0.5) {
 		return FishSpecies.Stable;
 	}
-	if (r < 0.8) {
+	if (roll < 0.8) {
 		return FishSpecies.Insiders;
 	}
 	return FishSpecies.Exploration;
@@ -52,10 +52,10 @@ export function disposeSharedFishDefs(targetDocument: Document): void {
 export interface IFishOptions {
 	readonly species: FishSpecies;
 	readonly size: number;
-	readonly x: number;
-	readonly y: number;
-	readonly vx: number;
-	readonly vy: number;
+	readonly positionX: number;
+	readonly positionY: number;
+	readonly velocityX: number;
+	readonly velocityY: number;
 }
 
 /**
@@ -67,10 +67,10 @@ export class Fish {
 	readonly element: HTMLDivElement;
 	private readonly innerElement: HTMLDivElement;
 
-	x: number;
-	y: number;
-	vx: number;
-	vy: number;
+	positionX: number;
+	positionY: number;
+	velocityX: number;
+	velocityY: number;
 	readonly size: number;
 
 	/** Timestamp until which this fish is in "panic" mode (faster, scattering). */
@@ -85,18 +85,18 @@ export class Fish {
 
 	/**
 	 * Smoothed facing in [-1, 1] (1 = right, -1 = left). Eased toward
-	 * sign(vx) each frame so direction changes look like a turn instead of
+	 * sign(velocityX) each frame so direction changes look like a turn instead of
 	 * a snap-flip.
 	 */
 	private facing = 1;
 
 	constructor(opts: IFishOptions, targetDocument: Document) {
-		this.x = opts.x;
-		this.y = opts.y;
-		this.vx = opts.vx;
-		this.vy = opts.vy;
+		this.positionX = opts.positionX;
+		this.positionY = opts.positionY;
+		this.velocityX = opts.velocityX;
+		this.velocityY = opts.velocityY;
 		this.size = opts.size;
-		this.wanderAngle = Math.atan2(opts.vy, opts.vx);
+		this.wanderAngle = Math.atan2(opts.velocityY, opts.velocityX);
 
 		this.element = targetDocument.createElement('div');
 		this.element.className = 'agents-aquarium-fish';
@@ -117,28 +117,28 @@ export class Fish {
 	/**
 	 * Write the current position/facing to the DOM.
 	 *
-	 * @param dt seconds since last frame, used to ease facing toward velocity
-	 *           direction. Pass 0 for the initial paint.
+	 * @param deltaSeconds seconds since last frame, used to ease facing toward
+	 *           velocity direction. Pass 0 for the initial paint.
 	 */
-	applyTransform(dt: number = 0): void {
+	applyTransform(deltaSeconds: number = 0): void {
 		// Translate is on the outer element. Sub-pixel precision (2 decimals)
 		// avoids visible 0.1 px stepping when fish move slowly.
-		this.element.style.transform = `translate(${this.x.toFixed(2)}px, ${this.y.toFixed(2)}px)`;
+		this.element.style.transform = `translate(${this.positionX.toFixed(2)}px, ${this.positionY.toFixed(2)}px)`;
 
-		// Ease `facing` toward sign(vx) so the flip looks like a turn instead
-		// of an instant mirror. Time-constant ~120 ms (turnRate = 8/s).
-		const target = this.vx >= 0 ? 1 : -1;
-		if (dt > 0) {
+		// Ease `facing` toward sign(velocityX) so the flip looks like a turn
+		// instead of an instant mirror. Time-constant ~120 ms (turnRate = 8/s).
+		const targetFacing = this.velocityX >= 0 ? 1 : -1;
+		if (deltaSeconds > 0) {
 			const turnRate = 8;
-			const k = 1 - Math.exp(-turnRate * dt);
-			this.facing += (target - this.facing) * k;
+			const easeFactor = 1 - Math.exp(-turnRate * deltaSeconds);
+			this.facing += (targetFacing - this.facing) * easeFactor;
 		} else {
-			this.facing = target;
+			this.facing = targetFacing;
 		}
 		// scaleX through 0 in the middle of a turn flattens the fish for one
 		// frame, mimicking a body roll. Floor at 0.05 to avoid zero-width.
-		const scaleX = Math.sign(this.facing) * Math.max(Math.abs(this.facing), 0.05);
-		this.innerElement.style.transform = `scaleX(${scaleX.toFixed(3)})`;
+		const flipScaleX = Math.sign(this.facing) * Math.max(Math.abs(this.facing), 0.05);
+		this.innerElement.style.transform = `scaleX(${flipScaleX.toFixed(3)})`;
 	}
 }
 
