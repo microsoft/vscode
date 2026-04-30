@@ -337,6 +337,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
+		// test-workbench_change start: refresh layout controls when concise mode toggles
+		this._register(this.layoutService.onDidChangeConciseMode(() => {
+			if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
+				this.createActionToolBarMenus({ layoutActions: true });
+				this._onDidChange.fire(undefined);
+			}
+		}));
+		// test-workbench_change end
 	}
 
 	private onBlur(): void {
@@ -827,6 +835,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
+		// test-workbench_change start: hide layout controls in concise mode
+		if (this.layoutService.isConciseModeActive()) {
+			return false;
+		}
+		// test-workbench_change end
 		return this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false;
 	}
 

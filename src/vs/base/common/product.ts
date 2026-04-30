@@ -69,6 +69,7 @@ export interface IProductConfiguration {
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;
+	readonly gitVersion?: string; // test-workbench_change
 
 	readonly nameShort: string;
 	readonly nameLong: string;

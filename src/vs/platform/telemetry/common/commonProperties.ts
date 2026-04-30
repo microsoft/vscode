@@ -28,6 +28,7 @@ export function resolveCommonProperties(
 	isInternalTelemetry: boolean,
 	releaseDate: string | undefined,
 	product?: string,
+	tscodeVersion?: string, // test-workbench_change
 ): ICommonProperties {
 	const result: ICommonProperties = Object.create(null);
 
@@ -55,6 +56,13 @@ export function resolveCommonProperties(
 	result['common.nodeArch'] = arch;
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = product || 'desktop';
+
+	// __GDPR__COMMON__ "tscodeVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// test-workbench_change start
+	if (tscodeVersion) {
+		result['tscodeVersion'] = tscodeVersion;
+	}
+	// test-workbench_change end
 
 	if (isInternalTelemetry) {
 		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
