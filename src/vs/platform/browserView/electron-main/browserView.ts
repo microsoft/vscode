@@ -96,7 +96,7 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 
-		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+		const webPreferences: Electron.WebPreferences = {
 			...options?.webPreferences,
 
 			nodeIntegration: false,
@@ -109,9 +109,6 @@ export class BrowserView extends Disposable {
 
 			webviewTag: false,
 			session: this.session.electronSession,
-
-			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
-			type: 'browserView'
 		};
 
 		this._view = new WebContentsView({
