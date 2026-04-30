@@ -49,7 +49,8 @@ class NewChatWidget extends Disposable {
 		@IAquariumService private readonly aquariumService: IAquariumService,
 	) {
 		super();
-		this._workspacePicker = this._register(this.instantiationService.createInstance(isWeb ? ScopedWorkspacePicker : WorkspacePicker));
+		const pickerCtor = isWeb ? ScopedWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(pickerCtor));
 		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {

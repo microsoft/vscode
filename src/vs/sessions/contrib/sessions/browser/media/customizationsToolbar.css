@@ -48,13 +48,6 @@
 
 .ai-customization-toolbar .ai-customization-chevron {
 	flex-shrink: 0;
-	opacity: 0;
-}
-
-.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button:hover .ai-customization-chevron,
-.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button:focus-within .ai-customization-chevron,
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:hover .ai-customization-chevron,
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:focus-within .ai-customization-chevron {
 	opacity: 0.7;
 }
 
@@ -65,14 +58,8 @@
 	line-height: 1;
 }
 
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:not(:hover):not(:focus-within) .ai-customization-header-total:not(.hidden) {
+.ai-customization-toolbar .ai-customization-header.collapsed .ai-customization-collapse-toggle .ai-customization-header-total:not(.hidden) {
 	display: inline;
-}
-
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:hover .ai-customization-header-total,
-.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:focus-within .ai-customization-header-total,
-.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button .ai-customization-header-total {
-	display: none;
 }
 
 /* Button container - fills available space */
@@ -86,7 +73,6 @@
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	margin-right: 4px;
 }
 
 .ai-customization-toolbar .ai-customization-overview-button.monaco-button {
@@ -126,7 +112,7 @@
 	font-weight: 500;
 }
 
-/* Counts - floating right inside the button */
+/* Counts - floating right inside the per-item link button */
 .ai-customization-toolbar .customization-link-counts {
 	position: absolute;
 	right: 8px;
@@ -135,6 +121,31 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
+}
+
+/* Header collapse toggle (chevron + optional total count). Sits at the far right of the header, after the home/overview button. */
+.ai-customization-toolbar .ai-customization-collapse-toggle {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 4px;
+	height: 24px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	cursor: pointer;
+}
+
+.ai-customization-toolbar .ai-customization-collapse-toggle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-toolbar .ai-customization-collapse-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .ai-customization-toolbar .customization-link-counts.hidden {

@@ -22,7 +22,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
@@ -63,7 +63,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
 			description: this.label,
-			group: 'folders',
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: Codicon.folderOpened,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -144,7 +144,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	// -- Workspaces ----------------------------------------------------------
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns }, gitState);
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitState);
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
@@ -155,7 +155,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return {
 			label: `${folderName} [${this._localLabel}]`,
 			description: this._labelService.getUriLabel(dirname(repositoryUri), { relative: false }),
-			group: this.label,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: Codicon.folder,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,

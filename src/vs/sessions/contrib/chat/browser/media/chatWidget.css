@@ -372,3 +372,20 @@
 	color: var(--vscode-problemsInfoIcon-foreground);
 	opacity: 1;
 }
+
+/* Tab bar styles live with the platform widget
+ * (`platform/actionWidget/browser/tabbedActionListWidget.css`). The
+ * `sessions-workspace-picker-tabbar` class is applied alongside the
+ * generic class so picker-specific overrides can be added here if needed. */
+
+/* Inline browse actions (e.g. "Select Folders…" entries in the Remote tab):
+ * show the host name as the primary label and only reveal the secondary
+ * "Select Folders…" description on hover/focus to reduce repetition. */
+.action-widget .monaco-list-row.action.sessions-browse-inline-item .description {
+	visibility: hidden;
+}
+
+.action-widget .monaco-list-row.action.sessions-browse-inline-item:hover:not(.option-disabled) .description,
+.action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
+	visibility: visible;
+}

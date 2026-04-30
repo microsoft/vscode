@@ -76,6 +76,8 @@ export interface IChatStatusDashboardOptions {
 	disableCompletionsSnooze?: boolean;
 	/** When true, the Quick Settings region is rendered always-expanded without a collapsible header. */
 	disableQuickSettingsCollapsible?: boolean;
+	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
+	disableContributedSectionsCollapsible?: boolean;
 	/**
 	 * When provided, the title header (plan name + manage / CTA actions) is
 	 * rendered into this caller-owned container instead of inline at the top
@@ -352,19 +354,26 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private renderContributedSections(contributedEntries: ChatStatusEntry[]): void {
+		const nonCollapsible = !!this.options?.disableContributedSectionsCollapsible;
 		for (const item of contributedEntries) {
 			const storageKey = ChatStatusDashboard.CONTRIBUTED_COLLAPSED_KEY_PREFIX + item.id;
-			const collapsed = this.storageService.getBoolean(storageKey, StorageScope.PROFILE, true);
+			const collapsed = !nonCollapsible && this.storageService.getBoolean(storageKey, StorageScope.PROFILE, true);
 
 			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
 			const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
 			const linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
 
-			const disclosureHeader = this.element.appendChild($('button.collapsible-header'));
-			disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
-
-			const chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			const disclosureHeader = this.element.appendChild(
+				nonCollapsible
+					? $('div.collapsible-header.non-collapsible')
+					: $('button.collapsible-header')
+			);
+			let chevron: HTMLElement | undefined;
+			if (!nonCollapsible) {
+				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
+				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
+				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			}
 
 			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
 
@@ -380,16 +389,18 @@ export class ChatStatusDashboard extends DomWidget {
 				collapsibleInner.inert = true;
 			}
 
-			const toggle = () => {
-				const isCollapsed = collapsibleContent.classList.toggle('collapsed');
-				collapsibleInner.inert = isCollapsed;
-				disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
-				chevron.className = 'collapsible-chevron';
-				chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-				this.storageService.store(storageKey, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
-			};
+			if (!nonCollapsible) {
+				const toggle = () => {
+					const isCollapsed = collapsibleContent.classList.toggle('collapsed');
+					collapsibleInner.inert = isCollapsed;
+					disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
+					chevron!.className = 'collapsible-chevron';
+					chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+					this.storageService.store(storageKey, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
+				};
 
-			this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
+				this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
+			}
 
 			// Use a single disposable store for all contributed section content
 			const sectionDisposables = this._store.add(new MutableDisposable());
@@ -542,7 +553,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 					const selectOptions = modelInfo.models.map(m => ({ text: m.name }));
 					const selectedIndex = modelInfo.models.findIndex(m => m.id === modelInfo.currentModelId);
-					const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectModel', "Select Model") }));
+					const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectModel', "Select Model"), optionsAsChildren: true }));
 					const selectContainer = modelContainer.appendChild($('div.model-select-container'));
 					selectBox.render(selectContainer);
 					this._store.add(selectBox.onDidSelect(async e => {
@@ -568,7 +579,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 							const selectOptions = option.values.map(v => ({ text: v.label }));
 							const selectedIndex = option.values.findIndex(v => v.id === option.currentValueId);
-							const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectOption', "Select {0}", option.label) }));
+							const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectOption', "Select {0}", option.label), optionsAsChildren: true }));
 							const selectContainer = optionContainer.appendChild($('div.suggest-option-select-container'));
 							selectBox.render(selectContainer);
 							this._store.add(selectBox.onDidSelect(async e => {
@@ -762,7 +773,7 @@ export class ChatStatusDashboard extends DomWidget {
 			const overriddenHint = globalSetting.appendChild($('span.setting-overridden'));
 			const updateOverriddenHint = () => {
 				const obj = this.configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
-				const hasOverride = modeId && isObject(obj) && typeof obj[modeId] !== 'undefined';
+				const hasOverride = modeId && isObject(obj) && typeof obj[modeId] !== 'undefined' && Boolean(obj[modeId]) !== Boolean(obj['*']);
 				overriddenHint.textContent = hasOverride ? localize('settings.overridden', "(overridden)") : '';
 			};
 			updateOverriddenHint();

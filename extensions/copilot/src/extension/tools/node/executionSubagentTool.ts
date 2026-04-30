@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseNotebookEditPart, ChatResponseTextEditPart, ChatToolInvocationPart, ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
-import { ExecutionSubagentToolCallingLoop } from '../../prompt/node/executionSubagentToolCallingLoop';
+import { ExecutionSubagentToolCallingLoop, IBackgroundCommand } from '../../prompt/node/executionSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 
@@ -107,6 +107,11 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			subagentResponse = `The execution subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
 		}
 
+		// If any terminal commands moved to the background (timeout or async) during
+		// the subagent's run, append a Note line for each on the line(s) immediately
+		// after the final </final_answer>.
+		subagentResponse = appendBackgroundCommandNotesToFinalAnswer(subagentResponse, loop.backgroundCommands);
+
 		// toolMetadata will be automatically included in exportAllPromptLogsAsJsonCommand
 		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(subagentResponse)]);
 		result.toolMetadata = toolMetadata;
@@ -127,3 +132,36 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 }
 
 ToolRegistry.registerTool(ExecutionSubagentTool);
+
+/**
+ * Appends a `Note: ...` line for each stopped terminal command (timed out or
+ * invoked in async/background mode) on the line(s) immediately after the final
+ * `</final_answer>` of the subagent's response. If no `<final_answer>` block is
+ * present, appends the notes to the end of the response.
+ */
+function appendBackgroundCommandNotesToFinalAnswer(
+	response: string,
+	backgroundCommands: readonly IBackgroundCommand[],
+): string {
+	if (backgroundCommands.length === 0) {
+		return response;
+	}
+
+	const notes = backgroundCommands.map(c => {
+		if (c.reason === 'timeout') {
+			const timeoutText = c.timeoutMs !== undefined ? ` after ${c.timeoutMs} ms` : '';
+			return `Note: The command \`${c.command}\` timed out${timeoutText}. It may still be running in terminal ID ${c.termId}.`;
+		}
+		return `Note: The command \`${c.command}\` was started in the background. It may still be running in terminal ID ${c.termId}.`;
+	}).join('\n');
+
+	const closingTag = '</final_answer>';
+	const closeIdx = response.lastIndexOf(closingTag);
+	if (closeIdx === -1) {
+		return response.length > 0 ? `${response}\n\n${notes}` : notes;
+	}
+	const insertAt = closeIdx + closingTag.length;
+	const before = response.slice(0, insertAt);
+	const after = response.slice(insertAt).replace(/^\s*/, '');
+	return after.length > 0 ? `${before}\n${notes}\n${after}` : `${before}\n${notes}`;
+}

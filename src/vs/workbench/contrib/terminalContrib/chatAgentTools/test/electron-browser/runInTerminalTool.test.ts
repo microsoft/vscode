@@ -461,7 +461,7 @@ suite('RunInTerminalTool', () => {
 
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.forDisplay, 'echo hello');
-			strictEqual(terminalData.commandLine.toolEdited, 'nohup sandbox-runtime echo hello &');
+			strictEqual(terminalData.commandLine.toolEdited, 'nohup sandbox-runtime echo hello & disown');
 		});
 	});
 

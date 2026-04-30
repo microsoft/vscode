@@ -4008,6 +4008,18 @@
 			{
 				"id": "advanced",
 				"properties": {
+					"github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
+						"type": [
+							"object",
+							"null"
+						],
+						"default": null,
+						"markdownDescription": "Advanced model configuration for the next edit suggestions xtab provider.\n\n**Note**: This is an advanced setting.",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
+					},
 					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
@@ -5818,7 +5830,7 @@
 			"chat/input/editing/sessionChangeToolbar": [
 				{
 					"command": "github.copilot.sessions.discardChanges",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.changesVersionMode == branchChanges && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessions.isAgentHostSession && (sessions.changesVersionMode == branchChanges || sessions.changesVersionMode == uncommittedChanges)",
 					"group": "navigation@2"
 				}
 			],
@@ -6416,10 +6428,10 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"build": "node .esbuild.ts --sourcemaps",
-		"compile": "node .esbuild.ts --dev",
+		"build": "node .esbuild.mts --sourcemaps",
+		"compile": "node .esbuild.mts --dev",
 		"watch": "npm-run-all -lp watch:esbuild watch:typecheck",
-		"watch:esbuild": "node .esbuild.ts --watch --dev",
+		"watch:esbuild": "node .esbuild.mts --watch --dev",
 		"watch:typecheck": "npx tsgo --noEmit --watch --preserveWatchOutput --project tsconfig.json",
 		"watch:typecheck-extension": "npx tsgo --noEmit --watch --project tsconfig.json",
 		"watch:typecheck-extension-web": "npx tsgo --noEmit --watch --project tsconfig.worker.json",
