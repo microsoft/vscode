@@ -114,8 +114,14 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
 	private readonly perSectionPending = new Map<ItemsModelSection, Promise<void>>();
-	private readonly remotePluginCount = observableValue<number>('aiCustomizationRemotePluginCount', 0);
-	private readonly pluginCount = derived(reader => this.agentPluginService.plugins.read(reader).length + this.remotePluginCount.read(reader));
+	private readonly remotePluginNames = observableValue<readonly string[]>('aiCustomizationRemotePluginNames', []);
+	private readonly pluginCount = derived(reader => {
+		const installed = this.agentPluginService.plugins.read(reader);
+		const installedNames = new Set(installed.map(p => (p.label ?? '').toLowerCase()));
+		const remoteNames = this.remotePluginNames.read(reader);
+		const uniqueRemote = remoteNames.filter(name => name && !installedNames.has(name.toLowerCase()));
+		return installed.length + uniqueRemote.length;
+	});
 	private pluginCountObserved = false;
 	private pluginFetchSeq = 0;
 	/**
@@ -295,13 +301,15 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		const seq = ++this.pluginFetchSeq;
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const provider = descriptor.itemProvider;
-		const pending = provider
+		const pending: Promise<readonly string[]> = provider
 			? provider.provideChatSessionCustomizations(CancellationToken.None).then(items => {
-				return (items ?? []).filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client').length;
+				return (items ?? [])
+					.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+					.map(item => item.name ?? '');
 			})
-			: Promise.resolve(0);
+			: Promise.resolve<readonly string[]>([]);
 
-		pending.then(count => {
+		pending.then(names => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -311,7 +319,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			if (this.getActiveItemSource() !== source) {
 				return;
 			}
-			this.remotePluginCount.set(count, undefined);
+			this.remotePluginNames.set(names, undefined);
 		}, e => {
 			if (!this._store.isDisposed) {
 				onUnexpectedError(e);

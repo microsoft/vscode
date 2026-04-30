@@ -337,5 +337,27 @@ suite('AICustomizationItemsModel', () => {
 				providerA_callCount: callsAfterInitialCount,
 			});
 		});
+
+		test('plugin count dedupes provider plugins that are also installed locally', async () => {
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/model-council'),
+				type: 'plugin',
+				name: 'model-council',
+				storage: PromptsStorage.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			assert.strictEqual(count.get(), 1, 'before local install: only the harness-reported plugin counts');
+
+			plugins.set([createLocalPlugin('model-council')], undefined);
+			await timeout(0);
+
+			assert.strictEqual(count.get(), 1, 'after local install: harness duplicate is folded into the local count');
+		});
 	});
 });
