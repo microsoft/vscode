@@ -66,6 +66,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}, true);
 			if (hover) {
 				store.add(hover);
+				// todo@connor4312/@benibenj: workaround for #257923
+				store.add(disposableWindowInterval(mainWindow, () => {
+					if (!content.isConnected) {
+						store.dispose();
+					}
+				}, 2000));
 			} else {
 				store.dispose();
 			}
