@@ -337,8 +337,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private updateTriggerBreakpointList(): void {
 		this.availableBreakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
 
-		// Try to preserve the current selection if the breakpoint still exists
 		let selectedIndex = 0; // Default to "None"
+
 		if (this.triggeredByBreakpointInput) {
 			const newIndex = this.availableBreakpoints.findIndex(bp => bp.getId() === this.triggeredByBreakpointInput?.getId());
 			if (newIndex !== -1) {
@@ -348,6 +348,14 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.triggeredByBreakpointInput = undefined;
 			}
 		}
+
+		// If no triggeredByBreakpointInput is set and there are available breakpoints, select the first one by default
+		if (!this.triggeredByBreakpointInput && this.availableBreakpoints.length > 0) {
+			this.triggeredByBreakpointInput = this.availableBreakpoints[0];
+			selectedIndex = 1;
+		}
+
+		// If still no available breakpoints, keep "None" selected and triggeredByBreakpointInput undefined
 
 		const breakpointOptions = this.buildBreakpointOptions();
 		this.selectBreakpointBox.setOptions(breakpointOptions, selectedIndex);
