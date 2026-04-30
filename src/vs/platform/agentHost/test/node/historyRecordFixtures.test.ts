@@ -11,9 +11,10 @@ import { AgentSession } from '../../common/agentService.js';
 import { FileEditKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
-import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
+import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 
-suite('mapSessionEvents', () => {
+suite('mapSessionEventsToHistoryRecords', () => {
 
 	const disposables = new DisposableStore();
 	let db: SessionDatabase | undefined;
@@ -33,7 +34,7 @@ suite('mapSessionEvents', () => {
 			{ type: 'assistant.message', data: { messageId: 'msg-2', content: 'world' } },
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 		assert.strictEqual(result.length, 2);
 		assert.deepStrictEqual(result[0], {
 			session,
@@ -63,7 +64,7 @@ suite('mapSessionEvents', () => {
 			},
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual(result[0].type, 'tool_start');
 		assert.strictEqual(result[1].type, 'tool_complete');
@@ -78,7 +79,7 @@ suite('mapSessionEvents', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'orphan', success: true } },
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 		assert.strictEqual(result.length, 0);
 	});
 
@@ -88,7 +89,7 @@ suite('mapSessionEvents', () => {
 			{ type: 'user.message', data: { messageId: 'msg-1', content: 'test' } },
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 		assert.strictEqual(result.length, 1);
 	});
 
@@ -121,7 +122,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, db, events);
+			const result = await mapSessionEventsToHistoryRecords(session, db, events);
 			const complete = result[1];
 			assert.strictEqual(complete.type, 'tool_complete');
 
@@ -177,7 +178,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, db, events);
+			const result = await mapSessionEventsToHistoryRecords(session, db, events);
 			const content = (result[1] as { result: { content?: readonly Record<string, unknown>[] } }).result.content;
 			assert.ok(content);
 			// Two file edits (no text since result had no content)
@@ -197,7 +198,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, undefined, events);
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 			const content = (result[1] as { result: { content?: readonly Record<string, unknown>[] } }).result.content;
 			assert.ok(content);
 			// Only text content, no file edits
@@ -219,7 +220,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, db, events);
+			const result = await mapSessionEventsToHistoryRecords(session, db, events);
 			const content = (result[1] as { result: { content?: readonly Record<string, unknown>[] } }).result.content;
 			assert.ok(content);
 			assert.strictEqual(content.length, 1);
@@ -244,7 +245,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, undefined, events);
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].type, 'subagent_started');
 			const event = result[0] as { type: string; toolCallId: string; agentName: string; agentDisplayName: string };
@@ -283,7 +284,7 @@ suite('mapSessionEvents', () => {
 				},
 			];
 
-			const result = await mapSessionEvents(session, undefined, events);
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, events);
 
 			assert.deepStrictEqual({
 				count: result.length,
@@ -329,12 +330,12 @@ suite('mapSessionEvents', () => {
 			};
 		}
 
-		function getStart(events: ReturnType<typeof mapSessionEvents> extends Promise<infer R> ? R : never) {
+		function getStart(events: ReturnType<typeof mapSessionEventsToHistoryRecords> extends Promise<infer R> ? R : never) {
 			return events[0] as { toolInput: string; toolArguments?: string };
 		}
 
 		test('strips redundant bash cd prefix matching workingDirectory', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				makeBashEvent('cd /workspace/proj && ls -la'),
 			], cwd);
 			const start = getStart(result);
@@ -343,7 +344,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('leaves command unchanged when cd dir does not match', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				makeBashEvent('cd /other && ls'),
 			], cwd);
 			const start = getStart(result);
@@ -351,7 +352,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('leaves command unchanged when no workingDirectory provided', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				makeBashEvent('cd /workspace/proj && ls'),
 			]);
 			const start = getStart(result);
@@ -359,7 +360,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('non-shell tools are not rewritten even with matching command field', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				{
 					type: 'tool.execution_start',
 					data: { toolCallId: 'tc-1', toolName: 'edit', arguments: { command: 'cd /workspace/proj && ls' } },
@@ -371,7 +372,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('handles trailing slash on workingDirectory', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				makeBashEvent('cd /workspace/proj && ls'),
 			], URI.file('/workspace/proj/'));
 			const start = getStart(result);
@@ -380,7 +381,7 @@ suite('mapSessionEvents', () => {
 
 		test('handles quoted directory in cd prefix', async () => {
 			const cwdWithSpaces = URI.file('/workspace/my proj');
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				makeBashEvent('cd "/workspace/my proj" && ls'),
 			], cwdWithSpaces);
 			const start = getStart(result);
@@ -388,7 +389,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('rewrites powershell commands too', async () => {
-			const result = await mapSessionEvents(session, undefined, [
+			const result = await mapSessionEventsToHistoryRecords(session, undefined, [
 				{
 					type: 'tool.execution_start',
 					data: { toolCallId: 'tc-1', toolName: 'powershell', arguments: { command: 'cd /workspace/proj; dir' } },

@@ -114,7 +114,8 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Get-Command to verify cmdlet/function availability',
 		'',
 		'Async Mode:',
-		'- For long-running tasks (e.g., servers), use mode=async',
+		'- Use mode=async ONLY for processes that should keep running while you do other work (servers, watchers, dev daemons)',
+		'- For one-shot long-running commands where you have nothing to do until they finish (package installs, builds, downloads, test suites), use mode=sync with a generous timeout (e.g. 600000 / 10 min for installs, longer for big builds) so the command can complete before your turn ends',
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
 		'',
@@ -141,7 +142,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Use ${TerminalToolId.GetTerminalOutput} to check output before then`,
+		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.`,
 		'',
 		'Interactive Input Handling:',
 		'- When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.',
@@ -200,7 +201,8 @@ Program Execution:
 - Use which or command -v to verify command availability
 
 Async Mode:
-- For long-running tasks (e.g., servers), use mode=async
+- Use mode=async ONLY for processes that should keep running while you do other work (servers, watchers, dev daemons)
+- For one-shot long-running commands where you have nothing to do until they finish (package installs, builds, downloads, test suites), use mode=sync with a generous timeout (e.g. 600000 / 10 min for installs, longer for big builds) so the command can complete before your turn ends
 - Returns a terminal ID for checking status and runtime later
 
 Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`];
@@ -222,7 +224,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Use ${TerminalToolId.GetTerminalOutput} to check output before then
+- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.
 
 Interactive Input Handling:
 - When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.
@@ -238,8 +240,7 @@ function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: 
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
 		createGenericDescription(isSandboxEnabled, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
-		'- Prefer $() over backticks for command substitution',
-		'- Use set -e at start of complex commands to exit on errors'
+		'- Prefer $() over backticks for command substitution'
 	].join('\n');
 }
 
@@ -251,7 +252,6 @@ function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: I
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
-		'- Use setopt errexit for strict error handling',
 		'- Take advantage of zsh globbing features (**, extended globs)'
 	].join('\n');
 }
@@ -265,7 +265,6 @@ function createFishModelDescription(isSandboxEnabled: boolean, networkDomains?: 
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
 		'- Prefer command substitution with () syntax',
 		'- Variables are arrays by default, use $var[1] for first element',
-		'- Use set -e for strict error handling',
 		'- Take advantage of fish\'s autosuggestions and completions'
 	].join('\n');
 }
@@ -326,7 +325,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: Only set 'timeout' when you want a hard cap on how long the tool tracks the command. Omit it to let the command run to completion. Package installs, builds, and long-running scripts should usually omit the timeout rather than guessing a value.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Use ${TerminalToolId.GetTerminalOutput} to check output before then. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: For one-shot long-running commands, set a generous timeout as a safety net (e.g. 600000 for installs, longer for big builds). Omit timeout only for processes that should run indefinitely (servers, daemons). If the timeout elapses, you get a terminal ID and can check output later.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -1866,14 +1865,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!isBackground) {
 			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
 			if (cachedTerminal && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed) {
-				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
-				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
-				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
-				// Dispose any previous background notification (e.g. from an earlier
-				// `inputNeeded` race that left an OutputMonitor attached) before reusing
-				// this terminal, so its listeners don't accumulate across invocations.
-				this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
-				return cachedTerminal;
+				// When the shell process has already exited (e.g. `set -e` killed the
+				// login shell on a previous command failure), reusing the terminal would
+				// cause the execute strategy to hit its early-out check and return the
+				// stale exit code instead of running the new command. Discard the dead
+				// terminal and create a fresh one so the next command starts in a live
+				// shell.
+				if (cachedTerminal.instance.exitCode !== undefined) {
+					this._logService.info(`RunInTerminalTool: Cached terminal shell has exited (code=${cachedTerminal.instance.exitCode}), creating a new terminal`);
+					this._sessionTerminalAssociations.delete(chatSessionResource);
+				} else {
+					this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
+					this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
+					this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+					// Dispose any previous background notification (e.g. from an earlier
+					// `inputNeeded` race that left an OutputMonitor attached) before reusing
+					// this terminal, so its listeners don't accumulate across invocations.
+					this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
+					return cachedTerminal;
+				}
 			}
 		}
 
@@ -2218,7 +2228,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				lastInputNeededOutput = currentOutput;
 				lastInputNeededNotificationTime = now;
 				const inputAction = this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false);
-				const message = `[Terminal ${termId} notification: command is waiting for input.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
+				const message = `[Terminal ${termId} notification: command may be waiting for input — assess the output below.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
@@ -2226,7 +2236,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalNeedsInput', "`{0}` needs input", commandName),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "`{0}` may need input", commandName),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
@@ -2282,9 +2292,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		// Clean up all background resources when the terminal is disposed
-		// (e.g. user closes the terminal) to avoid leaking listeners and monitors.
+		// (e.g. user closes the terminal). Send a completion notification so
+		// the agent isn't left waiting for an `onCommandFinished` event that
+		// will never fire — the pty exited before shell integration could
+		// emit the end marker. Output captured here is whatever was buffered
+		// up until disposal.
+		// Capture the execution reference now — by the time onDisposed fires,
+		// onDidDisposeInstance listeners may have already removed it from
+		// _activeExecutions.
+		const executionForDisposal = RunInTerminalTool._activeExecutions.get(termId);
 		store.add(terminalInstance.onDisposed(() => {
+			if (handleSessionCancelled()) {
+				return;
+			}
+			const currentOutput = executionForDisposal?.getOutput() ?? '';
+			const exitCode = terminalInstance.exitCode;
+			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			disposeNotification();
+			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
+			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...sendOptions,
+				queue: ChatRequestQueueKind.Steering,
+				isSystemInitiated: true,
+				systemInitiatedLabel: localize('terminalProcessExited', "`{0}` terminal exited", commandName),
+				terminalExecutionId: termId,
+			}).catch(e => {
+				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);
+			});
 		}));
 
 		// When a checkpoint is restored, requests are removed from the model.

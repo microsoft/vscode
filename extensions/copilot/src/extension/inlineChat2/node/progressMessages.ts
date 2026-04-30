@@ -12,7 +12,7 @@ import { basename } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { renderPromptElement } from '../../prompts/node/base/promptRenderer';
-import { ContextualProgressMessagePrompt, ContextualProgressMessagePromptProps, ProgressMessageScenario, ProgressMessagesPrompt, ProgressMessagesPromptProps } from '../../prompts/node/inline/progressMessages';
+import { ContextualProgressMessagePrompt, ContextualProgressMessagePromptProps, ProgressMessageScenario, ProgressMessagesPrompt, ProgressMessagesPromptProps } from './progressMessagesPrompt';
 
 const MESSAGES_PER_FETCH = 10;
 const REFETCH_THRESHOLD = 3;

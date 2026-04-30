@@ -27,7 +27,7 @@ export interface IChatStatusItemChangeEvent {
 
 export type ChatStatusEntry = {
 	id: string;
-	label: string | { label: string; link: string };
+	label: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
 };

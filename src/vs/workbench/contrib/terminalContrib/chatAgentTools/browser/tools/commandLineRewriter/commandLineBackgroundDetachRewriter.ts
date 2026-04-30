@@ -30,15 +30,28 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	}
 
 	rewrite(options: ICommandLineRewriterOptions): ICommandLineRewriterResult | undefined {
-		if (!options.isBackground) {
-			return undefined;
-		}
-
 		if (!this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses)) {
 			return undefined;
 		}
 
+		// Detach when:
+		//   1. The tool was invoked with mode='async' (isBackground=true), OR
+		//   2. The command line ends with a single trailing `&` (POSIX background operator).
+		// Case (2) catches commands that the agent intended to background even when called
+		// in mode='sync' — without this, the trailing `&` silently produces a SIGHUP'd
+		// process that dies as soon as the tool's shell tears down.
+		const trimmedForCheck = options.commandLine.trimEnd();
+		const endsWithBareBackgroundAmp = /(?:^|[^&])&$/.test(trimmedForCheck);
+		if (!options.isBackground && !endsWithBareBackgroundAmp) {
+			return undefined;
+		}
+
 		if (options.os === OperatingSystem.Windows) {
+			// PowerShell does not have a POSIX-style trailing `&` background operator,
+			// so only rewrite explicit async-mode commands here.
+			if (!options.isBackground) {
+				return undefined;
+			}
 			return this._rewriteForPowerShell(options);
 		}
 

@@ -32,7 +32,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	constructor(
 		readonly owner: string,
 		readonly repo: string,
-		readonly headRef: string,
+		readonly headSha: string,
 		private readonly _fetcher: GitHubPRCIFetcher,
 		private readonly _logService: ILogService,
 	) {
@@ -46,14 +46,14 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 */
 	async refresh(): Promise<void> {
 		try {
-			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headRef, this._checksEtag);
+			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headSha, this._checksEtag);
 			if (response.statusCode === 200 && response.data) {
 				this._checksEtag = response.etag;
 				this._checks.set(response.data, undefined);
 				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
 			}
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}@${this.headRef}:`, err);
+			this._logService.error(`${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}@${this.headSha}:`, err);
 		}
 	}
 

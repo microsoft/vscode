@@ -403,9 +403,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
-		// Stop after extended polling (2 minutes) without notifying user
 		if (_extended) {
-			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes');
+			// Extended polling (2 minutes) expired while the process was still
+			// running. Rather than silently cancelling, signal that input may be
+			// needed so the agent sees the current output and can decide how to
+			// proceed (e.g. answer an unrecognised interactive prompt).
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes, signaling potential input needed');
+			this._onDidDetectInputNeeded.fire();
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
@@ -604,6 +608,18 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		/password:? +$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
+		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with
+		// '? ' at the start of the line and end with a distinctive chevron character
+		// followed by optional trailing whitespace where the cursor is awaiting input.
+		// Anchoring the '?' to the start of the line (after optional whitespace/ANSI
+		// escapes) avoids false positives from normal output that contains both a '?'
+		// allow-any-unicode-next-line
+		// and a chevron (e.g. "What happened? ›").
+		// Examples:
+		//   "? Do you want to install jsdom? <chevron>"  (prompts)
+		//   "? Pick a color <chevron> "                  (enquirer)
+		// allow-any-unicode-next-line
+		/^(?:\s|\x1b\[[0-9;]*m)*\?.*[›❯▸▶]\s*$/,
 	].some(e => e.test(cursorLine));
 }
 

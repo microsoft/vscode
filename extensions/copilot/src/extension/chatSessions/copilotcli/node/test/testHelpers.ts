@@ -48,6 +48,9 @@ export class MockCliSdkSession {
 	clearCustomAgent() {
 		return;
 	}
+	setPermissionsRequired(_required: boolean): void {
+		// no-op in tests
+	}
 }
 
 export class MockSkillLocations implements ICopilotCLISkills {

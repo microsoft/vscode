@@ -39,6 +39,7 @@
 	align-items: center;
 	-webkit-user-select: none;
 	user-select: none;
+	gap: 4px;
 }
 
 .ai-customization-toolbar .ai-customization-header:not(.collapsed) {
@@ -79,6 +80,40 @@
 	overflow: hidden;
 	min-width: 0;
 	flex: 1;
+}
+
+.ai-customization-toolbar .ai-customization-header-actions {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
+.ai-customization-toolbar .ai-customization-overview-button.monaco-button {
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	opacity: 0.85;
+}
+
+.ai-customization-toolbar .ai-customization-overview-button.monaco-button:hover,
+.ai-customization-toolbar .ai-customization-overview-button.monaco-button:focus {
+	color: var(--vscode-agentsPanel-foreground, var(--vscode-foreground));
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.ai-customization-toolbar .ai-customization-overview-button.monaco-button .codicon {
+	margin: 0;
+	font-size: 16px;
 }
 
 /* Button needs relative positioning for counts overlay */

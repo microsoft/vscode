@@ -310,20 +310,6 @@ if (import.meta.main) {
 						}
 					}
 
-					// Run copilot pre-commit checks if copilot files are staged
-					if (some.some(f => f.startsWith('extensions/copilot/'))) {
-						console.log('Running copilot pre-commit checks...');
-						const result = cp.spawnSync('npx', ['lint-staged'], {
-							cwd: path.join(process.cwd(), 'extensions', 'copilot'),
-							stdio: 'inherit',
-							shell: true,
-						});
-						if (result.status !== 0) {
-							console.error('Copilot pre-commit checks failed.');
-							process.exit(1);
-						}
-					}
-
 					console.log('Reading git index versions...');
 
 					createGitIndexVinyls(some)

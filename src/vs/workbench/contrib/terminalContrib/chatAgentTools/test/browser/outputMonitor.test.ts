@@ -233,6 +233,25 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('extended timeout with isActive fires onDidDetectInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			// Simulate a process that stays active with output that doesn't
+			// match any input-required pattern — the extended timeout should
+			// fire onDidDetectInputNeeded so the agent can assess the output.
+			execution.isActive = async () => true;
+			execution.getOutput = () => 'Some unrecognised prompt waiting for input';
+
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire on extended timeout with active process');
+			assert.strictEqual(monitor.pollingResult?.state, OutputMonitorState.Cancelled);
+		});
+	});
+
 	test('non-interactive help on the last line stops monitoring before custom polling', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.getOutput = () => 'Build complete successfully\npress h + enter to show help';
@@ -352,6 +371,44 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('version: (1.0.0) '), true);
 			assert.strictEqual(detectsInputRequiredPattern('entry point: (index.js) '), true);
 			assert.strictEqual(detectsInputRequiredPattern('license: (ISC) '), true);
+		});
+
+		test('detects chevron prompts from prompts/enquirer/inquirer libraries', () => {
+			// vitest / npm-style "prompts" library uses U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? ›'), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › '), true);
+			// inquirer / enquirer uses U+276F HEAVY RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯'), true);
+			// Other chevron variants prefixed with '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Project name ▸ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Choose ▶ '), true);
+
+			// No match if the user has already typed a response after the chevron
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › yes'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ red'), false);
+
+			// No match for chevrons in normal output without a leading '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('  feature/foo ❯ main'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('Project name ▸ '), false);
+
+			// No match when '?' appears mid-line (not as a prompt prefix)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('What happened? ›'), false);
+
+			// Match when prompt is prefixed with ANSI escape codes (colored output)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('\x1b[32m? Choose a framework \x1b[0m›'), true);
 		});
 
 		test('detects trailing questions', () => {

@@ -37,14 +37,26 @@ export interface ExternalIngestUpdateIndexResult {
 	readonly updatedFileCount: number;
 }
 
+export interface ExternalIngestFileSet {
+	readonly files: readonly ExternalIngestFile[];
+	readonly checkpoint: string;
+}
+
+export function computeCheckpointHash(files: readonly { readonly docSha: Uint8Array }[]): string {
+	const hash = crypto.createHash('sha1');
+	for (const file of files) {
+		hash.update(file.docSha);
+	}
+	return hash.digest().toString('base64');
+}
+
 /**
  * Interface for the external ingest client that handles indexing and searching files.
  */
 export interface IExternalIngestClient {
 	updateIndex(
 		filesetName: string,
-		currentCheckpoint: string | undefined,
-		allFiles: AsyncIterable<ExternalIngestFile>,
+		fileSet: ExternalIngestFileSet,
 		callTracker: CallTracker,
 		token: CancellationToken,
 		onProgress?: (message: string) => void
@@ -160,13 +172,15 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 		throw new ExternalIngestRequestError(`${method} ${pathId} failed with status ${response.status}`, response);
 	}
 
-	async updateIndex(filesetName: string, currentCheckpoint: string | undefined, allFiles: AsyncIterable<ExternalIngestFile>, inCallTracker: CallTracker, token: CancellationToken, onProgress?: (message: string) => void): Promise<Result<ExternalIngestUpdateIndexResult, Error>> {
+	async updateIndex(filesetName: string, fileSet: ExternalIngestFileSet, inCallTracker: CallTracker, token: CancellationToken, onProgress?: (message: string) => void): Promise<Result<ExternalIngestUpdateIndexResult, Error>> {
 		const callTracker = inCallTracker.add('ExternalIngestClient::updateIndex');
 		const authToken = await raceCancellationError(this.getAuthToken(), token);
 		if (!authToken) {
 			this.logService.warn('ExternalIngestClient::updateIndex(): No auth token available');
 			return Result.error(new Error('No auth token available'));
 		}
+
+		const { files: allFiles, checkpoint: newCheckpoint } = fileSet;
 
 		// Initial setup
 		const mappings = new Map</* sha */ string, ExternalIngestFile>();
@@ -179,7 +193,7 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 		const ingestableCheckStart = performance.now();
 
 		const allDocShas: Uint8Array[] = [];
-		for await (const file of allFiles) {
+		for (const file of allFiles) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -196,19 +210,6 @@ export class ExternalIngestClient extends Disposable implements IExternalIngestC
 		// Coded symbols used during finalization of the fileset.
 		// TODO: this range should be the entire fileset, right?
 		const codedSymbols = ingestUtils.createCodedSymbols(allDocShas, 0, 1).map((cs) => Buffer.from(cs).toString('base64'));
-
-		// A hash of all docsha hashes. This emulates a differing git commit.
-		const checkpointHash = crypto.createHash('sha1');
-		for (const docSha of allDocShas) {
-			checkpointHash.update(docSha);
-
-		}
-		const newCheckpoint = checkpointHash.digest().toString('base64');
-
-		if (newCheckpoint === currentCheckpoint) {
-			this.logService.info('ExternalIngestClient::updateIndex(): Checkpoint matches current checkpoint, skipping ingest.');
-			return Result.ok({ checkpoint: newCheckpoint, totalFileCount: mappings.size, updatedFileCount: 0 });
-		}
 
 		// Retry loop for 409 Conflict: per the external indexing spec, if any ingestion
 		// endpoint returns 409, discard the ingest_id and restart from CreateCheckpoint.
