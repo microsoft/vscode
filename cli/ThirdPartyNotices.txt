@@ -5933,7 +5933,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.75 - Apache-2.0
+openssl 0.10.78 - Apache-2.0
 https://github.com/rust-openssl/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -6012,7 +6012,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.111 - MIT
+openssl-sys 0.9.114 - MIT
 https://github.com/rust-openssl/rust-openssl
 
 The MIT License (MIT)
@@ -7753,6 +7753,7 @@ https://github.com/r-efi/r-efi
 
 rand 0.7.3 - MIT OR Apache-2.0
 rand 0.8.5 - MIT OR Apache-2.0
+rand 0.9.3 - MIT OR Apache-2.0
 https://github.com/rust-random/rand
 
 Copyright 2018 Developers of the Rand project
@@ -7787,6 +7788,7 @@ DEALINGS IN THE SOFTWARE.
 
 rand_chacha 0.2.2 - MIT OR Apache-2.0
 rand_chacha 0.3.1 - MIT OR Apache-2.0
+rand_chacha 0.9.0 - MIT OR Apache-2.0
 https://github.com/rust-random/rand
 
 Copyright 2018 Developers of the Rand project
@@ -7821,6 +7823,7 @@ DEALINGS IN THE SOFTWARE.
 
 rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
+rand_core 0.9.5 - MIT OR Apache-2.0
 https://github.com/rust-random/rand_core
 
 Copyright (c) 2018-2026 The Rand Project Developers
@@ -9270,6 +9273,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`ascon‑hash256`]: ./ascon-hash256
+[`ascon‑xof128`]: ./ascon-xof128
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
@@ -9293,7 +9297,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
-[`turbo-shake`]: ./turbo-shake
+[`turboshake`]: ./turboshake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9315,7 +9319,8 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (algorithms)
 
-[Ascon]: https://ascon.iaik.tugraz.at
+[Ascon-Hash256]: https://doi.org/10.6028/NIST.SP.800-232.ipd
+[Ascon-Xof128]: https://doi.org/10.6028/NIST.SP.800-232.ipd
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
@@ -9370,6 +9375,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`ascon‑hash256`]: ./ascon-hash256
+[`ascon‑xof128`]: ./ascon-xof128
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
@@ -9393,7 +9399,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
-[`turbo-shake`]: ./turbo-shake
+[`turboshake`]: ./turboshake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9415,7 +9421,8 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (algorithms)
 
-[Ascon]: https://ascon.iaik.tugraz.at
+[Ascon-Hash256]: https://doi.org/10.6028/NIST.SP.800-232.ipd
+[Ascon-Xof128]: https://doi.org/10.6028/NIST.SP.800-232.ipd
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2

@@ -22,6 +22,18 @@ export type RootAction =
 	| RootConfigChangedAction
 	;
 
+/** Union of root actions that clients may dispatch. */
+export type ClientRootAction =
+	| RootConfigChangedAction
+	;
+
+/** Union of root actions that only the server may produce. */
+export type ServerRootAction =
+	| RootAgentsChangedAction
+	| RootActiveSessionsChangedAction
+	| RootTerminalsChangedAction
+	;
+
 /** Union of all session-scoped actions. */
 export type SessionAction =
 	| SessionReadyAction

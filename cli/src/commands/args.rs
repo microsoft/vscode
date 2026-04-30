@@ -186,9 +186,9 @@ pub enum Commands {
 	#[clap(hide = true)]
 	CommandShell(CommandShellArgs),
 
-	/// Runs a local agent host server.
-	#[clap(name = "agent-host")]
-	AgentHost(AgentHostArgs),
+	/// Manage agent host sessions.
+	#[clap(name = "agent")]
+	Agent(AgentArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -251,12 +251,101 @@ pub struct AgentHostArgs {
 	/// Run without a connection token. Only use this if the connection is secured by other means.
 	#[clap(long)]
 	pub without_connection_token: bool,
-	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
-	#[clap(long)]
-	pub accept_server_license_terms: bool,
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+
+	/// Expose the agent host over a dev tunnel.
+	#[clap(long)]
+	pub tunnel: bool,
+	/// Sets the machine name for the tunnel.
+	#[clap(long)]
+	pub name: Option<String>,
+	/// Randomly name the machine for the tunnel.
+	#[clap(long)]
+	pub random_name: bool,
+
+	/// Optional details to connect to an existing tunnel.
+	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
+	pub existing_tunnel: ExistingTunnelArgs,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentArgs {
+	#[clap(subcommand)]
+	pub subcommand: Option<AgentSubcommand>,
+
+	/// Agent host arguments used when no subcommand is given.
+	#[clap(flatten)]
+	pub host_args: AgentHostArgs,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSubcommand {
+	/// Start a local agent host server.
+	Host(AgentHostArgs),
+
+	/// List active sessions on a running agent host.
+	Ps(AgentPsArgs),
+
+	/// Cancel the active turn of a session.
+	Stop(AgentStopArgs),
+
+	/// Forcefully kill the running agent host process tree.
+	Kill,
+
+	/// Stream live session events.
+	Logs(AgentLogsArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentPsArgs {
+	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+
+	/// Output results as JSON instead of a human-readable table.
+	#[clap(long)]
+	pub json: bool,
+
+	/// Show all sessions, including idle and archived ones.
+	#[clap(long, short)]
+	pub all: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentStopArgs {
+	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentLogsArgs {
+	/// Session URI to stream events for (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

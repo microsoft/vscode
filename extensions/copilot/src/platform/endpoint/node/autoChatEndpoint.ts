@@ -105,14 +105,16 @@ function calculateAutoModelInfo(endpoint: IChatEndpoint, sessionToken: string, d
 		};
 	}
 	// Calculate the multiplier including the discount percent, rounding to two decimal places
-	const newMultiplier = Math.round((endpoint.multiplier ?? 0) * (1 - discountPercent) * 100) / 100;
+	const newMultiplier = endpoint.multiplier !== undefined
+		? Math.round(endpoint.multiplier * (1 - discountPercent) * 100) / 100
+		: undefined;
 	const newModelInfo: IChatModelInformation = {
 		...originalModelInfo,
 		warning_messages: undefined,
 		model_picker_enabled: true,
 		info_messages: undefined,
 		billing: {
-			is_premium: originalModelInfo.billing?.is_premium ?? false,
+			is_premium: originalModelInfo.billing?.is_premium,
 			multiplier: newMultiplier,
 			restricted_to: originalModelInfo.billing?.restricted_to
 		},

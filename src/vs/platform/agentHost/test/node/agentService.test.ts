@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -23,14 +25,16 @@ import { SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfir
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
-import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
+import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
- * {@link mapSessionEvents}, and returns the result suitable for setting
- * on {@link MockAgent.sessionMessages}. This tests the full pipeline:
- * SDK events → mapSessionEvents → _buildTurnsFromMessages → Turn[].
+ * {@link mapSessionEventsToHistoryRecords}, and returns the result
+ * suitable for setting on {@link MockAgent.sessionMessages}. Tests the
+ * full pipeline: SDK events → IHistoryRecord → buildTurnsFromHistory →
+ * Turn[].
  *
  * Fixture files live in `test-cases/` and are sanitized copies of real
  * `events.jsonl` files from `~/.copilot/session-state/`.
@@ -46,7 +50,7 @@ async function loadFixtureMessages(fixtureName: string, session: URI) {
 	const sep = srcFile.includes('\\') ? '\\' : '/';
 	const raw = readFileSync(`${fixtureDir}${sep}test-cases${sep}${fixtureName}`, 'utf-8');
 	const events: ISessionEvent[] = raw.trim().split('\n').map(line => JSON.parse(line));
-	return mapSessionEvents(session, undefined, events);
+	return mapSessionEventsToHistoryRecords(session, undefined, events);
 }
 
 suite('AgentService (node dispatcher)', () => {
@@ -68,6 +72,7 @@ suite('AgentService (node dispatcher)', () => {
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
+
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -112,12 +117,58 @@ suite('AgentService (node dispatcher)', () => {
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
-			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
+			copilotAgent.fireProgress({
+				kind: 'action', session,
+				action: { type: ActionType.SessionResponsePart, session: session.toString(), turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
+			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 	});
 
 	// ---- createSession --------------------------------------------------
+
+	suite('dispatchAction', () => {
+
+		test('applies and persists root config changes from clients', async () => {
+			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
+			try {
+				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				svc.registerProvider(agent);
+
+				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
+				svc.dispatchAction({
+					type: ActionType.RootConfigChanged,
+					config: { customizations: [customization] },
+				}, 'test-client', 1);
+
+				let persisted = false;
+				for (let attempt = 0; attempt < 20; attempt++) {
+					try {
+						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
+						assert.deepStrictEqual(
+							parsed.customizations,
+							[customization],
+						);
+						persisted = true;
+						break;
+					} catch {
+						// Wait for the serialized root-config write to complete.
+					}
+					if (attempt === 19) {
+						break;
+					}
+					await new Promise(resolve => setTimeout(resolve, 5));
+				}
+
+				assert.ok(persisted, 'should persist the root config change');
+			} finally {
+				rmSync(tempDir.fsPath, { recursive: true, force: true });
+			}
+		});
+	});
 
 	suite('createSession', () => {
 
@@ -289,7 +340,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
+				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
+				branchExists: async () => false,
+				hasUncommittedChanges: async () => false,
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
@@ -328,7 +382,10 @@ suite('AgentService (node dispatcher)', () => {
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
 				addWorktree: async () => { },
+				addExistingWorktree: async () => { },
 				removeWorktree: async () => { },
+				branchExists: async () => false,
+				hasUncommittedChanges: async () => false,
 				getSessionGitState: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,

@@ -224,6 +224,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			model: agent.model,
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
+			enabled: agent.enabled,
 		};
 	}
 
@@ -271,12 +272,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		return {
 			uri: hookFile.uri,
 			sessionTypes: hookFile.sessionTypes,
+			source: this._toChatResourceSource(hookFile.storage),
+			extensionId: hookFile.extension?.identifier.value,
+			pluginUri: hookFile.pluginUri,
 		};
 	}
 
 	private _toPluginDto(plugin: IAgentPlugin): IPluginDto {
 		return {
-			uri: plugin.uri
+			uri: plugin.uri,
 		};
 	}
 
@@ -357,9 +361,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						chatSessionContext,
 					}, token);
 
-					// Suppress expected operational errors (rate limiting, quota exceeded) from error telemetry
-					// to avoid noise in error reporting. See https://github.com/microsoft/vscode/issues/311582
-					if (rpcResult?.errorCallstack && !rpcResult.errorDetails?.isRateLimited && !rpcResult.errorDetails?.isQuotaExceeded) {
+					// Suppress expected operational errors (rate limiting, quota exceeded, and other
+					// user-actionable conditions flagged via `isExpectedError`) from error telemetry
+					// to avoid noise in error reporting.
+					// See https://github.com/microsoft/vscode/issues/311582 (rate-limited precedent),
+					// https://github.com/microsoft/vscode/issues/311583 (spawn git ENOENT),
+					// https://github.com/microsoft/vscode/issues/311584 (network connectivity),
+					// https://github.com/microsoft/vscode/issues/311585 (EPERM/permission errors),
+					// https://github.com/microsoft/vscode/issues/311586 (UNC host access),
+					// https://github.com/microsoft/vscode/issues/311587 (cloud agent not enabled).
+					if (rpcResult?.errorCallstack && !rpcResult.errorDetails?.isRateLimited && !rpcResult.errorDetails?.isQuotaExceeded && !rpcResult.errorDetails?.isExpectedError) {
 						type ChatAgentErrorEvent = { callstack: string; msg: string; errorName: string; agent: string; agentExtensionId: string };
 						type ChatAgentErrorClassification = {
 							owner: 'bryanchen-d';
@@ -746,8 +757,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					groupKey: item.groupKey,
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
-					extensionId: undefined,
-					pluginUri: undefined
+					extensionId: item.extensionId,
+					pluginUri: item.pluginUri ? URI.revive(item.pluginUri) : undefined,
+					userInvocable: item.userInvocable,
 				}));
 			},
 		};

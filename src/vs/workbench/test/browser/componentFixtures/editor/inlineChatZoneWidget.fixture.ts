@@ -25,6 +25,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -63,6 +64,14 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InlineChatZoneWidget } from '../../../../contrib/inlineChat/browser/inlineChatZoneWidget.js';
+import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { ICustomizationHarnessService } from '../../../../contrib/chat/common/customizationHarnessService.js';
+
+// Side-effect import: registers InputEditorDecorations into ChatWidget.CONTRIBS
+// so the placeholder decoration is rendered.
+import '../../../../contrib/chat/browser/widget/input/editor/chatInputEditorContrib.js';
 
 // CSS imports
 import '../../../../contrib/inlineChat/browser/media/inlineChat.css';
@@ -203,9 +212,11 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
 				readonly onDidReceiveTip = Event.None;
+				override resetSession() { }
 			}());
 			reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 				override readonly onDidAddEvent = Event.None;
+				override getEvents() { return []; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
@@ -222,10 +233,26 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly onDidChangeSessionOptions = Event.None;
 				override readonly onDidChangeOptionGroups = Event.None;
 				override readonly onDidChangeAvailability = Event.None;
+				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeContentProviderSchemes = Event.None;
+				override readonly onDidChangeItemsProviders = Event.None;
+				override readonly onDidChangeSessionItems = Event.None;
+				override readonly onDidCommitSession = Event.None;
+				override readonly onDidChangeInProgress = Event.None;
+				override sessionSupportsFork() { return false; }
+				override supportsDelegationForSessionType() { return false; }
+				override getOptionGroupsForSessionType() { return undefined; }
+				override getCustomAgentTargetForSessionType() { return Target.Undefined; }
+				override requiresCustomModelsForSessionType() { return false; }
+				override getChatSessionContribution() { return undefined; }
+				override getCapabilitiesForSessionType() { return undefined; }
+				override getSessionOptions() { return undefined; }
+				override hasCustomizationsProvider() { return false; }
 			}());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
 				override getLanguageModelIds() { return []; }
+				override getVendors() { return []; }
 			}());
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
 				override readonly onDidChangeTools = Event.None;
@@ -262,6 +289,17 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 				override getHistory() { return []; }
 				override readonly onDidChangeHistory = Event.None;
+			}());
+			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
+				override editingSessionsObs = observableValue('editingSessionsObs', []);
+			}());
+			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
+				override readonly onDidChange = Event.None;
+				override getActiveNotification() { return undefined; }
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+				override readonly onDidChangeCustomAgents = Event.None;
 			}());
 			reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override readonly onDidChangeDecorations = Event.None; }());
@@ -361,6 +399,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	zoneWidget.domNode.classList.add('inline-chat-2');
 
 	zoneWidget.show(new Position(10, 1));
+
+	const dummyModel = instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false });
+	zoneWidget.widget.chatWidget.setModel(dummyModel);
+	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 
 	// Force a relayout after the initial show so that the chat widget's
 	// contentHeight (which includes the toolbar row rendered below the input)

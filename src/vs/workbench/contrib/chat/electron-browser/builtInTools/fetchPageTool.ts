@@ -20,7 +20,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
-import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { AgentNetworkFilterFetchWebToolName, IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -290,7 +290,7 @@ export class FetchWebPageTool implements IToolImpl {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
+					if (!this._agentNetworkFilterService.isUriAllowed(uriObj, AgentNetworkFilterFetchWebToolName)) {
 						blockedUris.add(url);
 					} else {
 						webUris.set(url, uriObj);

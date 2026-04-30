@@ -137,20 +137,15 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
 	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
 	if (options.modelCapabilities?.enableThinking) {
-		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		const thinkingExplicitlyDisabled = configuredBudget === 0;
-		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
+		const hardcodedBudget = 16000;
+		if (endpoint.supportsAdaptiveThinking) {
 			thinkingConfig = { type: 'adaptive', display: 'summarized' };
-		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
+		} else if (endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
-			const normalizedBudget = (configuredBudget && configuredBudget > 0)
-				? (configuredBudget < minBudget ? minBudget : configuredBudget)
-				: undefined;
+			const normalizedBudget = hardcodedBudget < minBudget ? minBudget : hardcodedBudget;
 			const maxBudget = endpoint.maxThinkingBudget ?? 32000;
-			const thinkingBudget = normalizedBudget
-				? Math.min(maxBudget, maxTokens - 1, normalizedBudget)
-				: undefined;
+			const thinkingBudget = Math.min(maxBudget, maxTokens - 1, normalizedBudget);
 			if (thinkingBudget) {
 				thinkingConfig = { type: 'enabled', budget_tokens: thinkingBudget };
 			}
@@ -659,7 +654,13 @@ export async function processResponseFromMessagesEndpoint(
 						telemetryDataWithUsage = telemetryData.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
-							totalTokens: completion.usage.total_tokens
+							totalTokens: completion.usage.total_tokens,
+							...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+							...(completion.usage.completion_tokens_details && {
+								reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+								acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+								rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+							}),
 						});
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -998,6 +999,7 @@ export class AnthropicMessagesProcessor {
 						total_tokens: computedPromptTokens + this.outputTokens,
 						prompt_tokens_details: {
 							cached_tokens: this.cacheReadTokens,
+							cache_creation_input_tokens: this.cacheCreationTokens,
 						},
 						completion_tokens_details: {
 							reasoning_tokens: 0,

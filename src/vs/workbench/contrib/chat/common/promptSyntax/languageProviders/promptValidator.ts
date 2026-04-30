@@ -852,7 +852,7 @@ export class PromptValidator {
 		}
 
 		// Collect available agent names
-		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const agents = (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
 		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
 

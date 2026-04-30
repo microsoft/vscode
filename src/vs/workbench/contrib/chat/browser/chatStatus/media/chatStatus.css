@@ -6,87 +6,158 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	margin-top: 4px;
-	margin-bottom: 4px;
-	max-width: 340px;
+	padding: 14px;
+	min-width: 320px;
+	max-width: 360px;
 }
 
 .chat-status-bar-entry-tooltip hr {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-top: 14px;
+	margin-bottom: 14px;
 }
 
-/* Tab Bar */
+/* Collapsible Quick Settings */
 
-.chat-status-bar-entry-tooltip .tab-bar {
+.chat-status-bar-entry-tooltip .collapsible-header {
 	display: flex;
-	gap: 0;
-	margin-bottom: 8px;
-	border-bottom: 1px solid var(--vscode-editorWidget-border);
-}
-
-.chat-status-bar-entry-tooltip .tab-bar .tab {
-	padding: 4px 12px;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	margin-top: 8px;
+	padding: 6px 0 6px 0;
 	border: none;
+	border-top: 1px solid var(--vscode-editorWidget-border);
 	background: none;
 	cursor: pointer;
-	font-size: inherit;
+	font-size: 13px;
 	font-family: inherit;
-	color: var(--vscode-descriptionForeground);
-	border-bottom: 2px solid transparent;
-	margin-bottom: -1px;
-}
-
-.chat-status-bar-entry-tooltip .tab-bar .tab:hover {
-	color: var(--vscode-foreground);
-}
-
-.chat-status-bar-entry-tooltip .tab-bar .tab.active {
-	color: var(--vscode-foreground);
-	border-bottom-color: var(--vscode-focusBorder);
 	font-weight: 600;
+	color: var(--vscode-foreground);
 }
 
-.chat-status-bar-entry-tooltip .tab-bar .tab:focus-visible {
+.chat-status-bar-entry-tooltip .collapsible-header.no-border {
+	border-top: none;
+	margin-top: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header:focus {
+	outline: none;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-header:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-/* Tab Content — grid overlay keeps height stable across tab switches */
+.chat-status-bar-entry-tooltip .collapsible-chevron {
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+}
 
-.chat-status-bar-entry-tooltip .tab-content-container {
+.chat-status-bar-entry-tooltip .collapsible-label {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-status {
+	margin-left: auto;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .section-description {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .section-description .monaco-link {
+	white-space: nowrap;
+}
+
+.chat-status-bar-entry-tooltip .section-detail {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content {
 	display: grid;
+	grid-template-rows: 1fr;
+	transition: grid-template-rows 200ms ease;
 }
 
-.chat-status-bar-entry-tooltip .tab-content-container > .tab-content {
-	grid-area: 1 / 1;
-	visibility: hidden;
-	pointer-events: none;
+.chat-status-bar-entry-tooltip .collapsible-content.collapsed {
+	grid-template-rows: 0fr;
 }
 
-.chat-status-bar-entry-tooltip .tab-content-container > .tab-content.active {
-	visibility: visible;
-	pointer-events: auto;
+.chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
+	overflow-y: clip;
+	overflow-x: visible;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 10px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content.collapsed > .collapsible-inner {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner > hr {
+	margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-status-bar-entry-tooltip .collapsible-content {
+		transition: none;
+	}
 }
 
 .chat-status-bar-entry-tooltip div.header {
 	display: flex;
 	align-items: center;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
-	font-weight: 600;
+	gap: 8px;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	line-height: 18px;
+	padding-bottom: 12px;
+	margin-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+	font-weight: 400;
+}
+
+.chat-status-bar-entry-tooltip div.header .header-label {
+	flex-grow: 1;
 }
 
 .chat-status-bar-entry-tooltip div.header .monaco-action-bar {
-	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip div.header .header-cta-button {
+	width: auto;
+	padding: 4px 12px;
+	flex-shrink: 0;
+	margin: 0;
 }
 
 .chat-status-bar-entry-tooltip div.description {
-	font-size: 11px;
+	font-size: 12px;
+	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 	display: flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 }
 
 .chat-status-bar-entry-tooltip div.description.terms {
@@ -98,26 +169,21 @@
 	margin-bottom: 5px;
 }
 
-/* Setup for New User */
-
-.chat-status-bar-entry-tooltip .setup .chat-feature-container {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	padding: 4px;
-}
-
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-bottom: 8px;
-	padding: 10px 12px;
-	border: 1px solid var(--vscode-editorWidget-border);
-	border-radius: 8px;
+	margin-bottom: 14px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.included {
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
-	font-weight: 600;
+	font-size: 13px;
+	line-height: 18px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
 }
 
@@ -132,96 +198,40 @@
 .chat-status-bar-entry-tooltip .quota-indicator .quota-percentage {
 	display: flex;
 	align-items: baseline;
-	gap: 2px;
+	gap: 4px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value {
-	font-size: 18px;
+	font-size: 20px;
+	line-height: 24px;
 	font-weight: 700;
+	color: var(--vscode-foreground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value-suffix {
 	font-size: 12px;
+	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
 	font-size: 12px;
+	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
 	width: 100%;
-	height: 6px;
-	background-color: var(--vscode-gauge-background);
-	border-radius: 6px;
-	border: 1px solid var(--vscode-gauge-border);
-	margin: 4px 0;
+	height: 4px;
+	background-color: var(--vscode-editorWidget-border);
+	border-radius: 4px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
 	height: 100%;
-	background-color: var(--vscode-gauge-foreground);
-	border-radius: 6px;
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning {
-	border-color: var(--vscode-gauge-warningForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
-	background-color: var(--vscode-gauge-warningBackground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-warningForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-percentage .quota-value {
-	color: var(--vscode-gauge-warningForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.info {
-	border-color: var(--vscode-gauge-foreground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.info .quota-percentage .quota-value {
-	color: var(--vscode-gauge-foreground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error {
-	border-color: var(--vscode-gauge-errorForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
-	background-color: var(--vscode-gauge-errorBackground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-errorForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error .quota-percentage .quota-value {
-	color: var(--vscode-gauge-errorForeground);
-}
-
-/* Dimmed state when quota limit is fully exhausted */
-
-.chat-status-bar-entry-tooltip .quota-indicator.dimmed {
-	border-color: var(--vscode-editorWidget-border);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-percentage .quota-value {
-	color: var(--vscode-disabledForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar {
-	background-color: var(--vscode-gauge-background);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar .quota-bit {
-	background-color: var(--vscode-disabledForeground);
+	background-color: var(--vscode-focusBorder);
+	border-radius: 4px;
 }
 
 /* Quota Callout */
@@ -236,50 +246,38 @@
 	margin-bottom: 8px;
 	font-size: 12px;
 	line-height: 1.4;
+	color: var(--vscode-foreground);
 }
 
 .chat-status-bar-entry-tooltip .quota-callout .callout-icon {
 	flex-shrink: 0;
-}
-
-.chat-status-bar-entry-tooltip .quota-callout.warning {
-	border-color: var(--vscode-gauge-warningForeground);
-	color: var(--vscode-foreground);
-}
-
-.chat-status-bar-entry-tooltip .quota-callout.warning .callout-icon {
-	color: var(--vscode-gauge-warningForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-callout.error {
-	border-color: var(--vscode-gauge-errorForeground);
-	color: var(--vscode-foreground);
-}
-
-.chat-status-bar-entry-tooltip .quota-callout.error .callout-icon {
-	color: var(--vscode-gauge-errorForeground);
+	display: flex;
+	align-items: center;
+	height: 1.4em;
 }
 
 .chat-status-bar-entry-tooltip .quota-callout.info {
-	border-color: var(--vscode-editorWidget-border);
-	color: var(--vscode-descriptionForeground);
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 }
 
 .chat-status-bar-entry-tooltip .quota-callout.info .callout-icon {
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-focusBorder);
 }
+
 
 /* Settings */
 
 .chat-status-bar-entry-tooltip .settings {
 	display: flex;
 	flex-direction: column;
-	gap: 5px;
+	gap: 6px;
 }
 
 .chat-status-bar-entry-tooltip .settings .setting {
 	display: flex;
 	align-items: center;
+	min-height: 20px;
 }
 
 .chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
@@ -296,13 +294,19 @@
 	color: var(--vscode-disabledForeground);
 }
 
+.chat-status-bar-entry-tooltip .settings .setting .setting-overridden {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
 /* Model Selection */
 
 .chat-status-bar-entry-tooltip .model-selection {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 6px 0 0 0;
+	min-height: 20px;
 }
 
 .chat-status-bar-entry-tooltip .model-selection .model-text {
@@ -317,13 +321,29 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* SelectBox containers */
+
+.chat-status-bar-entry-tooltip .model-select-container,
+.chat-status-bar-entry-tooltip .suggest-option-select-container {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .model-select-container .monaco-select-box,
+.chat-status-bar-entry-tooltip .suggest-option-select-container .monaco-select-box {
+	width: auto;
+	padding: 2px 23px 2px 8px;
+	height: 22px;
+	font-size: 12px;
+}
+
 /* Provider Options */
 
 .chat-status-bar-entry-tooltip .suggest-option-selection {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 6px 0 0 0;
+	min-height: 20px;
 }
 
 .chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-text {
@@ -348,12 +368,10 @@
 /* Snoozing */
 
 .chat-status-bar-entry-tooltip .snooze-completions {
-	margin-top: 1px;
 	display: flex;
-	flex-direction: row;
-	flex-wrap: nowrap;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
+	min-height: 20px;
 }
 
 .chat-status-bar-entry-tooltip .snooze-completions .monaco-button {
@@ -391,6 +409,12 @@
 	font-size: 11px;
 	overflow: hidden;
 	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .header {
+	border-bottom: none;
+	padding-bottom: 0;
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip .contribution .body .description,

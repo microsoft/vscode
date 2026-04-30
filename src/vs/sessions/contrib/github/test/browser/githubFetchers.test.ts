@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubApiClient, GitHubApiError } from '../../browser/githubApiClient.js';
+import { GitHubApiClient, GitHubApiError, IGitHubApiRequestOptions } from '../../browser/githubApiClient.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReview, IGitHubPullRequest, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient {
@@ -29,12 +29,12 @@ class MockApiClient {
 		this._nextResponse = undefined;
 	}
 
-	async request<T>(_method: string, _path: string, _callSite: string, _body?: unknown): Promise<T> {
-		this.requestCalls.push({ method: _method, path: _path, body: _body });
+	async request<T>(_method: string, _path: string, _callSite: string, _options?: IGitHubApiRequestOptions): Promise<{ data: T | undefined; statusCode: number; etag?: string }> {
+		this.requestCalls.push({ method: _method, path: _path, body: _options?.data });
 		if (this._nextError) {
 			throw this._nextError;
 		}
-		return this._nextResponse as T;
+		return { data: this._nextResponse as T, statusCode: 200 };
 	}
 
 	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -72,7 +72,7 @@ suite('GitHubRepositoryFetcher', () => {
 		});
 
 		const repo = await fetcher.getRepository('microsoft', 'vscode');
-		assert.deepStrictEqual(repo, {
+		assert.deepStrictEqual(repo.data, {
 			owner: 'microsoft',
 			name: 'vscode',
 			fullName: 'microsoft/vscode',
@@ -94,7 +94,7 @@ suite('GitHubRepositoryFetcher', () => {
 		});
 
 		const repo = await fetcher.getRepository('owner', 'test');
-		assert.strictEqual(repo.description, '');
+		assert.strictEqual(repo.data?.description, '');
 	});
 
 	test('getRepository propagates API errors', async () => {
@@ -125,25 +125,25 @@ suite('GitHubPRFetcher', () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Open);
-		assert.strictEqual(pr.isDraft, false);
-		assert.strictEqual(pr.number, 1);
-		assert.strictEqual(pr.title, 'Test PR');
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Open);
+		assert.strictEqual(pr.data?.isDraft, false);
+		assert.strictEqual(pr.data?.number, 1);
+		assert.strictEqual(pr.data?.title, 'Test PR');
 	});
 
 	test('getPullRequest maps merged PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: true, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Merged);
-		assert.ok(pr.mergedAt);
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Merged);
+		assert.ok(pr.data?.mergedAt);
 	});
 
 	test('getPullRequest maps closed PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'closed', merged: false, draft: false }));
 
 		const pr = await fetcher.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(pr.state, GitHubPullRequestState.Closed);
+		assert.strictEqual(pr.data?.state, GitHubPullRequestState.Closed);
 	});
 
 	test('getReviewThreads returns GraphQL thread metadata', async () => {
@@ -205,7 +205,7 @@ suite('GitHubPRFetcher', () => {
 		]);
 
 		const reviews = await fetcher.getReviews('owner', 'repo', 1);
-		assert.deepStrictEqual(reviews, [
+		assert.deepStrictEqual(reviews.data, [
 			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
 			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
@@ -270,8 +270,8 @@ suite('GitHubPRCIFetcher', () => {
 		});
 
 		const checks = await fetcher.getCheckRuns('owner', 'repo', 'abc123');
-		assert.strictEqual(checks.length, 2);
-		assert.deepStrictEqual(checks[0], {
+		assert.strictEqual(checks.data?.length, 2);
+		assert.deepStrictEqual(checks.data?.[0], {
 			id: 1,
 			name: 'build',
 			status: GitHubCheckStatus.Completed,
@@ -280,7 +280,7 @@ suite('GitHubPRCIFetcher', () => {
 			completedAt: '2024-01-01T00:10:00Z',
 			detailsUrl: 'https://example.com/1',
 		});
-		assert.strictEqual(checks[1].conclusion, undefined);
+		assert.strictEqual(checks.data?.[1].conclusion, undefined);
 	});
 
 	test('getCheckRunAnnotations returns formatted annotations', async () => {

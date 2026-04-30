@@ -8,7 +8,8 @@ import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.c
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -16,8 +17,10 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -43,6 +46,7 @@ import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
@@ -85,6 +89,7 @@ function startAgentHost(): void {
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -96,16 +101,20 @@ function startAgentHost(): void {
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IProductService, productService);
 		const instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService);
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		diServices.set(ICopilotApiService, copilotApiService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
+		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
@@ -113,6 +122,36 @@ function startAgentHost(): void {
 	}
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
+
+	// Single shared `vscode-agent-client` filesystem provider. Per-client
+	// authorities are added either by ProtocolServerHandler (for WebSocket
+	// transports) or by the IPC connection lifecycle below (for the local
+	// in-process renderer-to-utility-process MessagePort transport).
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
+	// Wire reverse-RPC for in-process renderer connections. The renderer's
+	// `MessagePortClient` ctx is its `clientId`, and it exposes
+	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
+	if (server instanceof UtilityProcessServer) {
+		const authorityRegistrations = new Map<unknown, IDisposable>();
+		disposables.add(server.onDidAddConnection(connection => {
+			const clientId = connection.ctx;
+			if (typeof clientId !== 'string' || !clientId) {
+				return;
+			}
+			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
+			const fsConnection = createAgentHostClientResourceConnection(channel);
+			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+		}));
+		disposables.add(server.onDidRemoveConnection(connection => {
+			const reg = authorityRegistrations.get(connection);
+			if (reg) {
+				reg.dispose();
+				authorityRegistrations.delete(connection);
+			}
+		}));
+	}
 
 	// Expose the WebSocket client connection count to the parent process via IPC.
 	// This is NOT part of the agent host protocol -- it is only used by the
@@ -134,9 +173,6 @@ function startAgentHost(): void {
 				{ socketPath },
 				logService,
 			));
-
-			const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
-			disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
 			const protocolHandler = disposables.add(new ProtocolServerHandler(
 				agentService,
@@ -203,7 +239,7 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
 	// Start WebSocket server for external clients if configured (env-var flow for CLI/server)
-	startWebSocketServer(agentService, fileService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
+	startWebSocketServer(agentService, clientFileSystemProvider, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -220,7 +256,7 @@ function startAgentHost(): void {
  * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, fileService: IFileService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
+async function startWebSocketServer(agentService: AgentService, clientFileSystemProvider: AgentHostClientFileSystemProvider, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -248,9 +284,6 @@ async function startWebSocketServer(agentService: AgentService, fileService: IFi
 			},
 		logService,
 	));
-
-	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
-	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
 	const protocolHandler = disposables.add(new ProtocolServerHandler(
 		agentService,

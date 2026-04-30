@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -43,11 +44,21 @@ export interface IAgentHostFilterService {
 	/** Fires when {@link selectedProviderId} or {@link hosts} changes. */
 	readonly onDidChange: Event<void>;
 
+	/** Fires when {@link isDiscovering} changes. */
+	readonly onDidChangeDiscovering: Event<void>;
+
 	/** The currently selected providerId, or `undefined` when no hosts are known. */
 	readonly selectedProviderId: string | undefined;
 
 	/** All known hosts the user can switch between. */
 	readonly hosts: readonly IAgentHostFilterEntry[];
+
+	/**
+	 * `true` while a host re-discovery operation is in flight (any
+	 * registered discovery handler has not yet resolved). Used by the
+	 * host filter UX to show a progress indicator.
+	 */
+	readonly isDiscovering: boolean;
 
 	/**
 	 * Update the selection. Ignored if `providerId` does not match a
@@ -66,4 +77,18 @@ export interface IAgentHostFilterService {
 	 * the entry. No-op if the host is unknown or already disconnected.
 	 */
 	disconnect(providerId: string): void;
+
+	/**
+	 * Trigger every registered discovery handler and resolve once they
+	 * have all settled. {@link isDiscovering} is `true` for the duration
+	 * of the call. No-op when no handlers are registered.
+	 */
+	rediscover(): Promise<void>;
+
+	/**
+	 * Register a callback invoked when {@link rediscover} runs. Used by
+	 * host providers (e.g. dev tunnels) to plug their own discovery
+	 * routine into the shared host picker UX.
+	 */
+	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable;
 }

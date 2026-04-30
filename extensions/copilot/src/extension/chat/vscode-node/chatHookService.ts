@@ -157,7 +157,7 @@ export class ChatHookService implements IChatHookService {
 						kind: SpanKind.INTERNAL,
 						attributes: {
 							[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
-							'copilot_chat.hook_type': hookType,
+							[CopilotChatAttr.HOOK_TYPE]: hookType,
 							'copilot_chat.hook_command': hookCommand.command,
 							...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 						},
@@ -166,7 +166,7 @@ export class ChatHookService implements IChatHookService {
 					try {
 						// Capture hook input for debug panel resolve
 						try {
-							span.setAttribute('copilot_chat.hook_input', truncateForOTel(JSON.stringify(commandInput)));
+							span.setAttribute(CopilotChatAttr.HOOK_INPUT, truncateForOTel(JSON.stringify(commandInput)));
 						} catch { /* swallow serialization errors */ }
 
 						const sw = StopWatch.create();
@@ -179,7 +179,7 @@ export class ChatHookService implements IChatHookService {
 						const resultKind = commandResult.kind === HookCommandResultKind.Success ? 'success'
 							: commandResult.kind === HookCommandResultKind.NonBlockingError ? 'non_blocking_error'
 								: 'error';
-						span.setAttribute('copilot_chat.hook_result_kind', resultKind);
+						span.setAttribute(CopilotChatAttr.HOOK_RESULT_KIND, resultKind);
 
 						if (commandResult.kind === HookCommandResultKind.Error || commandResult.kind === HookCommandResultKind.NonBlockingError) {
 							hasError = true;
@@ -195,7 +195,7 @@ export class ChatHookService implements IChatHookService {
 							try {
 								const output = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
 								if (output) {
-									span.setAttribute('copilot_chat.hook_output', truncateForOTel(output));
+									span.setAttribute(CopilotChatAttr.HOOK_OUTPUT, truncateForOTel(output));
 								}
 							} catch { /* swallow serialization errors */ }
 						}

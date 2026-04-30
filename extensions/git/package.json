@@ -3740,7 +3740,7 @@
             "%config.addAICoAuthor.all%"
           ],
           "scope": "resource",
-          "default": "all",
+          "default": "chatAndAgent",
           "description": "%config.addAICoAuthor%"
         },
         "git.ignoreSubmodules": {

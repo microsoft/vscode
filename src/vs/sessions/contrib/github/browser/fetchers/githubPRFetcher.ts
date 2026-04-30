@@ -14,7 +14,7 @@ import {
 	MergeBlockerKind,
 	IGitHubPullRequestReviewThread,
 } from '../../common/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
 //#region GitHub API response types
 
@@ -159,22 +159,36 @@ export class GitHubPRFetcher {
 		private readonly _apiClient: GitHubApiClient,
 	) { }
 
-	async getPullRequest(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequest> {
-		const data = await this._apiClient.request<IGitHubPRResponse>(
+	async getPullRequest(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<IGitHubPullRequest>> {
+		const response = await this._apiClient.request<IGitHubPRResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`,
-			'githubApi.getPullRequest'
+			'githubApi.getPullRequest',
+			{ etag }
 		);
-		return mapPullRequest(data);
+
+		return {
+			...response,
+			data: response.data
+				? mapPullRequest(response.data)
+				: undefined
+		};
 	}
 
-	async getReviews(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubPullRequestReview[]> {
-		const data = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
+	async getReviews(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubPullRequestReview[]>> {
+		const response = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
 			'githubApi.getReviews',
+			{ etag }
 		);
-		return data.map(mapReview);
+
+		return {
+			...response,
+			data: response.data
+				? response.data.map(mapReview)
+				: undefined
+		};
 	}
 
 	async getReviewThreads(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
@@ -199,13 +213,16 @@ export class GitHubPRFetcher {
 		body: string,
 		inReplyTo: number,
 	): Promise<IGitHubPRComment> {
-		const data = await this._apiClient.request<IGitHubReviewCommentResponse>(
+		const response = await this._apiClient.request<IGitHubReviewCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/comments`,
 			'githubApi.postReviewComment',
-			{ body, in_reply_to: inReplyTo },
+			{ data: { body, in_reply_to: inReplyTo } }
 		);
-		return mapReviewComment(data);
+		if (!response.data) {
+			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
+		}
+		return mapReviewComment(response.data);
 	}
 
 	async postIssueComment(
@@ -214,12 +231,16 @@ export class GitHubPRFetcher {
 		prNumber: number,
 		body: string,
 	): Promise<IGitHubPRComment> {
-		const data = await this._apiClient.request<IGitHubIssueCommentResponse>(
+		const response = await this._apiClient.request<IGitHubIssueCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/issues/${prNumber}/comments`,
 			'githubApi.postIssueComment',
-			{ body },
+			{ data: { body } },
 		);
+		const data = response.data;
+		if (!data) {
+			throw new Error(`Failed to post issue comment to ${owner}/${repo}#${prNumber}`);
+		}
 		return {
 			id: data.id,
 			body: data.body ?? '',
