@@ -95,7 +95,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			return this._userInteractionService.createHoverTracker(elem.element, reader.store).read(reader);
 		});
 		this._renderTextEffect = derived(this, _reader => {
-			const tm = this._editor.model.get()!;
+			const tm = this._editor.model.get();
+			if (!tm) { return; }
 			const origLine = tm.getLineContent(this._viewData.edit.range.startLineNumber);
 
 			const edit = StringReplacement.replace(new OffsetRange(this._viewData.edit.range.startColumn - 1, this._viewData.edit.range.endColumn - 1), this._viewData.edit.text);
