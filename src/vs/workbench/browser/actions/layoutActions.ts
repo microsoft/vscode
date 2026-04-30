@@ -359,6 +359,7 @@ MenuRegistry.appendMenuItems([
 			},
 			when: ContextKeyExpr.and(
 				IsAuxiliaryWindowContext.negate(),
+				InConciseModeContext.negate(), // test-workbench_change
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
@@ -378,6 +379,7 @@ MenuRegistry.appendMenuItems([
 			},
 			when: ContextKeyExpr.and(
 				IsAuxiliaryWindowContext.negate(),
+				InConciseModeContext.negate(), // test-workbench_change
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
