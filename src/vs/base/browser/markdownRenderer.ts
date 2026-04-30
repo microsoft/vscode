@@ -11,7 +11,7 @@ import { KeyCode } from '../common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesSomeScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
 import { basename, dirname, resolvePath } from '../common/resources.js';
@@ -361,6 +361,15 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 		}
 	}
 
+	// When an action handler is registered we intercept clicks via `data-href`, so
+	// preserving the real `href` for the standard "external" link schemes
+	// (`http`, `https`, `mailto`) allows rich-text copy/paste to retain the actual
+	// URL instead of replacing every href in the copied rich text with the URL
+	// `vscode-file://vscode-app/c:/Program%20Files/Microsoft%20VS%20Code/034f571df5/resources/app/out/vs/code/electron-browser/workbench/workbench.html`
+	// which is the result of how Electron rich-text copying resolving the absolute
+	// URL for links with href="".
+	const preserveExternalHrefs = !!options.actionHandler;
+
 	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('a')) {
 		const href = el.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
@@ -377,6 +386,9 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 			}
 			el.dataset.href = resolvedHref;
+			if (preserveExternalHrefs && matchesSomeScheme(resolvedHref, Schemas.http, Schemas.https, Schemas.mailto)) {
+				el.setAttribute('href', resolvedHref);
+			}
 		}
 	}
 }

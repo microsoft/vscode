@@ -326,6 +326,64 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
+	suite('Copy-safe href preservation', () => {
+		// Regression coverage for rich-text copy mangling links to
+		// `vscode-file://vscode-app/.../workbench.html`. When an action handler is wired
+		// up to intercept clicks via `data-href`, copy-safe external schemes
+		// (http/https/mailto) must keep their real `href` so rich-text copy/paste and
+		// "Copy Link" produce the actual URL.
+
+		const noopActionHandler = () => { };
+
+		test('preserves href for http/https/mailto links when actionHandler is provided', () => {
+			const md = new MarkdownString(`[web](https://example.com/page) [insecure](http://example.com/) [mail](mailto:user@example.com)`, {});
+
+			const result = store.add(renderMarkdown(md, { actionHandler: noopActionHandler })).element;
+			const anchors = result.querySelectorAll('a');
+			assert.strictEqual(anchors.length, 3);
+
+			const observed = Array.from(anchors).map(a => ({
+				href: a.getAttribute('href'),
+				dataHref: a.getAttribute('data-href'),
+			}));
+			assert.deepStrictEqual(observed, [
+				{ href: 'https://example.com/page', dataHref: 'https://example.com/page' },
+				{ href: 'http://example.com/', dataHref: 'http://example.com/' },
+				{ href: 'mailto:user@example.com', dataHref: 'mailto:user@example.com' },
+			]);
+		});
+
+		test('does not preserve href for non-copy-safe schemes such as command:', () => {
+			const md = new MarkdownString(`[run](command:doFoo)`, { isTrusted: true });
+
+			const result = store.add(renderMarkdown(md, { actionHandler: noopActionHandler })).element;
+			const anchor = result.querySelector('a')!;
+			assert.strictEqual(anchor.getAttribute('href'), '');
+			assert.strictEqual(anchor.getAttribute('data-href'), 'command:doFoo');
+		});
+
+		test('does not preserve href when no actionHandler is provided', () => {
+			// Without an action handler nothing intercepts clicks, so we must keep the
+			// historical safe behaviour of clearing href to avoid navigating the workbench.
+			const md = new MarkdownString(`[web](https://example.com/page)`, {});
+
+			const result = store.add(renderMarkdown(md)).element;
+			const anchor = result.querySelector('a')!;
+			assert.strictEqual(anchor.getAttribute('href'), '');
+			assert.strictEqual(anchor.getAttribute('data-href'), 'https://example.com/page');
+		});
+
+		test('preserves resolved href for relative links against an https baseUri', () => {
+			const md = new MarkdownString(`[text](./foo)`, { isTrusted: true });
+			md.baseUri = URI.parse('https://example.com/path/');
+
+			const result = store.add(renderMarkdown(md, { actionHandler: noopActionHandler })).element;
+			const anchor = result.querySelector('a')!;
+			assert.strictEqual(anchor.getAttribute('href'), 'https://example.com/path/foo');
+			assert.strictEqual(anchor.getAttribute('data-href'), 'https://example.com/path/foo');
+		});
+	});
+
 	test('Should use decoded file path as title for file:// links', () => {
 		const fileUri = URI.file('/home/user/project/lib.d.ts');
 		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
