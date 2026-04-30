@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { ICodeWindow } from '../../window/electron-main/window.js';
+import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -115,7 +115,7 @@ export class BrowserView extends Disposable {
 		});
 
 		// Use a default size of 1024x768.
-		this._view.setBounds({ x: 0, y: 0, width: 1024, height: 768 });
+		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
@@ -123,9 +123,16 @@ export class BrowserView extends Disposable {
 			throw new Error(`Window with ID ${owner.mainWindowId} not found`);
 		}
 		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
+		this._register(this._ownerWindow.onWillLoad((e) => {
+			if (e.reason === LoadReason.LOAD) {
+				this.dispose(); // Dispose when switching workspaces.
+			} else if (e.reason === LoadReason.RELOAD) {
+				this.setVisible(false); // Hide when reloading.
+			}
+		}));
 
 		this._view.setVisible(false);
-		this._ownerWindow.win?.contentView.addChildView(this._view, 0);
+		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
@@ -592,9 +599,11 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
-		// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
-		this._view.setVisible(true);
-		this._view.setVisible(false);
+		if (!this._view.getVisible()) {
+			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
+			this._view.setVisible(true);
+			this._view.setVisible(false);
+		}
 
 		const quality = options?.quality ?? 80;
 		if (options?.pageRect) {
@@ -717,8 +726,11 @@ export class BrowserView extends Disposable {
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();
 
-		// Remove from parent window
-		this._currentWindow?.win?.contentView.removeChildView(this._view);
+		// Remove from parent window (guard against already-destroyed window)
+		const currentWin = this._currentWindow?.win;
+		if (currentWin && !currentWin.isDestroyed()) {
+			currentWin.contentView.removeChildView(this._view);
+		}
 
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();

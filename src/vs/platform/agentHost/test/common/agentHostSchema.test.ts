@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue } from '../../common/agentHostSchema.js';
+import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -254,8 +254,28 @@ suite('agentHostSchema', () => {
 
 		test('ignores keys not in defaults', () => {
 			const schema = fixture();
+			// @ts-expect-error: test that extra keys not in the defaults are ignored, even if they pass validation.
 			const result = schema.validateOrDefault({ name: 'a', count: 1, ignored: true }, { name: 'd', count: 0 });
 			assert.deepStrictEqual(result, { name: 'a', count: 1 });
+		});
+
+		test('omits schema keys that are missing from both values and defaults', () => {
+			// Regression coverage for the partial-defaults contract that
+			// underpins host-level inheritance: if the caller doesn't supply
+			// a default and no incoming value is valid, the key is left out
+			// entirely so higher-scope defaults can fill in.
+			const schema = fixture();
+			const result = schema.validateOrDefault({ count: 9 }, { count: 0 });
+			assert.deepStrictEqual(result, { count: 9 });
+			assert.ok(!result.hasOwnProperty('name'), '`name` should be absent when neither values nor defaults supply it');
+		});
+
+		test('omits schema keys when value is invalid and no default is supplied', () => {
+			const schema = fixture();
+			// @ts-expect-error: test that invalid values are dropped even when the caller doesn't provide a default.
+			const result = schema.validateOrDefault({ name: 42, count: 3 }, { count: 0 });
+			// `name` has no default and the incoming value is invalid → dropped.
+			assert.deepStrictEqual(result, { count: 3 });
 		});
 	});
 
@@ -276,6 +296,18 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, ok), true);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [42], deny: [] }), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Permissions, { allow: [] }), true);
+		});
+
+		test('validates the agent modes', () => {
+			const modes: SessionMode[] = ['interactive', 'plan'];
+			for (const mode of modes) {
+				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, mode), true, mode);
+			}
+			// `autopilot` is intentionally NOT in the AHP mode enum \u2014 it's
+			// modeled on the orthogonal `autoApprove` axis instead.
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'autopilot'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
 		});
 	});
 });

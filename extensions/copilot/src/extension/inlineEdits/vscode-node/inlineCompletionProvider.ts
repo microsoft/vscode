@@ -35,7 +35,6 @@ import { autorun, IObservable, observableFromEvent } from '../../../util/vs/base
 import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { LineCheck } from '../../inlineChat/vscode-node/naturalLanguageHint';
 import { createCorrelationId } from '../common/correlationId';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';
@@ -48,6 +47,7 @@ import { DiagnosticsNextEditResult } from './features/diagnosticsInlineEditProvi
 import { InlineEditModel } from './inlineEditModel';
 import { learnMoreCommandId, learnMoreLink } from './inlineEditProviderFeature';
 import { toInlineSuggestion } from './isInlineSuggestion';
+import { LineCheck } from './naturalLanguageHint';
 import { InlineEditLogger } from './parts/inlineEditLogger';
 import { IVSCodeObservableDocument } from './parts/vscodeWorkspace';
 import { raceAndAll } from './raceAndAll';
@@ -64,6 +64,12 @@ export interface NesCompletionItem extends InlineCompletionItem {
 	readonly info: NesCompletionInfo;
 	wasShown: boolean;
 	isEditInAnotherDocument?: boolean;
+	/**
+	 * Whether the underlying NES suggestion is being served as an inline (ghost
+	 * text at cursor) suggestion as opposed to a non-inline NES (e.g. gutter or
+	 * side hint). Used by the "mimic ghost text behavior" gating.
+	 */
+	isInlineCompletion?: boolean;
 }
 
 export class NesCompletionList extends InlineCompletionList {
@@ -147,6 +153,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _displayNextEditorNES: boolean;
 	private readonly _renameSymbolSuggestions: IObservable<boolean>;
 	private readonly _inlineCompletionsAdvanced: IObservable<boolean>;
+	private readonly _nesMimicGhostTextBehavior: IObservable<boolean>;
 
 	constructor(
 		private readonly model: InlineEditModel,
@@ -172,6 +179,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this._displayNextEditorNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.UseAlternativeNESNotebookFormat, this._expService);
 		this._renameSymbolSuggestions = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsRenameSymbolSuggestions, this._expService);
 		this._inlineCompletionsAdvanced = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
+		this._nesMimicGhostTextBehavior = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._expService);
 
 		this.setCurrentModelId = (modelId: string) => this._modelService.setCurrentModelId(modelId);
 
@@ -431,6 +439,22 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				};
 			}
 
+			// Gate: when the "mimic ghost text behavior" setting is on, a cached suggestion
+			// that was previously rendered as an inline (ghost text) suggestion must not
+			// re-surface in any other form. Suppress here without evicting the cache entry —
+			// when the cursor returns to an inline-renderable position, we'll serve it again.
+			if (
+				this._nesMimicGhostTextBehavior.get()
+				&& !isInlineCompletion
+				&& isLlmCompletionInfo(suggestionInfo)
+				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion
+			) {
+				logger.trace('Return: previously shown as inline; current context cannot render as inline');
+				telemetryBuilder.setStatus('noEdit:suppressedNonInlineReshow');
+				this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
+				return emptyList;
+			}
+
 			if (!completionItem) {
 				this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
 				return emptyList;
@@ -463,6 +487,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				telemetryBuilder,
 				action: learnMoreAction,
 				isInlineEdit: !isInlineCompletion,
+				isInlineCompletion,
 				showInlineEditMenu: !(unification && isInlineCompletion),
 				wasShown: false,
 				supportsRename,
@@ -554,6 +579,15 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this.logContextRecorder?.handleShown(info.suggestion);
 
 		if (isLlmCompletionInfo(info)) {
+			// Mark the underlying cache entry as having been rendered as an inline
+			// (ghost text) suggestion. The "mimic ghost text behavior" gate uses this
+			// flag to suppress re-serving the same suggestion in a non-inline form.
+			if (completionItem.isInlineCompletion) {
+				const cacheEntry = info.suggestion.result?.cacheEntry;
+				if (cacheEntry) {
+					cacheEntry.wasRenderedAsInlineSuggestion = true;
+				}
+			}
 			this.model.nextEditProvider.handleShown(info.suggestion);
 		} else {
 			this.model.diagnosticsBasedProvider?.handleShown(info.suggestion);

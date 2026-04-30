@@ -16,7 +16,7 @@ import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagemen
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, type OTelModelOptions, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -51,18 +51,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 	}
 
 	private _getThinkingBudget(modelId: string, maxOutputTokens: number): number | undefined {
-		const configuredBudget = this._configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		if (!configuredBudget || configuredBudget === 0) {
-			return undefined;
-		}
-
 		const modelCapabilities = this._knownModels?.[modelId];
 		const modelSupportsThinking = modelCapabilities?.thinking ?? false;
 		if (!modelSupportsThinking) {
 			return undefined;
 		}
-		const normalizedBudget = configuredBudget < 1024 ? 1024 : configuredBudget;
-		return Math.min(32000, maxOutputTokens - 1, normalizedBudget);
+		return Math.min(32000, maxOutputTokens - 1, 16000);
 	}
 
 	// Filters the byok known models based on what the anthropic API knows as well
@@ -478,7 +472,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				kind: SpanKind.CLIENT,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
-					[GenAiAttr.PROVIDER_NAME]: 'anthropic',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.ANTHROPIC,
 					[GenAiAttr.REQUEST_MODEL]: model.id,
 					[GenAiAttr.AGENT_NAME]: 'AnthropicBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
@@ -487,6 +481,12 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			});
 			// Opt-in: capture input messages in OTel GenAI format
 			if (this._otelService.config.captureContent) {
+				// Tool definitions on the chat span (issue #299934) with `parameters`
+				// per OTel GenAI semantic conventions (issue #300318).
+				const toolDefs = toToolDefinitions(options.tools);
+				if (toolDefs) {
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
+				}
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
 					const inputMsgs = messages.map(m => {

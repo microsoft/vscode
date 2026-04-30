@@ -722,13 +722,6 @@ export class ExtensionEditor extends EditorPane {
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
 
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-				layout: () => {
-					webview.setAnchorElement(container);
-				}
-			});
-			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
 			let isDisposed = false;
 			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
 

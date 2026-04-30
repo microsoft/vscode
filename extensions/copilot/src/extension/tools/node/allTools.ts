@@ -20,6 +20,7 @@ import './githubTextSearchTool';
 import './insertEditTool';
 import './installExtensionTool';
 import './listDirTool';
+import './skillTool';
 import './manageTodoListTool';
 import './memoryTool';
 import './multiReplaceStringTool';

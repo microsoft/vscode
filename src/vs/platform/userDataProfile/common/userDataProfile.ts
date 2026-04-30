@@ -54,6 +54,7 @@ export interface IUserDataProfile {
 	readonly promptsHome: URI;
 	readonly extensionsResource: URI;
 	readonly mcpResource: URI;
+	readonly agentPluginsHome: URI;
 	readonly cacheHome: URI;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
@@ -76,6 +77,7 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.promptsHome)
 		&& URI.isUri(candidate.extensionsResource)
 		&& URI.isUri(candidate.mcpResource)
+		&& URI.isUri(candidate.agentPluginsHome)
 	);
 }
 
@@ -154,6 +156,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		promptsHome: URI.revive(profile.promptsHome).with({ scheme }),
 		extensionsResource: URI.revive(profile.extensionsResource).with({ scheme }),
 		mcpResource: URI.revive(profile.mcpResource).with({ scheme }),
+		agentPluginsHome: URI.revive(profile.agentPluginsHome),
 		cacheHome: URI.revive(profile.cacheHome).with({ scheme }),
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
@@ -176,6 +179,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		promptsHome: defaultProfile && options?.useDefaultFlags?.prompts ? defaultProfile.promptsHome : joinPath(location, 'prompts'),
 		extensionsResource: defaultProfile && options?.useDefaultFlags?.extensions ? defaultProfile.extensionsResource : joinPath(location, 'extensions.json'),
 		mcpResource: defaultProfile && options?.useDefaultFlags?.mcp ? defaultProfile.mcpResource : joinPath(location, 'mcp.json'),
+		agentPluginsHome: defaultProfile ? defaultProfile.agentPluginsHome : joinPath(location, 'agent-plugins'),
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,

@@ -5,8 +5,12 @@
 
 /* Compound widget (dropdown pill + connect button). Expands to fill the
  * space available in the titlebar's left toolbar after the sidebar toggle,
- * so the pill + connect button appear centered in the remaining width. */
-.agent-host-filter-combo {
+ * so the pill + connect button appear centered in the remaining width.
+ *
+ * Higher specificity than the default `.monaco-action-bar .action-item`
+ * (which sets `display: block`) so the li lays out its two child controls
+ * (dropdown + connect) as a horizontal flex row. */
+.monaco-action-bar .action-item.agent-host-filter-combo {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -139,4 +143,62 @@
 @keyframes agent-host-filter-pulse {
 	0%, 100% { opacity: 0.4; }
 	50% { opacity: 1; }
+}
+
+/* --- Discovery pulse ----------------------------------------------------
+ * While the host filter is re-discovering hosts, the icon container
+ * grows a single soft expanding ring + the icon itself gently breathes.
+ * Subtle by design: a single ring (not multiple), a slow 1.8s cadence,
+ * and a small max scale (1.3) so it reads as "checking…" without
+ * competing for attention with primary content. */
+
+.agent-host-filter-combo .agent-host-filter-icon {
+	position: relative;
+}
+
+.agent-host-filter-combo .agent-host-filter-dropdown.discovering .agent-host-filter-icon::before {
+	content: '';
+	position: absolute;
+	inset: -2px;
+	border-radius: 50%;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-progressBar-background, var(--vscode-textLink-foreground));
+	opacity: 0;
+	pointer-events: none;
+	animation: agent-host-filter-discover-ring 1.8s ease-out infinite;
+}
+
+.agent-host-filter-combo .agent-host-filter-dropdown.discovering .agent-host-filter-icon .codicon {
+	animation: agent-host-filter-discover-breathe 1.8s ease-in-out infinite;
+}
+
+/* While discovering, hide the chevron (we'll show it again once we know
+ * how many hosts are available) and dim the label to "Searching…". */
+.agent-host-filter-combo .agent-host-filter-dropdown.discovering .agent-host-filter-chevron {
+	display: none;
+}
+
+.agent-host-filter-combo .agent-host-filter-dropdown.discovering .agent-host-filter-label {
+	opacity: 0.7;
+	font-style: italic;
+}
+
+@keyframes agent-host-filter-discover-ring {
+	0% {
+		transform: scale(0.85);
+		opacity: 0.55;
+	}
+	100% {
+		transform: scale(1.3);
+		opacity: 0;
+	}
+}
+
+@keyframes agent-host-filter-discover-breathe {
+	0%, 100% {
+		opacity: 0.85;
+	}
+	50% {
+		opacity: 1;
+	}
 }

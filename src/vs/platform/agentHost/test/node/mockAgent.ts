@@ -9,13 +9,23 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentSubagentStartedEvent, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
+import { ProtectedResourceMetadata, type FileEdit, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { CustomizationStatus, ToolResultContentType, type CustomizationRef, type PendingMessage, type ToolCallResult } from '../../common/state/sessionState.js';
+import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
+import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type SessionInputRequest, type StringOrMarkdown, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
+
+function uriKey(session: URI): string {
+	// Build a stable key from raw URI fields without invoking `toString()`,
+	// which would mutate the URI's `_formatted` cache and break
+	// `assert.deepStrictEqual` comparisons in tests that capture the URI
+	// before it is observed elsewhere.
+	return `${session.scheme}://${session.authority}${session.path}${session.query ? '?' + session.query : ''}${session.fragment ? '#' + session.fragment : ''}`;
+}
 
 function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
@@ -26,16 +36,18 @@ function mockProject(provider: AgentProvider) {
  * for assertion and exposes {@link fireProgress} to inject progress events.
  */
 export class MockAgent implements IAgent {
-	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
+	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
 	private _nextId = 1;
+	/** Active turn IDs per session, captured from sendMessage(). */
+	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
+	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly IAgentAttachment[] }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -46,9 +58,17 @@ export class MockAgent implements IAgent {
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: CustomizationRef[] = [];
+	private readonly _onDidCustomizationsChange = new Emitter<void>();
+	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
+	getSessionCustomizations?: (session: URI) => Promise<readonly SessionCustomization[]>;
 
-	/** Configurable return value for getSessionMessages. */
-	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
+	/**
+	 * Configurable session history. Tests construct {@link IHistoryRecord}
+	 * entries (the agent-internal intermediate shape) and the mock converts
+	 * them to {@link Turn}s on demand. Subagent URIs are routed to filtered
+	 * subagent turns via {@link buildSubagentTurnsFromHistory}.
+	 */
+	sessionMessages: IHistoryRecord[] = [];
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -77,9 +97,9 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const rawId = `${this.id}-session-${this._nextId++}`;
-		const session = AgentSession.uri(this.id, rawId);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
+		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
 		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
@@ -92,16 +112,23 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt });
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
+		this.sendMessageCalls.push({ session, prompt, attachments });
+		if (turnId) {
+			this._activeTurnIds.set(uriKey(session), turnId);
+		}
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
-		return this.sessionMessages;
+	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		const subagentInfo = parseSubagentSessionUri(session.toString());
+		if (subagentInfo) {
+			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
+		}
+		return buildTurnsFromHistory(this.sessionMessages);
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -157,12 +184,30 @@ export class MockAgent implements IAgent {
 
 	async shutdown(): Promise<void> { }
 
-	fireProgress(event: IAgentProgressEvent): void {
-		this._onDidSessionProgress.fire(event);
+	/**
+	 * Fires an {@link AgentSignal} on this agent.
+	 */
+	fireProgress(signal: AgentSignal): void {
+		this._onDidSessionProgress.fire(signal);
+	}
+
+	/**
+	 * Looks up the active turn id captured from the most recent
+	 * {@link sendMessage} call for a given session. Returns `undefined` if
+	 * the session has no active turn yet (e.g. tests that fire progress
+	 * without first calling sendMessage).
+	 */
+	getActiveTurnId(session: URI): string | undefined {
+		return this._activeTurnIds.get(uriKey(session));
+	}
+
+	fireCustomizationsChange(): void {
+		this._onDidCustomizationsChange.fire();
 	}
 
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidCustomizationsChange.dispose();
 	}
 }
 
@@ -178,7 +223,7 @@ export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-s
 export class ScriptedMockAgent implements IAgent {
 	readonly id: AgentProvider = 'mock';
 
-	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
+	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, [{ provider: 'mock', id: 'mock-model', name: 'Mock Model', maxContextWindow: 128000, supportsVision: false }]);
 	readonly models = this._models;
@@ -190,7 +235,7 @@ export class ScriptedMockAgent implements IAgent {
 	 * Message history for the pre-existing session: a single user→assistant
 	 * turn with a tool call.
 	 */
-	private readonly _preExistingMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [
+	private readonly _preExistingMessages: IHistoryRecord[] = [
 		{ type: 'message', role: 'user', session: PRE_EXISTING_SESSION_URI, messageId: 'h-msg-1', content: 'What files are here?' },
 		{ type: 'tool_start', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', toolName: 'list_files', displayName: 'List Files', invocationMessage: 'Listing files...' },
 		{ type: 'tool_complete', session: PRE_EXISTING_SESSION_URI, toolCallId: 'h-tc-1', result: { pastTenseMessage: 'Listed files', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } satisfies ToolCallResult },
@@ -199,6 +244,8 @@ export class ScriptedMockAgent implements IAgent {
 
 	// Track pending permission requests
 	private readonly _pendingPermissions = new Map<string, (approved: boolean) => void>();
+	// Track the active turn ID per session, captured from sendMessage().
+	private readonly _activeTurnIds = new Map<string, string>();
 	// Track pending abort callbacks for slow responses
 	private readonly _pendingAborts = new Map<string, () => void>();
 
@@ -240,9 +287,9 @@ export class ScriptedMockAgent implements IAgent {
 		}));
 	}
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const rawId = `mock-session-${this._nextId++}`;
-		const session = AgentSession.uri('mock', rawId);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		const session = config?.session ?? AgentSession.uri('mock', `mock-session-${this._nextId++}`);
+		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);
 		return { session, project: mockProject(this.id) };
 	}
@@ -287,7 +334,10 @@ export class ScriptedMockAgent implements IAgent {
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
 	}
 
-	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[]): Promise<void> {
+	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
+		if (turnId) {
+			this._activeTurnIds.set(uriKey(session), turnId);
+		}
 		switch (prompt) {
 			case 'hello':
 				this._fireSequence(session, [
@@ -331,9 +381,9 @@ export class ScriptedMockAgent implements IAgent {
 				};
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire(toolStartEvent);
+					this._fireLegacy(session, toolStartEvent);
 					await timeout(5);
-					this._onDidSessionProgress.fire(toolReadyEvent);
+					this._fireLegacy(session, toolReadyEvent);
 				})();
 				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
@@ -350,9 +400,9 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for a regular file (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
+					this._fireLegacy(session, { type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
-					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
+					this._fireLegacy(session, { type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence(session, [
@@ -367,9 +417,9 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for .env (should be blocked)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
+					this._fireLegacy(session, { type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
-					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
+					this._fireLegacy(session, { type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
@@ -386,9 +436,9 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with shell permission for an allowed command (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					this._fireLegacy(session, { type: 'tool_start', session, toolCallId: 'tc-shell-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
 					await timeout(5);
-					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-1', invocationMessage: 'ls -la', permissionKind: 'shell', toolInput: 'ls -la' });
+					this._fireLegacy(session, { type: 'tool_ready', session, toolCallId: 'tc-shell-1', invocationMessage: 'ls -la', permissionKind: 'shell', toolInput: 'ls -la' });
 					// Auto-approved shell commands resolve immediately
 					await timeout(10);
 					this._fireSequence(session, [
@@ -403,9 +453,9 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with shell permission for a denied command (should require confirmation)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-deny-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					this._fireLegacy(session, { type: 'tool_start', session, toolCallId: 'tc-shell-deny-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
 					await timeout(5);
-					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-deny-1', invocationMessage: 'rm -rf /', permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' });
+					this._fireLegacy(session, { type: 'tool_ready', session, toolCallId: 'tc-shell-deny-1', invocationMessage: 'rm -rf /', permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' });
 				})();
 				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
 					if (approved) {
@@ -456,11 +506,13 @@ export class ScriptedMockAgent implements IAgent {
 			}
 
 			case 'client-tool': {
-				// Fires tool_start with toolClientId to simulate a client-provided tool.
-				// The server waits for the client to dispatch toolCallComplete.
+				// Fires tool_start with toolClientId followed by tool_ready
+				// (without confirmationTitle) to simulate a client-provided tool
+				// that is ready for execution. The real SDK handler fires
+				// tool_ready once its deferred is in place.
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({
+					this._fireLegacy(session, {
 						type: 'tool_start',
 						session,
 						toolCallId: 'tc-client-1',
@@ -468,6 +520,14 @@ export class ScriptedMockAgent implements IAgent {
 						displayName: 'Run Tests',
 						invocationMessage: 'Running tests...',
 						toolClientId: 'test-client-tool',
+					});
+					await timeout(5);
+					this._fireLegacy(session, {
+						type: 'tool_ready',
+						session,
+						toolCallId: 'tc-client-1',
+						invocationMessage: 'Running tests...',
+						toolInput: '{}',
 					});
 				})();
 				// The tool stays pending — the client is responsible for dispatching toolCallComplete.
@@ -485,7 +545,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fires tool_start with toolClientId followed by a permission request.
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({
+					this._fireLegacy(session, {
 						type: 'tool_start',
 						session,
 						toolCallId: 'tc-client-perm-1',
@@ -495,7 +555,7 @@ export class ScriptedMockAgent implements IAgent {
 						toolClientId: 'test-client-tool',
 					});
 					await timeout(5);
-					this._onDidSessionProgress.fire({
+					this._fireLegacy(session, {
 						type: 'tool_ready',
 						session,
 						toolCallId: 'tc-client-perm-1',
@@ -569,6 +629,29 @@ export class ScriptedMockAgent implements IAgent {
 			}
 
 			default:
+				if (prompt.startsWith('terminal-edit:')) {
+					// Test prompt: simulate a terminal command that edits a file on disk
+					// without emitting any ToolResultFileEditContent. The test relies on the
+					// git-driven diff path to pick this up. Format: `terminal-edit:<absPath>`.
+					const filePath = prompt.slice('terminal-edit:'.length);
+					void (async () => {
+						this._fireLegacy(session, { type: 'tool_start', session, toolCallId: 'tc-term-edit-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Edit file via shell' });
+						const fs = await import('fs/promises');
+						await fs.writeFile(filePath, 'edited-from-terminal\n');
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-term-edit-1', result: { pastTenseMessage: 'Edited file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'idle', session },
+						]);
+					})().catch(err => {
+						// Surface failures deterministically — an unhandled rejection
+						// would make the test suite flaky.
+						this._fireSequence(session, [
+							{ type: 'delta', session, messageId: 'msg-err', content: 'terminal-edit failed: ' + (err instanceof Error ? err.message : String(err)) },
+							{ type: 'idle', session },
+						]);
+					});
+					break;
+				}
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
 					{ type: 'idle', session },
@@ -581,7 +664,7 @@ export class ScriptedMockAgent implements IAgent {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ type: 'steering_consumed', session, id: steeringMessage.id });
+				this._fireLegacy(session, { type: 'steering_consumed', session, id: steeringMessage.id });
 			});
 		}
 	}
@@ -596,9 +679,16 @@ export class ScriptedMockAgent implements IAgent {
 
 	setClientTools(): void { }
 
+	private didCompleteToolCalls = new Set<string>();
+
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
+		const key = `${session.toString()}:${toolCallId}`;
+		if (this.didCompleteToolCalls.has(key)) {
+			return;
+		}
+		this.didCompleteToolCalls.add(key);
 		// Fire tool_complete and resolve any pending callback.
-		this._onDidSessionProgress.fire({
+		this._fireLegacy(session, {
 			type: 'tool_complete',
 			session,
 			toolCallId,
@@ -611,9 +701,13 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		const subagentInfo = parseSubagentSessionUri(session.toString());
+		if (subagentInfo) {
+			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
+		}
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
-			return this._preExistingMessages;
+			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
 	}
@@ -660,11 +754,438 @@ export class ScriptedMockAgent implements IAgent {
 		this._onDidSessionProgress.dispose();
 	}
 
-	private _fireSequence(session: URI, events: IAgentProgressEvent[]): void {
+	private _fireSequence(session: URI, events: LegacyMockEvent[]): void {
 		let delay = 0;
 		for (const event of events) {
 			delay += 10;
-			setTimeout(() => this._onDidSessionProgress.fire(event), delay);
+			setTimeout(() => this._fireLegacy(session, event), delay);
+		}
+	}
+
+	/** Per-session translator state for {@link _fireLegacy}. Tracks the
+	 *  active markdown / reasoning response part ids so consecutive `delta`
+	 *  and `reasoning` events coalesce into append actions, mirroring the
+	 *  live emission rules of {@link CopilotAgentSession}. */
+	private readonly _legacyState = new Map<string, ILegacySignalState>();
+
+	/**
+	 * Translates a legacy test-event literal into one or more {@link AgentSignal}
+	 * envelopes and fires them, mirroring the live emission rules of
+	 * {@link CopilotAgentSession}. Allows test fixtures to stay close to the
+	 * SDK-shaped event vocabulary while consumers see protocol actions.
+	 */
+	private _fireLegacy(session: URI, e: LegacyMockEvent): void {
+		const key = uriKey(session);
+		let state = this._legacyState.get(key);
+		if (!state) {
+			state = {};
+			this._legacyState.set(key, state);
+		}
+		// Any non-text/reasoning event invalidates the active part ids so
+		// the next text/reasoning chunk allocates a fresh response part.
+		// This mirrors the live agent's behavior on tool_start, idle, etc.
+		// (`legacyToSignals` itself handles the delta↔reasoning toggling.)
+		if (e.type !== 'delta' && e.type !== 'message' && e.type !== 'reasoning') {
+			state.currentMarkdown = undefined;
+			state.currentReasoningPartId = undefined;
+		}
+		const signals = legacyToSignals(e, session, this._activeTurnIds.get(key) ?? 'mock-turn', state);
+		for (const signal of signals) {
+			this._onDidSessionProgress.fire(signal);
 		}
 	}
 }
+
+// =============================================================================
+// Test-event helpers
+// =============================================================================
+
+/**
+ * Compact event vocabulary used by the scripted mock agent. Mirrors the
+ * fields of the historical `IAgentProgressEvent` union so existing test
+ * fixtures keep their shape while emission goes through {@link AgentSignal}.
+ */
+export type LegacyMockEvent =
+	| { type: 'delta'; session: URI; messageId: string; content: string; parentToolCallId?: string }
+	| {
+		type: 'message';
+		session: URI;
+		role: 'user' | 'assistant';
+		messageId: string;
+		content: string;
+		parentToolCallId?: string;
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: string; type?: 'function' | 'custom' }[];
+		reasoningOpaque?: string;
+		reasoningText?: string;
+		encryptedContent?: string;
+	}
+	| { type: 'idle'; session: URI }
+	| {
+		type: 'tool_start';
+		session: URI;
+		toolCallId: string;
+		toolName: string;
+		displayName: string;
+		invocationMessage: StringOrMarkdown;
+		toolInput?: string;
+		toolKind?: 'terminal' | 'subagent';
+		language?: string;
+		toolClientId?: string;
+		subagentAgentName?: string;
+		subagentDescription?: string;
+		mcpServerName?: string;
+		mcpToolName?: string;
+		toolArguments?: string;
+		parentToolCallId?: string;
+	}
+	| {
+		type: 'tool_ready';
+		session: URI;
+		toolCallId: string;
+		invocationMessage: StringOrMarkdown;
+		toolInput?: string;
+		confirmationTitle?: StringOrMarkdown;
+		permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
+		permissionPath?: string;
+		edits?: { items: FileEdit[] };
+	}
+	| { type: 'tool_complete'; session: URI; toolCallId: string; result: ToolCallResult; parentToolCallId?: string }
+	| { type: 'tool_content_changed'; session: URI; toolCallId: string; content: ToolResultContent[] }
+	| { type: 'title_changed'; session: URI; title: string }
+	| { type: 'error'; session: URI; errorType: string; message: string; stack?: string }
+	| { type: 'usage'; session: URI; inputTokens?: number; outputTokens?: number; model?: string; cacheReadTokens?: number }
+	| { type: 'reasoning'; session: URI; content: string }
+	| { type: 'user_input_request'; session: URI; request: SessionInputRequest }
+	| { type: 'subagent_started'; session: URI; toolCallId: string; agentName: string; agentDisplayName: string; agentDescription?: string }
+	| { type: 'steering_consumed'; session: URI; id: string };
+
+let _mockPartIdCounter = 0;
+
+/**
+ * Per-translator state used by {@link legacyToSignals} to coalesce
+ * consecutive `delta` and `reasoning` events into append actions, mirroring
+ * the live emission rules of {@link CopilotAgentSession}. Any event other
+ * than `delta` / `reasoning` (e.g. `tool_start`, `tool_complete`, `idle`,
+ * `error`) invalidates the active part ids so the next text/reasoning
+ * chunk allocates a fresh response part — same semantics as the live
+ * agent.
+ */
+export interface ILegacySignalState {
+	/** Active markdown part id and the message id it's keyed to. */
+	currentMarkdown?: { messageId: string; partId: string };
+	/** Active reasoning part id. */
+	currentReasoningPartId?: string;
+}
+
+/**
+ * Converts a {@link LegacyMockEvent} into one or more {@link AgentSignal}s.
+ *
+ * If a {@link state} is provided, consecutive `delta` events with the same
+ * `messageId` and consecutive `reasoning` events coalesce into append
+ * actions ({@link ActionType.SessionDelta} / {@link ActionType.SessionReasoning})
+ * the same way live agents emit them. Without {@link state}, each call is
+ * stateless and every text/reasoning event allocates a fresh response part.
+ *
+ * Tests that expect specific partId behaviour should use
+ * {@link IAgentActionSignal} envelopes directly via {@link MockAgent.fireProgress}.
+ */
+export function legacyToSignals(e: LegacyMockEvent, session: URI, turnId: string, state?: ILegacySignalState): AgentSignal[] {
+	const sessionStr = session.toString();
+	switch (e.type) {
+		case 'delta':
+		case 'message': {
+			if (e.type === 'message' && e.role !== 'assistant') {
+				return [];
+			}
+			const content = e.type === 'delta' ? e.content : e.content;
+			if (!content) {
+				return [];
+			}
+			const messageId = e.type === 'delta' ? e.messageId : e.messageId;
+			// Reasoning is invalidated by any non-reasoning event so the
+			// next reasoning chunk starts a fresh part.
+			if (state) {
+				state.currentReasoningPartId = undefined;
+			}
+			// Coalesce: same messageId as the current markdown part ⇒ append.
+			if (state?.currentMarkdown && state.currentMarkdown.messageId === messageId) {
+				return [{
+					kind: 'action', session, parentToolCallId: e.parentToolCallId, action: {
+						type: ActionType.SessionDelta,
+						session: sessionStr,
+						turnId,
+						partId: state.currentMarkdown.partId,
+						content,
+					},
+				}];
+			}
+			const partId = `mock-md-${++_mockPartIdCounter}`;
+			if (state) {
+				state.currentMarkdown = { messageId, partId };
+			}
+			const action: SessionAction = {
+				type: ActionType.SessionResponsePart,
+				session: sessionStr,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: partId, content },
+			};
+			return [{ kind: 'action', session, action, parentToolCallId: e.parentToolCallId }];
+		}
+		case 'reasoning': {
+			// Markdown is invalidated by any non-markdown event so the next
+			// text chunk starts a fresh part.
+			if (state) {
+				state.currentMarkdown = undefined;
+			}
+			if (state?.currentReasoningPartId) {
+				return [{
+					kind: 'action', session, action: {
+						type: ActionType.SessionReasoning,
+						session: sessionStr,
+						turnId,
+						partId: state.currentReasoningPartId,
+						content: e.content,
+					},
+				}];
+			}
+			const partId = `mock-rs-${++_mockPartIdCounter}`;
+			if (state) {
+				state.currentReasoningPartId = partId;
+			}
+			return [{
+				kind: 'action', session, action: {
+					type: ActionType.SessionResponsePart,
+					session: sessionStr,
+					turnId,
+					part: { kind: ResponsePartKind.Reasoning, id: partId, content: e.content },
+				}
+			}];
+		}
+		case 'idle':
+			return [{ kind: 'action', session, action: { type: ActionType.SessionTurnComplete, session: sessionStr, turnId } }];
+		case 'title_changed':
+			return [{ kind: 'action', session, action: { type: ActionType.SessionTitleChanged, session: sessionStr, title: e.title } }];
+		case 'error':
+			return [{
+				kind: 'action', session, action: {
+					type: ActionType.SessionError,
+					session: sessionStr,
+					turnId,
+					error: { errorType: e.errorType, message: e.message, stack: e.stack },
+				}
+			}];
+		case 'usage':
+			return [{
+				kind: 'action', session, action: {
+					type: ActionType.SessionUsage,
+					session: sessionStr,
+					turnId,
+					usage: { inputTokens: e.inputTokens, outputTokens: e.outputTokens, model: e.model, cacheReadTokens: e.cacheReadTokens },
+				}
+			}];
+		case 'user_input_request':
+			return [{
+				kind: 'action', session, action: {
+					type: ActionType.SessionInputRequested,
+					session: sessionStr,
+					request: e.request,
+				}
+			}];
+		case 'tool_content_changed':
+			return [{
+				kind: 'action', session, action: {
+					type: ActionType.SessionToolCallContentChanged,
+					session: sessionStr,
+					turnId,
+					toolCallId: e.toolCallId,
+					content: e.content,
+				}
+			}];
+		case 'tool_start': {
+			const meta: Record<string, unknown> = { toolKind: e.toolKind, language: e.language };
+			if (e.subagentAgentName) {
+				meta.subagentAgentName = e.subagentAgentName;
+			}
+			if (e.subagentDescription) {
+				meta.subagentDescription = e.subagentDescription;
+			}
+			const signals: AgentSignal[] = [{
+				kind: 'action', session, parentToolCallId: e.parentToolCallId, action: {
+					type: ActionType.SessionToolCallStart,
+					session: sessionStr,
+					turnId,
+					toolCallId: e.toolCallId,
+					toolName: e.toolName,
+					displayName: e.displayName,
+					toolClientId: e.toolClientId,
+					_meta: meta,
+				}
+			}];
+			// For client tools, do NOT auto-ready — the tool waits for an
+			// explicit `tool_ready` event from the test fixture, mirroring the
+			// live SDK behaviour.
+			if (!e.toolClientId) {
+				signals.push({
+					kind: 'action', session, parentToolCallId: e.parentToolCallId, action: {
+						type: ActionType.SessionToolCallReady,
+						session: sessionStr,
+						turnId,
+						toolCallId: e.toolCallId,
+						invocationMessage: e.invocationMessage,
+						toolInput: e.toolInput,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					}
+				});
+			}
+			return signals;
+		}
+		case 'tool_ready':
+			return [{
+				kind: 'pending_confirmation',
+				session,
+				// `toolName`/`displayName` are not used downstream of the
+				// signal — `SessionToolCallReadyAction` does not carry them
+				// and the reducer reads them from the existing tool-call
+				// state set by an earlier `tool_start`. Use empty placeholders
+				// so the legacy event type doesn't need to grow new fields.
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: e.toolCallId,
+					toolName: '',
+					displayName: '',
+					invocationMessage: e.invocationMessage,
+					toolInput: e.toolInput,
+					confirmationTitle: e.confirmationTitle,
+					edits: e.edits,
+				},
+				permissionKind: e.permissionKind,
+				permissionPath: e.permissionPath,
+			}];
+		case 'tool_complete':
+			return [{
+				kind: 'action', session, parentToolCallId: e.parentToolCallId, action: {
+					type: ActionType.SessionToolCallComplete,
+					session: sessionStr,
+					turnId,
+					toolCallId: e.toolCallId,
+					result: e.result,
+				}
+			}];
+		case 'subagent_started':
+			return [{
+				kind: 'subagent_started',
+				session,
+				toolCallId: e.toolCallId,
+				agentName: e.agentName,
+				agentDisplayName: e.agentDisplayName,
+				agentDescription: e.agentDescription,
+			}];
+		case 'steering_consumed':
+			return [{ kind: 'steering_consumed', session, id: e.id }];
+	}
+}
+
+/**
+ * Compact legacy view of an {@link AgentSignal} used by tests that grew up
+ * with the old `IAgentProgressEvent` vocabulary. Returns `undefined` for
+ * action signals that have no direct legacy analogue.
+ *
+ * Mirrors the inverse of {@link legacyToSignals} for the most common
+ * action types so tests can keep doing `progressEvents[i].type === 'X'`.
+ */
+export function signalToLegacyView(signal: AgentSignal): LegacyMockEvent | undefined {
+	if (signal.kind === 'pending_confirmation') {
+		return {
+			type: 'tool_ready',
+			session: signal.session,
+			toolCallId: signal.state.toolCallId,
+			invocationMessage: signal.state.invocationMessage,
+			toolInput: signal.state.toolInput,
+			confirmationTitle: signal.state.confirmationTitle,
+			permissionKind: signal.permissionKind,
+			permissionPath: signal.permissionPath,
+			edits: signal.state.edits,
+		};
+	}
+	if (signal.kind === 'subagent_started') {
+		return {
+			type: 'subagent_started',
+			session: signal.session,
+			toolCallId: signal.toolCallId,
+			agentName: signal.agentName,
+			agentDisplayName: signal.agentDisplayName,
+			agentDescription: signal.agentDescription,
+		};
+	}
+	if (signal.kind === 'steering_consumed') {
+		return { type: 'steering_consumed', session: signal.session, id: signal.id };
+	}
+	const action = signal.action;
+	switch (action.type) {
+		case ActionType.SessionResponsePart: {
+			if (action.part.kind === ResponsePartKind.Markdown) {
+				return { type: 'delta', session: signal.session, messageId: action.part.id, content: action.part.content };
+			}
+			if (action.part.kind === ResponsePartKind.Reasoning) {
+				return { type: 'reasoning', session: signal.session, content: action.part.content };
+			}
+			return undefined;
+		}
+		case ActionType.SessionDelta:
+			return { type: 'delta', session: signal.session, messageId: action.partId, content: action.content };
+		case ActionType.SessionReasoning:
+			return { type: 'reasoning', session: signal.session, content: action.content };
+		case ActionType.SessionTurnComplete:
+			return { type: 'idle', session: signal.session };
+		case ActionType.SessionTitleChanged:
+			return { type: 'title_changed', session: signal.session, title: action.title };
+		case ActionType.SessionError:
+			return { type: 'error', session: signal.session, errorType: action.error.errorType, message: action.error.message, stack: action.error.stack };
+		case ActionType.SessionUsage:
+			return { type: 'usage', session: signal.session, ...action.usage };
+		case ActionType.SessionInputRequested:
+			return { type: 'user_input_request', session: signal.session, request: action.request };
+		case ActionType.SessionToolCallContentChanged:
+			return { type: 'tool_content_changed', session: signal.session, toolCallId: action.toolCallId, content: action.content };
+		case ActionType.SessionToolCallStart: {
+			const meta = (action._meta ?? {}) as Record<string, unknown>;
+			return {
+				type: 'tool_start',
+				session: signal.session,
+				toolCallId: action.toolCallId,
+				toolName: action.toolName,
+				displayName: action.displayName,
+				invocationMessage: '',
+				toolClientId: action.toolClientId,
+				toolKind: meta.toolKind as 'terminal' | 'subagent' | undefined,
+				language: meta.language as string | undefined,
+				subagentAgentName: meta.subagentAgentName as string | undefined,
+				subagentDescription: meta.subagentDescription as string | undefined,
+				toolArguments: meta.toolArguments as string | undefined,
+				mcpServerName: meta.mcpServerName as string | undefined,
+				mcpToolName: meta.mcpToolName as string | undefined,
+				parentToolCallId: signal.parentToolCallId,
+			};
+		}
+		case ActionType.SessionToolCallReady:
+			return {
+				type: 'tool_ready',
+				session: signal.session,
+				toolCallId: action.toolCallId,
+				invocationMessage: action.invocationMessage,
+				toolInput: action.toolInput,
+				confirmationTitle: action.confirmationTitle,
+				edits: action.edits,
+			};
+		case ActionType.SessionToolCallComplete:
+			return {
+				type: 'tool_complete',
+				session: signal.session,
+				toolCallId: action.toolCallId,
+				result: action.result,
+				parentToolCallId: signal.parentToolCallId,
+			};
+	}
+	return undefined;
+}
+

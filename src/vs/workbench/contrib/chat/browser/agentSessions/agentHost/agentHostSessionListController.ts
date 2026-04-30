@@ -76,6 +76,17 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _items: IChatSessionItem[] = [];
 	/** Cached full summaries per session so partial updates can be applied. */
 	private readonly _cachedSummaries = new Map<string, SessionSummary>();
+	/**
+	 * Once `listSessions()` has succeeded, the in-memory list is kept in
+	 * sync by `notify/sessionAdded`, `notify/sessionRemoved`, and
+	 * `notify/sessionSummaryChanged`. Subsequent `refresh()` calls then
+	 * just re-emit the cached items instead of re-issuing the RPC.
+	 *
+	 * Lifetime: the controller is created per agent registration and
+	 * disposed when the registration is torn down (e.g. on connection
+	 * replacement), so this flag naturally resets on reconnect.
+	 */
+	private _cacheValid = false;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -132,11 +143,23 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}));
 	}
 
+	/** Reset the list-sessions cache so the next {@link refresh} re-fetches from the agent host. */
+	resetCache(): void {
+		this._cacheValid = false;
+	}
+
 	get items(): readonly IChatSessionItem[] {
 		return this._items;
 	}
 
 	async refresh(_token: CancellationToken): Promise<void> {
+		if (this._cacheValid) {
+			// Cache is kept in sync by notify/sessionAdded,
+			// notify/sessionRemoved, and notify/sessionSummaryChanged. No
+			// need to round-trip through the agent host on every refresh.
+			this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			return;
+		}
 		try {
 			const sessions = await this._connection.listSessions();
 			const filtered = sessions.filter(s => AgentSession.provider(s.session) === this._provider);
@@ -161,13 +184,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,
-					status: s.status,
+					status,
 					workingDirectory: s.workingDirectory,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					diffs: s.diffs,
 				});
 			});
+			this._cacheValid = true;
 		} catch {
 			this._cachedSummaries.clear();
 			this._items = [];
@@ -201,6 +225,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			description: this._description,
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),
+			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),
 			timing: {
 				created: opts.createdAt,
@@ -211,14 +236,17 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		};
 	}
 
-	private _buildMetadata(workingDirectory?: URI): { readonly [key: string]: unknown } | undefined {
-		if (!this._description) {
+	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
+		if (!this._description && !workingDirectory) {
 			return undefined;
 		}
-		const result: { [key: string]: unknown } = { remoteAgentHost: this._description };
+		const result: { [key: string]: unknown } = {};
+		if (this._description) {
+			result.remoteAgentHost = this._description;
+		}
 		if (workingDirectory) {
 			result.workingDirectoryPath = workingDirectory.fsPath;
 		}
-		return result;
+		return Object.keys(result).length > 0 ? result : undefined;
 	}
 }

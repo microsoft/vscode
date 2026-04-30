@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SSHRelayTransport } from '../../electron-browser/sshRelayTransport.js';
 import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService, ISSHConnectProgress, ISSHConnectResult, ISSHAgentHostConfig, ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
@@ -35,6 +36,8 @@ class MockSSHMainService {
 	}
 	async disconnect(_host: string): Promise<void> { }
 	async listSSHConfigHosts(): Promise<string[]> { return []; }
+	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
+	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
 		throw new Error('Not implemented');
 	}

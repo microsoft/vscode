@@ -1199,6 +1199,14 @@ export class McpTool implements IMcpTool {
 			if (context?.chatRequestId) {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
+			// Propagate W3C trace context to the MCP server (MCP SEP-414) so server-side
+			// spans can be correlated with the client trace.
+			if (context?.traceparent) {
+				meta['traceparent'] = context.traceparent;
+				if (context.tracestate) {
+					meta['tracestate'] = context.tracestate;
+				}
+			}
 
 			const taskHint = this._definition.execution?.taskSupport;
 			const serverSupportsTasksForTools = h.capabilities.tasks?.requests?.tools?.call !== undefined;

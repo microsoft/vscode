@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createServiceIdentifier } from '../../../util/common/services';
+import { Event } from '../../../util/vs/base/common/event';
 import { IHeaders } from '../../networking/common/fetcherService';
 
 /**
@@ -47,8 +48,8 @@ export interface IChatQuota {
 	quota: number;
 	percentRemaining: number;
 	unlimited: boolean;
-	overageUsed: number;
-	overageEnabled: boolean;
+	additionalUsageUsed: number;
+	additionalUsageEnabled: boolean;
 	resetDate: Date;
 }
 
@@ -57,9 +58,9 @@ export interface QuotaSnapshot {
 	readonly entitlement: string;
 	/** Percentage of quota remaining (0–100), rounded up to 1 decimal. */
 	readonly percent_remaining: number;
-	/** Whether overage (usage beyond entitlement) is permitted. */
+	/** Whether additional usage (usage beyond included credits) is permitted. */
 	readonly overage_permitted: boolean;
-	/** Number of overage units consumed, rounded up to 1 decimal. */
+	/** Number of additional usage units consumed, rounded up to 1 decimal. */
 	readonly overage_count: number;
 	/** ISO 8601 date when the quota resets, if applicable. */
 	readonly reset_date?: string;
@@ -67,20 +68,16 @@ export interface QuotaSnapshot {
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
-export interface IRateLimitWarning {
-	percentUsed: number;
-	type: 'session' | 'weekly';
-	resetDate: Date;
-}
-
 export interface IChatQuotaService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChange: Event<void>;
+	readonly quotaInfo: IChatQuota | undefined;
+	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
-	overagesEnabled: boolean;
+	additionalUsageEnabled: boolean;
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
 	clearQuota(): void;
-	consumeRateLimitWarning(): IRateLimitWarning | undefined;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

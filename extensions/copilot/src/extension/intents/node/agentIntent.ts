@@ -120,6 +120,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
 
+	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
+	allowTools[ToolName.Skill] = skillToolEnabled;
+
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	if (model.family.includes('grok-code')) {
@@ -389,7 +392,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@ILogService private readonly logService: ILogService,
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
-		@IOTelService override readonly otelService: IOTelService,
+		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
@@ -445,6 +448,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
+		// When the "last two messages" cache breakpoint strategy is enabled,
+		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
+		// will place breakpoints on the last two merged messages instead.
+		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
+			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -455,7 +463,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled,
+			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -622,11 +630,20 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction applied after budget exceeded (roundId=${bgResult.toolCallRoundId})`);
 						this._applySummaryToRounds(bgResult, promptContext);
 						this._persistSummaryOnTurn(bgResult, promptContext, contextLengthBefore);
-						this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'applied', contextRatio, promptContext);
 						didSummarizeThisIteration = true;
-						// Re-render with the compacted history
-						const renderer = PromptRenderer.create(this.instantiationService, endpoint, this.prompt, { ...props, promptContext });
-						result = await renderer.render(progress, token);
+						try {
+							const reRenderer = PromptRenderer.create(this.instantiationService, endpoint, this.prompt, { ...props, promptContext });
+							result = await reRenderer.render(progress, token);
+							this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'applied', contextRatio, promptContext);
+						} catch (reRenderError) {
+							if (reRenderError instanceof BudgetExceededError) {
+								this.logService.debug(`[ConversationHistorySummarizer] re-render after background compaction still exceeded budget — falling back`);
+								this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'appliedButReRenderFailed', contextRatio, promptContext);
+								result = await renderWithoutSummarization('budget exceeded after background compaction applied', { ...props, promptContext });
+							} else {
+								throw reRenderError;
+							}
+						}
 					} else {
 						this.logService.debug(`[ConversationHistorySummarizer] background compaction produced no usable result after budget exceeded — falling back to synchronous summarization`);
 						this._sendBackgroundCompactionTelemetry(budgetExceededTrigger, 'noResult', contextRatio, promptContext);
@@ -719,7 +736,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		addCacheBreakpoints(result.messages);
+		if (!useLastTwoMessagesCacheBPs) {
+			addCacheBreakpoints(result.messages);
+		}
 
 		if (this.request.command === 'error') {
 			// Should trigger a 400
@@ -1125,7 +1144,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				"owner": "bhavyau",
 				"comment": "Tracks background compaction orchestration decisions and outcomes in the agent loop.",
 				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The code path that triggered background compaction consumption." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the background compaction result was applied or produced no usable result." },
+				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Outcome of the background compaction consumption. One of: 'applied' (result applied and re-render succeeded), 'appliedButReRenderFailed' (result applied but the subsequent re-render still exceeded budget and required a fallback), 'noResult' (no usable result was produced)." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this background compaction was consumed during." },
 				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used." },

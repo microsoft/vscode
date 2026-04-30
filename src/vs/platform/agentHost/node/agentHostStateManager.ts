@@ -7,10 +7,12 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, SessionAction, RootAction, StateAction, isRootAction, isSessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, SessionLifecycle, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { IPermissionsValue, platformRootSchema } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 
 /**
  * Server-side state manager for the sessions process protocol.
@@ -46,6 +48,19 @@ export class AgentHostStateManager extends Disposable {
 	) {
 		super();
 		this._rootState = createRootState();
+		// Seed the host-level configuration schema + default values so that
+		// RootConfigChanged actions can merge into it, and clients see the
+		// schema immediately upon subscribing to `agenthost:/root`. See
+		// `platformRootSchema` for the set of platform-owned properties.
+		this._rootState = {
+			...this._rootState,
+			config: {
+				schema: platformRootSchema.toProtocol(),
+				values: platformRootSchema.validateOrDefault({}, {
+					[SessionConfigKey.Permissions]: { allow: [], deny: [] } satisfies IPermissionsValue,
+				}),
+			},
+		};
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
@@ -65,6 +80,10 @@ export class AgentHostStateManager extends Disposable {
 
 	get serverSeq(): number {
 		return this._serverSeq;
+	}
+
+	getSessionUris(): string[] {
+		return [...this._sessionStates.keys()];
 	}
 
 	/**
@@ -200,6 +219,21 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
+	// ---- Session meta -------------------------------------------------------
+
+	/**
+	 * Replaces `state._meta` on a session by dispatching a
+	 * {@link ActionType.SessionMetaChanged} action so the change flows
+	 * through the action envelope (and thus to all live subscribers).
+	 *
+	 * The full `_meta` object is replaced (not merged) so callers stay in
+	 * control of the convention for their own keys; use the `withSessionXxx`
+	 * helpers in `sessionState.ts` to combine slots.
+	 */
+	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
+		this.dispatchServerAction({ type: ActionType.SessionMetaChanged, session, _meta: meta });
+	}
+
 	// ---- Turn tracking ------------------------------------------------------
 
 	/**
@@ -228,7 +262,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: SessionAction | TerminalAction, origin: ActionOrigin): unknown {
+	dispatchClientAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
 		return this._applyAndEmit(action, origin);
 	}
 

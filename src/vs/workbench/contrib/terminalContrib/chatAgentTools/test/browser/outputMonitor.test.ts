@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
@@ -233,6 +233,25 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('extended timeout with isActive fires onDidDetectInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			// Simulate a process that stays active with output that doesn't
+			// match any input-required pattern — the extended timeout should
+			// fire onDidDetectInputNeeded so the agent can assess the output.
+			execution.isActive = async () => true;
+			execution.getOutput = () => 'Some unrecognised prompt waiting for input';
+
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire on extended timeout with active process');
+			assert.strictEqual(monitor.pollingResult?.state, OutputMonitorState.Cancelled);
+		});
+	});
+
 	test('non-interactive help on the last line stops monitoring before custom polling', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.getOutput = () => 'Build complete successfully\npress h + enter to show help';
@@ -354,6 +373,44 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('license: (ISC) '), true);
 		});
 
+		test('detects chevron prompts from prompts/enquirer/inquirer libraries', () => {
+			// vitest / npm-style "prompts" library uses U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? ›'), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › '), true);
+			// inquirer / enquirer uses U+276F HEAVY RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯'), true);
+			// Other chevron variants prefixed with '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Project name ▸ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Choose ▶ '), true);
+
+			// No match if the user has already typed a response after the chevron
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › yes'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ red'), false);
+
+			// No match for chevrons in normal output without a leading '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('  feature/foo ❯ main'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('Project name ▸ '), false);
+
+			// No match when '?' appears mid-line (not as a prompt prefix)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('What happened? ›'), false);
+
+			// Match when prompt is prefixed with ANSI escape codes (colored output)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('\x1b[32m? Choose a framework \x1b[0m›'), true);
+		});
+
 		test('detects trailing questions', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue? '), true);
 			assert.strictEqual(detectsInputRequiredPattern('Proceed?   '), true);
@@ -391,6 +448,37 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
 			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
+		});
+	});
+
+	suite('detectsHighConfidenceInputPattern', () => {
+		test('matches y/n and PowerShell prompts', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Continue? (y/N) '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Overwrite file? [Y/n] '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('[Y] Yes  [N] No '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): '), true);
+		});
+		test('matches password and press-any-key prompts', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Password: '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Press any key to continue...'), true);
+		});
+		test('matches parenthesized defaults', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('package name: (test) '), true);
+			assert.strictEqual(detectsHighConfidenceInputPattern('version: (1.0.0) '), true);
+		});
+		test('matches (END) pager', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('(END)'), true);
+		});
+		test('does NOT match bare colon prompts (too broad for fast-path)', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Enter your name: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('File to overwrite: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Building project: '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Running tests:'), false);
+		});
+		test('does NOT match bare question prompts (too broad for fast-path)', () => {
+			assert.strictEqual(detectsHighConfidenceInputPattern('Continue? '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('Are you sure? '), false);
+			assert.strictEqual(detectsHighConfidenceInputPattern('What happened?'), false);
 		});
 	});
 
@@ -467,6 +555,28 @@ suite('OutputMonitor', () => {
 				monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 				await Event.toPromise(monitor.onDidFinishCommand);
 				monitor.dispose();
+			});
+		});
+
+		test('disposing while monitoring is in-flight still resolves onDidFinishCommand', async () => {
+			// Regression: if dispose() races the async _startMonitoring loop, the loop's
+			// finally block fires onDidFinishCommand AFTER super.dispose() has already
+			// torn down the emitter. Consumers awaiting Event.toPromise(onDidFinishCommand)
+			// would never resolve and the agent would hang on the run_in_terminal call.
+			//
+			// Fix: dispose() must fire onDidFinishCommand synchronously, before the
+			// emitter is disposed. It must also surface a Cancelled pollingResult so
+			// consumers that read monitor.pollingResult after awaiting the event see a
+			// defined value rather than undefined.
+			return runWithFakedTimers({}, async () => {
+				monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+				const finished = Event.toPromise(monitor.onDidFinishCommand);
+				// Dispose immediately, before the deferred _startMonitoring even starts.
+				monitor.dispose();
+				// Must resolve — would hang prior to the synchronous-fire-on-dispose fix.
+				await finished;
+				assert.ok(monitor.pollingResult, 'pollingResult should be defined after dispose-induced finish');
+				assert.strictEqual(monitor.pollingResult!.state, OutputMonitorState.Cancelled);
 			});
 		});
 	});

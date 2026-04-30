@@ -5,6 +5,7 @@
 
 import './media/hostFilter.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -45,13 +46,14 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		@IAgentHostFilterService private readonly _filterService: IAgentHostFilterService,
+		@IAgentHostFilterService protected readonly _filterService: IAgentHostFilterService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(undefined, action);
 
 		this._register(this._filterService.onDidChange(() => this._update()));
+		this._register(this._filterService.onDidChangeDiscovering(() => this._update()));
 	}
 
 	override render(container: HTMLElement): void {
@@ -74,22 +76,23 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._chevronElement = dom.append(this._dropdownElement, dom.$('span.agent-host-filter-chevron'));
 		this._chevronElement.append(...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`));
 
-		this._register(dom.addDisposableListener(this._dropdownElement, dom.EventType.CLICK, e => {
-			if (!this._isInteractive()) {
-				return;
-			}
-			e.preventDefault();
-			e.stopPropagation();
-			this._showMenu(e);
-		}));
+		this._register(Gesture.addTarget(this._dropdownElement));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(this._dropdownElement, eventType, e => {
+				if (!this._isInteractive()) {
+					return;
+				}
+				dom.EventHelper.stop(e, true);
+				this._showMenu(e);
+			}));
+		}
 		this._register(dom.addDisposableListener(this._dropdownElement, dom.EventType.KEY_DOWN, e => {
 			if (!this._isInteractive()) {
 				return;
 			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				e.preventDefault();
-				e.stopPropagation();
+				dom.EventHelper.stop(e, true);
 				this._showMenu(e);
 			}
 		}));
@@ -97,16 +100,17 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Connection button (right) ------------------------------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 
-		this._register(dom.addDisposableListener(this._connectElement, dom.EventType.CLICK, e => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._onConnectClick();
-		}));
+		this._register(Gesture.addTarget(this._connectElement));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(this._connectElement, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				this._onConnectClick();
+			}));
+		}
 		this._register(dom.addDisposableListener(this._connectElement, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				e.preventDefault();
-				e.stopPropagation();
+				dom.EventHelper.stop(e, true);
 				this._onConnectClick();
 			}
 		}));
@@ -114,8 +118,12 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._update();
 	}
 
-	private _isInteractive(): boolean {
-		return this._filterService.hosts.length > 1;
+	protected _isInteractive(): boolean {
+		const hosts = this._filterService.hosts;
+		// Interactive when there is something to do: pick from a menu (>1
+		// hosts) or trigger re-discovery (0 hosts). With exactly 1 host the
+		// pill is a static label.
+		return hosts.length === 0 || hosts.length > 1;
 	}
 
 	private _update(): void {
@@ -129,25 +137,56 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			? undefined
 			: hosts.find(h => h.providerId === selectedId);
 
-		const interactive = hosts.length > 1;
+		const hasMenu = hosts.length > 1;
+		const canRetry = hosts.length === 0;
+		const interactive = hasMenu || canRetry;
+		const discovering = this._filterService.isDiscovering;
 
 		// Dropdown label + aria
-		const text = selected ? selected.label : localize('agentHostFilter.none', "No Host");
+		const text = selected
+			? selected.label
+			: discovering
+				? localize('agentHostFilter.searching', "Searching…")
+				: localize('agentHostFilter.none', "No Host");
 		this._labelElement.textContent = text;
 
 		this.element.classList.toggle('single-host', !interactive);
+		// While discovery is running, suppress the label so the pill collapses
+		// to a small pulsing icon (a la "checking…"). Once discovery finishes,
+		// the label re-appears.
+		this._dropdownElement.classList.toggle('discovering', discovering);
+		this._dropdownElement.classList.toggle('no-hosts', canRetry);
+
+		// Swap the chevron content based on the click affordance: a chevron
+		// when the pill opens a menu, a refresh icon when it triggers re-
+		// discovery. Clearing first avoids stacking icon nodes.
+		dom.clearNode(this._chevronElement);
+		const chevronIconId = canRetry ? Codicon.refresh.id : Codicon.chevronDown.id;
+		this._chevronElement.append(...renderLabelWithIcons(`$(${chevronIconId})`));
 
 		if (interactive) {
 			this._dropdownElement.tabIndex = 0;
 			this._dropdownElement.role = 'button';
-			this._dropdownElement.setAttribute('aria-haspopup', 'menu');
-			this._dropdownElement.setAttribute('aria-label', selected
+			if (hasMenu) {
+				this._dropdownElement.setAttribute('aria-haspopup', 'menu');
+			} else {
+				this._dropdownElement.removeAttribute('aria-haspopup');
+			}
+			const ariaLabel = selected
 				? localize('agentHostFilter.aria.selected', "Sessions scoped to host {0}. Click to change host.", selected.label)
-				: localize('agentHostFilter.aria.none', "No agent host selected."));
+				: canRetry
+					? localize('agentHostFilter.aria.retry', "No hosts found. Click to re-discover hosts.")
+					: localize('agentHostFilter.aria.none', "No agent host selected.");
+			this._dropdownElement.setAttribute('aria-label', ariaLabel);
+			const hoverText = canRetry
+				? (discovering
+					? localize('agentHostFilter.hover.searching', "Searching for hosts…")
+					: localize('agentHostFilter.hover.retry', "Re-discover hosts"))
+				: localize('agentHostFilter.hover', "Change the host the sessions list is scoped to");
 			this._dropdownHover.value = this._hoverService.setupManagedHover(
 				getDefaultHoverDelegate('element'),
 				this._dropdownElement,
-				() => localize('agentHostFilter.hover', "Change the host the sessions list is scoped to"),
+				() => hoverText,
 			);
 		} else {
 			this._dropdownElement.removeAttribute('tabindex');
@@ -233,15 +272,24 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private _showMenu(e: MouseEvent | KeyboardEvent): void {
+	protected _showMenu(e: MouseEvent | KeyboardEvent): void {
 		if (!this._dropdownElement) {
 			return;
 		}
 
 		const hosts = this._filterService.hosts;
-		if (hosts.length <= 1) {
+		// Zero hosts: the pill is a re-discovery trigger, not a menu. Fire
+		// rediscover() unless one is already in flight.
+		if (hosts.length === 0) {
+			if (!this._filterService.isDiscovering) {
+				this._filterService.rediscover();
+			}
 			return;
 		}
+		if (hosts.length === 1) {
+			return;
+		}
+
 		const selectedId = this._filterService.selectedProviderId;
 
 		const actions: IAction[] = [];

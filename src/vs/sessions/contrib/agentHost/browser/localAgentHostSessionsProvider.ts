@@ -12,6 +12,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -19,8 +21,8 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
-import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
@@ -52,6 +54,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -60,7 +63,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
 			description: this.label,
-			group: 'folders',
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: Codicon.folderOpened,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
@@ -71,9 +74,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const rootStateValue = this._agentHostService.rootState.value;
 		if (rootStateValue && !(rootStateValue instanceof Error)) {
 			this._syncSessionTypesFromRootState(rootStateValue);
+			this._syncRootConfigFromRootState(rootStateValue);
 		}
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
 		}));
 
 		// Eagerly populate the session cache once authentication has settled.
@@ -114,10 +119,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected _adapterOptions() {
 		return {
 			description: this._localDescription,
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => {
 				const uriForDescription = project?.uri ?? workingDirectory;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this._localLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description });
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
+				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, this._localLabel, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
@@ -137,6 +143,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- Workspaces ----------------------------------------------------------
 
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitState);
+	}
+
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
 		if (repositoryUri.scheme !== Schemas.file) {
 			return undefined;
@@ -145,9 +155,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return {
 			label: `${folderName} [${this._localLabel}]`,
 			description: this._labelService.getUriLabel(dirname(repositoryUri), { relative: false }),
-			group: this.label,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: Codicon.folder,
-			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}

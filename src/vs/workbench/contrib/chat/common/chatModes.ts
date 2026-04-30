@@ -11,7 +11,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -132,7 +132,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						visibility,
 						agents: cachedMode.agents,
 						sessionTypes: cachedMode.sessionTypes,
-						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
+						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local },
+						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
@@ -162,7 +163,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
-				if (!customMode.visibility.userInvocable) {
+				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
@@ -282,7 +283,6 @@ export interface IChatMode {
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
 	readonly sessionTypes?: readonly string[];
-	readonly when?: ContextKeyExpression;
 }
 
 export interface IVariableReference {
@@ -333,7 +333,6 @@ export class CustomChatMode implements IChatMode {
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
-	private _when: ContextKeyExpression | undefined;
 
 	public readonly id: string;
 
@@ -401,10 +400,6 @@ export class CustomChatMode implements IChatMode {
 		return this._sessionTypes;
 	}
 
-	get when(): ContextKeyExpression | undefined {
-		return this._when;
-	}
-
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -424,7 +419,6 @@ export class CustomChatMode implements IChatMode {
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
 		this._sessionTypes = customChatMode.sessionTypes;
-		this._when = customChatMode.when;
 	}
 
 	/**
@@ -445,7 +439,6 @@ export class CustomChatMode implements IChatMode {
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
 			this._sessionTypes = newData.sessionTypes;
-			this._when = newData.when;
 		});
 	}
 
@@ -494,7 +487,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 		return undefined;
 	}
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
 	}
 	if (source.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
@@ -507,14 +500,7 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		// Migrate old ExtensionAgentSourceType values ('contribution'/'provider') to PromptFileSource values
-		let type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
-		if (data.type === 'provider' as string /* old type value */ || data.type === PromptFileSource.ExtensionAPI) {
-			type = PromptFileSource.ExtensionAPI;
-		} else {
-			type = PromptFileSource.ExtensionContribution;
-		}
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
