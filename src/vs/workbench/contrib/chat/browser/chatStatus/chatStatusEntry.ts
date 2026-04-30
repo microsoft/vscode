@@ -61,9 +61,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const hover = this.hoverService.showInstantHover({
 				content,
 				target,
-				persistence: { hideOnHover: false, sticky: true },
-				appearance: { showPointer: true, compact: true, maxHeightRatio: 0.9 },
-				trapFocus: true
+				persistence: { hideOnKeyDown: true, sticky: true },
+				appearance: { maxHeightRatio: 0.9 },
 			}, true);
 			if (hover) {
 				store.add(hover);
