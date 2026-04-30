@@ -435,6 +435,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
 			},
 		}));
 

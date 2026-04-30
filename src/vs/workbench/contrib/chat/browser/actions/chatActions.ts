@@ -1114,7 +1114,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.manageSettings',
-				title: localize2('manageChat', "Manage Chat"),
+				title: localize2('manageChat', "Manage Copilot Settings"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ContextKeyExpr.and(
@@ -1122,7 +1122,8 @@ export function registerChatActions() {
 						ChatContextKeys.Entitlement.planFree,
 						ChatContextKeys.Entitlement.planEdu,
 						ChatContextKeys.Entitlement.planPro,
-						ChatContextKeys.Entitlement.planProPlus
+						ChatContextKeys.Entitlement.planProPlus,
+						ChatContextKeys.Entitlement.planMax
 					),
 					nonEnterpriseCopilotUsers
 				),

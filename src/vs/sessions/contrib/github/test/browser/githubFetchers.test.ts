@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubApiClient, GitHubApiError } from '../../browser/githubApiClient.js';
+import { GitHubApiClient, GitHubApiError, IGitHubApiRequestOptions } from '../../browser/githubApiClient.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReview, IGitHubPullRequest, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient {
@@ -29,16 +29,8 @@ class MockApiClient {
 		this._nextResponse = undefined;
 	}
 
-	async request<T>(_method: string, _path: string, _callSite: string, _body?: unknown): Promise<T> {
-		this.requestCalls.push({ method: _method, path: _path, body: _body });
-		if (this._nextError) {
-			throw this._nextError;
-		}
-		return this._nextResponse as T;
-	}
-
-	async request2<T>(_method: string, _path: string, _callSite: string, _body?: unknown, _etag?: string): Promise<{ data: T | undefined; statusCode: number; etag?: string }> {
-		this.requestCalls.push({ method: _method, path: _path, body: _body });
+	async request<T>(_method: string, _path: string, _callSite: string, _options?: IGitHubApiRequestOptions): Promise<{ data: T | undefined; statusCode: number; etag?: string }> {
+		this.requestCalls.push({ method: _method, path: _path, body: _options?.data });
 		if (this._nextError) {
 			throw this._nextError;
 		}

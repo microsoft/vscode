@@ -1043,6 +1043,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.pluginListWidget?.showBrowseMarketplace();
 			}
 		}
+
+		// Move focus to the search input so keyboard users can immediately
+		// filter without extra Tab traversal (parity with mouse-click flow).
+		if (section === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Models) {
+			this.modelsWidget?.focusSearch();
+		} else {
+			this.listWidget?.focusSearch();
+		}
 	}
 
 	private ensureSectionsListReflectsActiveSection(section: AICustomizationManagementSection | undefined = this.selectedSection): void {

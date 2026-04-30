@@ -49,10 +49,10 @@ export class ExtHostChatStatus {
 		const item = Object.freeze<vscode.ChatStatusItem>({
 			id: id,
 
-			get title(): string | { label: string; link: string } {
+			get title(): string | { label: string; link: string; helpText?: string } {
 				return state.title;
 			},
-			set title(value: string | { label: string; link: string }) {
+			set title(value: string | { label: string; link: string; helpText?: string }) {
 				state.title = value;
 				syncState();
 			},

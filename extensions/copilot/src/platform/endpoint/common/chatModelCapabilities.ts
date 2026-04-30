@@ -414,7 +414,7 @@ export function modelSupportsToolSearch(modelId: string, configurationService?: 
 }
 
 function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
-	return normalizedModelId.startsWith('gpt-5-4') || normalizedModelId.startsWith('gpt-5-5') || normalizedModelId.startsWith('gpt5-5');
+	return normalizedModelId === 'gpt-5-4' || normalizedModelId === 'gpt-5-5';
 }
 
 export function isResponsesApiToolSearchEnabled(

@@ -47,6 +47,7 @@ import { IChatRequestVariableEntry, OmittedState } from '../../common/attachment
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
@@ -607,6 +608,7 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
+		const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -625,6 +627,11 @@ export class AttachContextAction extends Action2 {
 						kind: 'image',
 						references: [{ reference: pick.resource, kind: 'reference' }]
 					});
+				}
+			} else if (pick.resource.scheme === Schemas.vscodeBrowser) {
+				const entry = await chatAttachmentResolveService.resolveEditorAttachContext({ resource: pick.resource });
+				if (entry) {
+					toAttach.push(entry);
 				}
 			} else {
 				let omittedState = OmittedState.NotOmitted;

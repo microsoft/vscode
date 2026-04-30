@@ -9,7 +9,9 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { extname } from '../../../../base/common/path.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptFileParser } from '../../../../workbench/contrib/chat/common/promptSyntax/promptFileParser.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -318,6 +320,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: undefined,
+			userInvocable: undefined,
 			actions,
 		};
 	}
@@ -356,7 +359,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 			plugins.push({
 				item: isBundleItem
-					? { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined }
+					? { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined, userInvocable: undefined }
 					: this.toItem(sessionCustomization.customization, sessionCustomization),
 				nonce: sessionCustomization.customization.nonce,
 				status: toStatusString(sessionCustomization.status),
@@ -431,7 +434,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 				if (!promptType) {
 					continue;
 				}
-				children.push(...this._collectFromTypeDir(stat.stat.children, promptType, groupKey));
+				children.push(...await this._collectFromTypeDir(stat.stat.children, promptType, groupKey, token));
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
 		} catch (err) {
@@ -449,34 +452,93 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 	 * `SKILL.md`, and synced bundles may preserve per-skill
 	 * subdirectories; flat skill files can still appear for legacy
 	 * bundles, so both layouts are accepted.
+	 *
+	 * For skills, the `SKILL.md` frontmatter is read so that the item's
+	 * description (and a frontmatter-supplied name, when present) can be
+	 * surfaced — without it the UI would only show the folder name with
+	 * no description.
 	 */
-	private _collectFromTypeDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], promptType: PromptsType, groupKey: string): ICustomizationItem[] {
-		const items: ICustomizationItem[] = [];
+	private async _collectFromTypeDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], promptType: PromptsType, groupKey: string, token: CancellationToken): Promise<ICustomizationItem[]> {
+		type Entry = { name: string; resource: URI; isDirectory: boolean };
+		const eligible: Entry[] = [];
 		for (const child of entries) {
 			// Skip dotfiles (e.g. .DS_Store)
 			if (child.name.startsWith('.')) {
 				continue;
 			}
+			if (promptType !== PromptsType.skill && child.isDirectory) {
+				continue;
+			}
+			eligible.push(child);
+		}
+
+		const skillMetadata = promptType === PromptsType.skill
+			? await Promise.all(eligible.map(child => this._readSkillMetadata(child, token)))
+			: undefined;
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const items: ICustomizationItem[] = [];
+		for (let i = 0; i < eligible.length; i++) {
+			const child = eligible[i];
 			let displayName: string;
+			let description: string | undefined;
+			let uri = child.resource;
 			if (promptType === PromptsType.skill) {
-				displayName = child.isDirectory ? child.name : stripPromptFileExtensions(child.name);
-			} else {
+				const meta = skillMetadata![i];
+				// For folder-style skills the canonical resource for the skill
+				// is its `SKILL.md`; downstream code (slash-command resolution,
+				// chat input decorations) calls `parseNew(item.uri)` and would
+				// otherwise try to read the directory as a file. If we couldn't
+				// read `SKILL.md`, skip the entry rather than emit a URI that
+				// will fail to parse downstream.
 				if (child.isDirectory) {
-					continue;
+					if (!meta) {
+						continue;
+					}
+					uri = joinPath(child.resource, SKILL_FILENAME);
 				}
+				const fallbackName = child.isDirectory ? child.name : stripPromptFileExtensions(child.name);
+				displayName = meta?.name ?? fallbackName;
+				description = meta?.description;
+			} else {
 				displayName = stripPromptFileExtensions(child.name);
 			}
 			items.push({
-				uri: child.resource,
+				uri,
 				type: promptType,
 				name: displayName,
+				description,
 				storage: PromptsStorage.plugin,
 				groupKey,
 				extensionId: undefined,
 				pluginUri: undefined,
+				userInvocable: true
 			});
 		}
 		return items;
+	}
+
+	/**
+	 * Reads `SKILL.md` for a skill entry and returns its frontmatter
+	 * `name` / `description`. Returns `undefined` when the file cannot
+	 * be read or parsed — the caller falls back to the folder name and
+	 * leaves the description empty.
+	 */
+	private async _readSkillMetadata(entry: { name: string; resource: URI; isDirectory: boolean }, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined } | undefined> {
+		const skillFileUri = entry.isDirectory ? joinPath(entry.resource, SKILL_FILENAME) : entry.resource;
+		try {
+			const content = await this._fileService.readFile(skillFileUri);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parsed = new PromptFileParser().parse(skillFileUri, content.value.toString());
+			return { name: parsed.header?.name, description: parsed.header?.description };
+		} catch (err) {
+			this._logService.trace(`[RemoteAgentCustomizationItemProvider] Failed to read skill metadata ${skillFileUri.toString()}: ${err}`);
+			return undefined;
+		}
 	}
 }
 

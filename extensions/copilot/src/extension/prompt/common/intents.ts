@@ -120,6 +120,11 @@ export interface IBuildPromptContext {
 	 * Additional context provided by a hook.
 	 */
 	readonly additionalHookContext?: string;
+	/**
+	 * The headerRequestId from the most recent parent fetch response.
+	 * Used by subagent tools to link their telemetry back to the parent's HTTP request.
+	 */
+	readonly parentHeaderRequestId?: string;
 }
 
 export const IBuildPromptContext = createServiceIdentifier<IBuildPromptContext>('IBuildPromptContext');

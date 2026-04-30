@@ -37,6 +37,8 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 	subAgentInvocationId?: string;
 	/** The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
 	parentToolCallId?: string;
+	/** The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
+	parentHeaderRequestId?: string;
 }
 
 export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecutionSubagentToolCallingLoopOptions> {
@@ -161,6 +163,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				subType: 'subagent/execution',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
+				parentHeaderRequestId: this.options.parentHeaderRequestId,
 			},
 		}, token);
 	}

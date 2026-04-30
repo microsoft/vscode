@@ -66,6 +66,42 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+/* -- Mobile titlebar: Changes pill ------------------------------------- */
+/* Pill-shaped button showing total insertions/deletions for the active session. Tapping opens a quick pick of changed files; selecting one opens the mobile diff view. Hidden when the session has no changes or when on the welcome / new-chat screen. */
+
+.mobile-top-bar .mobile-top-bar-button.mobile-changes-pill {
+	width: auto;
+	height: 28px;
+	padding: 0 10px;
+	border-radius: 14px;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 18px;
+	font-variant-numeric: tabular-nums;
+	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-icon {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
+}
+
+.mobile-top-bar .mobile-changes-pill .mobile-changes-pill-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
+}
+
+.mobile-top-bar .mobile-changes-pill:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
 .mobile-top-bar .mobile-top-bar-center {
 	flex: 1;
 	min-width: 0;
@@ -628,4 +664,99 @@
 	min-width: 44px;
 	min-height: 44px;
 	touch-action: manipulation;
+}
+
+/* -- Phone: Sessions list header --------------------------------------- */
+/* The desktop header row (Sessions label + New + Filter + Find toolbar) is hidden on phone in favor of the filter-chips row and the (+) button in MobileTitlebarPart. The row container itself is still rendered because the tree's find widget mounts inside it; the `phone-layout-empty` class is removed when the find widget is open so the row reappears for searching. */
+
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row.phone-layout-empty {
+	display: none;
+}
+
+/* On phone the label / actions slots are intentionally left empty (the
+ * desktop header content is replaced by the mobile filter chips and the
+ * (+) button in MobileTitlebarPart). When the find widget opens the row
+ * becomes visible, but these two empty flex children would still occupy
+ * leading space because of `gap` between siblings. Collapse them so the
+ * find input sits flush with the row's leading edge. */
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row > .agent-sessions-header-label,
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row > .agent-sessions-header-actions {
+	display: none;
+}
+
+/* -- Phone: Find widget mobile-friendly UX ----------------------------- */
+/* When the user opens find on phone, the desktop type-filter widget is normally a tiny floating input with a 24px tall input box and a 22x22 close button — designed for a mouse cursor. On phone, expand it to a full-width row with thumb-sized targets and a single visible search input. */
+
+.agent-sessions-workbench.phone-layout .agent-sessions-header-row {
+	/* The find widget commandeers the row when open. Use minimal horizontal padding so the input stretches as close to the screen edges as possible — feels right for a phone search field. */
+	padding: 6px 4px 6px 8px;
+	min-height: 52px;
+	gap: 4px;
+}
+
+.agent-sessions-workbench.phone-layout .agent-sessions-find-widget-container {
+	/* Take the full width on phone — there's no label/toolbar competing for space because they're hidden in this mode. */
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
+	/* Reset desktop offsets — the desktop widget tries to align with the tree-element rows above it; on phone it lives in its own row. */
+	width: 100%;
+	gap: 4px;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput {
+	display: block;
+	width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+	min-height: 36px;
+	border-radius: 18px;
+	padding: 0 12px;
+	font-size: 14px;
+	width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox input {
+	font-size: 14px;
+	line-height: 22px;
+}
+
+/* Hide the per-input "filter mode" toggle (matches whole word, etc.) on phone — it's tiny and rarely useful for a sessions list lookup; the primary action is "type to filter". */
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	.monaco-tree-type-filter-input > .monaco-findInput > .controls {
+	display: none;
+}
+
+/* Close button: thumb-sized, hugs the right edge. Override the desktop actionbar's natural left-margin so there is no extra empty gap between the input and the X. */
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	> .monaco-tree-type-filter-actionbar {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.agent-sessions-workbench.phone-layout
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter
+	> .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+	width: 36px;
+	height: 36px;
+	padding: 0;
 }

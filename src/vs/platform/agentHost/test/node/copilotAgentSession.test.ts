@@ -16,12 +16,16 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
+import { AgentSession, AgentSignal } from '../../common/agentService.js';
+import { signalToLegacyView, type LegacyMockEvent } from './mockAgent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { AttachmentType, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { AttachmentType, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
@@ -34,8 +38,10 @@ import { createSessionDataService, createZeroDiffComputeService } from '../commo
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
+	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 
 	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void {
 		let set = this._handlers.get(eventType);
@@ -64,6 +70,20 @@ class MockCopilotSession {
 	async setModel() { }
 	async getMessages() { return []; }
 	async destroy() { }
+
+	readonly rpc = {
+		mode: {
+			get: async () => ({ mode: 'interactive' as const }),
+			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
+				this.modeSetCalls.push({ mode: params.mode });
+			},
+		},
+		plan: {
+			read: async () => this.planReadResult,
+			update: async (_params: { content: string }) => { /* no-op */ },
+			delete: async () => { /* no-op */ },
+		},
+	};
 }
 
 class CapturingLogService extends NullLogService {
@@ -83,17 +103,17 @@ class CapturingLogService extends NullLogService {
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
  * handler implementation actually returns.
  */
-function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string): Promise<ToolResultObject> {
-	return Promise.resolve(tool.handler({}, {
+function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string, args: Record<string, unknown> = {}): Promise<ToolResultObject> {
+	return Promise.resolve(tool.handler(args, {
 		sessionId: 'test-session-1',
 		toolCallId,
 		toolName: tool.name,
-		arguments: {},
+		arguments: args,
 	})) as Promise<ToolResultObject>;
 }
 
 type ISessionInternalsForTest = {
-	_onDidSessionProgress: { fire(event: IAgentProgressEvent): void };
+	_onDidSessionProgress: { fire(event: AgentSignal): void };
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
@@ -111,34 +131,64 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	logService?: ILogService;
 	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
 	workingDirectory?: URI;
+	/** Per-key effective config values returned by the fake configuration service. */
+	configValues?: Record<string, unknown>;
 }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
-	progressEvents: IAgentProgressEvent[];
-	waitForProgress: (predicate: (event: IAgentProgressEvent) => boolean) => Promise<IAgentProgressEvent>;
+	progressEvents: LegacyMockEvent[];
+	waitForProgress: <T extends LegacyMockEvent>(predicate: (event: LegacyMockEvent) => event is T) => Promise<T>;
+	signals: AgentSignal[];
+	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 }> {
-	const progressEmitter = disposables.add(new Emitter<IAgentProgressEvent>());
-	const progressEvents: IAgentProgressEvent[] = [];
-	const waiters: { predicate: (event: IAgentProgressEvent) => boolean; deferred: DeferredPromise<IAgentProgressEvent> }[] = [];
-	disposables.add(progressEmitter.event(e => {
-		progressEvents.push(e);
+	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
+	const progressEvents: LegacyMockEvent[] = [];
+	const signals: AgentSignal[] = [];
+	const waiters: { predicate: (event: LegacyMockEvent) => boolean; deferred: DeferredPromise<LegacyMockEvent> }[] = [];
+
+	const notify = (view: LegacyMockEvent): void => {
+		progressEvents.push(view);
 		for (let i = waiters.length - 1; i >= 0; i--) {
-			if (waiters[i].predicate(e)) {
+			if (waiters[i].predicate(view)) {
 				const { deferred } = waiters[i];
 				waiters.splice(i, 1);
-				deferred.complete(e);
+				deferred.complete(view);
 			}
 		}
+	};
+
+	disposables.add(progressEmitter.event(signal => {
+		signals.push(signal);
+		const view = signalToLegacyView(signal);
+		if (!view) {
+			return;
+		}
+		// Auto-ready Ready actions emitted in the same fire-batch as a tool_start
+		// describe the same logical event in the legacy vocabulary. Merge the
+		// invocation/toolInput/edits fields back into the prior tool_start view
+		// so existing tests that assert on `tool_start.invocationMessage` etc.
+		// see a single combined entry. Permission-driven ready signals (kind:
+		// 'tool_ready') and externally triggered ready actions are pushed
+		// separately.
+		if (view.type === 'tool_ready' && signal.kind === 'action') {
+			const last = progressEvents[progressEvents.length - 1];
+			if (last?.type === 'tool_start' && last.toolCallId === view.toolCallId) {
+				last.invocationMessage = view.invocationMessage;
+				last.toolInput = view.toolInput;
+				return;
+			}
+		}
+		notify(view);
 	}));
 
-	const waitForProgress = (predicate: (event: IAgentProgressEvent) => boolean): Promise<IAgentProgressEvent> => {
+	const waitForProgress = <T extends LegacyMockEvent>(predicate: (event: LegacyMockEvent) => event is T): Promise<T> => {
 		const existing = progressEvents.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
 		}
-		const deferred = new DeferredPromise<IAgentProgressEvent>();
+		const deferred = new DeferredPromise<LegacyMockEvent>();
 		waiters.push({ predicate, deferred });
-		return deferred.p;
+		return deferred.p as Promise<T>;
 	};
 
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
@@ -156,6 +206,23 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IFileService, { _serviceBrand: undefined } as IFileService);
 	services.set(ISessionDataService, createSessionDataService());
 	services.set(IDiffComputeService, createZeroDiffComputeService());
+	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
+	const configValues = options?.configValues ?? {};
+	const fakeConfigurationService: IAgentConfigurationService = {
+		_serviceBrand: undefined,
+		onDidRootConfigChange: new Emitter<void>().event,
+		// Simple per-key map suffices for tests; the real service walks
+		// session → parent → host and validates against the schema, but
+		// neither matters here — we just need to surface a value the
+		// session class will read.
+		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
+		getEffectiveWorkingDirectory: () => undefined,
+		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
+		getRootValue: () => undefined,
+		updateRootConfig: () => { /* no-op */ },
+		persistRootConfig: () => { /* no-op */ },
+	};
+	services.set(IAgentConfigurationService, fakeConfigurationService);
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
@@ -180,7 +247,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	await session.initializeSession();
 
-	return { session, mockSession, progressEvents, waitForProgress };
+	return { session, mockSession, progressEvents, signals, waitForProgress, sessionConfigUpdates };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -228,7 +295,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'approved');
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('auto-approves read permission for session-state plan files', async () => {
@@ -242,7 +309,7 @@ suite('CopilotAgentSession', () => {
 					toolCallId: 'tc-read-plan',
 				});
 
-				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(progressEvents.length, 0);
 			} finally {
 				if (previousXdgStateHome === undefined) {
@@ -264,7 +331,7 @@ suite('CopilotAgentSession', () => {
 					toolCallId: 'tc-read-plan-native-env',
 				});
 
-				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(progressEvents.length, 0);
 			} finally {
 				if (previousXdgStateHome === undefined) {
@@ -319,7 +386,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'approved');
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
@@ -333,7 +400,7 @@ suite('CopilotAgentSession', () => {
 					toolCallId: 'tc-write-plan',
 				});
 
-				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(result.kind, 'approve-once');
 				assert.strictEqual(progressEvents.length, 0);
 			} finally {
 				if (previousXdgStateHome === undefined) {
@@ -360,7 +427,7 @@ suite('CopilotAgentSession', () => {
 
 				assert.ok(session.respondToPermissionRequest('tc-write-other-plan', true));
 				const result = await resultPromise;
-				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
 				if (previousXdgStateHome === undefined) {
 					delete process.env['XDG_STATE_HOME'];
@@ -387,7 +454,7 @@ suite('CopilotAgentSession', () => {
 
 				assert.ok(session.respondToPermissionRequest('tc-write-traversal', true));
 				const result = await resultPromise;
-				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(result.kind, 'approve-once');
 			} finally {
 				if (previousXdgStateHome === undefined) {
 					delete process.env['XDG_STATE_HOME'];
@@ -411,7 +478,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.ok(session.respondToPermissionRequest('tc-write-outside', true));
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'approved');
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('read permission outside working directory fires tool_ready', async () => {
@@ -431,13 +498,13 @@ suite('CopilotAgentSession', () => {
 			// Respond to it
 			assert.ok(session.respondToPermissionRequest('tc-2', true));
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'approved');
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('denies permission when no toolCallId', async () => {
 			const { session } = await createAgentSession(disposables);
 			const result = await session.handlePermissionRequest({ kind: 'write' });
-			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+			assert.strictEqual(result.kind, 'reject');
 		});
 
 		test('denied-interactively when user denies', async () => {
@@ -451,7 +518,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 1);
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+			assert.strictEqual(result.kind, 'reject');
 		});
 
 		test('pending permissions are denied on dispose', async () => {
@@ -463,7 +530,7 @@ suite('CopilotAgentSession', () => {
 
 			session.dispose();
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+			assert.strictEqual(result.kind, 'reject');
 		});
 
 		test('pending permissions are denied on abort', async () => {
@@ -475,7 +542,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.abort();
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+			assert.strictEqual(result.kind, 'reject');
 		});
 
 		test('respondToPermissionRequest returns false for unknown id', async () => {
@@ -693,7 +760,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('complete message with tool requests is forwarded', async () => {
+		test('complete assistant message without preceding deltas surfaces a markdown response part', async () => {
 			const { mockSession, progressEvents } = await createAgentSession(disposables);
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-2',
@@ -706,13 +773,62 @@ suite('CopilotAgentSession', () => {
 				}],
 			} as SessionEventPayload<'assistant.message'>['data']);
 
+			// The session emits a fresh markdown response part for the
+			// content. Tool calls fire their own `tool_start` events, so
+			// `toolRequests` on the assistant message are not forwarded
+			// during live streaming.
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'message');
-			if (progressEvents[0].type === 'message') {
+			assert.strictEqual(progressEvents[0].type, 'delta');
+			if (progressEvents[0].type === 'delta') {
 				assert.strictEqual(progressEvents[0].content, 'Let me help you.');
-				assert.strictEqual(progressEvents[0].toolRequests?.length, 1);
-				assert.strictEqual(progressEvents[0].toolRequests?.[0].toolCallId, 'tc-20');
 			}
+		});
+
+		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			// First reasoning delta — allocates a fresh reasoning response part.
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: 'thinking step 1',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+
+			// A tool call interleaves between reasoning rounds.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-r-1',
+				toolName: 'bash',
+				arguments: { command: 'echo hi' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-r-1',
+				success: true,
+				result: { content: 'hi' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			// Second round of reasoning, after the tool call. This must
+			// land in a NEW reasoning response part — otherwise the
+			// renderer / state-tree would merge it into the pre-tool-call
+			// block and the visual ordering would be wrong on restore.
+			mockSession.fire('assistant.reasoning_delta', {
+				deltaContent: 'thinking step 2',
+			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
+
+			// Pull the protocol-level reasoning response parts. Both
+			// `SessionResponsePart{Reasoning}` (allocates a new part) and
+			// `SessionReasoning` (appends to an existing part) translate to
+			// the legacy `'reasoning'` view, so we have to inspect raw
+			// signals to tell them apart.
+			const reasoningResponseParts = signals.flatMap(s => {
+				if (s.kind !== 'action' || s.action.type !== ActionType.SessionResponsePart) {
+					return [];
+				}
+				return s.action.part.kind === ResponsePartKind.Reasoning ? [s.action.part] : [];
+			});
+			assert.strictEqual(reasoningResponseParts.length, 2,
+				'reasoning after a tool call should allocate a new response part, not append to the part from before the tool call');
+			assert.notStrictEqual(reasoningResponseParts[0].id, reasoningResponseParts[1].id,
+				'second reasoning round should have a distinct part id');
+			assert.strictEqual(reasoningResponseParts[0].content, 'thinking step 1');
+			assert.strictEqual(reasoningResponseParts[1].content, 'thinking step 2');
 		});
 	});
 
@@ -720,7 +836,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('user input handling', () => {
 
-		function assertUserInputEvent(event: IAgentProgressEvent): asserts event is IAgentUserInputRequestEvent {
+		function assertUserInputEvent(event: LegacyMockEvent): asserts event is LegacyMockEvent & { type: 'user_input_request' } {
 			assert.strictEqual(event.type, 'user_input_request');
 		}
 
@@ -845,6 +961,44 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.answer, '');
 			assert.strictEqual(result.wasFreeform, true);
 		});
+
+		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			});
+
+			const result = await session.handleUserInputRequest(
+				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
+				{ sessionId: 'test-session-1' }
+			);
+
+			// `wasFreeform: false` because we picked one of the SDK's
+			// offered choices — the SDK uses this hint to record whether
+			// the user typed something custom.
+			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
+			assert.strictEqual(result.wasFreeform, true);
+			assert.strictEqual(progressEvents.length, 0);
+		});
+
+		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
+			// Sanity check: with autoApprove=default the question must
+			// still be surfaced as a progress event (the existing behavior).
+			const { session, progressEvents } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+
+			session.handleUserInputRequest(
+				{ question: 'Need user input' },
+				{ sessionId: 'test-session-1' }
+			);
+
+			// Microtask flush so the handler can run far enough to either
+			// short-circuit or emit a progress event.
+			await Promise.resolve();
+			assert.strictEqual(progressEvents.length, 1);
+			const event = progressEvents[0];
+			assertUserInputEvent(event);
+		});
 	});
 
 	suite('SDK callback logging', () => {
@@ -940,7 +1094,7 @@ suite('CopilotAgentSession', () => {
 			plugins: [],
 		};
 
-		test('tool_start fires immediately for client tools', async () => {
+		test('client tool handler waits for completion without emitting tool_ready', async () => {
 			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
@@ -956,9 +1110,13 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(progressEvents[0].toolClientId, 'test-client');
 			}
 
-			// SDK invokes the handler
+			// SDK invokes the handler — it creates a deferred and waits,
+			// but does NOT fire tool_ready (that comes from the permission flow).
 			const tools = session.createClientSdkTools();
-			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1');
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
+
+			// No tool_ready should have been emitted by the handler
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 0);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -972,7 +1130,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.textResultForLlm, 'result text');
 		});
 
-		test('permission request consumes pending auto-ready for client tools', async () => {
+		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
 			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
@@ -986,8 +1144,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 0);
 
-			// Permission request fires — tool_ready from permission flow
-			// (with confirmationTitle) replaces the auto-ready
+			// Permission request fires — tool_ready from permission flow.
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-client-perm',
@@ -996,17 +1153,29 @@ suite('CopilotAgentSession', () => {
 
 			// tool_ready from permission flow should have fired (with confirmationTitle)
 			await waitForProgress(e => e.type === 'tool_ready');
-			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
-			assert.strictEqual(toolReadys.length, 1);
-			if (toolReadys[0].type === 'tool_ready') {
-				assert.strictEqual(toolReadys[0].toolCallId, 'tc-client-perm');
-				assert.ok(toolReadys[0].confirmationTitle);
+			const permissionReady = progressEvents.filter(e => e.type === 'tool_ready');
+			assert.strictEqual(permissionReady.length, 1);
+			if (permissionReady[0].type === 'tool_ready') {
+				assert.strictEqual(permissionReady[0].toolCallId, 'tc-client-perm');
+				assert.ok(permissionReady[0].confirmationTitle);
 			}
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-perm');
+
+			// The handler should NOT emit its own tool_ready — only the
+			// permission flow fires tool_ready for client tools.
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 1, 'handler should not emit a second tool_ready');
 
 			// Approve and clean up
 			session.respondToPermissionRequest('tc-client-perm', true);
 			const permResult = await resultPromise;
-			assert.strictEqual(permResult.kind, 'approved');
+			assert.strictEqual(permResult.kind, 'approve-once');
+			session.handleClientToolCallComplete('tc-client-perm', {
+				success: true,
+				pastTenseMessage: 'did it',
+			});
+			await handlerPromise;
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {
@@ -1120,7 +1289,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in client tool handler: tool=my_tool, toolCallId=tc-client-error');
 		});
 
-		test('tool_start stores pending auto-ready data for client tools', async () => {
+		test('permission request before client tool handler emits only confirmation ready', async () => {
 			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			mockSession.fire('tool.execution_start', {
@@ -1132,11 +1301,8 @@ suite('CopilotAgentSession', () => {
 			// tool_start should have fired
 			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
 
-			// The session should have stored pending auto-ready data.
-			// We verify this indirectly: if we now fire a permission request
-			// for the same toolCallId, the pending auto-ready is consumed
-			// (tested by the permission request test above), and we get
-			// tool_ready with confirmationTitle instead.
+			// Permission before the handler should produce only the confirmation
+			// tool_ready, not a synthetic auto-ready.
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-ready-data',
@@ -1173,6 +1339,343 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.resultType, 'success');
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
+		});
+	});
+
+	// ---- Plan mode ----------------------------------------------------------
+
+	suite('plan mode', () => {
+
+		const planRequestParams = (overrides?: Partial<{ actions: string[]; recommendedAction: string; summary: string }>) => ({
+			sessionId: 'test-session-1',
+			summary: overrides?.summary ?? '## Plan summary',
+			planContent: '## Plan',
+			actions: overrides?.actions ?? ['autopilot', 'interactive', 'exit_only'],
+			recommendedAction: overrides?.recommendedAction ?? 'autopilot',
+		});
+
+		test('applyMode pushes the mode to the SDK only when it changes', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.applyMode('plan');
+			await session.applyMode('plan');
+			await session.applyMode('autopilot');
+			await session.applyMode(undefined);
+			await session.applyMode('autopilot');
+
+			assert.deepStrictEqual(mockSession.modeSetCalls, [
+				{ mode: 'plan' },
+				{ mode: 'autopilot' },
+			]);
+		});
+
+		test('send applies mode before forwarding to the SDK', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('hi', undefined, 'turn-1', 'plan');
+
+			assert.deepStrictEqual(mockSession.modeSetCalls, [{ mode: 'plan' }]);
+			assert.strictEqual(mockSession.sendRequests.length, 1);
+		});
+
+		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
+			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables);
+
+			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const request = event.request;
+
+			// The plan summary and "View full plan" link are emitted as a
+			// markdown response part before the input request, so the
+			// client renders them inline above the question.
+			const deltaContent = progressEvents.flatMap(e => e.type === 'delta' ? [e.content] : []).join('');
+			assert.ok(deltaContent.includes('Plan summary'), `expected delta to include plan summary; got: ${deltaContent}`);
+			assert.ok(deltaContent.includes('plan.md'), 'delta should include a link to the plan file');
+
+			const question = request.questions?.[0];
+			assert.strictEqual(question?.kind, SessionInputQuestionKind.SingleSelect);
+			if (question?.kind === SessionInputQuestionKind.SingleSelect) {
+				assert.deepStrictEqual(question.options.map(o => o.id), ['autopilot', 'interactive', 'exit_only']);
+				const recommended = question.options.find(o => o.recommended);
+				assert.strictEqual(recommended?.id, 'autopilot');
+				assert.strictEqual(question.allowFreeformInput, true);
+			}
+
+			// Resolve the request so the deferred completes and the test can clean up.
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			await responsePromise;
+		});
+
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+		});
+
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+		});
+
+		test('declining the input request resolves with approved=false', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+
+			session.respondToUserInputRequest(event.request.id, SessionInputResponseKind.Decline);
+
+			assert.deepStrictEqual(await responsePromise, { approved: false });
+		});
+
+		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'exit_only' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'exit_only' });
+		});
+
+		test('freeform feedback alongside a selected action becomes a revision request', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: {
+						kind: SessionInputAnswerValueKind.Selected,
+						value: 'interactive',
+						freeformValues: ['Please use Python instead of Node.js'],
+					},
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, {
+				approved: false,
+				feedback: 'Please use Python instead of Node.js',
+				selectedAction: 'interactive',
+			});
+		});
+
+		test('selectedAction not in offered actions falls back to recommendedAction', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			// SDK only offered `interactive` and `exit_only`; the client
+			// somehow sent `autopilot` (e.g. stale UI state). The agent
+			// host clamps to `recommendedAction` so the SDK never sees a
+			// value it didn't offer.
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+		});
+
+		test('selectedAction not in offered actions and no fallback resolves to approved=false', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			// SDK offered `exit_only` only and recommended a value not in
+			// the offered set. The client picked something invalid. With
+			// no usable selectedAction and no feedback, decline.
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: false });
+		});
+
+		test('text answer with feedback becomes a revision request without selectedAction', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			// The single-select question normally produces a Selected
+			// value, but a defensive Text response should still be
+			// translated to a revision request when the answer is
+			// non-empty (selectedAction falls back to recommendedAction).
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Text, value: 'Add tests for edge cases' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, {
+				approved: false,
+				feedback: 'Add tests for edge cases',
+				selectedAction: 'interactive',
+			});
+		});
+
+		test('whitespace-only freeform feedback is ignored', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables);
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }));
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			const requestId = event.request.id;
+			const questionId = event.request.questions![0].id;
+
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: {
+						kind: SessionInputAnswerValueKind.Selected,
+						value: 'interactive',
+						freeformValues: ['   ', ''],
+					},
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+		});
+
+		test('session.mode_changed → plan updates the AHP session config', async () => {
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'plan' } as SessionEventPayload<'session.mode_changed'>['data']);
+
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'plan' } },
+			]);
+		});
+
+		test('session.mode_changed → interactive updates the AHP session config', async () => {
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'interactive' } as SessionEventPayload<'session.mode_changed'>['data']);
+
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
+		});
+
+		test('session.mode_changed → autopilot translates to mode=interactive + autoApprove=autopilot', async () => {
+			// The SDK has a first-class `autopilot` mode but AHP exposes it
+			// as the `autopilot` value on the orthogonal `autoApprove` axis.
+			// The translation is contained in the Copilot agent.
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'autopilot' } as SessionEventPayload<'session.mode_changed'>['data']);
+
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive', autoApprove: 'autopilot' } },
+			]);
+		});
+
+		test('session.mode_changed for unsupported mode is ignored', async () => {
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'shell' } as SessionEventPayload<'session.mode_changed'>['data']);
+
+			assert.strictEqual(sessionConfigUpdates.length, 0);
+		});
+
+		// ---- autopilot fast-path -------------------------------------------
+
+		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			});
+
+			const response = await session.handleExitPlanModeRequest(planRequestParams({
+				actions: ['autopilot', 'interactive', 'exit_only'],
+				recommendedAction: 'autopilot',
+			}));
+
+			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// User-input request should NOT be surfaced to the client.
+			assert.strictEqual(progressEvents.filter(e => e.type === 'user_input_request').length, 0);
+		});
+
+		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
+			const { session } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			});
+
+			// SDK proposes a recommended action that's NOT in the offered set —
+			// fall back to the priority order (autopilot > autopilot_fleet >
+			// interactive > exit_only).
+			const response = await session.handleExitPlanModeRequest(planRequestParams({
+				actions: ['interactive', 'exit_only'],
+				recommendedAction: 'autopilot_fleet',
+			}));
+
+			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+		});
+
+		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {
+			const { session, waitForProgress } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+
+			const responsePromise = session.handleExitPlanModeRequest(planRequestParams());
+
+			// The user-input request fires — the user must respond.
+			const event = await waitForProgress(e => e.type === 'user_input_request');
+			session.respondToUserInputRequest(event.request.id, SessionInputResponseKind.Decline);
+			await responsePromise;
 		});
 	});
 });

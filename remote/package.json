@@ -4,8 +4,8 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.49",
-    "@github/copilot": "^1.0.34",
-    "@github/copilot-sdk": "^0.2.2",
+    "@github/copilot": "1.0.39",
+    "@github/copilot-sdk": "^0.3.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",

@@ -15,7 +15,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +26,7 @@ import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
@@ -41,7 +40,7 @@ import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Register tools
-import { canShareBrowserWithAgentContext } from '../tools/browserTools.contribution.js';
+import '../tools/browserTools.contribution.js';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -173,7 +172,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -207,16 +206,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
 		}));
-
-		// Show share button only when chat is enabled and browser tools are enabled
-		const updateShareButtonVisibility = () => {
-			this._shareButtonContainer.style.display = contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
-		};
-		updateShareButtonVisibility();
-		const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys))(() => {
-			updateShareButtonVisibility();
-		}));
 	}
 
 	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
@@ -226,10 +215,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
-		store.add(model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState(false);
-		}));
-		store.add(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(canShareBrowserWithAgentContext.keys())))(() => {
+		store.add(model.onDidChangeSharingState(() => {
 			this._updateSharingState(false);
 		}));
 	}
@@ -249,17 +235,18 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(!model.sharedWithAgent);
+		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
 		const model = this.editor.model;
-		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
-		const isShared = sharingEnabled && !!model && model.sharedWithAgent;
+		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
+		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
+		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
 			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'

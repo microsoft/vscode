@@ -37,6 +37,8 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { ISharedKeychainMainService } from '../../platform/secrets/common/sharedKeychainService.js';
+import { SharedKeychainMainService } from '../../platform/secrets/electron-main/sharedKeychainMainService.js';
 import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
@@ -85,6 +87,7 @@ import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { AbstractUpdateService } from '../../platform/update/electron-main/abstractUpdateService.js';
 import { CrossAppUpdateCoordinator } from '../../platform/update/electron-main/crossAppUpdateIpc.js';
+import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
 import { MacOSCrossAppSecretSharing } from '../../platform/secrets/electron-main/macOSCrossAppSecretSharing.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
@@ -1092,6 +1095,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Shared Keychain
+		services.set(ISharedKeychainMainService, new SyncDescriptor(SharedKeychainMainService));
+
 		// Cross-app IPC
 		services.set(ICrossAppIPCService, new SyncDescriptor(CrossAppIPCService));
 
@@ -1265,17 +1271,21 @@ export class CodeApplication extends Disposable {
 		const updateChannel = new UpdateChannel(effectiveUpdateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
+		// Show a native "no updates available" dialog from the focused app's main
+		// process to avoid double dialogs across apps and ensure a native dialog.
+		this._register(new NotAvailableUpdateDialog(effectiveUpdateService, accessor.get(IDialogMainService)));
+
 		// Cross-app secret sharing (macOS only, demand-driven)
 		if (isMacintosh) {
 			this._register(new MacOSCrossAppSecretSharing(
 				accessor.get(IStorageMainService),
 				accessor.get(IEncryptionMainService),
+				accessor.get(ISharedKeychainMainService),
 				accessor.get(IStateService),
 				this.logService,
 				this.environmentMainService,
 				accessor.get(ILaunchMainService),
 				this.lifecycleMainService,
-				crossAppIPCService,
 			));
 		}
 
@@ -1291,6 +1301,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Shared Keychain
+		const sharedKeychainChannel = ProxyChannel.fromService(accessor.get(ISharedKeychainMainService), disposables);
+		mainProcessElectronServer.registerChannel('sharedKeychain', sharedKeychainChannel);
 
 		// Browser View
 		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
