@@ -33,7 +33,7 @@ import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, JOBS_API_VERSION, SessionIdForPr, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CloudAgentBackend } from './cloudAgentBackend';
+import { CloudAgentBackend, CloudDelegationResult } from './cloudAgentBackend';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { JobsApiBackend } from './jobsApiBackend';
 import { StubTaskApiClient, TaskApiBackend } from './taskApiBackend';
@@ -1536,7 +1536,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		metadata: ConfirmationMetadata,
 		base_ref?: string,
 		head_ref?: string
-	): Promise<vscode.ChatResponsePullRequestPart> {
+	): Promise<vscode.ChatResponsePullRequestPart | CloudDelegationResult> {
 
 		// Ensure we have the permissive GitHub session before doing any work; this
 		// covers both the cloud-sessions provider entry point and the Copilot CLI
