@@ -24,7 +24,7 @@ const commonTelemetryProperties = new Set([
 	'common.devdeviceid',
 	'sessionid',
 	'commithash',
-	'tscodeVersion', // test-workbench_change
+	'tscode.version', // test-workbench_change
 	'version',
 	'common.releasedate',
 	'common.platformversion',

@@ -73,7 +73,7 @@ export function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "tscodeVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// test-workbench_change start
 	if (productService?.gitVersion) {
-		result['tscodeVersion'] = productService.gitVersion;
+		result['tscode.version'] = productService.gitVersion;
 	}
 	// test-workbench_change end
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

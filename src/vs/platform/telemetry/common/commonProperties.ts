@@ -60,7 +60,7 @@ export function resolveCommonProperties(
 	// __GDPR__COMMON__ "tscodeVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// test-workbench_change start
 	if (tscodeVersion) {
-		result['tscodeVersion'] = tscodeVersion;
+		result['tscode.version'] = tscodeVersion;
 	}
 	// test-workbench_change end
 
