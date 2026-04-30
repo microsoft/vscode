@@ -541,6 +541,10 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		return this.base.multiplier;
 	}
 
+	public get tokenPricing() {
+		return this.base.tokenPricing;
+	}
+
 	public get restrictedToSkus(): string[] | undefined {
 		return this.base.restrictedToSkus;
 	}

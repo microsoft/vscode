@@ -39,6 +39,9 @@ src/vs/workbench/contrib/scm/** @lszomoru
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
 src/vs/workbench/contrib/preferences/** @rzhao271
 
+# Sessions Contributions
+src/vs/sessions/contrib/browserView/** @kycutler @jruales
+
 # Build
 build/azure-pipelines/** @lszomoru
 build/azure-pipelines/common/sanity-tests.yml @dmitrivMS
@@ -65,6 +68,7 @@ extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
+extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
 test/sanity/** @dmitrivMS

@@ -102,6 +102,45 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _command = '';
 	private _invocationContext: IToolInvocationContext | undefined;
 	private _currentMonitoringCts: CancellationTokenSource | undefined;
+	/**
+	 * Tracks whether onDidFinishCommand has fired so the event is delivered at
+	 * most once. The event must fire synchronously during dispose so consumers
+	 * awaiting `Event.toPromise(onDidFinishCommand)` are unblocked before the
+	 * underlying emitter is torn down by super.dispose().
+	 */
+	private _didFinish = false;
+
+	private _fireFinishedOnce(): void {
+		if (this._didFinish) {
+			return;
+		}
+		this._didFinish = true;
+		this._onDidFinishCommand.fire();
+	}
+
+	override dispose(): void {
+		// Deliver onDidFinishCommand to consumers BEFORE super.dispose() tears
+		// down the emitter. Field-initialized disposables (including
+		// _onDidFinishCommand) are registered before any disposable added in
+		// the constructor body and are disposed first by DisposableStore in
+		// insertion order. Without this override, consumers awaiting
+		// `Event.toPromise(onDidFinishCommand)` would race with emitter
+		// teardown and hang when dispose lands while _startMonitoring is still
+		// in flight.
+		if (!this._didFinish) {
+			// Synthesize a Cancelled pollingResult so consumers that read
+			// `monitor.pollingResult` after awaiting onDidFinishCommand always
+			// see a defined value with the output collected so far.
+			this._pollingResult ??= {
+				state: OutputMonitorState.Cancelled,
+				output: this._execution.getOutput(),
+				pollDurationMs: 0,
+				resources: undefined,
+			};
+		}
+		this._fireFinishedOnce();
+		super.dispose();
+	}
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -231,7 +270,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			};
 			// Clean up idle input listener if still active
 			this._userInputListener.clear();
-			this._onDidFinishCommand.fire();
+			// Fire at most once. If dispose() already fired the event synchronously
+			// (e.g. the monitor was torn down before this async loop reached its
+			// finally), skip firing on a potentially disposed emitter.
+			this._fireFinishedOnce();
 		}
 	}
 
@@ -361,9 +403,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
-		// Stop after extended polling (2 minutes) without notifying user
 		if (_extended) {
-			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes');
+			// Extended polling (2 minutes) expired while the process was still
+			// running. Rather than silently cancelling, signal that input may be
+			// needed so the agent sees the current output and can decide how to
+			// proceed (e.g. answer an unrecognised interactive prompt).
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes, signaling potential input needed');
+			this._onDidDetectInputNeeded.fire();
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
@@ -562,6 +608,18 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		/password:? +$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
+		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with
+		// '? ' at the start of the line and end with a distinctive chevron character
+		// followed by optional trailing whitespace where the cursor is awaiting input.
+		// Anchoring the '?' to the start of the line (after optional whitespace/ANSI
+		// escapes) avoids false positives from normal output that contains both a '?'
+		// allow-any-unicode-next-line
+		// and a chevron (e.g. "What happened? ›").
+		// Examples:
+		//   "? Do you want to install jsdom? <chevron>"  (prompts)
+		//   "? Pick a color <chevron> "                  (enquirer)
+		// allow-any-unicode-next-line
+		/^(?:\s|\x1b\[[0-9;]*m)*\?.*[›❯▸▶]\s*$/,
 	].some(e => e.test(cursorLine));
 }
 

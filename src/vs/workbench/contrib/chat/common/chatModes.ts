@@ -132,7 +132,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						visibility,
 						agents: cachedMode.agents,
 						sessionTypes: cachedMode.sessionTypes,
-						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
+						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local },
+						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
@@ -162,7 +163,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
-				if (!customMode.visibility.userInvocable) {
+				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 

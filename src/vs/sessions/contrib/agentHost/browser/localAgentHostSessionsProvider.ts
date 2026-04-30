@@ -122,7 +122,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => {
 				const uriForDescription = project?.uri ?? workingDirectory;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService);
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
 				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, this._localLabel, gitState, description, branchProtectionPatterns);
 			},
 		};

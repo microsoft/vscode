@@ -179,6 +179,23 @@
         "category": "Markdown"
       },
       {
+        "command": "markdown.reopenAsPreview",
+        "title": "%markdown.reopenAsPreview.title%",
+        "category": "Markdown",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "markdown.reopenAsSource",
+        "title": "%markdown.reopenAsSource.title%",
+        "category": "Markdown",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "markdown.togglePreview",
+        "title": "%markdown.togglePreview.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
@@ -210,8 +227,18 @@
           "group": "navigation"
         },
         {
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "group": "navigation"
+        },
+        {
           "command": "markdown.showSource",
-          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "when": "activeWebviewPanelId == 'markdown.preview'",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
@@ -313,421 +340,455 @@
         {
           "command": "markdown.findAllFileReferences",
           "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+        },
+        {
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.togglePreview",
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "markdown.showPreview",
-        "key": "shift+ctrl+v",
-        "mac": "shift+cmd+v",
-        "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
-      },
-      {
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",
         "mac": "cmd+k v",
         "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
+      },
+      {
+        "command": "markdown.togglePreview",
+        "key": "shift+ctrl+v",
+        "mac": "shift+cmd+v",
+        "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
       }
     ],
-    "configuration": {
-      "type": "object",
-      "title": "Markdown",
-      "order": 20,
-      "properties": {
-        "markdown.styles": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "%markdown.styles.dec%",
-          "scope": "resource"
-        },
-        "markdown.preview.breaks": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%markdown.preview.breaks.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.linkify": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.linkify%",
-          "scope": "resource"
-        },
-        "markdown.preview.typographer": {
-          "type": "boolean",
-          "default": false,
-          "description": "%markdown.preview.typographer%",
-          "scope": "resource"
-        },
-        "markdown.preview.fontFamily": {
-          "type": "string",
-          "default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
-          "description": "%markdown.preview.fontFamily.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.fontSize": {
-          "type": "number",
-          "default": 14,
-          "description": "%markdown.preview.fontSize.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.lineHeight": {
-          "type": "number",
-          "default": 1.6,
-          "description": "%markdown.preview.lineHeight.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.scrollPreviewWithEditor": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.scrollPreviewWithEditor.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.markEditorSelection": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.markEditorSelection.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.scrollEditorWithPreview": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.scrollEditorWithPreview.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.doubleClickToSwitchToEditor": {
-          "type": "boolean",
-          "default": true,
-          "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
-          "scope": "resource"
-        },
-        "markdown.preview.openMarkdownLinks": {
-          "type": "string",
-          "default": "inPreview",
-          "description": "%configuration.markdown.preview.openMarkdownLinks.description%",
-          "scope": "resource",
-          "enum": [
-            "inPreview",
-            "inEditor"
-          ],
-          "enumDescriptions": [
-            "%configuration.markdown.preview.openMarkdownLinks.inPreview%",
-            "%configuration.markdown.preview.openMarkdownLinks.inEditor%"
-          ]
-        },
-        "markdown.links.openLocation": {
-          "type": "string",
-          "default": "currentGroup",
-          "description": "%configuration.markdown.links.openLocation.description%",
-          "scope": "resource",
-          "enum": [
-            "currentGroup",
-            "beside"
-          ],
-          "enumDescriptions": [
-            "%configuration.markdown.links.openLocation.currentGroup%",
-            "%configuration.markdown.links.openLocation.beside%"
-          ]
-        },
-        "markdown.suggest.paths.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.markdown.suggest.paths.enabled.description%",
-          "scope": "resource"
-        },
-        "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
-          "type": "string",
-          "default": "onDoubleHash",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
-          "enum": [
-            "never",
-            "onDoubleHash",
-            "onSingleOrDoubleHash"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
-            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
-            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
-          ]
-        },
-        "markdown.trace.server": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%markdown.trace.server.desc%"
-        },
-        "markdown.server.log": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "debug",
-            "trace"
-          ],
-          "default": "off",
-          "description": "%markdown.server.log.desc%"
-        },
-        "markdown.editor.drop.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
-          "default": "smart",
-          "enum": [
-            "always",
-            "smart",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.editor.drop.enabled.always%",
-            "%configuration.markdown.editor.drop.enabled.smart%",
-            "%configuration.markdown.editor.drop.enabled.never%"
-          ]
-        },
-        "markdown.editor.drop.copyIntoWorkspace": {
-          "type": "string",
-          "markdownDescription": "%configuration.markdown.editor.drop.copyIntoWorkspace%",
-          "default": "mediaFiles",
-          "enum": [
-            "mediaFiles",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.copyIntoWorkspace.mediaFiles%",
-            "%configuration.copyIntoWorkspace.never%"
-          ]
-        },
-        "markdown.editor.filePaste.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
-          "default": "smart",
-          "enum": [
-            "always",
-            "smart",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.editor.filePaste.enabled.always%",
-            "%configuration.markdown.editor.filePaste.enabled.smart%",
-            "%configuration.markdown.editor.filePaste.enabled.never%"
-          ]
-        },
-        "markdown.editor.filePaste.copyIntoWorkspace": {
-          "type": "string",
-          "markdownDescription": "%configuration.markdown.editor.filePaste.copyIntoWorkspace%",
-          "default": "mediaFiles",
-          "enum": [
-            "mediaFiles",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.copyIntoWorkspace.mediaFiles%",
-            "%configuration.copyIntoWorkspace.never%"
-          ]
-        },
-        "markdown.editor.filePaste.videoSnippet": {
-          "type": "string",
-          "markdownDescription": "%configuration.markdown.editor.filePaste.videoSnippet%",
-          "default": "<video controls src=\"${src}\" title=\"${title}\"></video>"
-        },
-        "markdown.editor.filePaste.audioSnippet": {
-          "type": "string",
-          "markdownDescription": "%configuration.markdown.editor.filePaste.audioSnippet%",
-          "default": "<audio controls src=\"${src}\" title=\"${title}\"></audio>"
-        },
-        "markdown.editor.pasteUrlAsFormattedLink.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": "smartWithSelection",
-          "enum": [
-            "always",
-            "smart",
-            "smartWithSelection",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.pasteUrlAsFormattedLink.always%",
-            "%configuration.pasteUrlAsFormattedLink.smart%",
-            "%configuration.pasteUrlAsFormattedLink.smartWithSelection%",
-            "%configuration.pasteUrlAsFormattedLink.never%"
-          ]
-        },
-        "markdown.validate.enabled": {
-          "type": "boolean",
-          "scope": "resource",
-          "description": "%configuration.markdown.validate.enabled.description%",
-          "default": false
-        },
-        "markdown.validate.referenceLinks.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.referenceLinks.enabled.description%",
-          "default": "warning",
-          "enum": [
-            "ignore",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.validate.fragmentLinks.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.fragmentLinks.enabled.description%",
-          "default": "warning",
-          "enum": [
-            "ignore",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.validate.fileLinks.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.fileLinks.enabled.description%",
-          "default": "warning",
-          "enum": [
-            "ignore",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.validate.fileLinks.markdownFragmentLinks": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
-          "default": "inherit",
-          "enum": [
-            "inherit",
-            "ignore",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.validate.ignoredLinks": {
-          "type": "array",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.ignoredLinks.description%",
-          "items": {
-            "type": "string"
-          }
-        },
-        "markdown.validate.unusedLinkDefinitions.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.unusedLinkDefinitions.description%",
-          "default": "hint",
-          "enum": [
-            "ignore",
-            "hint",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.validate.duplicateLinkDefinitions.enabled": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.validate.duplicateLinkDefinitions.description%",
-          "default": "warning",
-          "enum": [
-            "ignore",
-            "warning",
-            "error"
-          ]
-        },
-        "markdown.updateLinksOnFileMove.enabled": {
-          "type": "string",
-          "enum": [
-            "prompt",
-            "always",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.updateLinksOnFileMove.enabled.prompt%",
-            "%configuration.markdown.updateLinksOnFileMove.enabled.always%",
-            "%configuration.markdown.updateLinksOnFileMove.enabled.never%"
-          ],
-          "default": "never",
-          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
-          "scope": "window"
-        },
-        "markdown.updateLinksOnFileMove.include": {
-          "type": "array",
-          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
-          "scope": "window",
-          "items": {
+    "configuration": [
+      {
+        "title": "%configuration.editor%",
+        "order": 20,
+        "properties": {
+          "markdown.links.openLocation": {
             "type": "string",
-            "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
+            "default": "currentGroup",
+            "description": "%configuration.markdown.links.openLocation.description%",
+            "scope": "resource",
+            "enum": [
+              "currentGroup",
+              "beside"
+            ],
+            "enumDescriptions": [
+              "%configuration.markdown.links.openLocation.currentGroup%",
+              "%configuration.markdown.links.openLocation.beside%"
+            ]
           },
-          "default": [
-            "**/*.{md,mkd,mdwn,mdown,markdown,markdn,mdtxt,mdtext,workbook}",
-            "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}"
-          ]
-        },
-        "markdown.updateLinksOnFileMove.enableForDirectories": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
-          "scope": "window"
-        },
-        "markdown.occurrencesHighlight.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.markdown.occurrencesHighlight.enabled%",
-          "scope": "resource"
-        },
-        "markdown.copyFiles.destination": {
-          "type": "object",
-          "markdownDescription": "%configuration.markdown.copyFiles.destination%",
-          "additionalProperties": {
-            "type": "string"
+          "markdown.suggest.paths.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.markdown.suggest.paths.enabled.description%",
+            "scope": "resource"
+          },
+          "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
+            "type": "string",
+            "default": "onDoubleHash",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
+            "enum": [
+              "never",
+              "onDoubleHash",
+              "onSingleOrDoubleHash"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
+              "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
+              "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
+            ]
+          },
+          "markdown.editor.drop.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
+            "default": "smart",
+            "enum": [
+              "always",
+              "smart",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.editor.drop.enabled.always%",
+              "%configuration.markdown.editor.drop.enabled.smart%",
+              "%configuration.markdown.editor.drop.enabled.never%"
+            ]
+          },
+          "markdown.editor.drop.copyIntoWorkspace": {
+            "type": "string",
+            "markdownDescription": "%configuration.markdown.editor.drop.copyIntoWorkspace%",
+            "default": "mediaFiles",
+            "enum": [
+              "mediaFiles",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.copyIntoWorkspace.mediaFiles%",
+              "%configuration.copyIntoWorkspace.never%"
+            ]
+          },
+          "markdown.editor.filePaste.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
+            "default": "smart",
+            "enum": [
+              "always",
+              "smart",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.editor.filePaste.enabled.always%",
+              "%configuration.markdown.editor.filePaste.enabled.smart%",
+              "%configuration.markdown.editor.filePaste.enabled.never%"
+            ]
+          },
+          "markdown.editor.filePaste.copyIntoWorkspace": {
+            "type": "string",
+            "markdownDescription": "%configuration.markdown.editor.filePaste.copyIntoWorkspace%",
+            "default": "mediaFiles",
+            "enum": [
+              "mediaFiles",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.copyIntoWorkspace.mediaFiles%",
+              "%configuration.copyIntoWorkspace.never%"
+            ]
+          },
+          "markdown.editor.filePaste.videoSnippet": {
+            "type": "string",
+            "markdownDescription": "%configuration.markdown.editor.filePaste.videoSnippet%",
+            "default": "<video controls src=\"${src}\" title=\"${title}\"></video>"
+          },
+          "markdown.editor.filePaste.audioSnippet": {
+            "type": "string",
+            "markdownDescription": "%configuration.markdown.editor.filePaste.audioSnippet%",
+            "default": "<audio controls src=\"${src}\" title=\"${title}\"></audio>"
+          },
+          "markdown.editor.pasteUrlAsFormattedLink.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
+            "default": "smartWithSelection",
+            "enum": [
+              "always",
+              "smart",
+              "smartWithSelection",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.pasteUrlAsFormattedLink.always%",
+              "%configuration.pasteUrlAsFormattedLink.smart%",
+              "%configuration.pasteUrlAsFormattedLink.smartWithSelection%",
+              "%configuration.pasteUrlAsFormattedLink.never%"
+            ]
+          },
+          "markdown.editor.updateLinksOnPaste.enabled": {
+            "type": "boolean",
+            "markdownDescription": "%configuration.markdown.editor.updateLinksOnPaste.enabled%",
+            "scope": "resource",
+            "default": true
+          },
+          "markdown.updateLinksOnFileMove.enabled": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "always",
+              "never"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.updateLinksOnFileMove.enabled.prompt%",
+              "%configuration.markdown.updateLinksOnFileMove.enabled.always%",
+              "%configuration.markdown.updateLinksOnFileMove.enabled.never%"
+            ],
+            "default": "never",
+            "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
+            "scope": "window"
+          },
+          "markdown.updateLinksOnFileMove.include": {
+            "type": "array",
+            "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
+            "scope": "window",
+            "items": {
+              "type": "string",
+              "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
+            },
+            "default": [
+              "**/*.{md,mkd,mdwn,mdown,markdown,markdn,mdtxt,mdtext,workbook}",
+              "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}"
+            ]
+          },
+          "markdown.updateLinksOnFileMove.enableForDirectories": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
+            "scope": "window"
+          },
+          "markdown.occurrencesHighlight.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.markdown.occurrencesHighlight.enabled%",
+            "scope": "resource"
+          },
+          "markdown.copyFiles.destination": {
+            "type": "object",
+            "markdownDescription": "%configuration.markdown.copyFiles.destination%",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "markdown.copyFiles.overwriteBehavior": {
+            "type": "string",
+            "markdownDescription": "%configuration.markdown.copyFiles.overwriteBehavior%",
+            "default": "nameIncrementally",
+            "enum": [
+              "nameIncrementally",
+              "overwrite"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.copyFiles.overwriteBehavior.nameIncrementally%",
+              "%configuration.markdown.copyFiles.overwriteBehavior.overwrite%"
+            ]
+          },
+          "markdown.preferredMdPathExtensionStyle": {
+            "type": "string",
+            "default": "auto",
+            "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+            "enum": [
+              "auto",
+              "includeExtension",
+              "removeExtension"
+            ],
+            "markdownEnumDescriptions": [
+              "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+              "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+              "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
+            ]
           }
-        },
-        "markdown.copyFiles.overwriteBehavior": {
-          "type": "string",
-          "markdownDescription": "%configuration.markdown.copyFiles.overwriteBehavior%",
-          "default": "nameIncrementally",
-          "enum": [
-            "nameIncrementally",
-            "overwrite"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.copyFiles.overwriteBehavior.nameIncrementally%",
-            "%configuration.markdown.copyFiles.overwriteBehavior.overwrite%"
-          ]
-        },
-        "markdown.preferredMdPathExtensionStyle": {
-          "type": "string",
-          "default": "auto",
-          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
-          "enum": [
-            "auto",
-            "includeExtension",
-            "removeExtension"
-          ],
-          "markdownEnumDescriptions": [
-            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
-            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
-            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
-          ]
-        },
-        "markdown.editor.updateLinksOnPaste.enabled": {
-          "type": "boolean",
-          "markdownDescription": "%configuration.markdown.editor.updateLinksOnPaste.enabled%",
-          "scope": "resource",
-          "default": true
+        }
+      },
+      {
+        "title": "%configuration.validation%",
+        "order": 22,
+        "properties": {
+          "markdown.validate.enabled": {
+            "order": 0,
+            "type": "boolean",
+            "scope": "resource",
+            "description": "%configuration.markdown.validate.enabled.description%",
+            "default": false
+          },
+          "markdown.validate.referenceLinks.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.referenceLinks.enabled.description%",
+            "default": "warning",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ]
+          },
+          "markdown.validate.fragmentLinks.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.fragmentLinks.enabled.description%",
+            "default": "warning",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ]
+          },
+          "markdown.validate.fileLinks.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.fileLinks.enabled.description%",
+            "default": "warning",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ]
+          },
+          "markdown.validate.fileLinks.markdownFragmentLinks": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
+            "default": "inherit",
+            "enum": [
+              "inherit",
+              "ignore",
+              "warning",
+              "error"
+            ]
+          },
+          "markdown.validate.ignoredLinks": {
+            "type": "array",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.ignoredLinks.description%",
+            "items": {
+              "type": "string"
+            }
+          },
+          "markdown.validate.unusedLinkDefinitions.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.unusedLinkDefinitions.description%",
+            "default": "hint",
+            "enum": [
+              "ignore",
+              "hint",
+              "warning",
+              "error"
+            ]
+          },
+          "markdown.validate.duplicateLinkDefinitions.enabled": {
+            "type": "string",
+            "scope": "resource",
+            "markdownDescription": "%configuration.markdown.validate.duplicateLinkDefinitions.description%",
+            "default": "warning",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ]
+          }
+        }
+      },
+      {
+        "title": "%configuration.preview%",
+        "order": 23,
+        "properties": {
+          "markdown.styles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%markdown.styles.dec%",
+            "scope": "resource"
+          },
+          "markdown.preview.breaks": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%markdown.preview.breaks.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.linkify": {
+            "type": "boolean",
+            "default": true,
+            "description": "%markdown.preview.linkify%",
+            "scope": "resource"
+          },
+          "markdown.preview.typographer": {
+            "type": "boolean",
+            "default": false,
+            "description": "%markdown.preview.typographer%",
+            "scope": "resource"
+          },
+          "markdown.preview.fontFamily": {
+            "type": "string",
+            "default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
+            "description": "%markdown.preview.fontFamily.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.fontSize": {
+            "type": "number",
+            "default": 14,
+            "description": "%markdown.preview.fontSize.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.lineHeight": {
+            "type": "number",
+            "default": 1.6,
+            "description": "%markdown.preview.lineHeight.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.scrollPreviewWithEditor": {
+            "type": "boolean",
+            "default": true,
+            "description": "%markdown.preview.scrollPreviewWithEditor.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.markEditorSelection": {
+            "type": "boolean",
+            "default": true,
+            "description": "%markdown.preview.markEditorSelection.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.scrollEditorWithPreview": {
+            "type": "boolean",
+            "default": true,
+            "description": "%markdown.preview.scrollEditorWithPreview.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.doubleClickToSwitchToEditor": {
+            "type": "boolean",
+            "default": true,
+            "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
+            "scope": "resource"
+          },
+          "markdown.preview.openMarkdownLinks": {
+            "type": "string",
+            "default": "inPreview",
+            "description": "%configuration.markdown.preview.openMarkdownLinks.description%",
+            "scope": "resource",
+            "enum": [
+              "inPreview",
+              "inEditor"
+            ],
+            "enumDescriptions": [
+              "%configuration.markdown.preview.openMarkdownLinks.inPreview%",
+              "%configuration.markdown.preview.openMarkdownLinks.inEditor%"
+            ]
+          }
+        }
+      },
+      {
+        "title": "%configuration.advanced%",
+        "order": 24,
+        "properties": {
+          "markdown.trace.server": {
+            "type": "string",
+            "scope": "window",
+            "enum": [
+              "off",
+              "messages",
+              "verbose"
+            ],
+            "default": "off",
+            "description": "%markdown.trace.server.desc%"
+          },
+          "markdown.server.log": {
+            "type": "string",
+            "scope": "window",
+            "enum": [
+              "off",
+              "debug",
+              "trace"
+            ],
+            "default": "off",
+            "description": "%markdown.server.log.desc%"
+          }
         }
       }
-    },
+    ],
     "configurationDefaults": {
       "[markdown]": {
         "editor.wordWrap": "on",
@@ -782,7 +843,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.4.1",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
@@ -791,7 +852,7 @@
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.12",
+    "vscode-markdown-languageserver": "0.5.0-alpha.12",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -804,8 +865,7 @@
     "@types/vscode-webview": "^1.57.0",
     "@vscode/markdown-it-katex": "^1.1.1",
     "lodash.throttle": "^4.1.1",
-    "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.3.0-alpha.3"
+    "vscode-languageserver-types": "^3.17.2"
   },
   "repository": {
     "type": "git",

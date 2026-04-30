@@ -7,7 +7,7 @@ import { toLocalISOString } from '../../../base/common/date.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { dirname, join, normalize, resolve } from '../../../base/common/path.js';
-import { env } from '../../../base/common/process.js';
+import { env, platform } from '../../../base/common/process.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { NativeParsedArgs } from './argv.js';
@@ -297,6 +297,70 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	set continueOn(value: string | undefined) {
 		this.args['continueOn'] = value;
+	}
+
+	@memoize
+	get hostUserHome(): URI | undefined {
+		if (!this.productService.embedded) {
+			return undefined;
+		}
+		if (!this.isBuilt) {
+			return undefined;
+		}
+		const quality = this.productService.quality;
+		let hostDataFolderName: string;
+		if (quality === 'stable') {
+			hostDataFolderName = '.vscode';
+		} else if (quality === 'insider') {
+			hostDataFolderName = '.vscode-insiders';
+		} else if (quality === 'exploration') {
+			hostDataFolderName = '.vscode-exploration';
+		} else {
+			return undefined;
+		}
+		return joinPath(this.userHome, hostDataFolderName);
+	}
+
+	@memoize
+	get hostUserRoamingDataHome(): URI | undefined {
+		if (!this.hostUserHome) {
+			return undefined;
+		}
+		const quality = this.productService.quality;
+		let hostProductName: string;
+		if (quality === 'stable') {
+			hostProductName = 'Code';
+		} else if (quality === 'insider') {
+			hostProductName = 'Code - Insiders';
+		} else if (quality === 'exploration') {
+			hostProductName = 'Code - Exploration';
+		} else {
+			return undefined;
+		}
+
+		let appDataPath: string;
+		switch (platform) {
+			case 'win32':
+				appDataPath = env['APPDATA'] || join(this.paths.homeDir, 'AppData', 'Roaming');
+				break;
+			case 'darwin':
+				appDataPath = join(this.paths.homeDir, 'Library', 'Application Support');
+				break;
+			default:
+				appDataPath = env['XDG_CONFIG_HOME'] || join(this.paths.homeDir, '.config');
+				break;
+		}
+
+		const hostUserDataPath = join(appDataPath, hostProductName);
+		return joinPath(URI.file(hostUserDataPath), 'User').with({ scheme: Schemas.vscodeUserData });
+	}
+
+	@memoize
+	get hostExtensionsHome(): URI | undefined {
+		if (!this.hostUserHome) {
+			return undefined;
+		}
+		return joinPath(this.hostUserHome, 'extensions');
 	}
 
 	get args(): NativeParsedArgs { return this._args; }

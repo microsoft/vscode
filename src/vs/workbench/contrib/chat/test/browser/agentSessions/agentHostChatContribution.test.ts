@@ -16,10 +16,10 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -52,6 +52,8 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agen
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { IChatWidgetService } from '../../../browser/chat.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -77,7 +79,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	// Track live subscriptions so fireAction can route to them
-	private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState> }>();
+	private readonly _liveSubscriptions = new Map<string, { state: SessionState; emitter: Emitter<SessionState>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
 
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -232,7 +234,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 
 		// Register in live subscriptions so fireAction can route to it
-		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState> };
+		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState>, onWillApply, onDidApply };
 		this._liveSubscriptions.set(resourceStr, entry);
 
 		const self = this;
@@ -240,8 +242,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			onDidChange: emitter.event,
-			onWillApplyAction: onWillApply.event,
-			onDidApplyAction: onDidApply.event,
+			onWillApplyAction: entry.onWillApply.event,
+			onDidApplyAction: entry.onDidApply.event,
 		};
 		return {
 			object: sub,
@@ -263,8 +265,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			get value() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			onDidChange: entry.emitter.event as unknown as Event<T>,
-			onWillApplyAction: Event.None,
-			onDidApplyAction: Event.None,
+			onWillApplyAction: entry.onWillApply.event,
+			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
 	}
 	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
@@ -292,8 +294,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			const entry = this._liveSubscriptions.get(sessionUri);
 			if (entry) {
 				const noop = () => { };
+				entry.onWillApply.fire(envelope);
 				entry.state = sessionReducer(entry.state, envelope.action as Parameters<typeof sessionReducer>[1], noop);
 				entry.emitter.fire(entry.state);
+				entry.onDidApply.fire(envelope);
 			}
 		}
 	}
@@ -322,6 +326,28 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 	}
 }
 
+class MockChatWidgetService extends mock<IChatWidgetService>() {
+	declare readonly _serviceBrand: undefined;
+
+	readonly clearQuestionCarouselCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
+	private readonly _widgets = new Map<string, ReturnType<IChatWidgetService['getWidgetBySessionResource']>>();
+
+	setWidgetForSession(sessionResource: URI): void {
+		// eslint-disable-next-line local/code-no-any-casts
+		this._widgets.set(sessionResource.toString(), {
+			input: {
+				clearQuestionCarousel: (responseId?: string, resolveId?: string) => {
+					this.clearQuestionCarouselCalls.push({ sessionResource, responseId, resolveId });
+				},
+			},
+		} as any);
+	}
+
+	override getWidgetBySessionResource(sessionResource: URI): ReturnType<IChatWidgetService['getWidgetBySessionResource']> {
+		return this._widgets.get(sessionResource.toString());
+	}
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }, authServiceOverride?: Partial<IAuthenticationService>) {
@@ -331,11 +357,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	disposables.add(toDisposable(() => agentHostService.dispose()));
 
 	const chatAgentService = new MockChatAgentService();
+	const chatWidgetService = new MockChatWidgetService();
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(IChatAgentService, chatAgentService);
+	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ILabelService, MockLabelService);
 	instantiationService.stub(IChatSessionsService, {
@@ -364,11 +392,15 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
 	});
-	instantiationService.stub(IChatService, {
+	const chatService = {
 		getSession: () => undefined,
 		onDidCreateModel: Event.None,
-		removePendingRequest: () => { },
-	});
+		removePendingRequestCalls: [] as { sessionResource: URI; requestId: string }[],
+		removePendingRequest(sessionResource: URI, requestId: string) {
+			this.removePendingRequestCalls.push({ sessionResource, requestId });
+		},
+	};
+	instantiationService.stub(IChatService, chatService);
 	instantiationService.stub(IAgentHostFileSystemService, {
 		registerAuthority: () => toDisposable(() => { }),
 		ensureSyncedCustomizationProvider: () => { },
@@ -408,11 +440,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 
-	return { instantiationService, agentHostService, chatAgentService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService };
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined } }) {
-	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -426,7 +458,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService };
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
@@ -918,6 +950,17 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(totalContent, 'hello world');
 		}));
 
+		test('live turn marks chat session complete after turnComplete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
+		}));
+
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -1028,6 +1071,186 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
 		}));
+
+		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}, {
+						kind: SessionInputQuestionKind.SingleSelect,
+						id: 'question-2',
+						message: 'Which color?',
+						options: [{ id: 'blue', label: 'Blue' }],
+					}],
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+			assert.strictEqual(carousel.resolveId, 'input-1');
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Accept,
+				answers: {
+					'question-1': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Text, value: 'from another client' },
+					},
+					'question-2': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Selected, value: 'blue', freeformValues: ['cerulean'] },
+					},
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'input-1' },
+			]);
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {
+				'question-1': 'from another client',
+				'question-2': { selectedValue: 'blue', freeformValue: 'cerulean' },
+			});
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+			assert.deepStrictEqual((await carousel.completion.p).answers, {
+				'question-1': 'from another client',
+				'question-2': { selectedValue: 'blue', freeformValue: 'cerulean' },
+			});
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('input request completion echo applies authoritative answers after local submit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-local-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}],
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+
+			const submittedAnswers = { 'question-1': 'local answer' };
+			carousel.data = submittedAnswers;
+			carousel.isUsed = true;
+			carousel.completion.complete({ answers: submittedAnswers });
+			await timeout(10);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Accept,
+				answers: {
+					'question-1': {
+						state: SessionInputAnswerState.Submitted,
+						value: { kind: SessionInputAnswerValueKind.Text, value: 'accepted answer' },
+					},
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(carousel.data, { 'question-1': 'accepted answer' });
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls, []);
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('input request cancellation does not show draft answers as submitted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-cancelled-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'input-1',
+					message: 'Need more information',
+					questions: [{
+						kind: SessionInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What should I use?',
+						required: true,
+					}],
+					answers: {
+						'question-1': {
+							state: SessionInputAnswerState.Draft,
+							value: { kind: SessionInputAnswerValueKind.Text, value: 'draft answer' },
+						},
+					},
+				},
+			});
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'input-1',
+				response: SessionInputResponseKind.Cancel,
+			});
+			await timeout(10);
+
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {});
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+			assert.strictEqual((await carousel.completion.p).answers, undefined);
+			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'input-1' },
+			]);
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.SessionInputCompleted), false);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
 	});
 
 	// ---- Cancellation -----------------------------------------------------
@@ -1089,6 +1312,45 @@ suite('AgentHostChatContribution', () => {
 
 			// Cancellation now dispatches session/turnCancelled action
 			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
+		}));
+
+		test('cancellation marks chat session complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const cts = new CancellationTokenSource();
+			disposables.add(cts);
+
+			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				cancellationToken: cts.token,
+			});
+
+			cts.cancel();
+			await turnPromise;
+
+			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'chat session should be marked complete after cancellation');
+		}));
+
+		test('cancellation after natural completion does not dispatch turnCancelled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const cts = new CancellationTokenSource();
+			disposables.add(cts);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				cancellationToken: cts.token,
+			});
+
+			// Turn completes naturally on its own.
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			// Now the request's cancellation token fires (e.g. ChatService
+			// cancelling a long-disposed token, or a stale 'stop' click). We
+			// must NOT dispatch turnCancelled for an already-finished turn.
+			const beforeCancelCount = agentHostService.dispatchedActions.filter(a => a.action.type === 'session/turnCancelled').length;
+			cts.cancel();
+			const afterCancelCount = agentHostService.dispatchedActions.filter(a => a.action.type === 'session/turnCancelled').length;
+			assert.strictEqual(afterCancelCount, beforeCancelCount, 'turnCancelled should not be dispatched after natural completion');
 		}));
 	});
 
@@ -1241,6 +1503,158 @@ suite('AgentHostChatContribution', () => {
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+		}));
+
+		test('local confirmation does not race with pending tc.status: no spurious re-confirm before server echo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Regression for a bug where the per-tool-call autorun read both
+			// `part$` AND `invocation.state` and used a state-comparison check
+			// to detect Running → PendingConfirmation re-confirmation. After
+			// the user locally confirmed, `invocation.state` flipped to
+			// `Executing` while `tc.status` was still `PendingConfirmation`
+			// (server hadn't echoed yet), and the autorun spuriously emitted
+			// a third confirmation invocation and dispatched a duplicate
+			// `session/toolCallConfirmed`. The fix detects re-confirmation
+			// from a `tc.status` *transition*, not from invocation-state
+			// comparison.
+			//
+			// Baseline (bug-free) flow for a tool needing initial confirmation:
+			//   toolCallStart      → emit placeholder invocation (count=1)
+			//   toolCallReady      → status: Streaming → PendingConfirmation,
+			//                        settle placeholder, emit confirm invocation (count=2)
+			//   user confirms      → invocation.state: WaitingForConfirmation → Executing
+			//                        (count must NOT change — this is the regression)
+			//   server echoes      → tc.status: PendingConfirmation → Running (count=2)
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-race', toolName: 'shell', displayName: 'Shell' } as SessionAction);
+			fire({
+				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-race',
+				invocationMessage: 'echo hi', toolInput: 'echo hi',
+			} as SessionAction);
+			await timeout(10);
+
+			const beforeConfirm = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			const permInvocation = beforeConfirm[beforeConfirm.length - 1];
+			assert.strictEqual(permInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+
+			// User confirms locally. This synchronously flips the invocation
+			// state from WaitingForConfirmation → Executing. The buggy
+			// autorun would re-fire here (because invocation.state was a
+			// dependency) and, finding tc.status still PendingConfirmation,
+			// spuriously emit yet another confirmation invocation.
+			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+
+			const afterLocalConfirm = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(afterLocalConfirm.length, beforeConfirm.length, 'no spurious invocation should be emitted by local confirm before server echoes');
+
+			// Exactly one toolCallConfirmed dispatch (with approved: true).
+			const confirmedDispatches = agentHostService.dispatchedActions.filter(a => {
+				if (a.action.type !== 'session/toolCallConfirmed') {
+					return false;
+				}
+				const action = a.action as IToolCallConfirmedAction;
+				return action.toolCallId === 'tc-race';
+			});
+			assert.strictEqual(confirmedDispatches.length, 1, 'exactly one session/toolCallConfirmed should be dispatched');
+			assert.strictEqual((confirmedDispatches[0].action as IToolCallConfirmedAction).approved, true);
+
+			// Echo the confirmation so the reducer transitions tc → Running,
+			// then complete the turn cleanly.
+			agentHostService.fireAction({
+				action: confirmedDispatches[0].action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: confirmedDispatches[0].clientSeq },
+			});
+			fire({
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-race',
+				result: { success: true, pastTenseMessage: 'Ran echo hi', content: [{ type: 'text', text: 'hi\n' }] },
+			} as SessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			// Final invariant: still the same number of invocations as right
+			// after toolCallReady — no extra invocations from the server echo
+			// or completion either.
+			const finalInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
+			assert.strictEqual(finalInvocations.length, beforeConfirm.length, 'no extra invocations across the full turn');
+		}));
+
+		test('genuine re-confirmation (Running → PendingConfirmation) emits a fresh confirmation invocation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Companion to the regression test above: the *legitimate* case
+			// where the server bounces a tool call back to PendingConfirmation
+			// (e.g. result confirmation after an edit). Here we DO want a
+			// fresh invocation and a second `session/toolCallConfirmed`
+			// dispatch.
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-recon', toolName: 'shell', displayName: 'Shell' } as SessionAction);
+			fire({
+				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-recon',
+				invocationMessage: 'echo hi', toolInput: 'echo hi',
+			} as SessionAction);
+			await timeout(10);
+
+			const firstInvocation = (collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[]).pop()!;
+			assert.strictEqual(firstInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+
+			IChatToolInvocation.confirmWith(firstInvocation, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+
+			// Echo the confirmation so tc transitions PendingConfirmation → Running.
+			const firstConfirm = agentHostService.dispatchedActions.find(a => {
+				if (a.action.type !== 'session/toolCallConfirmed') {
+					return false;
+				}
+				return (a.action as IToolCallConfirmedAction).toolCallId === 'tc-recon';
+			})!;
+			agentHostService.fireAction({
+				action: firstConfirm.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: firstConfirm.clientSeq },
+			});
+			await timeout(10);
+
+			const invocationCountAfterRunning = collected.flat().filter(p => p.kind === 'toolInvocation').length;
+
+			// Server bounces the call back to PendingConfirmation via a
+			// second `toolCallReady` without `confirmed`. The reducer
+			// transitions Running → PendingConfirmation.
+			fire({
+				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-recon',
+				invocationMessage: 'Confirm execution', toolInput: 'echo hi',
+			} as SessionAction);
+			await timeout(10);
+
+			// We now expect a *fresh* invocation in WaitingForConfirmation.
+			const invocationsAfterReconfirm = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(invocationsAfterReconfirm.length, invocationCountAfterRunning + 1, 'a fresh invocation should be emitted on Running → PendingConfirmation transition');
+			const reconfirmInvocation = invocationsAfterReconfirm[invocationsAfterReconfirm.length - 1];
+			assert.strictEqual(reconfirmInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			assert.notStrictEqual(reconfirmInvocation, firstInvocation);
+
+			// User confirms the re-confirmation; expect a second toolCallConfirmed dispatch.
+			IChatToolInvocation.confirmWith(reconfirmInvocation, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+
+			const allConfirms = agentHostService.dispatchedActions.filter(a => {
+				if (a.action.type !== 'session/toolCallConfirmed') {
+					return false;
+				}
+				return (a.action as IToolCallConfirmedAction).toolCallId === 'tc-recon';
+			});
+			assert.strictEqual(allConfirms.length, 2, 'two toolCallConfirmed dispatches expected (initial + reconfirmation)');
+
+			fire({
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-recon',
+				result: { success: true, pastTenseMessage: 'Done', content: [{ type: 'text', text: 'hi\n' }] },
+			} as SessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
 			await turnPromise;
 		}));
@@ -2758,6 +3172,92 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+		}));
+
+		test('removes consumed queued message from chat model when server-initiated turn appears', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-queue-removal' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			agentHostService.dispatchedActions.length = 0;
+
+			// First, do a normal turn so the backend session exists.
+			const turn1Promise = registered.impl.invoke(
+				makeRequest({ message: 'Init', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.turnActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Add a queued message to the protocol state so it's tracked.
+			agentHostService.fireAction({
+				action: { type: 'session/pendingMessageSet', session, kind: 'queued', id: 'q-1', userMessage: { text: 'will be consumed' } } as SessionAction,
+				serverSeq: 3, origin: undefined,
+			});
+			await timeout(10);
+
+			// Now the server consumes it: a server-initiated turn appears
+			// and the queued message disappears in the same state change.
+			chatService.removePendingRequestCalls.length = 0;
+			agentHostService.fireAction({
+				action: { type: 'session/turnStarted', session, turnId: 'server-turn-q', userMessage: { text: 'will be consumed' }, queuedMessageId: 'q-1' } as SessionAction,
+				serverSeq: 4, origin: undefined,
+			});
+			await timeout(10);
+
+			// The handler should have removed the consumed queued request from the chat model.
+			const removedQueueIds = chatService.removePendingRequestCalls.filter(c => c.requestId === 'q-1');
+			assert.strictEqual(removedQueueIds.length, 1, 'consumed queued message should be removed from chat model');
+		}));
+
+		test('removes steering message from chat model when steering id changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-steering-removal' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			agentHostService.dispatchedActions.length = 0;
+
+			// Backend session is created via a normal turn.
+			const turn1Promise = registered.impl.invoke(
+				makeRequest({ message: 'Init', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.turnActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Set a steering message on the protocol state.
+			agentHostService.fireAction({
+				action: { type: 'session/pendingMessageSet', session, kind: 'steering', id: 'steer-1', userMessage: { text: 'be more careful' } } as SessionAction,
+				serverSeq: 3, origin: undefined,
+			});
+			await timeout(10);
+			chatService.removePendingRequestCalls.length = 0;
+
+			// Steering message is consumed by the agent.
+			agentHostService.fireAction({
+				action: { type: 'session/pendingMessageRemoved', session, kind: 'steering', id: 'steer-1' } as SessionAction,
+				serverSeq: 4, origin: undefined,
+			});
+			await timeout(10);
+
+			const removed = chatService.removePendingRequestCalls.filter(c => c.requestId === 'steer-1');
+			assert.strictEqual(removed.length, 1, 'previously-set steering message should be removed from chat model when it is cleared');
 		}));
 	});
 

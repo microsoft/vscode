@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Throttler } from '../../../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -11,18 +10,18 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, SessionTurnStartedAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MessageAttachment, type ModelSelection, type ResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -32,7 +31,8 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
-import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatWidgetService } from '../../chat.js';
+import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -54,49 +54,40 @@ import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallTo
 // =============================================================================
 
 /**
- * Shared context for processing turn state changes. Threaded through
- * {@link AgentHostSessionHandler._processSessionState} and
- * {@link AgentHostSessionHandler._updateToolCallState}.
+ * Options threaded into {@link AgentHostSessionHandler._observeTurn}. The
+ * same observation pipeline is used for live (`_handleTurn`), reconnected
+ * (snapshot from `provideChatSessionContent`), and server-initiated turns
+ * (`_watchForServerInitiatedTurns`). The differences are captured here:
+ *
+ * - {@link sink} routes emitted progress to either the agent invoke
+ *   callback (live) or `chatSession.appendProgress` (reconnect /
+ *   server-initiated).
+ * - {@link adoptInvocations} carries `ChatToolInvocation` instances that
+ *   `activeTurnToProgress` already produced so per-tool setup adopts them
+ *   rather than recreating UI handles.
+ * - {@link seedEmittedLengths} prevents the always-on graph from re-emitting
+ *   markdown / reasoning prefixes already covered by the snapshot.
+ * - {@link onTurnEnded} fires once when the turn reaches a terminal state.
  */
-interface ITurnProcessingContext {
-	readonly turnId: string;
+interface IObserveTurnOptions {
 	readonly backendSession: URI;
-	/** The UI session resource (agent-host-copilot:/...) for tool invocation context. */
 	readonly sessionResource: URI;
-	readonly activeToolInvocations: Map<string, ChatToolInvocation>;
-	readonly lastEmittedLengths: Map<string, number>;
-	readonly progress: (parts: IChatProgress[]) => void;
+	readonly turnId: string;
+	readonly sink: (parts: IChatProgress[]) => void;
 	readonly cancellationToken: CancellationToken;
-	/** Called when a completed tool produces file edits. */
+	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
+	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
+	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
-}
-
-/**
- * Per-tool bookkeeping for a client-provided tool invocation managed by
- * {@link AgentHostSessionHandler}. The invocation lifecycle (UI, confirmation,
- * execution) is driven by {@link ILanguageModelToolsService}; this entry
- * tracks the cancellation source, whether `invokeTool` has been called, and
- * the eventual result/error. When the tool call is cancelled externally via
- * session state, the entry's CTS is fired and `cts.token.isCancellationRequested`
- * is the signal that no protocol action should be dispatched (the server
- * already knows).
- */
-interface IClientToolCallEntry {
-	readonly invocation: ChatToolInvocation;
-	readonly disposables: DisposableStore;
-	readonly cts: CancellationTokenSource;
-	/** The tool name, used when synthesizing a protocol result. */
-	readonly toolName: string;
-	/** `true` once {@link ILanguageModelToolsService.invokeTool} has been called. */
-	invoked: boolean;
 	/**
-	 * `true` once we have dispatched {@link ActionType.SessionToolCallConfirmed}
-	 * with `approved: true`. Used by the settle handler to decide whether to
-	 * also dispatch {@link ActionType.SessionToolCallComplete}: pre-execution
-	 * denials produce `approved: false` only (the server transitions the call
-	 * to `Cancelled` on its own) and must not be followed by a `Complete`.
+	 * When set, this turn is being observed as part of a subagent session.
+	 * Tool calls emitted into {@link sink} are tagged with this id so the
+	 * renderer groups them under the parent subagent widget. Markdown,
+	 * reasoning, and input requests are not forwarded (the subagent's own
+	 * session view renders those); nested subagent observation is also
+	 * suppressed to preserve legacy behavior.
 	 */
-	approvedDispatched: boolean;
+	readonly subAgentInvocationId?: string;
 }
 
 /**
@@ -164,6 +155,43 @@ export function convertCarouselAnswers(raw: IChatQuestionAnswers): Record<string
 		}
 	}
 	return answers;
+}
+
+function convertProtocolAnswer(answer: SessionInputAnswer): IChatQuestionAnswerValue | undefined {
+	if (answer.state !== SessionInputAnswerState.Submitted) {
+		return undefined;
+	}
+	switch (answer.value.kind) {
+		case SessionInputAnswerValueKind.Text:
+			return answer.value.value;
+		case SessionInputAnswerValueKind.Number:
+		case SessionInputAnswerValueKind.Boolean:
+			return String(answer.value.value);
+		case SessionInputAnswerValueKind.Selected:
+			return {
+				selectedValue: answer.value.value,
+				freeformValue: answer.value.freeformValues?.[0],
+			};
+		case SessionInputAnswerValueKind.SelectedMany:
+			return {
+				selectedValues: answer.value.value,
+				freeformValue: answer.value.freeformValues?.[0],
+			};
+	}
+}
+
+function convertProtocolAnswers(raw: Record<string, SessionInputAnswer> | undefined): IChatQuestionAnswers | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	const answers: IChatQuestionAnswers = {};
+	for (const [questionId, answer] of Object.entries(raw)) {
+		const converted = convertProtocolAnswer(answer);
+		if (converted !== undefined) {
+			answers[questionId] = converted;
+		}
+	}
+	return Object.keys(answers).length > 0 ? answers : undefined;
 }
 
 // =============================================================================
@@ -332,14 +360,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Observable of client-provided tools filtered by the allowlist and `when` clauses. */
 	private readonly _clientToolsObs: IObservable<readonly IToolData[]>;
-	/**
-	 * Per-tool state for client-provided tool invocations that are managed
-	 * locally. The `invocation` is created eagerly (in streaming state) so
-	 * the UI has a handle, then {@link ILanguageModelToolsService.invokeTool}
-	 * is called once parameters are available. An autorun on the
-	 * invocation's state dispatches the corresponding protocol actions.
-	 */
-	private readonly _clientToolCalls = new Map<string, IClientToolCallEntry>();
 
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
@@ -355,6 +375,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._config = config;
@@ -632,11 +653,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 
-		const activeSession = this._activeSessions.get(request.sessionResource);
-		if (activeSession) {
-			activeSession.isCompleteObs.set(true, undefined);
-		}
-
 		return {};
 	}
 
@@ -848,72 +864,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		chatSession: AgentHostChatSession,
 		turnDisposables: DisposableStore,
 	): void {
-		const sessionStr = backendSession.toString();
-		const activeToolInvocations = new Map<string, ChatToolInvocation>();
-		const lastEmittedLengths = new Map<string, number>();
-		const activeInputRequests = new Map<string, ChatQuestionCarouselData>();
-		const observedSubagentToolIds = new Set<string>();
-		const throttler = new Throttler();
-		turnDisposables.add(throttler);
-
-		const progress = (parts: IChatProgress[]) => {
-			const current = chatSession.progressObs.get();
-			chatSession.progressObs.set([...current, ...parts], undefined);
-		};
-
-		let finished = false;
-		const finish = () => throttler.queue(async () => {
-			if (finished) {
-				return;
-			}
-			finished = true;
-			for (const [, invocation] of activeToolInvocations) {
-				if (!IChatToolInvocation.isComplete(invocation)) {
-					invocation.didExecuteTool(undefined);
-				}
-			}
-			activeToolInvocations.clear();
-			chatSession.isCompleteObs.set(true, undefined);
-		});
-
-		const ctx: ITurnProcessingContext = {
-			turnId,
+		const cts = new CancellationTokenSource();
+		turnDisposables.add(toDisposable(() => cts.dispose(true)));
+		turnDisposables.add(this._observeTurn({
 			backendSession,
 			sessionResource: chatSession.sessionResource,
-			activeToolInvocations,
-			lastEmittedLengths,
-			progress,
-			cancellationToken: CancellationToken.None,
-		};
-
-		const processState = (sessionState: SessionState) => {
-			if (finished) {
-				return;
-			}
-			const isActive = this._processSessionState(sessionState, ctx);
-			this._syncInputRequests(activeInputRequests, sessionState.inputRequests, backendSession, CancellationToken.None, progress);
-
-			// Observe subagent sessions for subagent tool calls
-			this._observeSubagentToolCalls(sessionState, turnId, activeToolInvocations, observedSubagentToolIds, backendSession, progress, turnDisposables);
-
-			if (!isActive && !finished) {
-				finish();
-			}
-		};
-
-		const trackSub = this._ensureSessionSubscription(sessionStr);
-		turnDisposables.add(trackSub.onDidChange(state => {
-			throttler.queue(async () => processState(state));
+			turnId,
+			sink: parts => chatSession.appendProgress(parts),
+			cancellationToken: cts.token,
+			onTurnEnded: () => chatSession.isCompleteObs.set(true, undefined),
 		}));
-
-		// Immediately reconcile against the current state to close any gap
-		// between turn detection and listener registration. The state change
-		// that triggered server-initiated turn detection may already contain
-		// response parts (e.g. markdown content) that arrived in the same batch.
-		const currentState = this._getSessionState(sessionStr);
-		if (currentState) {
-			throttler.queue(async () => processState(currentState));
-		}
 	}
 
 	// ---- Turn handling (state-driven) ---------------------------------------
@@ -930,7 +890,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
-		const cleanUpTurnId = () => this._clientDispatchedTurnIds.delete(turnId);
 		const messageAttachments = this._convertVariablesToAttachments(request);
 
 		// If the user selected a different model since the session was created
@@ -995,92 +954,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._ensureEditingSession(request.sessionResource)
 			?.ensureRequestCheckpoint(request.requestId);
 
-		// Track live ChatToolInvocation objects for this turn
-		const activeToolInvocations = new Map<string, ChatToolInvocation>();
+		// Wait for the turn to reach a terminal state. The observable graph
+		// installed below drives all progress emission via the `progress`
+		// sink and resolves the promise from `onTurnEnded`. Cancellation is
+		// surfaced through the same path: the observer disposes itself when
+		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
+		await new Promise<void>(resolve => {
+			const store = new DisposableStore();
+			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
+				cancelSub.dispose();
+				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
+				this._config.connection.dispatch({
+					type: ActionType.SessionTurnCancelled,
+					session: session.toString(),
+					turnId,
+				});
+			}));
 
-		// Track live input request carousels to cancel if they disappear from state
-		const activeInputRequests = new Map<string, ChatQuestionCarouselData>();
-
-		// Track last-emitted content lengths per response part to compute deltas
-		const lastEmittedLengths = new Map<string, number>();
-
-		// Track subagent child sessions we're already observing
-		const observedSubagentToolIds = new Set<string>();
-
-		const turnDisposables = new DisposableStore();
-
-		// We throttle updates because generation of edits is async, if this breaks
-		// layouts if they are not sequenced correctly.
-		const throttler = new Throttler();
-		turnDisposables.add(throttler);
-
-		let resolveDone: () => void;
-		const done = new Promise<void>(resolve => { resolveDone = resolve; });
-
-		let finished = false;
-		const finish = () => throttler.queue(async () => {
-			if (finished) {
-				return;
-			}
-			finished = true;
-			cleanUpTurnId();
-			// Finalize any outstanding tool invocations
-			for (const [, invocation] of activeToolInvocations) {
-				invocation.didExecuteTool(undefined);
-			}
-			activeToolInvocations.clear();
-			turnDisposables.dispose();
-			resolveDone();
-		});
-
-		// Listen to state changes and translate to IChatProgress[]
-		const handleTurnSub = this._ensureSessionSubscription(session.toString());
-		const ctx: ITurnProcessingContext = {
-			turnId,
-			backendSession: session,
-			sessionResource: request.sessionResource,
-			activeToolInvocations,
-			lastEmittedLengths,
-			progress,
-			cancellationToken,
-			onFileEdits: (tc, fileEdits) => {
-				const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
-				if (editParts.length > 0) {
-					progress(editParts);
-				}
-			},
-		};
-
-		turnDisposables.add(handleTurnSub.onDidChange(rawSessionState => {
-			throttler.queue(async () => {
-				if (cancellationToken.isCancellationRequested) {
-					return;
-				}
-				const isActive = this._processSessionState(rawSessionState, ctx);
-
-				// Process input requests (ask_user tool elicitations)
-				this._syncInputRequests(activeInputRequests, rawSessionState.inputRequests, session, cancellationToken, progress);
-
-				// Observe subagent sessions for subagent tool calls
-				this._observeSubagentToolCalls(rawSessionState, turnId, activeToolInvocations, observedSubagentToolIds, session, progress, turnDisposables);
-
-				if (!isActive && !finished) {
-					finish();
-				}
-			});
-		}));
-
-		turnDisposables.add(cancellationToken.onCancellationRequested(() => {
-			this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
-			this._config.connection.dispatch({
-				type: ActionType.SessionTurnCancelled,
-				session: session.toString(),
+			store.add(this._observeTurn({
+				backendSession: session,
+				sessionResource: request.sessionResource,
 				turnId,
-			});
-			finish();
-		}));
-
-		await done;
+				sink: progress,
+				cancellationToken,
+				onTurnEnded: () => {
+					store.dispose();
+					this._clientDispatchedTurnIds.delete(turnId);
+					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					resolve();
+				},
+				onFileEdits: (tc) => {
+					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
+					if (editParts.length > 0) {
+						progress(editParts);
+					}
+				},
+			}));
+		});
 	}
 
 	// ---- Tool confirmation --------------------------------------------------
@@ -1137,91 +1047,366 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
-	// ---- Tool call state updates --------------------------------------------
+	// ---- Per-turn observable graph ------------------------------------------
 
 	/**
-	 * Shared logic for updating an existing {@link ChatToolInvocation} when
-	 * the protocol tool-call state changes. Handles:
-	 * - PendingConfirmation re-confirmation (Running → PendingConfirmation)
-	 * - Running status: updates invocation message and detects terminal content
-	 * - Completed/Cancelled: revives terminal if needed, then finalizes
+	 * Installs the always-on observable graph that translates session state
+	 * into `IChatProgress[]` for a specific turn. The same graph is used for:
+	 *   - live turns started by the user via {@link _handleTurn},
+	 *   - reconnect to an in-flight turn from {@link provideChatSessionContent},
+	 *   - server-initiated turns detected by {@link _watchForServerInitiatedTurns}.
 	 *
-	 * @returns Updated invocation (may differ from `existing` on re-confirmation)
-	 *   and file edits produced by finalization.
+	 * Differences are captured in {@link IObserveTurnOptions.sink} (where
+	 * progress is delivered) and {@link IObserveTurnOptions.adoptInvocations} /
+	 * {@link IObserveTurnOptions.seedEmittedLengths} (snapshot continuity for
+	 * the reconnect case).
+	 *
+	 * The returned disposable owns the entire per-turn graph, including the
+	 * underlying session subscription reference.
 	 */
-	private _updateToolCallState(
-		existing: ChatToolInvocation,
-		tc: ToolCallState,
-		ctx: ITurnProcessingContext,
-	): { invocation: ChatToolInvocation; fileEdits: IToolCallFileEdit[] } {
-		const toolCallId = tc.toolCallId;
-		let fileEdits: IToolCallFileEdit[] = [];
+	private _observeTurn(opts: IObserveTurnOptions): IDisposable {
+		const sessionKey = opts.backendSession.toString();
+		const store = new DisposableStore();
+		// `_ensureSessionSubscription` returns a process-shared, non-refcounted
+		// subscription owned by the chat session lifecycle. Do NOT release it
+		// from here — other callers (the server-turn watcher, reconnect, the
+		// history hydration code) share the same instance and would lose
+		// their state if we tore it down.
+		const sub = this._ensureSessionSubscription(sessionKey);
 
-		if (tc.status === ToolCallStatus.PendingConfirmation) {
-			// Running → PendingConfirmation (re-confirmation).
-			const existingState = existing.state.get();
-			if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-				existing.didExecuteTool(undefined);
-				const confirmInvocation = toolCallStateToInvocation(tc, undefined, ctx.backendSession, this._config.connectionAuthority);
-				ctx.activeToolInvocations.set(toolCallId, confirmInvocation);
-				ctx.progress([confirmInvocation]);
-				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
-				existing = confirmInvocation;
+		const sessionState$ = observableFromSubscription(this, sub);
+		const turn$ = derived(reader => {
+			const state = sessionState$.read(reader);
+			if (!state) {
+				return undefined;
 			}
-		} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingResultConfirmation) {
-			existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
-			this._reviveTerminalIfNeeded(existing, tc, ctx.backendSession);
-			updateRunningToolSpecificData(existing, tc, this._config.connectionAuthority);
+			return state.activeTurn?.id === opts.turnId
+				? state.activeTurn
+				: state.turns.find(t => t.id === opts.turnId);
+		});
+		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
+		const inputRequests$ = derived(reader => sessionState$.read(reader)?.inputRequests ?? []);
+
+		// Per-tool-call subagent observation dedup. A tool call may fire the
+		// per-key autorun multiple times; only install the child observer once.
+		const observedSubagentToolIds = new Set<string>();
+
+		// Per response part. Markdown / reasoning / tool calls each get a
+		// dedicated setup keyed by their stable id. Per-key closures replace
+		// the `Map<string, ChatToolInvocation>` and `Map<string, number>
+		// lastEmittedLengths` bookkeeping that used to live on every call
+		// site of `_processSessionState`.
+		store.add(autorunPerKeyedItem(
+			responseParts$,
+			rp => rp.kind === ResponsePartKind.ToolCall
+				? `tc:${rp.toolCall.toolCallId}`
+				: rp.kind === ResponsePartKind.Markdown
+					? `md:${rp.id}`
+					: rp.kind === ResponsePartKind.Reasoning
+						? `rs:${rp.id}`
+						: `other:${responseParts$.get().indexOf(rp)}`,
+			(_key, part$, partStore) => {
+				const initial = part$.get();
+				switch (initial.kind) {
+					case ResponsePartKind.Markdown:
+						// Subagent observers don't forward markdown into the
+						// parent's progress — it belongs to the subagent's own
+						// session view.
+						if (opts.subAgentInvocationId !== undefined) {
+							break;
+						}
+						this._setupMarkdownPart(part$ as IObservable<MarkdownResponsePart>, partStore, opts);
+						break;
+					case ResponsePartKind.Reasoning:
+						if (opts.subAgentInvocationId !== undefined) {
+							break;
+						}
+						this._setupReasoningPart(part$ as IObservable<ReasoningResponsePart>, partStore, opts);
+						break;
+					case ResponsePartKind.ToolCall:
+						this._setupToolCallPart(part$ as IObservable<ToolCallResponsePart>, partStore, opts, observedSubagentToolIds);
+						break;
+				}
+			},
+		));
+
+		// Per input request carousel. Skipped for subagent observers — input
+		// requests on a subagent session are surfaced through that session's
+		// own view, not the parent.
+		if (opts.subAgentInvocationId === undefined) {
+			store.add(autorunPerKeyedItem(
+				inputRequests$,
+				ir => ir.id,
+				(_id, ir$, irStore) => {
+					this._setupInputRequest(ir$.get(), irStore, opts);
+				},
+			));
 		}
 
-		// Finalize terminal-state tools
-		if ((tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-			// Revive terminal before finalizing — handles the case where
-			// Running was skipped due to throttling and terminal content
-			// only appears at Completed time.
-			this._reviveTerminalIfNeeded(existing, tc, ctx.backendSession);
-			fileEdits = finalizeToolInvocation(existing, tc, ctx.backendSession, this._config.connectionAuthority);
-		}
+		// Detect terminal turn state. The turn is over when the active turn
+		// id no longer matches our turn id; the completed turn (if present
+		// in `turns`) surfaces any error message.
+		//
+		// `seenActive` guards against firing `finish` on the install pass:
+		// `_handleTurn` calls us right after dispatching `SessionTurnStarted`
+		// but before the action has been echoed back, so the very first
+		// reading of state may not yet contain our turn. We must wait until
+		// we've seen our turn become active at least once before treating
+		// its absence as a terminal transition.
+		let terminated = false;
+		let seenActive = false;
+		const finish = (lastTurn: Turn | undefined) => {
+			if (terminated) {
+				return;
+			}
+			terminated = true;
+			// Defer to a microtask so any other autoruns reacting to the
+			// same state update (e.g. tool call finalization) finish first.
+			// Self-dispose afterwards so callers do not need to track us
+			// across the natural-completion path; cancellation paths can
+			// still call `dispose()` proactively (idempotent).
+			queueMicrotask(() => {
+				try {
+					opts.onTurnEnded?.(lastTurn);
+				} finally {
+					store.dispose();
+				}
+			});
+		};
+		store.add(autorun(reader => {
+			if (terminated) {
+				return;
+			}
+			const state = sessionState$.read(reader);
+			if (!state) {
+				return;
+			}
+			if (state.activeTurn?.id === opts.turnId) {
+				seenActive = true;
+				return;
+			}
+			// Also treat a completed turn we discover in `turns` as
+			// "having seen it", so reconnect / server-initiated paths that
+			// install us against an already-completed turn still finish.
+			const lastTurn = state.turns.find(t => t.id === opts.turnId);
+			if (lastTurn) {
+				seenActive = true;
+			}
+			if (!seenActive) {
+				return;
+			}
+			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
+				opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
+			}
+			finish(lastTurn);
+		}));
 
-		return { invocation: existing, fileEdits };
+		store.add(opts.cancellationToken.onCancellationRequested(() => finish(undefined)));
+
+		return store;
 	}
 
-	// ---- Client tool execution ----------------------------------------------
+	private _setupMarkdownPart(
+		part$: IObservable<MarkdownResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		// Seed from the snapshot length so the always-on graph does not
+		// re-emit content already covered by `activeTurnToProgress` on
+		// reconnect.
+		let lastEmitted = opts.seedEmittedLengths?.get(part$.get().id) ?? 0;
+		store.add(autorun(reader => {
+			const content = part$.read(reader).content;
+			if (content.length <= lastEmitted) {
+				return;
+			}
+			const delta = content.substring(lastEmitted);
+			lastEmitted = content.length;
+			// supportHtml is load bearing. Without this the markdown string
+			// gets merged into the edit part in chatModel.ts which breaks
+			// rendering because the thinking content part does not deal
+			// with this.
+			opts.sink([{ kind: 'markdownContent', content: rawMarkdownToString(delta, this._config.connectionAuthority, { supportHtml: true }) }]);
+		}));
+	}
+
+	private _setupReasoningPart(
+		part$: IObservable<ReasoningResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		let lastEmitted = opts.seedEmittedLengths?.get(part$.get().id) ?? 0;
+		store.add(autorun(reader => {
+			const content = part$.read(reader).content;
+			if (content.length <= lastEmitted) {
+				return;
+			}
+			const delta = content.substring(lastEmitted);
+			lastEmitted = content.length;
+			opts.sink([{ kind: 'thinking', value: delta }]);
+		}));
+	}
+
+	private _setupToolCallPart(
+		part$: IObservable<ToolCallResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+		observedSubagentToolIds: Set<string>,
+	): void {
+		const initial = part$.get().toolCall;
+		// Subagent observers always treat tool calls as server-driven — even if
+		// `toolClientId` happens to match the local client, we don't want to
+		// invoke the tool locally a second time. Legacy behavior was the same.
+		if (opts.subAgentInvocationId === undefined && initial.toolClientId === this._config.connection.clientId) {
+			this._setupClientToolCall(initial, part$, store, opts);
+		} else {
+			this._setupServerToolCall(initial, part$, store, opts, observedSubagentToolIds);
+		}
+	}
 
 	/**
-	 * Begin a client-provided tool invocation locally. Creates a
-	 * {@link ChatToolInvocation} in the streaming state via
-	 * {@link ILanguageModelToolsService.beginToolCall} so the UI has a
-	 * handle as soon as the tool call first appears in session state.
-	 *
-	 * A single autorun observes the invocation's state machine and drives
-	 * all protocol dispatches:
-	 * - `Executing` → `SessionToolCallConfirmed(approved: true)`
-	 * - `Cancelled` (pre-execution denial) → `SessionToolCallConfirmed(approved: false)`
-	 * - `Completed` / post-execution `Cancelled` → `SessionToolCallComplete`
-	 *
-	 * When the tool call is cancelled externally via session state, the
-	 * entry's cancellation source is fired and `CancellationTokenSource` is
-	 * cancelled so the autorun skips redundant dispatches (the server already knows).
-	 *
-	 * The actual {@link ILanguageModelToolsService.invokeTool} call is
-	 * deferred until {@link _tryInvokeClientTool} sees the tool parameters.
+	 * Per-call setup for a server-driven tool. Adopts a snapshot
+	 * {@link ChatToolInvocation} when present (reconnect parity); otherwise
+	 * emits a fresh one. Reacts to status transitions for re-confirmation,
+	 * terminal revival, finalization, and subagent observation.
 	 */
-	private _beginClientToolInvocation(tc: ToolCallState, ctx: ITurnProcessingContext): void {
-		const toolCallId = tc.toolCallId;
+	private _setupServerToolCall(
+		initial: ToolCallState,
+		part$: IObservable<ToolCallResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+		observedSubagentToolIds: Set<string>,
+	): void {
+		const toolCallId = initial.toolCallId;
+		const subAgentInvocationId = opts.subAgentInvocationId;
+		const adopted = opts.adoptInvocations?.get(toolCallId);
+		let invocation = adopted
+			?? toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+		if (!adopted) {
+			opts.sink([invocation]);
+		}
 
-		const toolData = this._toolsService.getToolByName(tc.toolName);
+		const tryObserveSubagent = (tc: ToolCallState) => {
+			// Don't recurse into nested subagents \u2014 legacy behavior was to
+			// only observe the immediate child session, not children of
+			// children.
+			if (subAgentInvocationId !== undefined) {
+				return;
+			}
+			if (observedSubagentToolIds.has(toolCallId)) {
+				return;
+			}
+			const isSub = isSubagentTool(tc)
+				|| ((tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) && getToolSubagentContent(tc));
+			if (!isSub) {
+				return;
+			}
+			observedSubagentToolIds.add(toolCallId);
+			this._observeSubagentSession(opts.backendSession, toolCallId, opts.sink, store, observedSubagentToolIds);
+		};
+
+		// Initial confirmation hookup. The autorun below only handles
+		// *transitions* back into `PendingConfirmation` (server-driven
+		// re-confirmation), not the initial state, because
+		// `toolCallStateToInvocation` already created the invocation in
+		// `WaitingForConfirmation`. Without this explicit call, no listener
+		// would observe the user's confirmation answer.
+		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
+			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, initial.options);
+		}
+		tryObserveSubagent(initial);
+
+		// Stream subsequent status transitions. Re-confirmation is detected
+		// from a `tc.status` transition (Running → PendingConfirmation), not
+		// from comparing against `invocation.state`: the user's local
+		// confirmation flips `invocation.state` to `Executing` before the
+		// server echoes Running, and a state-comparison check would
+		// spuriously trigger re-confirmation in that gap.
+		let previousStatus: ToolCallStatus | undefined;
+		store.add(autorun(reader => {
+			const tc = part$.read(reader).toolCall;
+			const status = tc.status;
+			const isReconfirmation = previousStatus !== undefined
+				&& previousStatus !== ToolCallStatus.PendingConfirmation
+				&& status === ToolCallStatus.PendingConfirmation;
+			previousStatus = status;
+
+			if (isReconfirmation) {
+				// Server bounced the call back to PendingConfirmation
+				// (e.g. write confirmation after edit). Settle the old
+				// invocation and replace it with a fresh one carrying the
+				// new confirmation messages.
+				invocation.didExecuteTool(undefined);
+				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+				opts.sink([confirmInvocation]);
+				this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options);
+				invocation = confirmInvocation;
+			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
+				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
+				updateRunningToolSpecificData(invocation, tc, this._config.connectionAuthority);
+			}
+
+			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
+				// Revive terminal before finalizing — handles the case where
+				// Running was skipped (e.g. throttling) and terminal content
+				// only appears at Completed time.
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
+				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
+				if (fileEdits.length > 0) {
+					opts.onFileEdits?.(tc, fileEdits);
+				}
+			}
+
+			tryObserveSubagent(tc);
+		}));
+
+		// If the turn ends with the tool still mid-flight (e.g. external
+		// cancellation), settle the invocation so the UI does not get stuck.
+		store.add(toDisposable(() => {
+			if (!IChatToolInvocation.isComplete(invocation)) {
+				invocation.didExecuteTool(undefined);
+			}
+		}));
+	}
+
+	/**
+	 * Per-call setup for a client-provided tool. Eagerly creates a streaming
+	 * {@link ChatToolInvocation} so the UI has a handle, then invokes the
+	 * tool once parameters are available. The inner autorun on `part$` is
+	 * idempotent: `invoked` ensures `invokeTool` runs at most once,
+	 * `confirmationDispatched` ensures `SessionToolCallConfirmed` is sent at
+	 * most once.
+	 */
+	private _setupClientToolCall(
+		initial: ToolCallState,
+		part$: IObservable<ToolCallResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const toolCallId = initial.toolCallId;
+		const toolName = initial.toolName;
+
+		// Reconnect adoption: settle any snapshot invocation so the new
+		// streaming one created by `beginToolCall` can take over the UI
+		// slot rather than leaving the old instance orphaned.
+		const adopted = opts.adoptInvocations?.get(toolCallId);
+		if (adopted && !IChatToolInvocation.isComplete(adopted)) {
+			adopted.didExecuteTool(undefined);
+		}
+
+		const toolData = this._toolsService.getToolByName(toolName);
 		if (!toolData) {
-			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${tc.toolName}`);
+			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
 			this._dispatchAction({
 				type: ActionType.SessionToolCallComplete,
-				session: ctx.backendSession.toString(),
-				turnId: ctx.turnId,
+				session: opts.backendSession.toString(),
+				turnId: opts.turnId,
 				toolCallId,
 				result: {
 					success: false,
-					pastTenseMessage: `Tool "${tc.toolName}" is not available`,
-					error: { message: `Tool "${tc.toolName}" is not available on this client` },
+					pastTenseMessage: `Tool "${toolName}" is not available`,
+					error: { message: `Tool "${toolName}" is not available on this client` },
 				},
 			});
 			return;
@@ -1230,464 +1415,177 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const invocation = this._toolsService.beginToolCall({
 			toolCallId,
 			toolId: toolData.id,
-			sessionResource: ctx.sessionResource,
+			sessionResource: opts.sessionResource,
 			force: true,
 		}) as ChatToolInvocation | undefined;
 
 		if (!invocation) {
-			this._logService.warn(`[AgentHost] Failed to begin client tool invocation: ${tc.toolName}`);
+			this._logService.warn(`[AgentHost] Failed to begin client tool invocation: ${toolName}`);
 			this._dispatchAction({
 				type: ActionType.SessionToolCallComplete,
-				session: ctx.backendSession.toString(),
-				turnId: ctx.turnId,
+				session: opts.backendSession.toString(),
+				turnId: opts.turnId,
 				toolCallId,
 				result: {
 					success: false,
-					pastTenseMessage: `Failed to start ${tc.toolName}`,
-					error: { message: `Could not create invocation for client tool "${tc.toolName}"` },
+					pastTenseMessage: `Failed to start ${toolName}`,
+					error: { message: `Could not create invocation for client tool "${toolName}"` },
 				},
 			});
 			return;
 		}
 
-		const disposables = new DisposableStore();
 		const cts = new CancellationTokenSource();
-		disposables.add(toDisposable(() => cts.dispose(true)));
+		store.add(toDisposable(() => cts.dispose(true)));
 
-		const entry: IClientToolCallEntry = {
-			invocation,
-			disposables,
-			cts,
-			toolName: tc.toolName,
-			invoked: false,
-			approvedDispatched: false,
-		};
-		this._clientToolCalls.set(toolCallId, entry);
-		ctx.activeToolInvocations.set(toolCallId, invocation);
-
-		// Autorun drives the `SessionToolCallConfirmed` dispatch only. The
-		// `SessionToolCallComplete` dispatch happens from `_handleClientToolSettled`
-		// after `invokeTool` has resolved (or rejected) and the result/error is
-		// actually available — otherwise we would race the microtask that
-		// stashes the result onto the entry against the synchronous state
-		// transition `didExecuteTool(...)` makes when the tool finishes.
+		let invoked = false;
+		let approvedDispatched = false;
 		let confirmationDispatched = false;
-		disposables.add(autorun(reader => {
+
+		// Drive `SessionToolCallConfirmed` from the invocation's confirmation
+		// gate. The autorun runs synchronously many times; the guards keep it
+		// idempotent.
+		store.add(autorun(reader => {
 			const state = invocation.state.read(reader);
 			if (confirmationDispatched) {
 				return;
 			}
 			if (state.type === IChatToolInvocation.StateKind.Executing) {
 				confirmationDispatched = true;
-				if (!cts.token.isCancellationRequested) {
-					entry.approvedDispatched = true;
-					this._dispatchAction({
-						type: ActionType.SessionToolCallConfirmed,
-						session: ctx.backendSession.toString(),
-						turnId: ctx.turnId,
-						toolCallId,
-						approved: true,
-						confirmed: confirmedReasonToProtocol(state.confirmed),
-					});
+				if (cts.token.isCancellationRequested) {
+					return;
 				}
+				approvedDispatched = true;
+				this._dispatchAction({
+					type: ActionType.SessionToolCallConfirmed,
+					session: opts.backendSession.toString(),
+					turnId: opts.turnId,
+					toolCallId,
+					approved: true,
+					confirmed: confirmedReasonToProtocol(state.confirmed),
+				});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
-				// Pre-execution cancellation. Two sub-cases:
-				// 1. User denied (or a hook denied): dispatch `approved: false`
-				//    so the server transitions the call to `Cancelled`. No
-				//    `Complete` dispatch follows — `approvedDispatched` stays
-				//    `false` so the settle handler will skip it.
-				// 2. The server already reported the call as cancelled and we
-				//    fired our own CTS: `cts.token.isCancellationRequested` is
-				//    `true`, suppress the dispatch (the server already knows)
-				//    and just unwind the local invocation.
+				// Pre-execution cancellation. If the server already knows
+				// (cts cancelled), suppress the dispatch — the server
+				// transitioned the call itself.
 				confirmationDispatched = true;
-				if (!cts.token.isCancellationRequested) {
-					this._dispatchAction({
-						type: ActionType.SessionToolCallConfirmed,
-						session: ctx.backendSession.toString(),
-						turnId: ctx.turnId,
-						toolCallId,
-						approved: false,
-						reason: ToolCallCancellationReason.Denied,
-					});
+				if (cts.token.isCancellationRequested) {
+					return;
 				}
-				// If `invokeTool` was never called (cancel arrived before
-				// parameters) there is no settle handler to clean us up.
-				if (!entry.invoked) {
-					this._disposeClientToolCall(toolCallId);
-				}
+				this._dispatchAction({
+					type: ActionType.SessionToolCallConfirmed,
+					session: opts.backendSession.toString(),
+					turnId: opts.turnId,
+					toolCallId,
+					approved: false,
+					reason: ToolCallCancellationReason.Denied,
+				});
 			}
+		}));
+
+		const handleSettled = (result: IToolResult | undefined, err: unknown) => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			if (!approvedDispatched) {
+				if (err !== undefined && !isCancellationError(err)) {
+					this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
+				}
+				return;
+			}
+			if (err !== undefined) {
+				if (!isCancellationError(err)) {
+					this._logService.warn(`[AgentHost] Client tool invocation failed: ${toolName}`, err);
+				}
+				const message = err instanceof Error ? err.message : String(err);
+				result = { content: [], toolResultError: message };
+			}
+			this._dispatchAction({
+				type: ActionType.SessionToolCallComplete,
+				session: opts.backendSession.toString(),
+				turnId: opts.turnId,
+				toolCallId,
+				result: toolResultToProtocol(result ?? { content: [] }, toolName),
+			});
+		};
+
+		// React to part$ updates: route external cancellation, and try to
+		// invoke once parameters are present. Idempotent via `invoked` and
+		// `cts.token.isCancellationRequested`.
+		store.add(autorun(reader => {
+			const tc = part$.read(reader).toolCall;
+			if (tc.status === ToolCallStatus.Cancelled) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+				cts.cancel();
+				if (!invoked) {
+					// No `invokeTool` is listening to the CTS — transition
+					// the invocation to `Cancelled` ourselves.
+					invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
+				}
+				return;
+			}
+			if (invoked || cts.token.isCancellationRequested) {
+				return;
+			}
+			// eslint-disable-next-line local/code-no-in-operator
+			let toolInput = 'toolInput' in tc ? tc.toolInput : undefined;
+			if (toolInput === undefined) {
+				// Still streaming — parameters may still be arriving. Once
+				// we move past Streaming, treat a missing toolInput as `{}`
+				// so zero-argument tools are not stuck.
+				if (tc.status === ToolCallStatus.Streaming) {
+					return;
+				}
+				toolInput = '{}';
+			}
+			invoked = true;
+
+			let parameters: Record<string, unknown> = {};
+			try {
+				const parsed: unknown = JSON.parse(toolInput);
+				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+					throw new Error('expected JSON object');
+				}
+				parameters = parsed as Record<string, unknown>;
+			} catch {
+				this._logService.warn(`[AgentHost] Failed to parse tool input for ${toolName}`);
+				this._dispatchAction({
+					type: ActionType.SessionToolCallComplete,
+					session: opts.backendSession.toString(),
+					turnId: opts.turnId,
+					toolCallId,
+					result: {
+						success: false,
+						pastTenseMessage: `Failed to execute ${toolName}`,
+						error: { message: `Invalid tool input for "${toolName}": expected JSON object parameters` },
+					},
+				});
+				return;
+			}
+
+			const inv: IToolInvocation = {
+				callId: toolCallId,
+				toolId: invocation.toolId,
+				parameters,
+				context: { sessionResource: opts.sessionResource },
+				chatStreamToolCallId: toolCallId,
+			};
+			const noOpCountTokens = async () => 0;
+			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
+			this._toolsService.invokeTool(inv, noOpCountTokens, cts.token).then(
+				result => handleSettled(result, undefined),
+				err => handleSettled(undefined, err),
+			);
 		}));
 	}
 
-	/**
-	 * Invoke the client tool once parameters are available. On the first
-	 * state update that carries `toolInput` (or once the call has moved past
-	 * `Streaming`, to accommodate zero-argument tools that may never carry
-	 * a `toolInput`), parses parameters and calls
-	 * {@link ILanguageModelToolsService.invokeTool}, which reuses the
-	 * streaming invocation created in {@link _beginClientToolInvocation}.
-	 * Settlement is handled by {@link _handleClientToolSettled}.
-	 */
-	private _tryInvokeClientTool(tc: ToolCallState, ctx: ITurnProcessingContext): void {
-		const entry = this._clientToolCalls.get(tc.toolCallId);
-		if (!entry || entry.invoked || entry.cts.token.isCancellationRequested) {
-			return;
-		}
-		// eslint-disable-next-line local/code-no-in-operator
-		let toolInput = 'toolInput' in tc ? tc.toolInput : undefined;
-		if (toolInput === undefined) {
-			// Don't invoke while still streaming — parameters may still be
-			// arriving. Once the call has moved to any post-streaming status,
-			// a missing `toolInput` is treated as an empty JSON object so
-			// zero-argument tools are not stuck forever.
-			if (tc.status === ToolCallStatus.Streaming) {
-				return;
-			}
-			toolInput = '{}';
-		}
-		const toolCallId = tc.toolCallId;
-		entry.invoked = true;
-
-		let parameters: Record<string, unknown> = {};
-		try {
-			const parsed: unknown = JSON.parse(toolInput);
-			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-				throw new Error('expected JSON object');
-			}
-			parameters = parsed as Record<string, unknown>;
-		} catch {
-			this._logService.warn(`[AgentHost] Failed to parse tool input for ${tc.toolName}`);
-			this._dispatchAction({
-				type: ActionType.SessionToolCallComplete,
-				session: ctx.backendSession.toString(),
-				turnId: ctx.turnId,
-				toolCallId,
-				result: {
-					success: false,
-					pastTenseMessage: `Failed to execute ${tc.toolName}`,
-					error: { message: `Invalid tool input for "${tc.toolName}": expected JSON object parameters` },
-				},
-			});
-			this._disposeClientToolCall(toolCallId);
-			return;
-		}
-
-		const invocation: IToolInvocation = {
-			callId: toolCallId,
-			toolId: entry.invocation.toolId,
-			parameters,
-			context: { sessionResource: ctx.sessionResource },
-			chatStreamToolCallId: toolCallId,
-		};
-
-		const noOpCountTokens = async () => 0;
-
-		this._logService.info(`[AgentHost] Invoking client tool: ${tc.toolName} (callId=${toolCallId})`);
-
-		this._toolsService.invokeTool(
-			invocation,
-			noOpCountTokens,
-			entry.cts.token,
-		).then(
-			result => this._handleClientToolSettled(toolCallId, ctx, result, undefined),
-			err => this._handleClientToolSettled(toolCallId, ctx, undefined, err),
-		);
-	}
-
-	/**
-	 * Called when {@link ILanguageModelToolsService.invokeTool} settles for
-	 * a client tool. Dispatches `SessionToolCallComplete` when appropriate,
-	 * then disposes the entry. Rules:
-	 *
-	 * - External cancellation (`cts.token.isCancellationRequested`): the
-	 *   server already marked the call as `Cancelled`; suppress all
-	 *   dispatches and just clean up.
-	 * - Approved path (`approvedDispatched === true`): the tool actually
-	 *   ran (or attempted to run), so dispatch the result/error as a
-	 *   `Complete`.
-	 * - Pre-execution denial (`approvedDispatched === false`,
-	 *   `CancellationError`): the autorun already dispatched
-	 *   `Confirmed(approved: false)`; the server transitions the call
-	 *   itself, no `Complete` follows.
-	 */
-	private _handleClientToolSettled(
-		toolCallId: string,
-		ctx: ITurnProcessingContext,
-		result: IToolResult | undefined,
-		err: unknown,
-	): void {
-		const entry = this._clientToolCalls.get(toolCallId);
-		if (!entry) {
-			return;
-		}
-
-		if (entry.cts.token.isCancellationRequested) {
-			this._disposeClientToolCall(toolCallId);
-			return;
-		}
-
-		if (!entry.approvedDispatched) {
-			if (err !== undefined && !isCancellationError(err)) {
-				this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${entry.toolName}`, err);
-			}
-			this._disposeClientToolCall(toolCallId);
-			return;
-		}
-
-		if (err !== undefined) {
-			if (!isCancellationError(err)) {
-				this._logService.warn(`[AgentHost] Client tool invocation failed: ${entry.toolName}`, err);
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			result = { content: [], toolResultError: message };
-		}
-
-		this._dispatchAction({
-			type: ActionType.SessionToolCallComplete,
-			session: ctx.backendSession.toString(),
-			turnId: ctx.turnId,
-			toolCallId,
-			result: toolResultToProtocol(result ?? { content: [] }, entry.toolName),
-		});
-		this._disposeClientToolCall(toolCallId);
-	}
-
-	/**
-	 * Cancel an ongoing client-tool invocation in response to the session
-	 * state reporting the tool call as cancelled. Fires the entry's
-	 * cancellation source — this signals both
-	 * {@link ILanguageModelToolsService.invokeTool} (which unwinds and
-	 * rejects with a {@link CancellationError}) and the autorun / settle
-	 * handler (via `cts.token.isCancellationRequested`) to skip any
-	 * redundant protocol dispatches. If `invokeTool` was never called
-	 * (cancel arrived before parameters), we also have to force the local
-	 * invocation out of `Streaming` and dispose ourselves, since no
-	 * settle handler will run.
-	 */
-	private _cancelClientToolInvocation(toolCallId: string): void {
-		const entry = this._clientToolCalls.get(toolCallId);
-		if (!entry || entry.cts.token.isCancellationRequested) {
-			return;
-		}
-		entry.cts.cancel();
-		if (!entry.invoked) {
-			// No `invokeTool` is listening to the CTS — transition the
-			// invocation to `Cancelled` ourselves so the UI settles, then
-			// clean up. The autorun will fire on the state change but
-			// suppresses its dispatch because `isCancellationRequested` is
-			// now true.
-			entry.invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
-			this._disposeClientToolCall(toolCallId);
-		}
-	}
-
-	private _disposeClientToolCall(toolCallId: string): void {
-		const entry = this._clientToolCalls.get(toolCallId);
-		if (entry) {
-			entry.disposables.dispose();
-			this._clientToolCalls.delete(toolCallId);
-		}
-	}
-
-	/**
-	 * Detects terminal content in a tool call and creates a local terminal
-	 * instance backed by the agent host connection. Updates the invocation's
-	 * `toolSpecificData` to `kind: 'terminal'` and clears
-	 * `HiddenAfterComplete` so the terminal UI stays visible.
-	 */
-	private _reviveTerminalIfNeeded(
-		invocation: ChatToolInvocation,
-		tc: ToolCallState,
-		backendSession: URI,
-	): void {
-		// content is only present on Running/Completed/PendingResultConfirmation.
-		// toolInput is present on all post-streaming states.
-		if (tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.PendingResultConfirmation) {
-			return;
-		}
-		const terminalUri = getTerminalContentUri(tc.content);
-		if (!terminalUri || !tc.toolInput) {
-			return;
-		}
-		invocation.presentation = undefined;
-		const toolInput = tc.toolInput;
-		this._ensureTerminalInstance(terminalUri, backendSession).then(sessionId => {
-			const existing = invocation.toolSpecificData?.kind === 'terminal'
-				? invocation.toolSpecificData as IChatTerminalToolInvocationData
-				: undefined;
-
-			// Resolve the terminalCommandId from the AHP command source
-			let terminalCommandId = existing?.terminalCommandId;
-			if (!terminalCommandId) {
-				const source = this._terminalChatService.getAhpCommandSource(sessionId);
-				if (source) {
-					// Use the executing command or the most recent completed command
-					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
-					terminalCommandId = cmd?.id;
-				}
-			}
-
-			invocation.toolSpecificData = {
-				...existing,
-				kind: 'terminal',
-				commandLine: { original: toolInput },
-				language: 'shellscript',
-				terminalToolSessionId: sessionId,
-				terminalCommandUri: URI.parse(terminalUri),
-				terminalCommandId,
-			};
-		});
-	}
-
-	/**
-	 * Processes a session state snapshot for a specific turn, emitting
-	 * incremental progress for new or changed content. Handles markdown
-	 * and reasoning deltas, tool call lifecycle (creation, updates,
-	 * confirmation, finalization), and turn-end error messages.
-	 *
-	 * @returns `true` if the turn is still active, `false` if it has ended.
-	 *   When `false`, any error message has already been emitted via
-	 *   `progress`.
-	 */
-	private _processSessionState(
-		sessionState: SessionState,
-		ctx: ITurnProcessingContext,
-	): boolean {
-		const activeTurn = sessionState.activeTurn;
-		const isActive = activeTurn?.id === ctx.turnId;
-		const responseParts = isActive
-			? activeTurn.responseParts
-			: sessionState.turns.find(t => t.id === ctx.turnId)?.responseParts;
-
-		if (responseParts) {
-			for (const rp of responseParts) {
-				switch (rp.kind) {
-					case ResponsePartKind.Markdown: {
-						const lastLen = ctx.lastEmittedLengths.get(rp.id) ?? 0;
-						if (rp.content.length > lastLen) {
-							const delta = rp.content.substring(lastLen);
-							ctx.lastEmittedLengths.set(rp.id, rp.content.length);
-							// supportHtml is load bearing. Without this the markdown
-							// string gets merged into the edit part in chatModel.ts
-							// which breaks rendering because the thinking content
-							// part does not deal with this.
-							ctx.progress([{ kind: 'markdownContent', content: rawMarkdownToString(delta, this._config.connectionAuthority, { supportHtml: true }) }]);
-						}
-						break;
-					}
-					case ResponsePartKind.Reasoning: {
-						const lastLen = ctx.lastEmittedLengths.get(rp.id) ?? 0;
-						if (rp.content.length > lastLen) {
-							const delta = rp.content.substring(lastLen);
-							ctx.lastEmittedLengths.set(rp.id, rp.content.length);
-							ctx.progress([{ kind: 'thinking', value: delta }]);
-						}
-						break;
-					}
-					case ResponsePartKind.ToolCall: {
-						const tc = rp.toolCall;
-						let existing = ctx.activeToolInvocations.get(tc.toolCallId);
-
-						if (!existing) {
-							// Client tools: create a ChatToolInvocation up front in streaming
-							// state via beginToolCall so the UI has a handle, then invoke
-							// once tool input is available. invokeTool reuses the pending
-							// invocation, so there is a single UI throughout the lifecycle.
-							if (tc.toolClientId === this._config.connection.clientId) {
-								this._beginClientToolInvocation(tc, ctx);
-								this._tryInvokeClientTool(tc, ctx);
-								break;
-							}
-
-							existing = toolCallStateToInvocation(tc, undefined, ctx.backendSession, this._config.connectionAuthority);
-							ctx.activeToolInvocations.set(tc.toolCallId, existing);
-							ctx.progress([existing]);
-
-							if (tc.status === ToolCallStatus.PendingConfirmation) {
-								this._awaitToolConfirmation(existing, tc.toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
-							} else {
-								// First snapshot may already be Running/Completed/
-								// Cancelled (due to throttling). Process immediately
-								// so terminal revival and finalization still happen.
-								const { fileEdits } = this._updateToolCallState(existing, tc, ctx);
-								if (fileEdits.length > 0) {
-									ctx.onFileEdits?.(tc, fileEdits);
-								}
-							}
-						} else {
-							// Client tools: invokeTool owns the UI lifecycle once invoked.
-							// Drive invocation from later updates when toolInput arrives,
-							// and cancel locally if the server reports the call cancelled.
-							if (this._clientToolCalls.has(tc.toolCallId)) {
-								if (tc.status === ToolCallStatus.Cancelled) {
-									this._cancelClientToolInvocation(tc.toolCallId);
-								} else {
-									this._tryInvokeClientTool(tc, ctx);
-								}
-								break;
-							}
-							const { fileEdits } = this._updateToolCallState(existing, tc, ctx);
-							if (fileEdits.length > 0) {
-								ctx.onFileEdits?.(tc, fileEdits);
-							}
-						}
-						break;
-					}
-				}
-			}
-		}
-
-		if (!isActive) {
-			const lastTurn = sessionState.turns.find(t => t.id === ctx.turnId);
-			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
-				ctx.progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
-			}
-			return false;
-		}
-		return true;
-	}
-
-	// ---- Input request handling ---------------------------------------------
-
-	/**
-	 * Syncs the set of active input request carousels against the current
-	 * session state. Cancels carousels whose requests disappeared and creates
-	 * new carousels for newly appeared requests.
-	 */
-	private _syncInputRequests(
-		active: Map<string, ChatQuestionCarouselData>,
-		inputRequests: readonly SessionInputRequest[] | undefined,
-		session: URI,
-		token: CancellationToken,
-		progress: (items: IChatProgress[]) => void,
-	): void {
-		const currentIds = new Set(inputRequests?.map(r => r.id));
-		for (const [id, carousel] of active) {
-			if (!currentIds.has(id)) {
-				carousel.completion.complete({ answers: undefined });
-				active.delete(id);
-			}
-		}
-		if (inputRequests) {
-			for (const inputReq of inputRequests) {
-				if (!active.has(inputReq.id)) {
-					active.set(inputReq.id, this._handleInputRequest(inputReq, session, token, progress));
-				}
-			}
-		}
-	}
-
-	/**
-	 * Creates a question carousel for a session input request and dispatches
-	 * the `SessionInputCompleted` action when the user answers or cancels.
-	 */
-	private _handleInputRequest(
+	private _setupInputRequest(
 		inputReq: SessionInputRequest,
-		session: URI,
-		cancellationToken: CancellationToken,
-		progress: (items: IChatProgress[]) => void,
-	): ChatQuestionCarouselData {
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
 		const questions: IChatQuestion[] = (inputReq.questions ?? []).map((q): IChatQuestion => {
 			switch (q.kind) {
 				case SessionInputQuestionKind.SingleSelect:
@@ -1744,28 +1642,52 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const carousel = new ChatQuestionCarouselData(
 			questions,
 			/* allowSkip */ true,
-			/* resolveId */ undefined,
+			inputReq.id,
 			/* data */ undefined,
 			/* isUsed */ undefined,
 			/* message */ inputReq.message ? rawMarkdownToString(inputReq.message, this._config.connectionAuthority) : undefined,
 		);
+		opts.sink([carousel]);
 
-		progress([carousel]);
+		// Track the latest server-known answers — initially what was on the
+		// request when it appeared, then overwritten by `SessionInputCompleted`
+		// when the server applies it. The disposal path uses this to settle
+		// the carousel with the server's authoritative answers.
+		let latestProtocolAnswers: Record<string, SessionInputAnswer> | undefined = inputReq.answers;
 
-		if (cancellationToken.isCancellationRequested) {
-			carousel.completion.complete({ answers: undefined });
-		} else {
-			const tokenListener = cancellationToken.onCancellationRequested(() => {
-				carousel.completion.complete({ answers: undefined });
-			});
-			carousel.completion.p.finally(() => tokenListener.dispose());
-		}
+		// Capture protocol answers from `SessionInputCompleted` BEFORE the
+		// reducer drops the request from state — by the time disposal runs,
+		// the action payload is no longer reachable. Also overwrite the
+		// carousel's `data` so it reflects the server's authoritative answer
+		// even if the user already locally submitted (mirrors legacy
+		// `_applyCompletedInputRequest` behavior).
+		const sub = this._ensureSessionSubscription(opts.backendSession.toString());
+		store.add(sub.onWillApplyAction(envelope => {
+			const action = envelope.action as SessionAction;
+			if (action.type !== ActionType.SessionInputCompleted || action.requestId !== inputReq.id) {
+				return;
+			}
+			latestProtocolAnswers = action.response === SessionInputResponseKind.Accept
+				? (action as SessionInputCompletedAction).answers ?? latestProtocolAnswers
+				: undefined;
+			const carouselAnswers = convertProtocolAnswers(latestProtocolAnswers);
+			carousel.data = carouselAnswers ?? {};
+			carousel.draftAnswers = undefined;
+			carousel.draftCurrentIndex = undefined;
+			carousel.draftCollapsed = undefined;
+		}));
 
+		// User-driven completion → dispatch `SessionInputCompleted`. The
+		// state echo (handled above) updates the carousel with the server's
+		// authoritative answer afterwards.
 		carousel.completion.p.then(result => {
+			if (store.isDisposed) {
+				return;
+			}
 			if (!result.answers) {
 				this._config.connection.dispatch({
 					type: ActionType.SessionInputCompleted,
-					session: session.toString(),
+					session: opts.backendSession.toString(),
 					requestId: inputReq.id,
 					response: SessionInputResponseKind.Cancel,
 				});
@@ -1773,7 +1695,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const answers = convertCarouselAnswers(result.answers);
 				this._config.connection.dispatch({
 					type: ActionType.SessionInputCompleted,
-					session: session.toString(),
+					session: opts.backendSession.toString(),
 					requestId: inputReq.id,
 					response: SessionInputResponseKind.Accept,
 					answers,
@@ -1781,44 +1703,85 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		});
 
-		return carousel;
+		if (opts.cancellationToken.isCancellationRequested) {
+			carousel.completion.complete({ answers: undefined });
+		} else {
+			const tokenListener = opts.cancellationToken.onCancellationRequested(() => {
+				carousel.completion.complete({ answers: undefined });
+			});
+			carousel.completion.p.finally(() => tokenListener.dispose());
+		}
+
+		// Disposal: the request was either completed (action seen via
+		// `onWillApplyAction`) or abandoned (turn ended). Settle the
+		// carousel with whatever server answers we last captured and clear
+		// the input UI to mirror legacy `_syncInputRequests` behavior.
+		store.add(toDisposable(() => {
+			if (carousel.isUsed) {
+				return;
+			}
+			const carouselAnswers = convertProtocolAnswers(latestProtocolAnswers);
+			carousel.data = carouselAnswers ?? {};
+			carousel.isUsed = true;
+			carousel.draftAnswers = undefined;
+			carousel.draftCurrentIndex = undefined;
+			carousel.draftCollapsed = undefined;
+			carousel.completion.complete({ answers: carouselAnswers });
+			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
+		}));
+	}
+
+	/**
+	 * Detects terminal content in a tool call and creates a local terminal
+	 * instance backed by the agent host connection. Updates the invocation's
+	 * `toolSpecificData` to `kind: 'terminal'` and clears
+	 * `HiddenAfterComplete` so the terminal UI stays visible.
+	 */
+	private _reviveTerminalIfNeeded(
+		invocation: ChatToolInvocation,
+		tc: ToolCallState,
+		backendSession: URI,
+	): void {
+		// content is only present on Running/Completed/PendingResultConfirmation.
+		// toolInput is present on all post-streaming states.
+		if (tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.PendingResultConfirmation) {
+			return;
+		}
+		const terminalUri = getTerminalContentUri(tc.content);
+		if (!terminalUri || !tc.toolInput) {
+			return;
+		}
+		invocation.presentation = undefined;
+		const toolInput = tc.toolInput;
+		this._ensureTerminalInstance(terminalUri, backendSession).then(sessionId => {
+			const existing = invocation.toolSpecificData?.kind === 'terminal'
+				? invocation.toolSpecificData as IChatTerminalToolInvocationData
+				: undefined;
+
+			// Resolve the terminalCommandId from the AHP command source
+			let terminalCommandId = existing?.terminalCommandId;
+			if (!terminalCommandId) {
+				const source = this._terminalChatService.getAhpCommandSource(sessionId);
+				if (source) {
+					// Use the executing command or the most recent completed command
+					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
+					terminalCommandId = cmd?.id;
+				}
+			}
+
+			invocation.toolSpecificData = {
+				...existing,
+				kind: 'terminal',
+				commandLine: { original: toolInput },
+				language: 'shellscript',
+				terminalToolSessionId: sessionId,
+				terminalCommandUri: URI.parse(terminalUri),
+				terminalCommandId,
+			};
+		});
 	}
 
 	// ---- Subagent child session observation ---------------------------------
-
-	/**
-	 * Scans the response parts of a turn for subagent tool calls and starts
-	 * observing their child sessions. Deduplicates against previously observed
-	 * tool call IDs.
-	 */
-	private _observeSubagentToolCalls(
-		sessionState: SessionState,
-		turnId: string,
-		activeToolInvocations: Map<string, ChatToolInvocation>,
-		observedSubagentToolIds: Set<string>,
-		backendSession: URI,
-		progress: (parts: IChatProgress[]) => void,
-		disposables: DisposableStore,
-	): void {
-		const activeTurn = sessionState.activeTurn;
-		const isActiveTurn = activeTurn?.id === turnId;
-		const parts = isActiveTurn
-			? activeTurn.responseParts
-			: sessionState.turns.find(t => t.id === turnId)?.responseParts;
-		if (!parts) {
-			return;
-		}
-		for (const rp of parts) {
-			if (rp.kind === ResponsePartKind.ToolCall) {
-				const tc = rp.toolCall;
-				const existing = activeToolInvocations.get(tc.toolCallId);
-				if (existing && !observedSubagentToolIds.has(tc.toolCallId) && (isSubagentTool(tc) || ((tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) && getToolSubagentContent(tc)))) {
-					observedSubagentToolIds.add(tc.toolCallId);
-					this._observeSubagentSession(backendSession, tc.toolCallId, progress, disposables, observedSubagentToolIds);
-				}
-			}
-		}
-	}
 
 	/**
 	 * Enriches serialized history with inner tool calls from subagent child
@@ -1904,6 +1867,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * as progress parts into the parent session's response, with
 	 * `subAgentInvocationId` set so the renderer groups them under the parent
 	 * subagent widget.
+	 *
+	 * Implementation: builds a per-turn-id keyed observation over the child
+	 * session's `turns` and `activeTurn`. Each turn id discovered gets its
+	 * own {@link _observeTurn} instance running in subagent mode (which skips
+	 * markdown/reasoning/input-request emission and tags tool calls with the
+	 * parent tool call id). Each per-turn observer self-disposes when its
+	 * turn reaches a terminal state; the outer observation is torn down when
+	 * the caller disposes `disposables`.
 	 */
 	private _observeSubagentSession(
 		parentSession: URI,
@@ -1913,83 +1884,48 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		observedSet: Set<string>,
 	): void {
 		const childSessionUri = buildSubagentSessionUri(parentSession.toString(), parentToolCallId);
+		const childUri = URI.parse(childSessionUri);
 
-		const activeChildToolInvocations = new Map<string, ChatToolInvocation>();
-		const childCts = new CancellationTokenSource();
-		disposables.add(toDisposable(() => childCts.dispose(true)));
-
-		// Helper to process response parts from a child turn
-		const processChildParts = (responseParts: readonly ResponsePart[], turnId: string) => {
-			for (const rp of responseParts) {
-				if (rp.kind === ResponsePartKind.ToolCall) {
-					const tc = rp.toolCall;
-					let existing = activeChildToolInvocations.get(tc.toolCallId);
-
-					if (!existing) {
-						existing = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-						activeChildToolInvocations.set(tc.toolCallId, existing);
-						emitProgress([existing]);
-
-						if (tc.status === ToolCallStatus.PendingConfirmation) {
-							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
-						}
-					} else if (tc.status === ToolCallStatus.PendingConfirmation) {
-						const existingState = existing.state.get();
-						if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							existing.didExecuteTool(undefined);
-							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
-							emitProgress([confirmInvocation]);
-							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
-						}
-					} else if (tc.status === ToolCallStatus.Running) {
-						updateRunningToolSpecificData(existing, tc, this._config.connectionAuthority);
-					}
-
-					if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-						finalizeToolInvocation(existing, tc, URI.parse(childSessionUri), this._config.connectionAuthority);
-					}
-				}
-			}
-		};
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
 
 		try {
 			const childSub = this._ensureSessionSubscription(childSessionUri);
+			disposables.add(toDisposable(() => this._releaseSessionSubscription(childSessionUri)));
 
-			// Attach the state listener BEFORE replaying the snapshot so any
-			// state change arriving in the gap is not lost. This mirrors the
-			// pattern used for parent turn observation.
-			disposables.add(childSub.onDidChange(state => {
-				if (disposables.isDisposed) {
-					return;
+			const childState$ = observableFromSubscription(this, childSub);
+
+			// All turn ids observed in the child session: completed turns
+			// plus any active turn that is not also already in `turns`. Each
+			// id is keyed so `autorunPerKeyedItem` discovers new turns
+			// incrementally and creates a fresh observer for each.
+			const childTurnIds$ = derived(reader => {
+				const state = childState$.read(reader);
+				if (!state) {
+					return [];
 				}
-
-				const activeTurn = state.activeTurn;
-				const turnId = activeTurn?.id ?? state.turns[state.turns.length - 1]?.id;
-				const responseParts = activeTurn?.responseParts
-					?? state.turns[state.turns.length - 1]?.responseParts;
-
-				if (responseParts && turnId) {
-					processChildParts(responseParts, turnId);
+				const ids: { id: string }[] = state.turns.map(t => ({ id: t.id }));
+				const activeId = state.activeTurn?.id;
+				if (activeId !== undefined && !state.turns.some(t => t.id === activeId)) {
+					ids.push({ id: activeId });
 				}
-			}));
+				return ids;
+			});
 
-			// Replay any existing content from the child session snapshot
-			// (handles both active turns and already-completed ones)
-			const childState = this._getSessionState(childSessionUri);
-			if (childState) {
-				for (const turn of childState.turns) {
-					processChildParts(turn.responseParts, turn.id);
-				}
-				if (childState.activeTurn) {
-					processChildParts(childState.activeTurn.responseParts, childState.activeTurn.id);
-				}
-			}
-
-			// Clean up when disposables are disposed
-			disposables.add(toDisposable(() => {
-				this._releaseSessionSubscription(childSessionUri);
-			}));
+			disposables.add(autorunPerKeyedItem(
+				childTurnIds$,
+				t => t.id,
+				(turnId, _t$, turnStore) => {
+					turnStore.add(this._observeTurn({
+						backendSession: childUri,
+						sessionResource: childUri,
+						turnId,
+						sink: emitProgress,
+						cancellationToken: cts.token,
+						subAgentInvocationId: parentToolCallId,
+					}));
+				},
+			));
 		} catch (err) {
 			// Remove from observed set so a later state change can retry
 			observedSet.delete(parentToolCallId);
@@ -2014,97 +1950,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionKey = backendSession.toString();
 
 		// Extract live ChatToolInvocation objects from the initial progress
-		// array so we can update/finalize the same instances the chat UI holds.
-		const activeToolInvocations = new Map<string, ChatToolInvocation>();
+		// array so per-tool setup adopts the same instances the chat UI holds.
+		const adoptInvocations = new Map<string, ChatToolInvocation>();
 		for (const item of initialProgress) {
 			if (item instanceof ChatToolInvocation) {
-				activeToolInvocations.set(item.toolCallId, item);
+				adoptInvocations.set(item.toolCallId, item);
 			}
 		}
 
-		// Track last-emitted content lengths per response part to compute deltas.
-		// Seed from the current state so we only emit new content beyond what
-		// activeTurnToProgress already captured.
-		const lastEmittedLengths = new Map<string, number>();
+		// Seed last-emitted markdown/reasoning lengths from the snapshot so
+		// per-part setup only emits content beyond what `activeTurnToProgress`
+		// already produced.
+		const seedEmittedLengths = new Map<string, number>();
 		const currentState = this._getSessionState(sessionKey);
 		if (currentState?.activeTurn) {
 			for (const rp of currentState.activeTurn.responseParts) {
 				if (rp.kind === ResponsePartKind.Markdown || rp.kind === ResponsePartKind.Reasoning) {
-					lastEmittedLengths.set(rp.id, rp.content.length);
+					seedEmittedLengths.set(rp.id, rp.content.length);
 				}
 			}
 		}
 
-		const reconnectDisposables = chatSession.registerDisposable(new DisposableStore());
-		const observedSubagentToolIds = new Set<string>();
-		const throttler = new Throttler();
-		reconnectDisposables.add(throttler);
-
-		// Wire up awaitConfirmation for tool calls that were already pending
-		// confirmation at snapshot time so the user can approve/deny them.
-		// Also start observing any subagent tools that were already running.
 		const cts = new CancellationTokenSource();
-		reconnectDisposables.add(toDisposable(() => cts.dispose(true)));
-		for (const [toolCallId, invocation] of activeToolInvocations) {
-			if (!IChatToolInvocation.isComplete(invocation)) {
-				// Look up the tool call state to forward protocol options on reconnection
-				const tcState = currentState?.activeTurn?.responseParts.find(
-					rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === toolCallId
-				);
-				const tcOptions = tcState?.kind === ResponsePartKind.ToolCall && tcState.toolCall.status === ToolCallStatus.PendingConfirmation
-					? tcState.toolCall.options
-					: undefined;
-				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token, tcOptions);
-			}
-			if (invocation.toolSpecificData?.kind === 'subagent' && !observedSubagentToolIds.has(toolCallId)) {
-				observedSubagentToolIds.add(toolCallId);
-				this._observeSubagentSession(backendSession, toolCallId, (parts) => chatSession.appendProgress(parts), reconnectDisposables, observedSubagentToolIds);
-			}
-		}
-
-		// Track live input request carousels for reconnection
-		const activeInputRequests = new Map<string, ChatQuestionCarouselData>();
-		const appendProgress = (parts: IChatProgress[]) => chatSession.appendProgress(parts);
-
-		// Restore any pending input requests from the initial state
-		this._syncInputRequests(activeInputRequests, currentState?.inputRequests, backendSession, cts.token, appendProgress);
-
-		// Process state changes from the protocol layer.
-		const ctx: ITurnProcessingContext = {
-			turnId,
+		const reconnectStore = chatSession.registerDisposable(new DisposableStore());
+		reconnectStore.add(toDisposable(() => cts.dispose(true)));
+		reconnectStore.add(this._observeTurn({
 			backendSession,
 			sessionResource: chatSession.sessionResource,
-			activeToolInvocations,
-			lastEmittedLengths,
-			progress: parts => chatSession.appendProgress(parts),
+			turnId,
+			sink: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
-		};
-		const processStateChange = (sessionState: SessionState) => {
-			const isActive = this._processSessionState(sessionState, ctx);
-			this._syncInputRequests(activeInputRequests, sessionState.inputRequests, backendSession, cts.token, appendProgress);
-
-			// Observe subagent sessions for subagent tool calls
-			this._observeSubagentToolCalls(sessionState, turnId, activeToolInvocations, observedSubagentToolIds, backendSession, (parts: IChatProgress[]) => chatSession.appendProgress(parts), reconnectDisposables);
-
-			if (!isActive) {
+			adoptInvocations,
+			seedEmittedLengths,
+			onTurnEnded: () => {
 				chatSession.complete();
-				reconnectDisposables.dispose();
-			}
-		};
-
-		// Attach the ongoing state listener
-		const reconnectSub = this._ensureSessionSubscription(sessionKey);
-		reconnectDisposables.add(reconnectSub.onDidChange(state => {
-			throttler.queue(async () => processStateChange(state));
+				reconnectStore.dispose();
+			},
 		}));
-
-		// Immediately reconcile against the current state to close any gap
-		// between snapshot time and listener registration. If the turn already
-		// completed in the interim, this will mark the session complete.
-		const latestState = this._getSessionState(sessionKey);
-		if (latestState) {
-			processStateChange(latestState);
-		}
 	}
 
 	// ---- File edit routing ---------------------------------------------------
@@ -2544,9 +2426,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref.dispose();
 		}
 		this._sessionSubscriptions.clear();
-		for (const toolCallId of Array.from(this._clientToolCalls.keys())) {
-			this._disposeClientToolCall(toolCallId);
-		}
 		super.dispose();
 	}
 }

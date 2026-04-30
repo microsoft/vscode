@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
@@ -30,9 +30,6 @@ export class GitHubPullRequestModel extends Disposable {
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
-	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
-	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
-
 	private readonly _pollScheduler: RunOnceScheduler;
 	private _disposed = false;
 
@@ -54,26 +51,7 @@ export class GitHubPullRequestModel extends Disposable {
 	 * `mergeability`, avoiding duplicate `GET /pulls/:number` calls per cycle.
 	 */
 	async refresh(): Promise<void> {
-		await Promise.all([
-			this._refreshPullRequestAndMergeability(),
-			this._refreshThreads(),
-		]);
-	}
-
-	/**
-	 * Refresh only the review threads.
-	 */
-	async refreshThreads(): Promise<void> {
-		await this._refreshThreads();
-	}
-
-	/**
-	 * Post a reply to an existing review thread and refresh threads.
-	 */
-	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
-		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo);
-		await this._refreshThreads();
-		return comment;
+		await this._refreshPullRequestAndMergeability();
 	}
 
 	/**
@@ -81,14 +59,6 @@ export class GitHubPullRequestModel extends Disposable {
 	 */
 	async postIssueComment(body: string): Promise<IGitHubPRComment> {
 		return this._fetcher.postIssueComment(this.owner, this.repo, this.prNumber, body);
-	}
-
-	/**
-	 * Resolve a review thread and refresh the thread list.
-	 */
-	async resolveThread(threadId: string): Promise<void> {
-		await this._fetcher.resolveThread(this.owner, this.repo, threadId);
-		await this._refreshThreads();
 	}
 
 	/**
@@ -147,15 +117,6 @@ export class GitHubPullRequestModel extends Disposable {
 			});
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
-		}
-	}
-
-	private async _refreshThreads(): Promise<void> {
-		try {
-			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
-			this._reviewThreads.set(data, undefined);
-		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
 		}
 	}
 

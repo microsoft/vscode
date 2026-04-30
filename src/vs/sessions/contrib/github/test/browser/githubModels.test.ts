@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
@@ -32,10 +33,15 @@ class MockPRFetcher {
 	nextPR: IGitHubPullRequest | undefined;
 	nextReviews: IGitHubPullRequestReview[] = [];
 	nextThreads: IGitHubPullRequestReviewThread[] = [];
+	getPullRequestCalls = 0;
+	getReviewsCalls = 0;
+	getReviewThreadsCalls = 0;
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
+	resolveThreadCalls: { threadId: string }[] = [];
 
 	async getPullRequest(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: IGitHubPullRequest | undefined; statusCode: number; etag?: string }> {
+		this.getPullRequestCalls++;
 		if (!this.nextPR) {
 			throw new Error('No mock PR');
 		}
@@ -43,10 +49,12 @@ class MockPRFetcher {
 	}
 
 	async getReviews(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: readonly IGitHubPullRequestReview[] | undefined; statusCode: number; etag?: string }> {
+		this.getReviewsCalls++;
 		return { data: this.nextReviews, statusCode: 200 };
 	}
 
 	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
+		this.getReviewThreadsCalls++;
 		return this.nextThreads;
 	}
 
@@ -60,8 +68,8 @@ class MockPRFetcher {
 		return makeComment(998, body);
 	}
 
-	async resolveThread(): Promise<void> {
-		throw new Error('Not implemented');
+	async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
+		this.resolveThreadCalls.push({ threadId });
 	}
 }
 
@@ -139,38 +147,29 @@ suite('GitHubPullRequestModel', () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		assert.strictEqual(model.pullRequest.get(), undefined);
 		assert.strictEqual(model.mergeability.get(), undefined);
-		assert.deepStrictEqual(model.reviewThreads.get(), []);
 	});
 
-	test('refresh populates all observables', async () => {
+	test('refresh populates pull request and mergeability without fetching review threads', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
 
 		await model.refresh();
-		assert.strictEqual(model.pullRequest.get()?.number, 1);
-		assert.strictEqual(model.mergeability.get()?.canMerge, true);
-		assert.strictEqual(model.reviewThreads.get().length, 1);
-	});
 
-	test('refreshThreads only updates threads', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
-		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts'), makeThread('thread-200', 'src/b.ts')];
-
-		await model.refreshThreads();
-		assert.strictEqual(model.pullRequest.get(), undefined); // not refreshed
-		assert.strictEqual(model.reviewThreads.get().length, 2);
-	});
-
-	test('postReviewComment calls fetcher and refreshes threads', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
-		mockFetcher.nextThreads = [];
-
-		const comment = await model.postReviewComment('LGTM', 100);
-		assert.strictEqual(comment.body, 'LGTM');
-		assert.strictEqual(mockFetcher.postReviewCommentCalls.length, 1);
-		assert.strictEqual(mockFetcher.postReviewCommentCalls[0].body, 'LGTM');
+		assert.deepStrictEqual({
+			prNumber: model.pullRequest.get()?.number,
+			canMerge: model.mergeability.get()?.canMerge,
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+		}, {
+			prNumber: 1,
+			canMerge: true,
+			getPullRequestCalls: 1,
+			getReviewsCalls: 1,
+			getReviewThreadsCalls: 0,
+		});
 	});
 
 	test('postIssueComment calls fetcher', async () => {
@@ -184,6 +183,85 @@ suite('GitHubPullRequestModel', () => {
 	test('polling can be started and stopped', () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		// Just ensure no errors; actual polling behavior is timer-based
+		model.startPolling(60_000);
+		model.stopPolling();
+	});
+});
+
+suite('GitHubPullRequestReviewThreadsModel', () => {
+
+	const store = new DisposableStore();
+	let mockFetcher: MockPRFetcher;
+	const logService = new NullLogService();
+
+	setup(() => {
+		mockFetcher = new MockPRFetcher();
+	});
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initial state is empty', () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		assert.deepStrictEqual(model.reviewThreads.get(), []);
+	});
+
+	test('refresh updates only review threads', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts'), makeThread('thread-200', 'src/b.ts')];
+
+		await model.refresh();
+
+		assert.deepStrictEqual({
+			threads: model.reviewThreads.get().map(thread => thread.id),
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+		}, {
+			threads: ['thread-100', 'thread-200'],
+			getPullRequestCalls: 0,
+			getReviewsCalls: 0,
+			getReviewThreadsCalls: 1,
+		});
+	});
+
+	test('postReviewComment calls fetcher and refreshes threads', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
+
+		const comment = await model.postReviewComment('LGTM', 100);
+
+		assert.deepStrictEqual({
+			commentBody: comment.body,
+			postReviewCommentCalls: mockFetcher.postReviewCommentCalls,
+			threads: model.reviewThreads.get().map(thread => thread.id),
+		}, {
+			commentBody: 'LGTM',
+			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
+			threads: ['thread-100'],
+		});
+	});
+
+	test('resolveThread calls fetcher and refreshes threads', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [];
+
+		await model.resolveThread('thread-100');
+
+		assert.deepStrictEqual({
+			resolveThreadCalls: mockFetcher.resolveThreadCalls,
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+			threads: model.reviewThreads.get(),
+		}, {
+			resolveThreadCalls: [{ threadId: 'thread-100' }],
+			getReviewThreadsCalls: 1,
+			threads: [],
+		});
+	});
+
+	test('polling can be started and stopped', () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		model.startPolling(60_000);
 		model.stopPolling();
 	});

@@ -1003,7 +1003,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			}
 
 			case GenAiOperationName.EXECUTE_HOOK: {
-				const hookType = asString(span.attributes['copilot_chat.hook_type']) ?? span.name;
+				const hookType = asString(span.attributes[CopilotChatAttr.HOOK_TYPE]) ?? span.name;
 				return {
 					ts: span.startTime,
 					dur: duration,
@@ -1017,14 +1017,14 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 						...(span.attributes['copilot_chat.hook_command'] !== undefined
 							? { command: truncate(String(span.attributes['copilot_chat.hook_command']), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_input'] !== undefined
-							? { input: truncate(String(span.attributes['copilot_chat.hook_input']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_INPUT] !== undefined
+							? { input: truncate(String(span.attributes[CopilotChatAttr.HOOK_INPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_output'] !== undefined
-							? { output: truncate(String(span.attributes['copilot_chat.hook_output']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_OUTPUT] !== undefined
+							? { output: truncate(String(span.attributes[CopilotChatAttr.HOOK_OUTPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_result_kind'] !== undefined
-							? { resultKind: String(span.attributes['copilot_chat.hook_result_kind']) }
+						...(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND] !== undefined
+							? { resultKind: String(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND]) }
 							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},

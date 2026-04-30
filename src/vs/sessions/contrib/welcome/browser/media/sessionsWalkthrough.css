@@ -423,6 +423,149 @@
 	margin-top: 4px;
 }
 
+/* ---- Theme step ---- */
+
+.sessions-walkthrough-theme-header {
+	text-align: center;
+	margin-bottom: 8px;
+}
+
+.sessions-walkthrough-theme-header h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-theme-header p {
+	margin: 6px 0 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.sessions-walkthrough-theme-grid {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 10px;
+	width: 100%;
+}
+
+.sessions-walkthrough-theme-card {
+	border-radius: 8px;
+	border: 2px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	cursor: pointer;
+	overflow: hidden;
+	transition: border-color 100ms, transform 100ms;
+	width: calc(25% - 8px);
+	min-width: 120px;
+	box-sizing: border-box;
+}
+
+.sessions-walkthrough-theme-card:hover {
+	border-color: var(--vscode-focusBorder, #007acc);
+	transform: translateY(-1px);
+}
+
+.sessions-walkthrough-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-theme-card.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card {
+	border-width: 2px;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card:hover,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card:hover {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card:focus-visible,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card.selected,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card.selected {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	box-shadow: 0 0 0 1px var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.sessions-walkthrough-theme-preview {
+	overflow: hidden;
+}
+
+.sessions-walkthrough-theme-preview-img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.sessions-walkthrough-vscode-theme-option {
+	display: flex;
+	justify-content: center;
+	margin-top: 16px;
+}
+
+.sessions-walkthrough-vscode-theme-radio {
+	padding: 8px 20px;
+	border-radius: 8px;
+	border: 2px solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border, rgba(255, 255, 255, 0.1)));
+	background: var(--vscode-radio-inactiveBackground, transparent);
+	color: var(--vscode-radio-inactiveForeground, var(--vscode-foreground));
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: border-color 100ms, background 100ms;
+	text-align: center;
+}
+
+.sessions-walkthrough-vscode-theme-radio:hover {
+	background: var(--vscode-radio-inactiveHoverBackground, color-mix(in srgb, var(--vscode-foreground) 8%, transparent));
+}
+
+.sessions-walkthrough-vscode-theme-radio.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-radio-activeBackground, transparent);
+	color: var(--vscode-radio-activeForeground, var(--vscode-foreground));
+}
+
+.sessions-walkthrough-vscode-theme-radio:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-theme-label {
+	padding: 4px 6px;
+	font-size: 12px;
+	font-weight: 500;
+	text-align: center;
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-theme-footer {
+	display: flex;
+	justify-content: center;
+	margin-top: 16px;
+}
+
+@media (max-width: 480px) {
+	.sessions-walkthrough-theme-card {
+		width: calc(50% - 8px);
+	}
+}
+
 /* Reduced motion */
 
 .monaco-reduce-motion .sessions-walkthrough-overlay,

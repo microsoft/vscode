@@ -72,7 +72,7 @@
 /* Update widget in titlebar */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
-	gap: 0;
+	gap: 5px;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget {
@@ -192,8 +192,8 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel {
 	display: flex;
 	flex-direction: column;
-	width: 280px;
-	max-width: 280px;
+	width: 360px;
+	max-width: 360px;
 	color: var(--vscode-foreground);
 }
 
@@ -202,7 +202,8 @@
 	align-items: center;
 	gap: 6px;
 	min-height: 28px;
-	padding: 6px 8px 0;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-title {
@@ -272,7 +273,6 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	padding-top: 4px;
 	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
 }
 
@@ -287,7 +287,103 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	padding: 4px 0;
+	padding: 2px 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section {
+	display: flex;
+	flex-direction: column;
+	padding: 6px 0 0;
+}
+
+/* The embedded chat status dashboard ships dividers/HRs and header borders
+	intended for its standalone tooltip presentation. The section headings
+	provide the only visual grouping we want here. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip hr {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip > div.header,
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .contribution > div.header {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
+	padding: 4px 8px 2px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Subscription section: place "Subscription" label and the dashboard's
+	plan-name + manage-action header on a single right-aligned row.
+	The dashboard's `div.header` is reparented into this row at runtime,
+	so it's no longer matched by chatStatus.css rules. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 10px 2px 8px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header .sessions-account-titlebar-panel-section-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .header-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .monaco-action-bar {
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 24px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	/* `!important` to override `.codicon`'s own `font-size` rule. */
+	font-size: 14px !important;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:hover .sessions-account-titlebar-panel-action-icon,
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:focus-visible .sessions-account-titlebar-panel-action-icon {
+	color: inherit;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-separator {
@@ -303,7 +399,7 @@
 	box-sizing: border-box;
 	height: 24px;
 	margin: 0 4px;
-	padding: 0 16px;
+	padding: 0 6px;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: transparent;

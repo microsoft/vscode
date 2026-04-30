@@ -191,9 +191,6 @@ export class WebviewEditor extends EditorPane {
 		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
 		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
-		// When shown in a modal editor, the webview overlay must sit above the modal layer
-		input.webview.container.style.zIndex = isModal ? '2541' : ''; // One over the modal z-index
-
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
