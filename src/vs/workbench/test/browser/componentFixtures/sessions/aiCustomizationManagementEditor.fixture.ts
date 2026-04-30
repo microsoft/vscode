@@ -69,9 +69,6 @@ import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
@@ -257,9 +254,6 @@ function createMockHarnessService(activeHarnessId: string, descriptors: readonly
 		}
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
-		}
-		override findHarnessById(id: string) {
-			return descriptors.find(h => h.id === id);
 		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
 		override registerExternalHarness() { return { dispose() { } }; }
@@ -573,8 +567,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
 	const fileContents = createFixtureContentMap(allFiles, agentInstructions);
-	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
-	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -798,7 +790,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 			// Allow any async setInput to settle.
 			await waitForAnimationFrames(2);
 			await new Promise(resolve => setTimeout(resolve, 250));
@@ -916,8 +908,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 	await new Promise(resolve => setTimeout(resolve, 50));
 }
 
-// 
-  ========================================================================
+// ============================================================================
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
