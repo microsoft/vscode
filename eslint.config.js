@@ -1621,18 +1621,6 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/platform/*/~',
-					'restrictions': [
-						'vs/base/~',
-						'vs/base/parts/*/~',
-						'vs/platform/*/~',
-						'tas-client', // node module allowed even in /common/
-						'@microsoft/1ds-core-js', // node module allowed even in /common/
-						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless', // node module allowed even in /common/
-					]
-				},
-				{
 					'target': 'src/vs/platform/agentHost/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1645,6 +1633,19 @@ export default tseslint.config(
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk' // used by agentHost for Anthropic API requests
+					]
+				},
+				{
+					'target': 'src/vs/platform/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'tas-client', // node module allowed even in /common/
+						'@microsoft/1ds-core-js', // node module allowed even in /common/
+						'@microsoft/1ds-post-js', // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{
