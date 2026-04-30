@@ -55,7 +55,7 @@
 	overflow-y: auto;
 	overflow-x: hidden;
 	min-height: 0;
-	padding: 4px 0 8px;
+	padding: 4px 4px 8px;
 	box-sizing: border-box;
 	opacity: 1;
 	transition: opacity 200ms ease-out;
@@ -482,6 +482,7 @@
 .monaco-workbench.hc-black .sessions-walkthrough-theme-card,
 .monaco-workbench.hc-light .sessions-walkthrough-theme-card {
 	border-width: 2px;
+	border-style: solid;
 	border-color: var(--vscode-contrastBorder);
 }
 
@@ -498,8 +499,14 @@
 
 .monaco-workbench.hc-black .sessions-walkthrough-theme-card.selected,
 .monaco-workbench.hc-light .sessions-walkthrough-theme-card.selected {
-	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
-	box-shadow: 0 0 0 1px var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline: 2px dashed var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card.selected:focus-visible,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card.selected:focus-visible {
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
 }
 
 .sessions-walkthrough-theme-preview {
