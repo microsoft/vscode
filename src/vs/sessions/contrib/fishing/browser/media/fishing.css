@@ -1,0 +1,177 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ============================================================
+ * Sessions Fishing easter-egg
+ *
+ * Inserted as the first child of `.new-chat-input-container` so the boat
+ * sits visually directly above the new-session input box.
+ *
+ * Scene-host data-state:
+ *   - hidden : boat collapsed; only the small top-right entry button visible.
+ *   - idle   : entry consumed, boat shown sitting on the lake.
+ *   - active : boat is keyboard-controlled by the user.
+ *
+ * Boat-group classes:
+ *   - (none)     : idle sprite, plays continuously.
+ *   - .moving    : rowing sprite, plays continuously.
+ *   - .caught    : caught sprite (one-shot), reels in a logo.
+ *   - .face-left : flips the sprite horizontally (boat faces left).
+ *
+ * Source sheets are 83px-per-frame (height 57). Idle/rowing have 4 frames
+ * (332×57 source). Caught has 6 frames (498×57 source). All are displayed
+ * at 1.6x.
+ * ============================================================ */
+
+.fishing-scene-host {
+	position: relative;
+	display: block;
+	width: 100%;
+	max-width: 800px;
+	height: 80px;
+	min-height: 80px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	overflow: visible;
+	transition: height 280ms ease-out, min-height 280ms ease-out;
+}
+
+/* -------- Entry button (easter-egg trigger, top-right corner) -------- */
+.fishing-scene-host .fishing-entry {
+	position: absolute;
+	top: 2px;
+	right: 6px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	opacity: 0.6;
+	z-index: 1;
+	transition: opacity 120ms ease-out, color 120ms ease-out;
+}
+
+.fishing-scene-host .fishing-entry:hover {
+	opacity: 1;
+	color: var(--vscode-foreground);
+}
+
+.fishing-scene-host .fishing-entry:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	opacity: 1;
+}
+
+.fishing-scene-host .fishing-entry .codicon {
+	font-size: 14px;
+}
+
+/* Hide the entry button once revealed. */
+.fishing-scene-host:not([data-state='hidden']) .fishing-entry {
+	display: none;
+}
+
+/* -------- Boat group -------- */
+.fishing-scene-host .boat-group {
+	position: absolute;
+	left: 12px;
+	bottom: -12px;
+	width: 132px;
+	height: 90px;
+	transform: translateX(var(--boat-x, 0px));
+	cursor: pointer;
+	outline: none;
+	opacity: 1;
+	transition: opacity 360ms ease-out 80ms;
+}
+
+.fishing-scene-host[data-state='hidden'] .boat-group {
+	opacity: 0;
+	transition: none;
+}
+
+/* Hidden state: collapse the strip; the absolutely-positioned entry button
+ * floats over the top-right edge of the input box without pushing it down. */
+.fishing-scene-host[data-state='hidden'] {
+	height: 0;
+	min-height: 0;
+}
+
+.fishing-scene-host[data-state='hidden'] .fishing-entry {
+	top: 6px;
+	right: 8px;
+}
+
+.fishing-scene-host .boat-group:focus,
+.fishing-scene-host .boat-group:focus-visible {
+	outline: none;
+}
+
+/* -------- Boat sprite -------- */
+.fishing-scene-host .row-sprite {
+	position: absolute;
+	inset: 0;
+	background-image: url('./idle.png');
+	background-repeat: no-repeat;
+	background-size: 528px 90px;
+	background-position: 0 0;
+	image-rendering: pixelated;
+	animation: fishing-frames-4 0.9s steps(4) infinite;
+}
+
+.fishing-scene-host .boat-group.face-left .row-sprite {
+	transform: scaleX(-1);
+}
+
+.fishing-scene-host .boat-group.moving .row-sprite {
+	background-image: url('./rowing.png');
+	animation: fishing-frames-4 0.6s steps(4) infinite;
+}
+
+/* Caught: swap to caught sheet (right-facing default; left variant when
+ * .face-left so the logo orientation stays correct under scaleX(-1)).
+ * Long sheets are 1079×57 = 13 equal 83×57 frames, displayed at 1.6x
+ * (13 × 132 = 1716 wide). `steps(13, jump-none)` over 0 → -1584 (12 × 132)
+ * lands exactly on each of the 13 frames, and `forwards` holds the final
+ * frame so we can dwell on the catch. */
+.fishing-scene-host .boat-group.caught .row-sprite {
+	background-image: url('./caught-right-long.png');
+	background-size: 1716px 90px;
+	animation: fishing-frames-13-once 1.3s steps(13, jump-none) 1 forwards;
+}
+
+.fishing-scene-host .boat-group.caught.face-left .row-sprite {
+	background-image: url('./caught-left-long.png');
+}
+
+@keyframes fishing-frames-4 {
+	from { background-position-x: 0; }
+	to   { background-position-x: -528px; }
+}
+
+@keyframes fishing-frames-13-once {
+	from { background-position-x: 0; }
+	to   { background-position-x: -1584px; }
+}
+
+/* Preload the non-default sprite sheets so the first idle→moving and
+ * idle→caught transitions don't flicker while the image is fetched. */
+.fishing-scene-host::after {
+	content: '';
+	position: absolute;
+	left: -9999px;
+	top: -9999px;
+	width: 1px;
+	height: 1px;
+	background-image: url('./rowing.png'), url('./caught-right-long.png'), url('./caught-left-long.png');
+	pointer-events: none;
+}

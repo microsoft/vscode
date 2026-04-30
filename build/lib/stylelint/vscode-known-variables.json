@@ -935,6 +935,7 @@
 		"--activity-bar-action-height",
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
+		"--boat-x",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

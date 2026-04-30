@@ -709,6 +709,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/fishing",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/chatDebug",
 			"project": "vscode-sessions"
 		},
