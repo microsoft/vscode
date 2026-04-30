@@ -239,7 +239,7 @@ export async function trackIdleOnPrompt(
 		log?.(`Initial fallback fired, no data events received`);
 		setState(TerminalState.PromptAfterExecuting, 'initialFallback');
 		scheduler.schedule();
-	}, 2 * 60_000));
+	}, 10_000));
 	if (!disableFallbacks) {
 		initialFallbackScheduler.schedule();
 	}
@@ -248,21 +248,21 @@ export async function trackIdleOnPrompt(
 	// follows. Both initialFallbackScheduler and promptFallbackScheduler get
 	// cancelled in that state, causing a permanent hang. This scheduler is
 	// rescheduled on every data event while in the Executing state, so it only
-	// fires after 5 minutes of data-idle — generous enough for async commands
-	// where this is purely a resource-cleanup safety net. With recent shell
-	// integration fixes (removing set -e guidance, etc.), broken SI is much
-	// less likely, so aggressive timeouts are no longer needed.
+	// fires after 30s of data-idle — long enough that actively-outputting
+	// commands won't be cut off, but short enough to prevent indefinite hangs
+	// when shell integration breaks. When shell integration is working,
+	// onCommandFinished in the rich strategy's race wins before this fires.
 	//
 	// In sync (foreground) mode this fallback is disabled: sync commands should
 	// block until the command truly finishes. The overall chat-request timeout
 	// or user-specified timeout serves as the safety net instead.
 	const executingFallbackScheduler = store.add(new RunOnceScheduler(() => {
 		if (state === TerminalState.Executing) {
-			log?.(`Executing fallback fired after 5min data-idle (dataEvents=${dataEventCount})`);
+			log?.(`Executing fallback fired after 30s data-idle (dataEvents=${dataEventCount})`);
 			setState(TerminalState.PromptAfterExecuting, 'executingFallback');
 			scheduler.schedule();
 		}
-	}, 5 * 60_000));
+	}, 30_000));
 	// Hard wall-clock safety net for the case where shell integration never
 	// engages at all — no OSC `C`/`D` is ever parsed so state never advances
 	// to Executing. This is purely a resource-cleanup fallback; with recent
@@ -274,7 +274,7 @@ export async function trackIdleOnPrompt(
 			setState(TerminalState.PromptAfterExecuting, 'hardCap');
 			scheduler.schedule();
 		}
-	}, 5 * 60_000));
+	}, 60_000));
 	if (!disableFallbacks) {
 		hardCapScheduler.schedule();
 	}
