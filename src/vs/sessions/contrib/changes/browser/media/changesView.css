@@ -89,14 +89,8 @@
 .changes-view-body .changes-files-count {
 	flex-shrink: 0;
 	font-size: 11px;
-	padding: 2px 0;
-	border-radius: 4px;
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	color: var(--vscode-descriptionForeground);
-	line-height: 1;
-	font-weight: 600;
-	min-width: 16px;
-	text-align: center;
+	opacity: 0.8;
 }
 
 /* Overview section (header) - hidden since actions moved outside card */
