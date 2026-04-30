@@ -255,7 +255,7 @@ suite('ChatStatusDashboard', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 100, unlimited: true },
 			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.ProPlus,
+			entitlement: ChatEntitlement.Max,
 		}));
 
 		// Unlimited quotas are not shown as quota indicators
@@ -268,7 +268,7 @@ suite('ChatStatusDashboard', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 100, unlimited: true, usageBasedBilling: true },
 			completions: { percentRemaining: 100, unlimited: true },
-			entitlement: ChatEntitlement.ProPlus,
+			entitlement: ChatEntitlement.Max,
 		}));
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
