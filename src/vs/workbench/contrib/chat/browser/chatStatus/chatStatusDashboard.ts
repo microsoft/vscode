@@ -202,7 +202,7 @@ export class ChatStatusDashboard extends DomWidget {
 		// Next Edit Suggestions — collapsible region
 		if (hasQuickSettingsContent) {
 			const hasContentAbove = hasUsageSection || hasVisibleUsageContent || hasPremiumUnlimited;
-			this.renderNextEditSuggestionsSection(hasContentAbove);
+			this.renderInlineSuggestionsSection(hasContentAbove);
 		}
 
 		// Contributed sections (e.g. Codebase Semantic Index) — each gets its own collapsible
@@ -280,7 +280,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
-	private renderNextEditSuggestionsSection(hasContentAbove: boolean): void {
+	private renderInlineSuggestionsSection(hasContentAbove: boolean): void {
 		const nonCollapsible = !!this.options?.disableQuickSettingsCollapsible;
 		const collapsed = !nonCollapsible && this.storageService.getBoolean(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, StorageScope.PROFILE, true);
 
@@ -288,14 +288,14 @@ export class ChatStatusDashboard extends DomWidget {
 		const activeLanguageId = this.editorService.activeTextEditorLanguageId;
 		const getStatusText = () => {
 			if (!this.canUseChat()) {
-				return localize('nesDisabled', "Disabled");
+				return localize('inlineSuggestionsDisabled', "Disabled");
 			}
 			const enabled = activeLanguageId
 				? isCompletionsEnabled(this.configurationService, activeLanguageId)
 				: isCompletionsEnabled(this.configurationService);
 			return enabled
-				? localize('nesEnabled', "Enabled")
-				: localize('nesDisabled', "Disabled");
+				? localize('inlineSuggestionsEnabled', "Enabled")
+				: localize('inlineSuggestionsDisabled', "Disabled");
 		};
 
 		let disclosureHeader: HTMLElement | undefined;
