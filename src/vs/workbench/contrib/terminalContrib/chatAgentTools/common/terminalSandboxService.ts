@@ -735,7 +735,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (setting.userValue !== undefined) {
 			return setting.value;
 		}
-		if (deprecatedSettingIds.length) {
+		if (deprecatedSettingIds.length > 0) {
 			const userConfiguredKeys = this._configurationService.keys().user;
 			for (const deprecatedId of deprecatedSettingIds) {
 				const deprecated = this._configurationService.inspect<T>(deprecatedId);
