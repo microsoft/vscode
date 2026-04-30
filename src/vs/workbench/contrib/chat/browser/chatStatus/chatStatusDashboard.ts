@@ -150,8 +150,9 @@ export class ChatStatusDashboard extends DomWidget {
 			}));
 
 			// Add Additional Spend / Upgrade buttons to the header
-			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus;
+			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
 			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
+				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
 				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
 				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
 

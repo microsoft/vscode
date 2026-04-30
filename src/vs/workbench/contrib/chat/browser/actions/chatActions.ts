@@ -1122,7 +1122,8 @@ export function registerChatActions() {
 						ChatContextKeys.Entitlement.planFree,
 						ChatContextKeys.Entitlement.planEdu,
 						ChatContextKeys.Entitlement.planPro,
-						ChatContextKeys.Entitlement.planProPlus
+						ChatContextKeys.Entitlement.planProPlus,
+						ChatContextKeys.Entitlement.planMax
 					),
 					nonEnterpriseCopilotUsers
 				),
