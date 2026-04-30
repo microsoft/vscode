@@ -67,6 +67,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
+			case ChatEntitlement.Max:
 				primaryButtonLabel = localize('enableAdditionalUsage', "Configure Additional Spend");
 				break;
 			case ChatEntitlement.Free:

@@ -28,9 +28,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof yazl.ZipFile === 'function', testErrorMessage('yazl'));
 	});
 
-	test('v8-inspect-profiler', async () => {
-		const { default: profiler } = await import('v8-inspect-profiler');
-		assert.ok(typeof profiler.startProfiling === 'function', testErrorMessage('v8-inspect-profiler'));
+	test('chrome-remote-interface', async () => {
+		const { default: cdp } = await import('chrome-remote-interface');
+		assert.ok(typeof cdp === 'function', testErrorMessage('chrome-remote-interface'));
 	});
 
 	test('native-is-elevated', async () => {

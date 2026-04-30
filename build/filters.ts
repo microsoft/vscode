@@ -233,10 +233,8 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 ]);
 
 export const eslintFilter = Object.freeze<string[]>([
-	'**/*.js',
-	'**/*.cjs',
-	'**/*.mjs',
-	'**/*.ts',
+	'**/*.{js,cjs,mjs}',
+	'**/*.{ts,tsx,mts,cts}',
 	'.eslint-plugin-local/**/*.ts',
 	...readFileSync(join(import.meta.dirname, '..', '.eslint-ignore'))
 		.toString()

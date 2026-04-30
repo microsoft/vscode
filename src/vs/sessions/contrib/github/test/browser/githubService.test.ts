@@ -52,22 +52,72 @@ suite('GitHubService', () => {
 		assert.notStrictEqual(model1, model2);
 	});
 
-	test('getPullRequestCI returns cached model for same key', () => {
-		const model1 = service.getPullRequestCI('owner', 'repo', 'abc123');
-		const model2 = service.getPullRequestCI('owner', 'repo', 'abc123');
+	test('disposePullRequest removes cached pull request model', () => {
+		const model1 = service.getPullRequest('owner', 'repo', 1);
+
+		service.disposePullRequest('owner', 'repo', 1);
+
+		const model2 = service.getPullRequest('owner', 'repo', 1);
+		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getPullRequestReviewThreads returns cached model for same key', () => {
+		const model1 = service.getPullRequestReviewThreads('owner', 'repo', 1);
+		const model2 = service.getPullRequestReviewThreads('owner', 'repo', 1);
 		assert.strictEqual(model1, model2);
 	});
 
-	test('getPullRequestCI returns different models for different refs', () => {
-		const model1 = service.getPullRequestCI('owner', 'repo', 'abc');
-		const model2 = service.getPullRequestCI('owner', 'repo', 'def');
+	test('getPullRequestReviewThreads returns different models for different PRs', () => {
+		const model1 = service.getPullRequestReviewThreads('owner', 'repo', 1);
+		const model2 = service.getPullRequestReviewThreads('owner', 'repo', 2);
 		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getPullRequestCI returns cached model for same key', () => {
+		const model1 = service.getPullRequestCI('owner', 'repo', 1, 'abc123');
+		const model2 = service.getPullRequestCI('owner', 'repo', 1, 'abc123');
+		assert.strictEqual(model1, model2);
+	});
+
+	test('getPullRequestCI uses prNumber before the head ref', () => {
+		const model = service.getPullRequestCI('owner', 'repo', 1, 'abc123');
+
+		assert.strictEqual(model.headSha, 'abc123');
+	});
+
+	test('getPullRequestCI returns different models for different refs', () => {
+		const model1 = service.getPullRequestCI('owner', 'repo', 1, 'abc');
+		const model2 = service.getPullRequestCI('owner', 'repo', 1, 'def');
+		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getPullRequestCI returns different models for different pull requests', () => {
+		const model1 = service.getPullRequestCI('owner', 'repo', 1, 'abc');
+		const model2 = service.getPullRequestCI('owner', 'repo', 2, 'abc');
+		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getPullRequestCI only retains the current head ref model', () => {
+		const model1 = service.getPullRequestCI('owner', 'repo', 1, 'abc');
+		service.getPullRequestCI('owner', 'repo', 1, 'def');
+
+		const model2 = service.getPullRequestCI('owner', 'repo', 1, 'abc');
+
+		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getPullRequestCI retains current head ref models per pull request', () => {
+		const pr1Model = service.getPullRequestCI('owner', 'repo', 1, 'abc');
+		service.getPullRequestCI('owner', 'repo', 2, 'def');
+
+		assert.strictEqual(service.getPullRequestCI('owner', 'repo', 1, 'abc'), pr1Model);
 	});
 
 	test('disposing service does not throw', () => {
 		service.getRepository('owner', 'repo');
 		service.getPullRequest('owner', 'repo', 1);
-		service.getPullRequestCI('owner', 'repo', 'abc');
+		service.getPullRequestReviewThreads('owner', 'repo', 1);
+		service.getPullRequestCI('owner', 'repo', 1, 'abc');
 
 		// Disposing the service should not throw and should clean up models
 		assert.doesNotThrow(() => service.dispose());

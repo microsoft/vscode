@@ -9,7 +9,7 @@
 	align-items: center;
 	height: 22px;
 	padding: 0 4px;
-	margin: 0;
+	margin: 0 4px 0 2px;
 	border-radius: 5px;
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
@@ -17,6 +17,17 @@
 	white-space: nowrap;
 	position: relative;
 	touch-action: manipulation;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget::after {
+	content: '';
+	position: absolute;
+	right: -6px;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
+	pointer-events: none;
 }
 
 .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
@@ -31,6 +42,7 @@
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: contain;
+	filter: grayscale(1);
 }
 
 /* In production builds vscode-distro overlays vs/workbench/browser/media/code-icon.svg
@@ -40,6 +52,21 @@
 .monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"] > .open-in-vscode-titlebar-widget-icon,
 .monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"] > .open-in-vscode-titlebar-widget-icon {
 	background-image: url('../../../../../workbench/browser/media/code-icon.svg');
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	transition: filter 150ms ease;
+}
+
+.monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	transition-duration: 0ms !important;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-icon {
+	filter: none;
 }
 
 .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label {
@@ -65,24 +92,8 @@
 
 .monaco-workbench .open-in-vscode-titlebar-widget:hover,
 .monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
-	background-color: var(--vscode-toolbar-hoverBackground);
+	background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
 	outline: none;
-}
-
-/* Quality-tinted hover/focus background — blue (stable), green (insider), orange (exploration). */
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="stable"]:hover,
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="stable"]:focus-visible {
-	background-color: rgba(0, 122, 204, 0.18);
-}
-
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"]:hover,
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"]:focus-visible {
-	background-color: rgba(36, 187, 26, 0.20);
-}
-
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"]:hover,
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"]:focus-visible {
-	background-color: rgba(255, 140, 0, 0.22);
 }
 
 .monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,

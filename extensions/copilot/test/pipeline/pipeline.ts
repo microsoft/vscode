@@ -84,7 +84,7 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
 		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
 
-		const modelConfig = configService.getConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfiguration);
+		const modelConfig = configService.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 		const responseFormat = ResponseFormat.fromPromptingStrategy(modelConfig?.promptingStrategy);
 
 		log(`  Local model configuration: ${JSON.stringify(modelConfig)}`);

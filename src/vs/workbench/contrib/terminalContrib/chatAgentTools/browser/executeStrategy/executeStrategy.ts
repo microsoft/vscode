@@ -7,6 +7,7 @@ import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
@@ -164,13 +165,39 @@ export async function trackIdleOnPrompt(
 	idleDurationMs: number,
 	store: DisposableStore,
 	promptFallbackMs?: number,
+	logService?: ITerminalLogService,
 ): Promise<void> {
 	const idleOnPrompt = new DeferredPromise<void>();
 	const onData = instance.onData;
+	const log = logService ? (msg: string) => logService.info(`trackIdleOnPrompt: ${msg}`) : undefined;
+
+	const enum TerminalState {
+		Initial,
+		Prompt,
+		Executing,
+		PromptAfterExecuting,
+	}
+	const stateNames: Record<TerminalState, string> = {
+		[TerminalState.Initial]: 'Initial',
+		[TerminalState.Prompt]: 'Prompt',
+		[TerminalState.Executing]: 'Executing',
+		[TerminalState.PromptAfterExecuting]: 'PromptAfterExecuting',
+	};
+
+	let state: TerminalState = TerminalState.Initial;
+	let dataEventCount = 0;
+
+	function setState(newState: TerminalState, reason: string): void {
+		if (state !== newState) {
+			log?.(`State ${stateNames[state]} → ${stateNames[newState]} (${reason})`);
+			state = newState;
+		}
+	}
+
 	const scheduler = store.add(new RunOnceScheduler(() => {
+		log?.(`Idle scheduler fired, completing (dataEvents=${dataEventCount})`);
 		idleOnPrompt.complete();
 	}, idleDurationMs));
-	let state: TerminalState = TerminalState.Initial;
 
 	// Fallback in case prompt sequences are not seen but the terminal goes idle.
 	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
@@ -178,7 +205,8 @@ export async function trackIdleOnPrompt(
 			promptFallbackScheduler.cancel();
 			return;
 		}
-		state = TerminalState.PromptAfterExecuting;
+		log?.(`Prompt fallback fired (dataEvents=${dataEventCount})`);
+		setState(TerminalState.PromptAfterExecuting, 'promptFallback');
 		scheduler.schedule();
 	}, promptFallbackMs ?? 1000));
 	// Schedule an initial fallback with a longer timeout so we can detect idle
@@ -191,9 +219,11 @@ export async function trackIdleOnPrompt(
 	// with the shorter promptFallbackMs interval.
 	const initialFallbackScheduler = store.add(new RunOnceScheduler(() => {
 		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			log?.(`Initial fallback fired but state is ${stateNames[state]}, skipping`);
 			return;
 		}
-		state = TerminalState.PromptAfterExecuting;
+		log?.(`Initial fallback fired, no data events received`);
+		setState(TerminalState.PromptAfterExecuting, 'initialFallback');
 		scheduler.schedule();
 	}, 10_000));
 	initialFallbackScheduler.schedule();
@@ -208,23 +238,36 @@ export async function trackIdleOnPrompt(
 	// onCommandFinished in the rich strategy's race wins before this fires.
 	const executingFallbackScheduler = store.add(new RunOnceScheduler(() => {
 		if (state === TerminalState.Executing) {
-			state = TerminalState.PromptAfterExecuting;
+			log?.(`Executing fallback fired after 30s data-idle (dataEvents=${dataEventCount})`);
+			setState(TerminalState.PromptAfterExecuting, 'executingFallback');
 			scheduler.schedule();
 		}
 	}, 30_000));
+	// Hard wall-clock safety net for the case where shell integration never
+	// engages at all — no OSC `C`/`D` is ever parsed so state never advances
+	// to Executing, and yet the existing data-idle fallbacks somehow fail to
+	// fire (e.g. because data arrives in a single event before listeners are
+	// active, or because `onData` throttling masks idle periods). Without
+	// this, trackIdleOnPrompt can block the rich strategy for the lifetime
+	// of the chat request. Genuinely long-running commands with working
+	// shell integration reach Executing/PromptAfterExecuting before this
+	// fires, so this is purely a fallback for the broken-handshake path.
+	const hardCapScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+			log?.(`Hard cap fired after 60s in state ${stateNames[state]} (dataEvents=${dataEventCount})`);
+			setState(TerminalState.PromptAfterExecuting, 'hardCap');
+			scheduler.schedule();
+		}
+	}, 60_000));
+	hardCapScheduler.schedule();
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done
 	// and the terminal is idle. Note that D is treated as a signal for executed since shell
 	// integration sometimes lacks the C sequence either due to limitations in the integation or the
 	// required hooks aren't available.
-	const enum TerminalState {
-		Initial,
-		Prompt,
-		Executing,
-		PromptAfterExecuting,
-	}
 	store.add(onData(e => {
+		dataEventCount++;
 		// Once any data arrives, cancel the initial fallback — the data-driven
 		// promptFallbackScheduler handles rescheduling from here.
 		initialFallbackScheduler.cancel();
@@ -234,13 +277,13 @@ export async function trackIdleOnPrompt(
 		for (const match of matches) {
 			if (match.groups?.type === 'A') {
 				if (state === TerminalState.Initial) {
-					state = TerminalState.Prompt;
+					setState(TerminalState.Prompt, 'sequence A');
 				} else if (state === TerminalState.Executing) {
-					state = TerminalState.PromptAfterExecuting;
+					setState(TerminalState.PromptAfterExecuting, 'sequence A after executing');
 					executingFallbackScheduler.cancel();
 				}
 			} else if (match.groups?.type === 'C' || match.groups?.type === 'D') {
-				state = TerminalState.Executing;
+				setState(TerminalState.Executing, `sequence ${match.groups?.type}`);
 				executingFallbackScheduler.schedule();
 			}
 		}

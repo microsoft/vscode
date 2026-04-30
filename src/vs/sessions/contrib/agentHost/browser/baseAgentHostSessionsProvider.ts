@@ -84,6 +84,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
 	readonly capabilities = { supportsMultipleChats: false };
+	readonly deduplicationKey: string;
 
 	readonly agentProvider: string;
 
@@ -107,6 +108,7 @@ export class AgentHostSessionAdapter implements ISession {
 			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
 		}
 		this.agentProvider = agentProvider;
+		this.deduplicationKey = metadata.session.toString();
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;

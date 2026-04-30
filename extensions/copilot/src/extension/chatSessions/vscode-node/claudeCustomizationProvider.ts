@@ -108,19 +108,24 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 				type: vscode.ChatSessionCustomizationType.Agent,
 				name: agent.name,
 				description: agent.description,
+				extensionId: undefined,
+				pluginUri: undefined,
 				// No groupKey — vscode infers Built-in from non-file: scheme
 			});
 		}
 
 		// File-based agents from .claude/ paths — shown pre-session, deduplicated with SDK
 		for (const agent of await this.promptsService.getCustomAgents(token)) {
-			if (isEnabledForClaudeCode(agent) && this.isClaudePath(agent.uri)) {
+			if (agent.enabled && isEnabledForClaudeCode(agent) && this.isClaudePath(agent.uri)) {
 				const name = agent.name;
 				if (!sdkAgentNames.has(name.toLowerCase())) {
 					items.push({
 						uri: agent.uri,
 						type: vscode.ChatSessionCustomizationType.Agent,
 						name,
+						description: agent.description,
+						extensionId: agent.extensionId,
+						pluginUri: agent.pluginUri,
 					});
 				}
 			}
@@ -142,6 +147,9 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 					uri: skill.uri,
 					type: vscode.ChatSessionCustomizationType.Skill,
 					name: skill.name,
+					description: skill.description,
+					extensionId: skill.extensionId,
+					pluginUri: skill.pluginUri,
 				};
 				skillItems.push(item);
 			}
@@ -183,6 +191,9 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 					uri,
 					type: vscode.ChatSessionCustomizationType.Instructions,
 					name,
+					description: undefined,
+					extensionId: undefined,
+					pluginUri: undefined,
 				});
 			}
 		}
@@ -225,6 +236,8 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 								type: vscode.ChatSessionCustomizationType.Hook,
 								name: `${eventId}${matcherLabel}`,
 								description: hook.command,
+								extensionId: undefined,
+								pluginUri: undefined,
 							});
 						}
 					}

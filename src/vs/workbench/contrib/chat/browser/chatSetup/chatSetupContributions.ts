@@ -41,6 +41,7 @@ import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } fro
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -59,7 +60,7 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	manageAdditionalSpendUrl: product.defaultChatAgent?.manageAdditionalSpendUrl ?? '',
+	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
@@ -383,11 +384,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
-							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
+
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.has('updateTitleBar').negate()
+							ContextKeyExpr.has('updateTitleBar').negate(),
+							InEditorZenModeContext.negate(),
 						),
 					}]
 				});
@@ -474,6 +476,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planMax,
 							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
@@ -485,6 +488,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planMax,
 								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
@@ -498,7 +502,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(defaultChat.manageAdditionalSpendUrl));
+				openerService.open(URI.parse(defaultChat.manageOverageUrl));
 			}
 		}
 

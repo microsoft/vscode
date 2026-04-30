@@ -76,8 +76,6 @@ export async function writeEncryptedSecret(
 
 /**
  * Secret keys that should be shared between the VS Code app and the agents app.
- * When the agents app starts and doesn't have these secrets, it requests them
- * from VS Code via crossAppIPC.
  */
 export const CROSS_APP_SHARED_SECRET_KEYS: readonly string[] = [
 	'{"extensionId":"vscode.github-authentication","key":"github.auth"}',
@@ -137,65 +135,89 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 	}
 
 	get(key: string): Promise<string | undefined> {
-		return this._sequencer.queue(key, async () => {
-			const storageService = await this.resolvedStorageService;
+		return this._sequencer.queue(key, () => this._doGet(key));
+	}
 
-			try {
-				return await readEncryptedSecret(
-					key,
-					(fullKey) => this.getValueFromStorage(key, fullKey, storageService),
-					// If the storage service is in-memory, we don't need to decrypt
-					this._type === 'in-memory' ? (v) => Promise.resolve(v) : (v) => this._encryptionService.decrypt(v),
-					this._logService,
-				);
-			} catch (e) {
-				this._logService.error(e);
-				this.delete(key);
-				return undefined;
-			}
-		});
+	/**
+	 * Read from the safeStorage+SQLite pipeline without going through the sequencer.
+	 * Must only be called from within a sequencer-queued task for the same key.
+	 */
+	protected async _doGet(key: string): Promise<string | undefined> {
+		const storageService = await this.resolvedStorageService;
+
+		try {
+			return await readEncryptedSecret(
+				key,
+				(fullKey) => this.getValueFromStorage(key, fullKey, storageService),
+				// If the storage service is in-memory, we don't need to decrypt
+				this._type === 'in-memory' ? (v) => Promise.resolve(v) : (v) => this._encryptionService.decrypt(v),
+				this._logService,
+			);
+		} catch (e) {
+			this._logService.error(e);
+			this.delete(key);
+			return undefined;
+		}
 	}
 
 	set(key: string, value: string): Promise<void> {
-		return this._sequencer.queue(key, async () => {
-			const storageService = await this.resolvedStorageService;
+		return this._sequencer.queue(key, () => this._doSet(key, value));
+	}
 
-			try {
-				await writeEncryptedSecret(
-					key,
-					value,
-					(fullKey, encrypted) => this.setValueInStorage(key, fullKey, encrypted, storageService),
-					// If the storage service is in-memory, we don't need to encrypt
-					this._type === 'in-memory' ? (v) => Promise.resolve(v) : (v) => this._encryptionService.encrypt(v),
-					this._logService,
-				);
-			} catch (e) {
-				this._logService.error(e);
-				throw e;
-			}
-		});
+	/**
+	 * Write to the safeStorage+SQLite pipeline without going through the sequencer.
+	 * Must only be called from within a sequencer-queued task for the same key.
+	 */
+	protected async _doSet(key: string, value: string): Promise<void> {
+		const storageService = await this.resolvedStorageService;
+
+		try {
+			await writeEncryptedSecret(
+				key,
+				value,
+				(fullKey, encrypted) => this.setValueInStorage(key, fullKey, encrypted, storageService),
+				// If the storage service is in-memory, we don't need to encrypt
+				this._type === 'in-memory' ? (v) => Promise.resolve(v) : (v) => this._encryptionService.encrypt(v),
+				this._logService,
+			);
+		} catch (e) {
+			this._logService.error(e);
+			throw e;
+		}
 	}
 
 	delete(key: string): Promise<void> {
-		return this._sequencer.queue(key, async () => {
-			const storageService = await this.resolvedStorageService;
+		return this._sequencer.queue(key, () => this._doDelete(key));
+	}
 
-			const fullKey = secretStorageKey(key);
-			this._logService.trace('[secrets] deleting secret for key:', fullKey);
-			const scope = this.useSharedStorage(key) ? StorageScope.APPLICATION_SHARED : StorageScope.APPLICATION;
-			storageService.remove(fullKey, scope);
-			this._logService.trace('[secrets] deleted secret for key:', fullKey);
-		});
+	/**
+	 * Delete from the safeStorage+SQLite pipeline without going through the sequencer.
+	 * Must only be called from within a sequencer-queued task for the same key.
+	 */
+	protected async _doDelete(key: string): Promise<void> {
+		const storageService = await this.resolvedStorageService;
+
+		const fullKey = secretStorageKey(key);
+		this._logService.trace('[secrets] deleting secret for key:', fullKey);
+		const scope = this.useSharedStorage(key) ? StorageScope.APPLICATION_SHARED : StorageScope.APPLICATION;
+		storageService.remove(fullKey, scope);
+		this._logService.trace('[secrets] deleted secret for key:', fullKey);
 	}
 
 	keys(): Promise<string[]> {
-		return this._sequencer.queue('__keys__', async () => {
-			const storageService = await this.resolvedStorageService;
-			this._logService.trace('[secrets] fetching keys of all secrets');
-			const allKeys = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this._logService.trace('[secrets] fetched keys of all secrets');
-			return allKeys.filter(key => key.startsWith(SECRET_STORAGE_PREFIX)).map(key => key.slice(SECRET_STORAGE_PREFIX.length));
-		});
+		return this._sequencer.queue('__keys__', () => this._doGetKeys());
+	}
+
+	/**
+	 * List all secret keys from the safeStorage+SQLite pipeline without going through the sequencer.
+	 * Must only be called from within a sequencer-queued task.
+	 */
+	protected async _doGetKeys(): Promise<string[]> {
+		const storageService = await this.resolvedStorageService;
+		this._logService.trace('[secrets] fetching keys of all secrets');
+		const allKeys = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._logService.trace('[secrets] fetched keys of all secrets');
+		return allKeys.filter(key => key.startsWith(SECRET_STORAGE_PREFIX)).map(key => key.slice(SECRET_STORAGE_PREFIX.length));
 	}
 
 	private getValueFromStorage(key: string, fullKey: string, storageService: IStorageService): string | undefined {

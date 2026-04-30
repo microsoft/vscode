@@ -45,7 +45,7 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent-host'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'chat': {
@@ -71,9 +71,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'telemetry-level': { type: 'string' },
 		}
 	},
-	'agent-host': {
+	'agent': {
 		type: 'subcommand',
-		description: 'Run a server that hosts agents.',
+		description: 'Start and interact with AI agent hosts.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },

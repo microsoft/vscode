@@ -158,6 +158,15 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService
 	) {
-		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
+		super(
+			configuration,
+			{
+				homeDir: configuration.homeDir,
+				tmpDir: configuration.tmpDir,
+				userDataDir: configuration.userDataDir,
+				parentAppUserDataDir: configuration.parentAppUserDataDir,
+				parentAppUserHomeDir: configuration.parentAppUserHomeDir
+			},
+			productService);
 	}
 }

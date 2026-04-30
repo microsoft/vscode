@@ -64,7 +64,7 @@ fn get_update_endpoint() -> Result<String, CodeError> {
 	}
 	VSCODE_CLI_UPDATE_ENDPOINT
 		.map(|s| s.to_string())
-		.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+		.ok_or(CodeError::UpdatesNotConfigured("no service url"))
 }
 
 impl UpdateService {
@@ -91,11 +91,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());
@@ -131,11 +127,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());

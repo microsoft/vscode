@@ -736,7 +736,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private agentsFromDiscoveryInfo(discoveryInfo: IAgentDiscoveryInfo): readonly ICustomAgent[] {
 		const result: ICustomAgent[] = [];
 		for (const file of discoveryInfo.files) {
-			if (file.status === 'loaded' && file.agent) {
+			if (file.agent) {
 				result.push(file.agent);
 			}
 		}
@@ -757,10 +757,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const files = await Promise.all(allAgentFiles.map(async (promptPath): Promise<IAgentDiscoveryResult> => {
 			const uri = promptPath.uri;
-
-			if (disabledAgents.has(uri)) {
-				return { status: 'skipped', skipReason: 'disabled', promptPath };
-			}
+			const isEnabled = !disabledAgents.has(uri);
 
 			try {
 				const ast = await this.parseNew(uri, token);
@@ -779,10 +776,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks,
 					name: promptPath.name,
 					description: promptPath.description,
-					source: IAgentSource.fromPromptPath(promptPath)
+					source: IAgentSource.fromPromptPath(promptPath),
+					enabled: isEnabled,
 				};
 				const agent = CustomAgent.fromParsedPromptFile(ast, extra);
-				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, agent.name, agent.description), agent };
+				const status = isEnabled ? 'loaded' : 'skipped';
+				const skipReason = isEnabled ? undefined : 'disabled';
+				return { status, skipReason, promptPath: this.withPromptPathMetadata(promptPath, agent.name, agent.description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
@@ -1702,9 +1702,9 @@ class ModelChangeTracker extends Disposable {
 }
 
 export namespace CustomAgent {
-	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined }): ICustomAgent {
+	export function fromParsedPromptFile(ast: ParsedPromptFile, extra: { name?: string; description?: string; source: IAgentSource; hooks?: ChatRequestHooks; sessionTypes: readonly string[] | undefined; enabled: boolean }): ICustomAgent {
 		const uri = ast.uri;
-		const { hooks, sessionTypes } = extra;
+		const { hooks, sessionTypes, enabled } = extra;
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let metadata: any | undefined;
@@ -1738,7 +1738,7 @@ export namespace CustomAgent {
 
 		const source = extra.source;
 		if (!ast.header) {
-			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks };
+			return { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes, hooks, enabled };
 		}
 		const visibility = {
 			userInvocable: ast.header.userInvocable !== false,
@@ -1753,7 +1753,7 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks };
+		return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

@@ -21,6 +21,8 @@ export class GitHubRepositoryModel extends Disposable {
 	private readonly _repository = observableValue<IGitHubRepository | undefined>(this, undefined);
 	readonly repository: IObservable<IGitHubRepository | undefined> = this._repository;
 
+	private _refreshPromise: Promise<void> | undefined = undefined;
+
 	constructor(
 		readonly owner: string,
 		readonly repo: string,
@@ -30,7 +32,18 @@ export class GitHubRepositoryModel extends Disposable {
 		super();
 	}
 
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh()
+				.finally(() => {
+					this._refreshPromise = undefined;
+				});
+		}
+
+		return this._refreshPromise;
+	}
+
+	private async _refresh(): Promise<void> {
 		try {
 			const response = await this._fetcher.getRepository(this.owner, this.repo, this._repositoryEtag);
 			if (response.statusCode === 200 && response.data) {

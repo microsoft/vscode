@@ -30,19 +30,80 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	}
 
 	rewrite(options: ICommandLineRewriterOptions): ICommandLineRewriterResult | undefined {
-		if (!options.isBackground) {
-			return undefined;
-		}
-
 		if (!this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses)) {
 			return undefined;
 		}
 
+		// Detach when:
+		//   1. The tool was invoked with mode='async' (isBackground=true), OR
+		//   2. The command line ends with a single trailing `&` (POSIX background operator).
+		// Case (2) catches commands that the agent intended to background even when called
+		// in mode='sync' — without this, the trailing `&` silently produces a SIGHUP'd
+		// process that dies as soon as the tool's shell tears down.
+		const trimmedForCheck = options.commandLine.trimEnd();
+		const endsWithBareBackgroundAmp = /(?:^|[^&])&$/.test(trimmedForCheck);
+		if (!options.isBackground && !endsWithBareBackgroundAmp) {
+			return undefined;
+		}
+
+		// Skip detach-wrapping for commands that read interactively from stdin.
+		// `nohup` / `Start-Process` close stdin, which makes these programs hang
+		// or fail immediately (e.g. `expect`, `gdb`, `psql`, `passwd`). The user
+		// can still run them in mode='sync' and drive them via send_to_terminal.
+		if (this._readsFromStdin(options.commandLine)) {
+			return undefined;
+		}
+
 		if (options.os === OperatingSystem.Windows) {
+			// PowerShell does not have a POSIX-style trailing `&` background operator,
+			// so only rewrite explicit async-mode commands here.
+			if (!options.isBackground) {
+				return undefined;
+			}
 			return this._rewriteForPowerShell(options);
 		}
 
 		return this._rewriteForPosix(options);
+	}
+
+	/**
+	 * Returns true when the command line invokes a program that is known to
+	 * require an interactive stdin. Detaching such a command would close stdin
+	 * and either hang the program or make it exit with an error.
+	 *
+	 * The check is intentionally conservative — only well-known interactive
+	 * front-ends are matched, and only when their command-line flags do not
+	 * obviously force non-interactive behaviour.
+	 */
+	private _readsFromStdin(commandLine: string): boolean {
+		// Inspect the leading executable of the command line, ignoring leading
+		// `cd ... && ` / `cd ... ;` / env-var assignments, since those don't
+		// affect stdin behaviour.
+		const trimmed = commandLine
+			.replace(/^\s*(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
+			.replace(/^\s*cd\s+\S+\s*(?:&&|;)\s*/i, '')
+			.trimStart();
+		// Bare `expect`, `gdb`, `psql` (without `-c`/`-f`), `passwd`, `vi`/`vim`,
+		// `nano`, `less`, `more`, `top`, `htop`, `ssh` without `-T`, `mysql`
+		// without `-e`, `sftp`, `ftp`, `telnet`.
+		if (/^(expect|passwd|vi|vim|nano|less|more|top|htop|sftp|ftp|telnet|gdb|lldb)\b/.test(trimmed)) {
+			return true;
+		}
+		if (/^psql\b/.test(trimmed) && !/\s(-c|-f|--command|--file)\b/.test(trimmed)) {
+			return true;
+		}
+		if (/^mysql\b/.test(trimmed) && !/\s(-e|--execute)\b/.test(trimmed)) {
+			return true;
+		}
+		if (/^ssh\b/.test(trimmed) && !/\s-T\b/.test(trimmed) && !/\sssh\s+\S+\s+\S/.test(' ' + trimmed)) {
+			// `ssh host` with no command is interactive; `ssh host cmd` runs cmd non-interactively.
+			return true;
+		}
+		// `sudo` without `-n` (non-interactive) may prompt for a password.
+		if (/^sudo\b/.test(trimmed) && !/\s-n\b/.test(trimmed) && !/\bSUDO_ASKPASS\b/.test(commandLine)) {
+			return true;
+		}
+		return false;
 	}
 
 	private _rewriteForPosix(options: ICommandLineRewriterOptions): ICommandLineRewriterResult {

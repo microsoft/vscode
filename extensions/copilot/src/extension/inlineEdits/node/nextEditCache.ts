@@ -63,9 +63,26 @@ export interface CachedEdit {
 	 * @see CachedEditOpts.cursorOffset
 	 */
 	cursorOffsetAtCacheTime?: number;
+	/**
+	 * Set to `true` once this cached suggestion has been rendered as an inline
+	 * (ghost text at cursor) suggestion. Used by the "mimic ghost text behavior"
+	 * gating to suppress re-serving the same suggestion in a non-inline form.
+	 */
+	wasRenderedAsInlineSuggestion?: boolean;
 }
 
-export type CachedOrRebasedEdit = CachedEdit & { rebasedEdit?: StringReplacement; rebasedEditIndex?: number; isFromSpeculativeRequest?: boolean };
+export type CachedOrRebasedEdit = CachedEdit & {
+	rebasedEdit?: StringReplacement;
+	rebasedEditIndex?: number;
+	isFromSpeculativeRequest?: boolean;
+	/**
+	 * When this is a rebased view of a cached edit, points to the underlying
+	 * stored {@link CachedEdit} so that flags such as
+	 * {@link CachedEdit.wasRenderedAsInlineSuggestion} can be persisted on the
+	 * stable cache entry instead of the transient rebased view.
+	 */
+	baseCacheEntry?: CachedEdit;
+};
 
 export class NextEditCache extends Disposable {
 	private readonly _documentCaches = new Map<DocumentId, DocumentEditCache>();
@@ -325,7 +342,7 @@ class DocumentEditCache {
 					if (!cachedEdit.rejected && this.isRejectedNextEdit(currentDocumentContents, res[0].rebasedEdit)) {
 						cachedEdit.rejected = true;
 					}
-					return { edit: { ...cachedEdit, ...res[0] } };
+					return { edit: { ...cachedEdit, ...res[0], baseCacheEntry: cachedEdit } };
 				} else if (!originalEdits.length) {
 					return { edit: cachedEdit }; // cached 'no edits'
 				}

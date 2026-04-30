@@ -516,7 +516,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name) && matchesSessionType(agent.sessionTypes, currentSessionType);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
+			const agents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			if (generalPurposeAgentEnabled || agents.length > 0) {
 				entries.push('<agents>');

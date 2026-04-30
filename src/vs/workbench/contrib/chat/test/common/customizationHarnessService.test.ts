@@ -201,7 +201,7 @@ suite('CustomizationHarnessService', () => {
 			const emitter = new Emitter<void>();
 			store.add(emitter);
 			const testItems = [
-				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', extensionId: undefined, pluginUri: undefined },
+				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 			];
 
 			const itemProvider: ICustomizationItemProvider = {
@@ -372,10 +372,10 @@ suite('CustomizationHarnessService', () => {
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+						{ uri: URI.parse('file:///workspace/.test/prompts/fix.prompt.md'), type: PromptsType.prompt, name: 'fix', description: 'Fix something', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/lint/SKILL.md'), type: PromptsType.skill, name: 'lint', description: 'Lint skill', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/instructions/rule.instructions.md'), type: PromptsType.instructions, name: 'rule', description: 'Ignore me', extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/skills/disabled/SKILL.md'), type: PromptsType.skill, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
 			});
@@ -418,7 +418,7 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getCustomAgents', () => {
-		const createAgent = (name: string, path: string, sessionTypes?: readonly string[]): ICustomAgent => ({
+		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => ({
 			uri: URI.parse(path),
 			name,
 			target: Target.GitHubCopilot,
@@ -426,15 +426,16 @@ suite('CustomizationHarnessService', () => {
 			agentInstructions: { content: '', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			sessionTypes,
+			enabled,
 		});
 
 		test('falls back to promptsService and filters by session type', async () => {
 			const testSessionType = 'test-session-type';
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes([
-				createAgent('matching', 'file:///workspace/.github/agents/matching.agent.md', [testSessionType]),
-				createAgent('global', 'file:///workspace/.github/agents/global.agent.md'),
-				createAgent('other', 'file:///workspace/.github/agents/other.agent.md', ['other-session']),
+				createAgent('matching', 'file:///workspace/.github/agents/matching.agent.md', [testSessionType], true),
+				createAgent('global', 'file:///workspace/.github/agents/global.agent.md', undefined, true),
+				createAgent('other', 'file:///workspace/.github/agents/other.agent.md', ['other-session'], true),
 			]);
 			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
 			store.add(service);
@@ -444,32 +445,38 @@ suite('CustomizationHarnessService', () => {
 		});
 
 		test('uses provider item URIs to scope resolved custom agents', async () => {
-			const testSessionType = 'test-session-type';
+			const testSessionType1 = 'test-session-type1';
+			const testSessionType2 = 'test-session-type2';
 			const promptsService = new MockPromptsService();
 			promptsService.setCustomModes([
-				createAgent('selected', 'file:///workspace/.test/agents/selected.agent.md', [testSessionType]),
-				createAgent('not-selected', 'file:///workspace/.test/agents/not-selected.agent.md', [testSessionType]),
+				createAgent('selected', 'file:///workspace/.test/agents/selected.agent.md', undefined, true),
+				createAgent('not-selected', 'file:///workspace/.test/agents/not-selected.agent.md', undefined, false),
 			]);
 
 			const emitter = new Emitter<void>();
 			store.add(emitter);
 			const service = new CustomizationHarnessServiceBase([{
-				id: testSessionType,
+				id: testSessionType1,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async () => [
-						{ uri: URI.parse('file:///workspace/.test/agents/selected.agent.md'), type: PromptsType.agent, name: 'selected', extensionId: undefined, pluginUri: undefined },
-						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined },
+						{ uri: URI.parse('file:///workspace/.test/agents/enabled.agent.md'), type: PromptsType.agent, name: 'enabled', enabled: true, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+						{ uri: URI.parse('file:///workspace/.test/agents/disabled.agent.md'), type: PromptsType.agent, name: 'disabled', enabled: false, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
 					],
 				},
-			}], testSessionType, promptsService);
+			}], testSessionType1, promptsService);
 			store.add(service);
-
-			const agents = await service.getCustomAgents(testSessionType, CancellationToken.None);
-			assert.deepStrictEqual(agents.map(agent => agent.name), ['selected']);
+			{
+				const agents = (await service.getCustomAgents(testSessionType1, CancellationToken.None));
+				assert.deepStrictEqual(agents.map(agent => [agent.name, agent.enabled]), [['enabled', true], ['disabled', false]]);
+			}
+			{
+				const agents = (await service.getCustomAgents(testSessionType2, CancellationToken.None));
+				assert.deepStrictEqual(agents.map(agent => [agent.name, agent.enabled]), [['selected', true], ['not-selected', false]]);
+			}
 		});
 	});
 

@@ -73,17 +73,18 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 		return patches;
 	}
 
-	async provideTitleAndDescription(context: { commitMessages: string[]; patches: string[] | { patch: string; fileUri: string; previousFileUri?: string }[]; issues?: { reference: string; content: string }[]; template?: string }, token: CancellationToken): Promise<{ title: string; description?: string } | undefined> {
+	async provideTitleAndDescription(context: { commitMessages: string[]; patches: string[] | { patch: string; fileUri: string; previousFileUri?: string }[]; issues?: { reference: string; content: string }[]; template?: string; compareBranch?: string }, token: CancellationToken): Promise<{ title: string; description?: string } | undefined> {
 		const commitMessages: string[] = context.commitMessages;
 		const allPatches: { patch: string; fileUri?: string; previousFileUri?: string }[] = isStringArray(context.patches) ? context.patches.map(patch => ({ patch })) : context.patches;
 		const patches = await this.excludePatches(allPatches);
 		const issues: { reference: string; content: string }[] | undefined = context.issues;
 		const template: string | undefined = context.template;
+		const compareBranch: string | undefined = context.compareBranch;
 
 		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
 		const charLimit = Math.floor((endpoint.modelMaxPromptTokens * 4) / 3);
 
-		const prompt = await this.createPRTitleAndDescriptionPrompt(commitMessages, patches, issues, template, charLimit);
+		const prompt = await this.createPRTitleAndDescriptionPrompt(commitMessages, patches, issues, template, compareBranch, charLimit);
 		const fetchResult = await endpoint
 			.makeChatRequest(
 				'githubPullRequestTitleAndDescriptionGenerator',
@@ -172,7 +173,7 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 		}
 	}
 
-	private async createPRTitleAndDescriptionPrompt(commitMessages: string[], patches: string[], issues: { reference: string; content: string }[] | undefined, template: string | undefined, charLimit: number): Promise<RenderPromptResult> {
+	private async createPRTitleAndDescriptionPrompt(commitMessages: string[], patches: string[], issues: { reference: string; content: string }[] | undefined, template: string | undefined, compareBranch: string | undefined, charLimit: number): Promise<RenderPromptResult> {
 		// Reserve 20% of the character limit for the safety rules and instructions
 		const availableChars = charLimit - Math.floor(charLimit * 0.2);
 
@@ -190,7 +191,7 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 		}
 
 		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
-		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, GitHubPullRequestPrompt, { commitMessages, issues, patches, template });
+		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, GitHubPullRequestPrompt, { commitMessages, issues, patches, template, compareBranch });
 		return promptRenderer.render(undefined, undefined);
 	}
 }

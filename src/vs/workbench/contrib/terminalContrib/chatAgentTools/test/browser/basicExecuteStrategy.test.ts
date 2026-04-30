@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { strictEqual, rejects } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -66,5 +66,67 @@ suite('BasicExecuteStrategy', () => {
 		const result = await strategy.execute('exit 1', CancellationToken.None);
 
 		strictEqual(result.exitCode, 1);
+	});
+
+	test('returns immediately with captured exit code when pty has already exited before execute()', async () => {
+		// Simulates the scenario where the shell process from a previous command
+		// has already died, so onExit has already fired and Event.toPromise(onExit)
+		// would never resolve. The strategy must short-circuit using the
+		// instance's already-captured exitCode.
+		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
+		const onExitEmitter = new Emitter<number | undefined>();
+		const instance = {
+			xtermReadyPromise: Promise.resolve({}),
+			onData: Event.None,
+			onDisposed: Event.None,
+			onExit: onExitEmitter.event,
+			isDisposed: false,
+			exitCode: 1,
+			sendText: () => { throw new Error('sendText should not be called when pty already exited'); },
+		} as unknown as ITerminalInstance;
+		const commandDetection = {
+			onCommandFinished: onCommandFinishedEmitter.event,
+		} as unknown as ICommandDetectionCapability;
+		const strategy = store.add(new BasicExecuteStrategy(
+			instance,
+			() => false,
+			commandDetection,
+			new TestConfigurationService(),
+			createLogService(),
+		));
+
+		const result = await strategy.execute('Rscript /app/ars.R', CancellationToken.None);
+
+		strictEqual(result.exitCode, 1);
+		strictEqual(result.output, undefined);
+		strictEqual(result.additionalInformation, 'Command exited with code 1');
+	});
+
+	test('throws "The terminal was closed" when instance is already disposed before execute()', async () => {
+		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
+		const instance = {
+			xtermReadyPromise: Promise.resolve({}),
+			onData: Event.None,
+			onDisposed: Event.None,
+			onExit: Event.None,
+			isDisposed: true,
+			exitCode: undefined,
+			sendText: () => { throw new Error('sendText should not be called when terminal is disposed'); },
+		} as unknown as ITerminalInstance;
+		const commandDetection = {
+			onCommandFinished: onCommandFinishedEmitter.event,
+		} as unknown as ICommandDetectionCapability;
+		const strategy = store.add(new BasicExecuteStrategy(
+			instance,
+			() => false,
+			commandDetection,
+			new TestConfigurationService(),
+			createLogService(),
+		));
+
+		await rejects(
+			() => strategy.execute('echo hello', CancellationToken.None),
+			/The terminal was closed/
+		);
 	});
 });

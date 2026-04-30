@@ -18,6 +18,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { logTunnelConnectAttempt, logTunnelConnectResolved, TunnelConnectErrorCategory, TunnelConnectFailureReason } from '../../../common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../common/agentHostFilter.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
@@ -82,11 +83,17 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
 
 		// Create providers for cached tunnels
 		this._reconcileProviders();
+
+		// Plug our silent status check into the shared host picker UX so
+		// the user-triggered "Re-discover hosts" action runs the same
+		// discovery routine.
+		this._register(agentHostFilterService.registerDiscoveryHandler(() => this._silentStatusCheck()));
 
 		// Update connection statuses when connections change
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
@@ -138,8 +145,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._reconnectTimeouts.clear();
 		}));
 
-		// Silently check status of cached tunnels on startup
-		this._silentStatusCheck();
+		// Silently check status of cached tunnels on startup. Routed
+		// through the filter service's `rediscover` so the host pill
+		// pulses while the initial automatic discovery is in flight,
+		// then switches to a static label once we know what hosts exist.
+		agentHostFilterService.rediscover();
 	}
 
 	/**

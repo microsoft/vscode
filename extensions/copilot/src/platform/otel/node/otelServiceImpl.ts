@@ -344,7 +344,7 @@ export class NodeOTelService implements IOTelService {
 		if (!ctx.traceId || !ctx.spanId) {
 			return undefined;
 		}
-		return { traceId: ctx.traceId, spanId: ctx.spanId };
+		return { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() };
 	}
 
 	// ── Trace Context Store ── (for cross-boundary propagation)
@@ -620,7 +620,9 @@ class RealSpanHandle implements ISpanHandle {
 
 	getSpanContext(): TraceContext | undefined {
 		const ctx = this._span.spanContext();
-		return ctx.traceId && ctx.spanId ? { traceId: ctx.traceId, spanId: ctx.spanId } : undefined;
+		return ctx.traceId && ctx.spanId
+			? { traceId: ctx.traceId, spanId: ctx.spanId, traceFlags: ctx.traceFlags, traceState: ctx.traceState?.serialize() }
+			: undefined;
 	}
 
 	end(): void {

@@ -718,9 +718,20 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
-		migrateFn: (value: boolean, valueAccessor) => {
+		migrateFn: (value: unknown, valueAccessor) => {
+			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
+			// for new settings such as `chat.agent.sandbox.enabled` and
+			// `chat.agent.sandbox.fileSystem.mac`. As a result, inspecting the
+			// deprecated key may return an object representing the namespace tree
+			// (e.g. `{ fileSystem: { mac: {...} } }`) even when the user never set
+			// the original boolean setting. Only migrate when the value is actually
+			// the original boolean type and skip writing back undefined to avoid
+			// clobbering the new sub-settings.
+			if (typeof value !== 'boolean') {
+				return [];
+			}
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? 'on' : 'off' }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);

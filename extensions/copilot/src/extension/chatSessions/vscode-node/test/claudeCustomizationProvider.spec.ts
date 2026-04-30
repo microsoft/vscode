@@ -19,11 +19,11 @@ import { ClaudeCustomizationProvider } from '../claudeCustomizationProvider';
 import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
 
 function mockAgent(uri: URI, name: string): vscode.ChatCustomAgent {
-	return { uri, name, source: 'local', userInvocable: true, disableModelInvocation: false } as vscode.ChatCustomAgent;
+	return { uri, name, source: 'local', userInvocable: true, disableModelInvocation: false, enabled: true } satisfies vscode.ChatCustomAgent;
 }
 
 function mockSkill(uri: URI, name: string): vscode.ChatSkill {
-	return { uri, name, source: 'local' } as vscode.ChatSkill;
+	return { uri, name, source: 'local' } satisfies vscode.ChatSkill;
 }
 
 class FakeChatSessionCustomizationType {

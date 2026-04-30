@@ -57,6 +57,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
 	const ignoreStatefulMarker = !!options.ignoreStatefulMarker || !!options.useWebSocket;
+	const modeChanged = !!options.modeChanged;
 
 	// Tool search: when enabled, split tools into non-deferred (included in the request) and deferred
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
@@ -121,10 +122,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolsMap = options.requestOptions?.tools
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
+	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, toolsMap),
+		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
+			toolsMap,
+			shouldLoadToolFromToolSearch,
+			modeChanged,
+		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
 		// Only a subset of completion post options are supported, and some
@@ -290,7 +296,14 @@ function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICr
 	return wsManager.getStatefulMarker(options.conversationId);
 }
 
-function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, toolsMap?: Map<string, OpenAiFunctionTool>): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+interface RawMessagesToResponseAPIOptions {
+	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
+	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
+	readonly modeChanged?: boolean;
+}
+
+function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -310,6 +323,11 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			previousResponseId = statefulMarkerAndIndex.statefulMarker;
 			markerIndex = statefulMarkerAndIndex.index;
 		}
+	}
+
+	if (modeChanged) {
+		previousResponseId = undefined;
+		markerIndex = undefined;
 	}
 
 	if (markerIndex !== undefined) {
@@ -383,7 +401,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
 							.map(c => c.text)
 							.join('');
-						const loadedTools = toolsMap ? buildToolSearchOutputTools(resultText, toolsMap) : [];
+						const loadedTools = toolsMap ? buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch) : [];
 						for (const t of loadedTools) {
 							toolSearchLoadedTools.add(t.name);
 						}
@@ -431,13 +449,13 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
  * Converts a JSON array of tool names (from ToolSearchTool) into full tool definitions
  * for the tool_search_output. Falls back to an empty array on parse failure.
  */
-function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, OpenAiFunctionTool>): ToolSearchLoadedTool[] {
+function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, OpenAiFunctionTool>, shouldLoadToolFromToolSearch: ((name: string) => boolean) | undefined): ToolSearchLoadedTool[] {
 	let toolNames: unknown;
 	try { toolNames = JSON.parse(resultText); } catch { return []; }
 	if (!Array.isArray(toolNames)) { return []; }
 
 	return toolNames
-		.filter((name): name is string => typeof name === 'string' && name !== CUSTOM_TOOL_SEARCH_NAME && toolsMap.has(name))
+		.filter((name): name is string => typeof name === 'string' && name !== CUSTOM_TOOL_SEARCH_NAME && toolsMap.has(name) && shouldLoadToolFromToolSearch?.(name) === true)
 		.map(name => {
 			const tool = toolsMap.get(name)!;
 			return {
@@ -832,6 +850,12 @@ export function sendCompletionOutputTelemetry(telemetryService: ITelemetryServic
 			promptTokens: completion.usage.prompt_tokens,
 			completionTokens: completion.usage.completion_tokens,
 			totalTokens: completion.usage.total_tokens,
+			...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+			...(completion.usage.completion_tokens_details && {
+				reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+				acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+				rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+			}),
 		});
 	}
 	sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);

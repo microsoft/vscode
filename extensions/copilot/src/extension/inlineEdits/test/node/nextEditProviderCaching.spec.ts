@@ -16,8 +16,8 @@ import { IStatelessNextEditProvider, NoNextEditReason, StatelessNextEditRequest,
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
-import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { mockNotebookService } from '../../../../platform/test/common/testNotebookService';
@@ -61,7 +61,7 @@ describe('NextEditProvider Caching', () => {
 	function createStatelessNextEditProvider(): IStatelessNextEditProvider {
 		return {
 			ID: 'TestNextEditProvider',
-			provideNextEdit: async function* (request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
+			provideNextEdit: async function*(request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
 				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
 				const lineEdit = LineEdit.createFromUnsorted(
 					[
@@ -275,5 +275,60 @@ describe('NextEditProvider Caching', () => {
 			'const myPoint = new Point3D(0, 1, 2);',
 		].join('\r\n');
 		expect(doc.value.get().value).toBe(expectedLines);
+	});
+
+	it('exposes the cache entry on NextEditResult and preserves the wasRenderedAsInlineSuggestion flag across lookups', async () => {
+		const obsWorkspace = new MutableObservableWorkspace();
+		const obsGit = new ObservableGit(gitExtensionService);
+		const statelessNextEditProvider = createStatelessNextEditProvider();
+
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+
+		const doc = obsWorkspace.addDocument({
+			id: DocumentId.create(URI.file('/test/test.ts').toString()),
+			initialValue: outdent`
+			class Point {
+				constructor(
+					private readonly x: number,
+					private readonly y: number,
+				) { }
+				getDistance() {
+					return Math.sqrt(this.x ** 2 + this.y ** 2);
+				}
+			}
+
+			const myPoint = new Point(0, 1);`.trimStart()
+		});
+		doc.setSelection([new OffsetRange(1, 1)], undefined);
+
+		doc.applyEdit(StringEdit.insert(11, '3D'));
+
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
+		const cancellationToken = CancellationToken.None;
+
+		// First call: edit comes fresh from the (mock) provider but is also cached.
+		const tb1 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		const first = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb1.nesBuilder);
+		tb1.dispose();
+		assert(first.result?.edit);
+		const firstCacheEntry = first.result.cacheEntry;
+		assert(firstCacheEntry, 'expected a cacheEntry reference on the first (fresh) NextEditResult');
+		expect(firstCacheEntry.wasRenderedAsInlineSuggestion).toBeFalsy();
+
+		// Simulate the inline-completion-provider marking the entry as having been
+		// rendered as an inline (ghost text) suggestion.
+		firstCacheEntry.wasRenderedAsInlineSuggestion = true;
+
+		// Second call (no document changes): we should still get the same cached
+		// edit back, and the flag must have been preserved on the same entry.
+		const tb2 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		const second = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb2.nesBuilder);
+		tb2.dispose();
+		assert(second.result?.edit);
+		const secondCacheEntry = second.result.cacheEntry;
+		assert(secondCacheEntry, 'expected a cacheEntry reference on the second (cached) NextEditResult');
+		expect(secondCacheEntry).toBe(firstCacheEntry);
+		expect(secondCacheEntry.wasRenderedAsInlineSuggestion).toBe(true);
 	});
 });

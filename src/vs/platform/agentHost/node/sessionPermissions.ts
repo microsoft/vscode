@@ -9,7 +9,7 @@ import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentToolReadyEvent } from '../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
@@ -25,13 +25,13 @@ import { CommandAutoApprover } from './commandAutoApprover.js';
 
 /**
  * Event fields needed for auto-approval decisions.
- * Matches the subset of {@link IAgentToolReadyEvent} used by the
+ * Matches the subset of {@link IAgentToolPendingConfirmationSignal} used by the
  * approval pipeline.
  */
 export interface IToolApprovalEvent {
 	readonly toolCallId: string;
 	readonly session: URI;
-	readonly permissionKind?: IAgentToolReadyEvent['permissionKind'];
+	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 }
@@ -167,22 +167,24 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `SessionToolCallReady` action from an agent `tool_ready`
-	 * event. When the tool needs user confirmation (`confirmationTitle` is
-	 * set), the standard confirmation options are included in the action so
-	 * clients can render them directly.
+	 * Constructs a `SessionToolCallReady` action from an agent
+	 * `pending_confirmation` signal. When the tool needs user confirmation
+	 * (the protocol state carries `confirmationTitle`), the standard
+	 * confirmation options are baked in so clients can render them directly.
 	 */
-	createToolReadyAction(e: IAgentToolReadyEvent, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
-		if (e.confirmationTitle) {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+		const state = e.state;
+		if (state.confirmationTitle) {
 			return {
 				type: ActionType.SessionToolCallReady,
 				session: sessionKey,
 				turnId,
-				toolCallId: e.toolCallId,
-				invocationMessage: e.invocationMessage,
-				toolInput: e.toolInput,
-				confirmationTitle: e.confirmationTitle,
-				edits: e.edits,
+				toolCallId: state.toolCallId,
+				invocationMessage: state.invocationMessage,
+				toolInput: state.toolInput,
+				confirmationTitle: state.confirmationTitle,
+				edits: state.edits,
+				editable: state.editable,
 				options: CONFIRMATION_OPTIONS.slice(),
 			};
 		}
@@ -190,9 +192,9 @@ export class SessionPermissionManager extends Disposable {
 			type: ActionType.SessionToolCallReady,
 			session: sessionKey,
 			turnId,
-			toolCallId: e.toolCallId,
-			invocationMessage: e.invocationMessage,
-			toolInput: e.toolInput,
+			toolCallId: state.toolCallId,
+			invocationMessage: state.invocationMessage,
+			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		};
 	}

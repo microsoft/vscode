@@ -183,6 +183,21 @@ export namespace SessionType {
 }
 
 /**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ *
+ * Note: The `remote-` prefix convention is established by
+ * `RemoteAgentHostContribution` which generates session types as
+ * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
+ * are NOT agent hosts need a different prefix, this function must be updated.
+ */
+export function isAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-') ||
+		target.startsWith('remote-');
+}
+
+/**
  * The session type used for local agent chat sessions.
  */
 export const localChatSessionType = SessionType.Local;

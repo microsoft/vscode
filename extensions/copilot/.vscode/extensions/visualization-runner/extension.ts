@@ -42,7 +42,7 @@ export class Extension extends Disposable {
 						title: 'Visualize Test',
 						command: 'debug-value-editor.debug-and-send-request',
 						arguments: [{
-							launchConfigName: "Test Visualization Runner",
+							launchConfigName: 'Test Visualization Runner',
 							args: {
 								fileName: document.fileName,
 								path: t.path,

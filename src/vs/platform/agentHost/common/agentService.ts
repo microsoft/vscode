@@ -12,10 +12,10 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolDefinition } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionInputRequest, type SessionMeta, type ToolCallResult, type ToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -209,200 +209,89 @@ export interface IAgentModelInfo {
 	readonly policyState?: PolicyState;
 }
 
-// ---- Progress events (discriminated union by `type`) ------------------------
+// ---- Agent signals (sent via IAgent.onDidSessionProgress) -------------------
 
-interface IAgentProgressEventBase {
+/**
+ * A signal emitted by an agent during session execution.
+ *
+ * Most signals carry a protocol {@link SessionAction} directly via the
+ * `kind: 'action'` shape, eliminating a parallel event ontology. A small
+ * number of cases that have no clean protocol action (permission
+ * auto-approval, subagent session creation, steering message
+ * acknowledgment) remain as discriminated non-action signals so the host
+ * can perform side effects before — or instead of — dispatching an action.
+ */
+export type AgentSignal =
+	| IAgentActionSignal
+	| IAgentToolPendingConfirmationSignal
+	| IAgentSubagentStartedSignal
+	| IAgentSteeringConsumedSignal;
+
+/**
+ * Carries a protocol {@link SessionAction} produced by an agent. The host
+ * dispatches the action through the state manager after routing via
+ * {@link IAgentActionSignal.parentToolCallId} (if set).
+ *
+ * Agents are responsible for populating `session` and any `turnId` /
+ * `partId` fields on the action.
+ */
+export interface IAgentActionSignal {
+	readonly kind: 'action';
+	/** Top-level session URI. For inner subagent events this is the parent session — see {@link parentToolCallId}. */
 	readonly session: URI;
-}
-
-/** Streaming text delta from the assistant (`assistant.message_delta`). */
-export interface IAgentDeltaEvent extends IAgentProgressEventBase {
-	readonly type: 'delta';
-	readonly messageId: string;
-	readonly content: string;
+	/** Protocol action to dispatch. */
+	readonly action: SessionAction;
+	/** If set, route the action to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
-}
-
-/** A complete assistant message (`assistant.message`), used for history reconstruction. */
-export interface IAgentMessageEvent extends IAgentProgressEventBase {
-	readonly type: 'message';
-	readonly role: 'user' | 'assistant';
-	readonly messageId: string;
-	readonly content: string;
-	readonly toolRequests?: readonly {
-		readonly toolCallId: string;
-		readonly name: string;
-		/** Serialized JSON of arguments, if available. */
-		readonly arguments?: string;
-		readonly type?: 'function' | 'custom';
-	}[];
-	readonly reasoningOpaque?: string;
-	readonly reasoningText?: string;
-	readonly encryptedContent?: string;
-	readonly parentToolCallId?: string;
-}
-
-/** The session has finished processing and is waiting for input (`session.idle`). */
-export interface IAgentIdleEvent extends IAgentProgressEventBase {
-	readonly type: 'idle';
-}
-
-/** A tool has started executing (`tool.execution_start`). */
-export interface IAgentToolStartEvent extends IAgentProgressEventBase {
-	readonly type: 'tool_start';
-	readonly toolCallId: string;
-	readonly toolName: string;
-	/** Human-readable display name for this tool. */
-	readonly displayName: string;
-	/** Message describing the tool invocation in progress (e.g., "Running `echo hello`"). */
-	readonly invocationMessage: StringOrMarkdown;
-	/** A representative input string for display in the UI (e.g., the shell command). */
-	readonly toolInput?: string;
-	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands, 'subagent' for subagent-spawning tools). */
-	readonly toolKind?: 'terminal' | 'subagent';
-	/** Language identifier for syntax highlighting (e.g., 'shellscript', 'powershell'). Used with toolKind 'terminal'. */
-	readonly language?: string;
-	/** Serialized JSON of the tool arguments, if available. */
-	readonly toolArguments?: string;
-	/**
-	 * For `toolKind === 'subagent'`, the internal name of the agent being
-	 * spawned (e.g. 'explore'). Adapters are responsible for extracting this
-	 * from their SDK-specific tool argument shape.
-	 */
-	readonly subagentAgentName?: string;
-	/**
-	 * For `toolKind === 'subagent'`, a human-readable description of the
-	 * subagent's task. Adapters are responsible for extracting this from
-	 * their SDK-specific tool argument shape.
-	 */
-	readonly subagentDescription?: string;
-	readonly mcpServerName?: string;
-	readonly mcpToolName?: string;
-	readonly parentToolCallId?: string;
-	/**
-	 * If set, this tool is provided by a client and the identified client
-	 * is responsible for executing it. Maps to `toolClientId` in the
-	 * protocol `session/toolCallStart` action.
-	 */
-	readonly toolClientId?: string;
-}
-
-/** A tool has finished executing (`tool.execution_complete`). */
-export interface IAgentToolCompleteEvent extends IAgentProgressEventBase {
-	readonly type: 'tool_complete';
-	readonly toolCallId: string;
-	/** Tool execution result, matching the protocol {@link ToolCallResult} shape. */
-	readonly result: ToolCallResult;
-	readonly isUserRequested?: boolean;
-	/** Serialized JSON of tool-specific telemetry data. */
-	readonly toolTelemetry?: string;
-	readonly parentToolCallId?: string;
-}
-
-/** The session title has been updated. */
-export interface IAgentTitleChangedEvent extends IAgentProgressEventBase {
-	readonly type: 'title_changed';
-	readonly title: string;
-}
-
-/** An error occurred during session processing. */
-export interface IAgentErrorEvent extends IAgentProgressEventBase {
-	readonly type: 'error';
-	readonly errorType: string;
-	readonly message: string;
-	readonly stack?: string;
-}
-
-/** Token usage information for a request. */
-export interface IAgentUsageEvent extends IAgentProgressEventBase {
-	readonly type: 'usage';
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly model?: string;
-	readonly cacheReadTokens?: number;
 }
 
 /**
- * A running tool requires re-confirmation (e.g. a mid-execution permission check).
- * Maps to `SessionToolCallReady` without `confirmed` to transition Running → PendingConfirmation.
+ * A tool has finished collecting parameters and needs the host to decide
+ * whether it should run (or, mid-execution, re-confirm). The host applies
+ * auto-approval logic over {@link permissionKind} / {@link permissionPath}
+ * (see `SessionPermissionManager.getAutoApproval`) and then dispatches the
+ * appropriate `SessionToolCallReady` action — with confirmation options
+ * baked in when the user must approve, or with `confirmed: NotNeeded` when
+ * the host auto-approved.
+ *
+ * Kept as a non-action signal because the host owns this approval policy;
+ * the agent only describes the tool call and the kind of permission being
+ * requested. The {@link state} field carries the protocol-shaped tool-call
+ * state and is dispatched verbatim into the action.
  */
-export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
-	readonly type: 'tool_ready';
-	readonly toolCallId: string;
-	/** Message describing what confirmation is needed. */
-	readonly invocationMessage: StringOrMarkdown;
-	/** Raw tool input to display. */
-	readonly toolInput?: string;
-	/** Short title for the confirmation prompt. */
-	readonly confirmationTitle?: StringOrMarkdown;
-	/** Kind of permission being requested. */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool';
-	/** File path associated with the permission request. */
+export interface IAgentToolPendingConfirmationSignal {
+	readonly kind: 'pending_confirmation';
+	readonly session: URI;
+	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
+	readonly state: ToolCallPendingConfirmationState;
+	/** Host-only auto-approval kind (not part of the dispatched action). */
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
+	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
-	/** File edits this tool call will perform, for preview before confirmation. */
-	readonly edits?: { items: FileEdit[] };
-}
-
-/** Streaming reasoning/thinking content from the assistant. */
-export interface IAgentReasoningEvent extends IAgentProgressEventBase {
-	readonly type: 'reasoning';
-	readonly content: string;
 }
 
 /**
- * The set of events returned by {@link IAgent.getSessionMessages} when
- * reconstructing a session's history. Reasoning is carried inline on
- * {@link IAgentMessageEvent.reasoningText} rather than as a separate event.
+ * A subagent was spawned by a tool call. The host creates a child session
+ * silently and routes subsequent inner-tool events to it.
+ *
+ * Kept as a non-action signal because subagent session creation has no
+ * protocol action — it's a host-side composition primitive.
  */
-export type SessionHistoryEvent =
-	| IAgentMessageEvent
-	| IAgentToolStartEvent
-	| IAgentToolCompleteEvent
-	| IAgentSubagentStartedEvent;
-
-/** A steering message was consumed (sent to the model). */
-export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
-	readonly type: 'steering_consumed';
-	readonly id: string;
-}
-
-/** The agent's ask_user tool is requesting user input. */
-export interface IAgentUserInputRequestEvent extends IAgentProgressEventBase {
-	readonly type: 'user_input_request';
-	readonly request: SessionInputRequest;
-}
-
-/** A subagent has been spawned by a tool call. */
-export interface IAgentSubagentStartedEvent extends IAgentProgressEventBase {
-	readonly type: 'subagent_started';
+export interface IAgentSubagentStartedSignal {
+	readonly kind: 'subagent_started';
+	readonly session: URI;
 	readonly toolCallId: string;
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
 }
 
-/** Partial content update for a running tool call (e.g. terminal URI available). */
-export interface IAgentToolContentChangedEvent extends IAgentProgressEventBase {
-	readonly type: 'tool_content_changed';
-	readonly toolCallId: string;
-	readonly content: ToolResultContent[];
+/** A steering message was consumed (sent to the model). */
+export interface IAgentSteeringConsumedSignal {
+	readonly kind: 'steering_consumed';
+	readonly session: URI;
+	readonly id: string;
 }
-
-export type IAgentProgressEvent =
-	| IAgentDeltaEvent
-	| IAgentMessageEvent
-	| IAgentIdleEvent
-	| IAgentToolStartEvent
-	| IAgentToolReadyEvent
-	| IAgentToolCompleteEvent
-	| IAgentTitleChangedEvent
-	| IAgentErrorEvent
-	| IAgentUsageEvent
-	| IAgentReasoningEvent
-	| IAgentSteeringConsumedEvent
-	| IAgentUserInputRequestEvent
-	| IAgentSubagentStartedEvent
-	| IAgentToolContentChangedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -447,7 +336,7 @@ export interface IAgent {
 	readonly id: AgentProvider;
 
 	/** Fires when the provider streams progress for a session. */
-	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
+	readonly onDidSessionProgress: Event<AgentSignal>;
 
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
@@ -471,8 +360,14 @@ export interface IAgent {
 	 */
 	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
-	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<SessionHistoryEvent[]>;
+	/**
+	 * Retrieve the reconstructed turns for a session, used when restoring
+	 * sessions from persistent storage. Each agent owns the conversion from
+	 * its SDK-specific event log to protocol {@link Turn}s, including
+	 * subagent sessions (callers pass the subagent URI to retrieve the
+	 * child session's turns).
+	 */
+	getSessionMessages(session: URI): Promise<readonly Turn[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -533,6 +428,14 @@ export interface IAgent {
 	 * Optional — not all providers support truncation.
 	 */
 	truncateSession?(session: URI, turnId?: string): Promise<void>;
+
+	/**
+	 * Notifies the provider that a session's archived state has changed.
+	 * Providers may use this to clean up or restore per-session resources
+	 * (for example, removing a session-owned worktree on archive and
+	 * recreating it on unarchive). Optional.
+	 */
+	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
 	 * Receives client-provided customization refs and syncs them (e.g. copies

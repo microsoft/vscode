@@ -384,7 +384,7 @@ export function handleHookStarted(
 		kind: SpanKind.INTERNAL,
 		attributes: {
 			[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
-			'copilot_chat.hook_type': message.hook_event,
+			[CopilotChatAttr.HOOK_TYPE]: message.hook_event,
 			'copilot_chat.hook_command': message.hook_name,
 			'copilot_chat.hook_id': message.hook_id,
 			[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,

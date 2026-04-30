@@ -16,9 +16,9 @@ The extension has four agent execution paths, each with different OTel strategie
 | **Foreground** (toolCallingLoop) | Extension host | Direct `IOTelService` spans | Extension spans |
 | **Copilot CLI in-process** | Extension host (same process) | **Bridge SpanProcessor** — SDK creates spans natively; bridge forwards to debug panel | SDK native spans via bridge |
 | **Copilot CLI terminal** | Separate terminal process | Forward OTel env vars | N/A (separate process) |
-| **Claude Code** | Child process (Node fork) | **Synthetic spans** — extension creates spans from message loop | Extension synthetic spans |
+| **Claude Code** | Child process (Node fork) | **Synthesized from SDK messages** — extension intercepts the Claude SDK message stream in `claudeMessageDispatch.ts` and emits GenAI spans; LLM calls are proxied through `claudeLanguageModelServer.ts` (which calls `chatMLFetcher`, producing standard `chat` spans). | Extension spans |
 
-> **Why asymmetric?** The CLI SDK runs in-process with full trace hierarchy (subagents, permissions, hooks). A bridge captures this directly. Claude runs as a separate process — internal spans are inaccessible, so synthetic spans are the only option.
+> **Why asymmetric?** The CLI SDK runs in-process with full trace hierarchy (subagents, permissions, hooks). A bridge captures this directly. Claude runs as a separate process — internal spans are inaccessible, so the extension synthesizes spans by translating SDK messages and proxying the model API.
 
 ### Copilot CLI Bridge SpanProcessor
 
@@ -77,19 +77,21 @@ invoke_agent (CLIENT)                    ← standalone copilot binary
 └── (independent root traces, no extension link)
 ```
 
-#### Claude Code (synthetic)
+#### Claude Code (synthesized from SDK messages)
+
+The extension intercepts the Claude SDK's message stream in `claudeMessageDispatch.ts` and emits GenAI spans for tool calls and hooks. LLM calls are proxied through a local HTTP server (`claudeLanguageModelServer.ts`) that calls `chatMLFetcher`, producing standard `chat` spans under the active `invoke_agent` context. Subagent (`Agent` / `Task`) tool calls store their `execute_tool` span's trace context in `state.subagentTraceContexts` so subsequent SDK messages with `parent_tool_use_id` are nested underneath as child `chat` and `execute_tool` spans.
 
 ```
-invoke_agent claude (INTERNAL)           ← claudeCodeAgent.ts
-├── chat claude-sonnet-4 (CLIENT)        ← chatMLFetcher.ts (FREE)
-├── execute_hook PreToolUse (INTERNAL)   ← claudeHookRegistry.ts (PR #4578)
-├── execute_tool Read (INTERNAL)         ← message loop (PR #4505)
-├── execute_hook PostToolUse (INTERNAL)  ← claudeHookRegistry.ts (PR #4578)
-├── chat claude-sonnet-4 (CLIENT)
-├── execute_hook PreToolUse (INTERNAL)
+invoke_agent claude (INTERNAL)           ← claudeOTelTracker.ts
+├── chat claude-sonnet-4 (CLIENT)        ← chatMLFetcher.ts via claudeLanguageModelServer
+├── execute_tool Read (INTERNAL)         ← claudeMessageDispatch.ts
+├── execute_tool Agent (INTERNAL)        ← claudeMessageDispatch.ts (subagent)
+│   ├── chat claude-sonnet-4 (CLIENT)    ← parented via subagentTraceContexts
+│   ├── execute_tool Grep (INTERNAL)
+│   └── chat claude-sonnet-4 (CLIENT)
 ├── execute_tool Edit (INTERNAL)
-├── execute_hook PostToolUse (INTERNAL)
-└── (flat hierarchy — no subagent nesting)
+├── chat claude-sonnet-4 (CLIENT)
+└── execute_hook Stop (INTERNAL)         ← claudeMessageDispatch.ts
 ```
 
 ---
@@ -100,29 +102,42 @@ invoke_agent claude (INTERNAL)           ← claudeCodeAgent.ts
 src/platform/otel/
 ├── common/
 │   ├── otelService.ts          # IOTelService interface + ISpanHandle + injectCompletedSpan
-│   ├── otelConfig.ts           # Config resolution (env → settings → defaults)
+│   ├── otelConfig.ts           # Config resolution (env → settings → defaults, kill switch, dbSpanExporter, enabledVia)
 │   ├── noopOtelService.ts      # Zero-cost no-op implementation
 │   ├── agentOTelEnv.ts         # deriveCopilotCliOTelEnv / deriveClaudeOTelEnv
 │   ├── genAiAttributes.ts      # GenAI semantic convention attribute keys
 │   ├── genAiEvents.ts          # Event emitter helpers
 │   ├── genAiMetrics.ts         # GenAiMetrics class (metric recording)
 │   ├── messageFormatters.ts    # Message → OTel JSON schema converters
+│   ├── workspaceOTelMetadata.ts # Workspace/repo attribute helpers
+│   ├── sessionUtils.ts         # Session ID helpers
 │   ├── index.ts                # Public API barrel export
 │   └── test/
 └── node/
-    ├── otelServiceImpl.ts      # NodeOTelService (real SDK implementation)
-    ├── inMemoryOTelService.ts  # InMemoryOTelService (debug panel, no SDK)
+    ├── otelServiceImpl.ts      # NodeOTelService + DiagnosticSpanExporter + FilteredSpanExporter
+    ├── inMemoryOTelService.ts  # InMemoryOTelService (used when OTel is disabled — feeds debug panel only)
     ├── fileExporters.ts        # File-based span/log/metric exporters
+    ├── sqlite/                 # OTelSqliteStore + SqliteSpanExporter (dbSpanExporter pipeline)
     └── test/
 
 src/extension/chatSessions/copilotcli/node/
-├── copilotCliBridgeSpanProcessor.ts  # Bridge: SDK spans → IOTelService
-├── copilotcliSession.ts              # Root invoke_agent span + traceparent
+├── copilotCliBridgeSpanProcessor.ts  # Bridge: SDK spans → IOTelService (+ hook span enrichment)
+├── copilotcliSession.ts              # Root invoke_agent span + traceparent + hook event stash
 └── copilotcliSessionService.ts       # Bridge installation + env var setup
+
+src/extension/chatSessions/claude/
+├── common/claudeMessageDispatch.ts   # execute_tool / execute_hook spans + subagent context wiring
+└── node/
+    ├── claudeOTelTracker.ts          # invoke_agent claude span + per-session token/cost rollup
+    └── claudeLanguageModelServer.ts  # Local HTTP proxy → chatMLFetcher (chat spans)
+
+src/extension/chat/vscode-node/
+└── chatHookService.ts                # execute_hook spans for foreground agent hooks
 
 src/extension/trajectory/vscode-node/
 ├── otelChatDebugLogProvider.ts       # Debug panel data provider
-└── otelSpanToChatDebugEvent.ts       # Span → ChatDebugEvent conversion
+├── otelSpanToChatDebugEvent.ts       # Span → ChatDebugEvent conversion
+└── otlpFormatConversion.ts           # OTLP ↔ in-memory span format
 ```
 
 ### Instrumentation Points
@@ -130,15 +145,17 @@ src/extension/trajectory/vscode-node/
 | File | What Gets Instrumented |
 |---|---|
 | `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
-| `anthropicProvider.ts` | `chat` spans — BYOK Anthropic requests |
+| `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
 | `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
-| `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation |
-| `copilotCliBridgeSpanProcessor.ts` | Bridge: SDK `ReadableSpan` → `ICompletedSpanData` |
+| `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
+| `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |
+| `copilotCliBridgeSpanProcessor.ts` | Bridge: SDK `ReadableSpan` → `ICompletedSpanData` (with hook-span enrichment) |
 | `copilotcliSessionService.ts` | Bridge installation + OTel env vars for SDK |
 | `copilotCLITerminalIntegration.ts` | OTel env vars forwarded to terminal process |
-| `claudeCodeAgent.ts` | `invoke_agent claude` + `execute_tool` synthetic spans |
-| `claudeHookRegistry.ts` | `execute_hook` spans — Claude hook executions (PR #4578) |
+| `claudeOTelTracker.ts` | `invoke_agent claude` span + per-session token/cost accumulation |
+| `claudeMessageDispatch.ts` | `execute_tool` and `execute_hook` spans for the Claude agent (incl. subagent nesting) |
+| `claudeLanguageModelServer.ts` | Wraps Claude → CAPI proxy requests in the active trace context (chat spans come from `chatMLFetcher`) |
 | `otelSpanToChatDebugEvent.ts` | Span → debug panel event conversion |
 
 ---
@@ -161,9 +178,11 @@ Key methods:
 
 | Class | When Used |
 |---|---|
-| `NoopOTelService` | OTel disabled (default) — zero cost |
-| `NodeOTelService` | OTel enabled — full SDK, OTLP export |
-| `InMemoryOTelService` | Debug panel always-on — no SDK, in-memory only |
+| `NoopOTelService` | Used inside `chatLib` and tests where no telemetry pipeline is needed — zero cost |
+| `NodeOTelService` | OTel enabled — full SDK, OTLP/file/console export, optional SQLite span exporter |
+| `InMemoryOTelService` | Registered when OTel is **disabled** in the extension host — no SDK is loaded, but spans/metrics/logs are still captured in-memory so the Agent Debug Log panel keeps working |
+
+Selection happens in `src/extension/extension/vscode-node/services.ts`: exactly one of `NodeOTelService` or `InMemoryOTelService` is bound to `IOTelService` per extension host based on `resolveOTelConfig().enabled`.
 
 ### Two TracerProviders in Same Process
 
@@ -186,14 +205,31 @@ Both export to the same OTLP endpoint. Bridge processor sits on Provider B, forw
 
 Kill switch: `telemetry.telemetryLevel === 'off'` → all OTel disabled.
 
+### Activation Channels
+
+The resolved config records *how* OTel was enabled in `OTelConfig.enabledVia` (used for adoption telemetry):
+
+| `enabledVia` | Trigger |
+|---|---|
+| `envVar` | `COPILOT_OTEL_ENABLED=true` |
+| `setting` | `github.copilot.chat.otel.enabled` is `true` |
+| `otlpEndpointEnvVar` | `OTEL_EXPORTER_OTLP_ENDPOINT` is set without an explicit enable |
+| `dbSpanExporterOnly` | Only `github.copilot.chat.otel.dbSpanExporter.enabled` is on — implicitly turns OTel on so the SDK pipeline can feed the SQLite store |
+| `disabled` | None of the above (also when `telemetryLevel === 'off'`) |
+
 ### Agent-Specific Env Var Translation
 
-| Extension Config | Copilot CLI Env Var | Claude Code Env Var |
+Only variables not already present in `process.env` are set; explicit user env vars always win.
+
+| Extension Config | Copilot CLI (`deriveCopilotCliOTelEnv`) | Claude Code (`deriveClaudeOTelEnv`) |
 |---|---|---|
-| `enabled` | `COPILOT_OTEL_ENABLED=true` | `CLAUDE_CODE_ENABLE_TELEMETRY=1` |
+| `enabled` | `COPILOT_OTEL_ENABLED=true` | `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=otlp`, `OTEL_LOGS_EXPORTER=otlp` |
 | `otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `OTEL_EXPORTER_OTLP_ENDPOINT` |
-| `captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` | `OTEL_LOG_USER_PROMPTS=1` |
-| `fileExporterPath` | `COPILOT_OTEL_FILE_EXPORTER_PATH` | N/A |
+| `otlpProtocol` | (CLI runtime is HTTP-only) | `OTEL_EXPORTER_OTLP_PROTOCOL` (`grpc` or `http/json`) |
+| `captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` | `OTEL_LOG_USER_PROMPTS=1`, `OTEL_LOG_TOOL_DETAILS=1` |
+| `fileExporterPath` | `COPILOT_OTEL_FILE_EXPORTER_PATH` (+ `COPILOT_OTEL_EXPORTER_TYPE=file` when `exporterType === 'file'`) | N/A (Claude SDK has no file exporter) |
+
+Standard vars (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SERVICE_NAME`) flow via process.env inheritance — no explicit forwarding needed.
 
 ### Debug Panel Always-On Behavior
 
@@ -337,7 +373,12 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 
 The debug panel creates spans with non-standard operation names (`content_event`, `user_message`). These MUST NOT appear in the user's OTLP collector.
 
-`DiagnosticSpanExporter` in `NodeOTelService` filters spans: only `invoke_agent`, `chat`, `execute_tool`, `embeddings`, `execute_hook` are exported. The `execute_hook` operation is used by both the foreground agent (`toolCallingLoop.ts`) and Claude hooks (`claudeHookRegistry.ts`, PR #4578). Debug-panel-only spans are visible via `onDidCompleteSpan` but excluded from OTLP batch export.
+`DiagnosticSpanExporter` and `FilteredSpanExporter` in `NodeOTelService` filter spans before export — only operations in `EXPORTABLE_OPERATION_NAMES` (`invoke_agent`, `chat`, `execute_tool`, `embeddings`, `execute_hook`) reach an exporter:
+
+- `DiagnosticSpanExporter` wraps the user-configured exporter (OTLP / file / console) and additionally logs first-success / failure diagnostics.
+- `FilteredSpanExporter` wraps the SQLite span exporter when `dbSpanExporter` is enabled, so the local DB sees the same standard GenAI spans as the user's collector.
+
+The `execute_hook` operation is used by both the foreground agent (`chatHookService.ts`) and the Claude agent (`claudeMessageDispatch.ts`); CLI-SDK hook spans are remapped to `execute_hook` by the bridge processor (`copilotCliBridgeSpanProcessor.ts`). Debug-panel-only spans remain visible via `onDidCompleteSpan` but are excluded from batch export.
 
 ---
 
@@ -345,19 +386,36 @@ The debug panel creates spans with non-standard operation names (`content_event`
 
 ```
 src/platform/otel/common/test/
-├── agentOTelEnv.spec.ts            # Env var derivation
+├── agentOTelEnv.spec.ts                    # Env var derivation
+├── agentTraceHierarchy.spec.ts             # End-to-end trace shape
+├── byokProviderSpans.spec.ts               # BYOK chat span coverage
+├── capturingOTelService.ts                 # In-memory test double
+├── chatMLFetcherSpanLifecycle.spec.ts      # chat span start/end behavior
 ├── genAiEvents.spec.ts
 ├── genAiMetrics.spec.ts
 ├── messageFormatters.spec.ts
 ├── noopOtelService.spec.ts
-└── otelConfig.spec.ts
+├── otelConfig.spec.ts
+├── serviceRobustness.spec.ts               # Fault tolerance / disposal
+└── workspaceOTelMetadata.spec.ts
 
 src/platform/otel/node/test/
 ├── fileExporters.spec.ts
 └── traceContextPropagation.spec.ts
 
+src/platform/otel/node/sqlite/test/
+└── otelSqliteStore.spec.ts                 # SQLite span store
+
 src/extension/chatSessions/copilotcli/node/test/
-└── copilotCliBridgeSpanProcessor.spec.ts  # Bridge processor tests
+└── copilotCliBridgeSpanProcessor.spec.ts   # Bridge processor tests
+
+src/extension/chatSessions/claude/{common,node}/test/
+├── claudeMessageDispatch.spec.ts           # Claude span emission
+└── claudeCodeAgentOTel.spec.ts             # Claude agent end-to-end
+
+src/extension/trajectory/vscode-node/test/
+├── otelSpanToChatDebugEvent.spec.ts
+└── otlpFormatConversion.spec.ts
 ```
 
 Run with: `npm test -- --grep "OTel\|Bridge"`

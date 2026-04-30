@@ -174,6 +174,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
 			},
 		}));
 

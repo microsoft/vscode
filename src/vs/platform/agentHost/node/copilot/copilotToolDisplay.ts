@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentToolCompleteEvent, IAgentToolReadyEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -57,6 +57,7 @@ const enum CopilotToolName {
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
 	Skill = 'skill',
+	ExitPlanMode = 'exit_plan_mode',
 }
 
 /** Parameters for the `bash` / `powershell` shell tools. */
@@ -177,7 +178,7 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
  * lifecycle event with the resolved skill file path; the agent session
  * synthesizes a tool-start/complete pair from that event so the UI can
  * render a clickable file link instead of just the skill name. See
- * {@link synthesizeSkillToolEvents}.
+ * {@link synthesizeSkillToolCall}.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
@@ -249,6 +250,7 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
+		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Plan");
 		default: return toolName;
 	}
 }
@@ -323,6 +325,8 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -402,6 +406,8 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolComplete.exitPlanMode', "Exited plan mode");
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}
@@ -442,16 +448,29 @@ export function getSkillSyntheticToolCallId(eventId: string | undefined, data: I
 }
 
 /**
- * Synthesizes the `tool_start` and `tool_complete` agent progress events that
- * represent a successful `skill.invoked` lifecycle event. Used by both the
- * live session handler and the history-replay mapper so the two paths render
- * identically.
+ * Synthesized data for a `skill.invoked` tool call. Used by both the live
+ * session handler and the history-replay mapper so the two paths render
+ * identically. Callers wrap this into protocol actions or {@link Turn}
+ * data; this helper avoids any agent-protocol coupling.
  */
-export function synthesizeSkillToolEvents(
-	session: URI,
+export interface ISynthesizedSkillToolCall {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly invocationMessage: StringOrMarkdown;
+	readonly pastTenseMessage: StringOrMarkdown;
+}
+
+/**
+ * Synthesizes the data for a `skill.invoked` tool call (a tool-start /
+ * tool-complete pair). Returns the constituent fields without coupling to
+ * any specific event or action shape — callers compose them into protocol
+ * actions or {@link Turn} entries as needed.
+ */
+export function synthesizeSkillToolCall(
 	data: ICopilotSkillInvokedData,
 	eventId: string | undefined,
-): { start: IAgentToolStartEvent; complete: IAgentToolCompleteEvent } {
+): ISynthesizedSkillToolCall {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
 	const displayName = localize('toolName.skill', "Read Skill");
 	// Use the skill name as the link text rather than the basename: every skill
@@ -472,24 +491,13 @@ export function synthesizeSkillToolEvents(
 	const pastTenseMessage: StringOrMarkdown = skillLink
 		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
 		: localize('toolComplete.skillName', "Read skill {0}", data.name);
-	const start: IAgentToolStartEvent = {
-		session,
-		type: 'tool_start',
+	return {
 		toolCallId,
 		toolName: CopilotToolName.Skill,
 		displayName,
 		invocationMessage,
+		pastTenseMessage,
 	};
-	const complete: IAgentToolCompleteEvent = {
-		session,
-		type: 'tool_complete',
-		toolCallId,
-		result: {
-			success: true,
-			pastTenseMessage,
-		},
-	};
-	return { start, complete };
 }
 
 export function getToolInputString(toolName: string, parameters: Record<string, unknown> | undefined, rawArguments: string | undefined): string | undefined {
@@ -635,7 +643,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: IAgentToolReadyEvent['permissionKind'];
+	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
 	/** File path extracted from the request. */
 	permissionPath?: string;
 } {

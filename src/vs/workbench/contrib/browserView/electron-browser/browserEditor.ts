@@ -40,7 +40,6 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -378,16 +377,8 @@ export class BrowserEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
-
-		// Be sure to hide the view when the workbench is reloading, as `clearInput()` may not be called.
-		this._register(this.lifecycleService.onWillShutdown((e) => {
-			if (e.reason === ShutdownReason.RELOAD) {
-				this._model?.setVisible(false);
-			}
-		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {

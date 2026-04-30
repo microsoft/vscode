@@ -105,6 +105,7 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IGithubAvailableEmbeddingTypesService private readonly _availableEmbeddingTypes: IGithubAvailableEmbeddingTypesService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -124,10 +125,14 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 			return this._impl;
 		}
 
+		const startTime = Date.now();
+		type TryInitOutcome = 'success' | 'noEmbeddingType' | 'alreadyInitialized' | 'error';
+		let outcome: TryInitOutcome = 'noEmbeddingType';
 		try {
 			const best = await this._availableEmbeddingTypes.getPreferredType(silent);
 			// Double check that we haven't initialized in the meantime
 			if (this._impl) {
+				outcome = 'alreadyInitialized';
 				return this._impl;
 			}
 
@@ -136,11 +141,29 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 				this._impl = this._register(this._instantiationService.createInstance(WorkspaceChunkSearchServiceImpl, best));
 				this._register(this._impl.onDidChangeIndexState(() => this._onDidChangeIndexState.fire()));
 				this._onDidChangeIndexState.fire();
+				outcome = 'success';
 
 				return this._impl;
 			}
 		} catch {
+			outcome = 'error';
 			return undefined;
+		} finally {
+			/* __GDPR__
+				"workspaceChunkSearch.tryInit" : {
+					"owner": "mjbvz",
+					"comment": "Tracks cold workspace chunk search initialization duration and outcome. Not fired for fast paths (no auth, already initialized).",
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds for getPreferredType and initialization" },
+					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome: success, noEmbeddingType, alreadyInitialized, or error" },
+					"silent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether this was a silent initialization attempt" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('workspaceChunkSearch.tryInit', {
+				outcome,
+				silent: String(silent),
+			}, {
+				durationMs: Date.now() - startTime,
+			});
 		}
 	}
 

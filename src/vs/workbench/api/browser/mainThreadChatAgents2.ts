@@ -224,6 +224,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			model: agent.model,
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
+			enabled: agent.enabled,
 		};
 	}
 
@@ -271,12 +272,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		return {
 			uri: hookFile.uri,
 			sessionTypes: hookFile.sessionTypes,
+			source: this._toChatResourceSource(hookFile.storage),
+			extensionId: hookFile.extension?.identifier.value,
+			pluginUri: hookFile.pluginUri,
 		};
 	}
 
 	private _toPluginDto(plugin: IAgentPlugin): IPluginDto {
 		return {
-			uri: plugin.uri
+			uri: plugin.uri,
 		};
 	}
 
@@ -753,8 +757,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					groupKey: item.groupKey,
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
-					extensionId: undefined,
-					pluginUri: undefined
+					extensionId: item.extensionId,
+					pluginUri: item.pluginUri ? URI.revive(item.pluginUri) : undefined,
+					userInvocable: item.userInvocable,
 				}));
 			},
 		};

@@ -208,6 +208,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSystemMessage ??= this._sdkEvent('system.message');
 	}
 
+	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
+	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
+		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
 		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));

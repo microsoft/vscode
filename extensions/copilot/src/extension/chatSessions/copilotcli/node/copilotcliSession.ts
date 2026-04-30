@@ -14,7 +14,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -548,7 +548,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
 					[GenAiAttr.AGENT_NAME]: 'copilotcli',
-					[GenAiAttr.PROVIDER_NAME]: 'github',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
@@ -685,7 +685,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Auto-approve all requests when the permission level allows it.
 				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-					this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
@@ -730,7 +730,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					let response: PermissionRequestResult;
 					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-						response = { kind: 'approved' };
+						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
 						const permissionResolutionTokenSource = new CancellationTokenSource(token);
 						try {
@@ -1846,7 +1846,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							logService.warn(`[CopilotCLISession] No pending MC permission request found for prompt ${promptId}`);
 							break;
 						}
-						pendingRequest.resolve(responseData?.approved ? { kind: 'approved' } : { kind: 'denied-interactively-by-user' });
+						pendingRequest.resolve(responseData?.approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
 						break;
 					}
 					case 'user_message':

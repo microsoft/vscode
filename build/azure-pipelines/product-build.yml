@@ -2,7 +2,7 @@ pr: none
 
 schedules:
   - cron: "0 5 * * Mon-Fri"
-    displayName: Mon-Fri at 5:00 UTC (build, publish and release)
+    displayName: Mon-Fri at 5:00 UTC (build, publish, and release)
     branches:
       include:
         - main

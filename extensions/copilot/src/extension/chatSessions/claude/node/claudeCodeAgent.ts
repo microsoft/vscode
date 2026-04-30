@@ -119,25 +119,22 @@ interface QueuedRequest {
 	readonly token: vscode.CancellationToken;
 	readonly yieldRequested?: () => boolean;
 	readonly deferred: DeferredPromise<void>;
-}
-
-/**
- * Represents the currently active request being processed
- */
-interface CurrentRequest {
-	readonly stream: vscode.ChatResponseStream;
-	readonly toolInvocationToken: vscode.ChatParticipantToolToken;
-	readonly token: vscode.CancellationToken;
-	readonly yieldRequested?: () => boolean;
+	readonly modelId: ParsedClaudeModelId;
+	readonly permissionMode: PermissionMode;
+	readonly effort: EffortLevel | undefined;
+	readonly toolsSnapshot: ReadonlySet<string>;
 }
 
 export class ClaudeCodeSession extends Disposable {
 	private static readonly GATEWAY_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 	private _queryGenerator: Query | undefined;
-	private _promptQueue: QueuedRequest[] = [];
-	private _currentRequest: CurrentRequest | undefined;
-	private _pendingPrompt: DeferredPromise<QueuedRequest> | undefined;
+	/** The deferred promise that should be resolved when the session should wake up and consume from the queued requests. */
+	private _pendingPrompt: DeferredPromise<void> | undefined;
+	/** Requests waiting to be sent to the SDK. */
+	private _queuedRequests: QueuedRequest[] = [];
+	/** Requests that have been sent to the SDK and are awaiting completion; index 0 is the request currently being processed. */
+	private _inFlightRequests: QueuedRequest[] = [];
 	private _abortController = new AbortController();
 	private _editTracker: ExternalEditTracker;
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
@@ -145,12 +142,16 @@ export class ClaudeCodeSession extends Disposable {
 	private _currentPermissionMode: PermissionMode = 'acceptEdits';
 	private _currentEffort: EffortLevel | undefined;
 	private _isResumed: boolean;
-	private _yieldInProgress = false;
+	private _pendingRestart = false;
 	private _sessionStarting: Promise<void> | undefined;
 	private _currentToolNames: ReadonlySet<string> | undefined;
 	private _gateway: vscode.McpGateway | undefined;
 	private _gatewayIdleTimeout: ReturnType<typeof setTimeout> | undefined;
-	private _otelTracker: ClaudeOTelTracker | undefined;
+	private _otelTracker: ClaudeOTelTracker;
+
+	private get _currentRequest(): QueuedRequest | undefined {
+		return this._inFlightRequests[0];
+	}
 
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
@@ -271,8 +272,18 @@ export class ClaudeCodeSession extends Disposable {
 		this._cancelGatewayIdleTimer();
 		this._disposeGateway();
 		this._abortController.abort();
-		this._promptQueue.forEach(req => req.deferred.error(new Error('Session disposed')));
-		this._promptQueue = [];
+		this._inFlightRequests.forEach(req => {
+			if (!req.deferred.isSettled) {
+				req.deferred.error(new Error('Session disposed'));
+			}
+		});
+		this._inFlightRequests = [];
+		this._queuedRequests.forEach(req => {
+			if (!req.deferred.isSettled) {
+				req.deferred.error(new Error('Session disposed'));
+			}
+		});
+		this._queuedRequests = [];
 		this._pendingPrompt?.error(new Error('Session disposed'));
 		this._pendingPrompt = undefined;
 		super.dispose();
@@ -297,59 +308,40 @@ export class ClaudeCodeSession extends Disposable {
 
 		this._cancelGatewayIdleTimer();
 
-		// Check if settings files have changed since session started
-		if (this._queryGenerator && await this._settingsChangeTracker.hasChanges()) {
-			this.logService.trace('[ClaudeCodeSession] Settings files changed, restarting session with resume');
-			this._restartSession();
-		}
-
-		// Check if the set of enabled tools has changed since the last request
-		if (this._queryGenerator && this._hasToolsChanged(request.tools)) {
-			this.logService.trace('[ClaudeCodeSession] Tools changed, restarting session with resume');
-			this._restartSession();
-		}
-		this._snapshotTools(request.tools);
-
-		// Read current model and permission mode from session state service
-		// Do this BEFORE starting a session so the Options are correct from the start
+		// Snapshot per-request metadata from session state
 		const modelId = this.sessionStateService.getModelIdForSession(this.sessionId);
+		if (!modelId) {
+			throw new Error(`Model not set for session ${this.sessionId}. State must be committed before invoking.`);
+		}
 		const permissionMode = this.sessionStateService.getPermissionModeForSession(this.sessionId);
-		const effortLevel = this.sessionStateService.getReasoningEffortForSession(this.sessionId);
+		const effort = this.sessionStateService.getReasoningEffortForSession(this.sessionId);
+		const toolsSnapshot = this._computeToolsSnapshot(request.tools);
 
-		if (effortLevel !== this._currentEffort) {
-			this._currentEffort = effortLevel;
-			// Effort doesn't have a direct setter on the query generator, so we need to restart the session
-			if (this._queryGenerator) {
-				this._restartSession();
-			}
-		}
-		// Update model and permission mode on active session if they changed
-		if (modelId) {
-			await this._setModel(modelId);
-		}
-		await this._setPermissionMode(permissionMode);
-
-		if (!this._queryGenerator) {
-			await this._startSession(token);
-		}
-
-		// Add this request to the queue and wait for completion
+		// Add this request to the queue with its metadata snapshot
 		const deferred = new DeferredPromise<void>();
 		const queuedRequest: QueuedRequest = {
 			request,
 			stream,
 			token,
 			yieldRequested,
-			deferred
+			deferred,
+			modelId,
+			permissionMode,
+			effort,
+			toolsSnapshot,
 		};
 
-		this._promptQueue.push(queuedRequest);
+		this._queuedRequests.push(queuedRequest);
 
-		// If there's a pending prompt request, fulfill it immediately
+		if (!this._queryGenerator) {
+			await this._startSession(token);
+		}
+
+		// Wake up the iterable if it's awaiting the next request.
 		if (this._pendingPrompt) {
 			const pendingPrompt = this._pendingPrompt;
 			this._pendingPrompt = undefined;
-			pendingPrompt.complete(queuedRequest);
+			pendingPrompt.complete();
 		}
 
 		return deferred.p;
@@ -380,10 +372,17 @@ export class ClaudeCodeSession extends Disposable {
 		if (!folderInfo) {
 			throw new Error(`No folder info found for session ${this.sessionId}. State must be committed before invoking.`);
 		}
-		const currentModelId = this._currentModelId;
-		if (!currentModelId) {
-			throw new Error(`Model not set for session ${this.sessionId}. State must be committed before invoking.`);
+		const headRequest = this._queuedRequests[0];
+		if (!headRequest) {
+			throw new Error(`No queued request to start session ${this.sessionId} with.`);
 		}
+
+		// Seed session state from the head request's metadata
+		this._currentModelId = headRequest.modelId;
+		this._currentPermissionMode = headRequest.permissionMode;
+		this._currentEffort = headRequest.effort;
+		this._currentToolNames = headRequest.toolsSnapshot;
+
 		const { cwd, additionalDirectories } = folderInfo;
 
 		// Build options for the Claude Code SDK
@@ -423,6 +422,9 @@ export class ClaudeCodeSession extends Disposable {
 			this.logService.warn(`[ClaudeCodeSession] Failed to resolve skill locations for plugins: ${errorMessage}`);
 		}
 
+		// Take a snapshot of settings files so we can detect changes
+		await this._settingsChangeTracker.takeSnapshot();
+
 		const serverConfig = this.langModelServer.getConfig();
 		const options: Options = {
 			cwd,
@@ -431,7 +433,7 @@ export class ClaudeCodeSession extends Disposable {
 			// the permission mode ourselves in the options
 			allowDangerouslySkipPermissions: true,
 			abortController: this._abortController,
-			effort: this._currentEffort,
+			effort: headRequest.effort,
 			executable: process.execPath as 'node', // get it to fork the EH node process
 			// TODO: CAPI does not yet support the WebSearch tool
 			// Once it does, we can re-enable it.
@@ -441,9 +443,9 @@ export class ClaudeCodeSession extends Disposable {
 				? { resume: this.sessionId }
 				: { sessionId: this.sessionId }),
 			// Pass the model selection to the SDK
-			model: currentModelId.toSdkModelId(),
+			model: headRequest.modelId.toSdkModelId(),
 			// Pass the permission mode to the SDK
-			permissionMode: this._currentPermissionMode,
+			permissionMode: headRequest.permissionMode,
 			includeHookEvents: true,
 			mcpServers,
 			plugins,
@@ -468,7 +470,7 @@ export class ClaudeCodeSession extends Disposable {
 				}
 				this.logService.trace(`[ClaudeCodeSession]: canUseTool: ${name}(${JSON.stringify(input)})`);
 				return this.toolPermissionService.canUseTool(name, input, {
-					toolInvocationToken: this._currentRequest.toolInvocationToken,
+					toolInvocationToken: this._currentRequest.request.toolInvocationToken,
 					permissionMode: this._currentPermissionMode,
 					stream: this._currentRequest.stream
 				});
@@ -491,8 +493,6 @@ export class ClaudeCodeSession extends Disposable {
 		// Fire-and-forget to avoid blocking session startup — error handling is inside the service.
 		void this.runtimeDataService.update(this._queryGenerator);
 
-		// Take a snapshot of settings files so we can detect changes
-		await this._settingsChangeTracker.takeSnapshot();
 
 		// Start the message processing loop (fire-and-forget, but _processMessages
 		// handles all errors internally via try/catch → _cleanup)
@@ -504,23 +504,39 @@ export class ClaudeCodeSession extends Disposable {
 	private async *_createPromptIterable(): AsyncIterable<SDKUserMessage> {
 		while (true) {
 			// Wait for a request to be available
-			const request = await this._getNextRequest();
-
-			this._currentRequest = {
-				stream: request.stream,
-				toolInvocationToken: request.request.toolInvocationToken,
-				token: request.token,
-				yieldRequested: request.yieldRequested
-			};
-
-			const currentModelId = this._currentModelId;
-			if (!currentModelId) {
-				throw new Error(`Model not set for session ${this.sessionId}`);
+			while (this._queuedRequests.length === 0) {
+				this._pendingPrompt = new DeferredPromise<void>();
+				await this._pendingPrompt.p;
 			}
+			const request = this._queuedRequests.shift()!;
+
+			// Check settings file changes when no other request is in flight
+			if (this._inFlightRequests.length === 0 && await this._settingsChangeTracker.hasChanges()) {
+				this.logService.trace('[ClaudeCodeSession] Settings files changed, restarting session with resume');
+				this._queuedRequests.unshift(request);
+				this._pendingRestart = true;
+				this._isResumed = true;
+				return;
+			}
+
+			// Check non-hot-swappable changes that require a session restart
+			if (request.effort !== this._currentEffort || !this._toolsMatch(request.toolsSnapshot)) {
+				this._queuedRequests.unshift(request);
+				this._pendingRestart = true;
+				this._isResumed = true;
+				return;
+			}
+
+			// Hot-swap model and permission mode on the active session
+			await this._setModel(request.modelId);
+			await this._setPermissionMode(request.permissionMode);
+
+			// Mark this request as yielded to the SDK; it becomes the current request.
+			this._inFlightRequests.push(request);
 
 			// Increment user-initiated message count for this model
 			// This is used by the language model server to track which requests are user-initiated
-			this.langModelServer.incrementUserInitiatedMessageCount(currentModelId.toEndpointModelId());
+			this.langModelServer.incrementUserInitiatedMessageCount(request.modelId.toEndpointModelId());
 
 			// Resolve the prompt content blocks now that this request is being handled
 			const prompt = await resolvePromptToContentBlocks(request.request);
@@ -534,10 +550,10 @@ export class ClaudeCodeSession extends Disposable {
 			);
 
 			// Start OTel tracking for this request
-			this._otelTracker!.startRequest(currentModelId.toEndpointModelId());
+			this._otelTracker.startRequest(request.modelId.toEndpointModelId());
 
 			// Emit user_message span event for the debug panel
-			this._otelTracker!.emitUserMessage(promptLabel);
+			this._otelTracker.emitUserMessage(promptLabel);
 
 			yield {
 				type: 'user',
@@ -545,30 +561,14 @@ export class ClaudeCodeSession extends Disposable {
 					role: 'user',
 					content: prompt
 				},
+				priority: 'now',
 				parent_tool_use_id: null,
 				session_id: this.sessionId,
 				// NOTE: messageId seems to be in the format request_<uuid> but it doesn't seem
 				// to be a problem to use as the message ID for the SDK.
 				uuid: request.request.id as `${string}-${string}-${string}-${string}-${string}`
 			};
-
-			// Wait for this request to complete before yielding the next one
-			await request.deferred.p;
 		}
-	}
-
-	/**
-	 * Gets the next request from the queue or waits for one to be available
-	 * @returns Promise that resolves with the next queued request
-	 */
-	private async _getNextRequest(): Promise<QueuedRequest> {
-		if (this._promptQueue.length > 0) {
-			return this._promptQueue[0]; // Don't shift yet, keep for resolution
-		}
-
-		// Wait for a request to be queued
-		this._pendingPrompt = new DeferredPromise<QueuedRequest>();
-		return this._pendingPrompt.p;
 	}
 
 	/**
@@ -582,20 +582,10 @@ export class ClaudeCodeSession extends Disposable {
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			for await (const message of this._queryGenerator!) {
-				// Check if current request was cancelled
-				if (this._currentRequest?.token.isCancellationRequested) {
-					throw new Error('Request was cancelled');
-				}
-
 				// Mark session as resumed after first SDK message confirms session exists on disk.
 				// This ensures future restarts (yield, settings change) use `resume` instead of `sessionId`.
 				if (message.session_id && !this._isResumed) {
 					this._isResumed = true;
-				}
-
-				// Check yield before processing to avoid streaming partial responses
-				if (await this._checkYieldRequested()) {
-					continue;
 				}
 
 				// Skip if no current request (e.g., after yield cleared it)
@@ -604,43 +594,104 @@ export class ClaudeCodeSession extends Disposable {
 					continue;
 				}
 
+				const currentRequest = this._currentRequest;
+
+				// Check if current request was cancelled
+				if (currentRequest.token.isCancellationRequested) {
+					throw new Error('Request was cancelled');
+				}
+
 				// Track OTel metrics from SDK messages
-				this._otelTracker!.onMessage(message, subagentTraceContexts);
+				this._otelTracker.onMessage(message, subagentTraceContexts);
 
 				this.logService.trace(`claude-agent-sdk Message: ${JSON.stringify(message, null, 2)}`);
 
-				const result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
-					stream: this._currentRequest.stream,
-					toolInvocationToken: this._currentRequest.toolInvocationToken,
-					editTracker: this._editTracker,
-					token: this._currentRequest.token,
-				}, {
-					unprocessedToolCalls,
-					otelToolSpans,
-					otelHookSpans,
-					parentTraceContext: this._otelTracker!.traceContext,
-					subagentTraceContexts,
-				});
+				let result;
+				try {
+					result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
+						stream: currentRequest.stream,
+						toolInvocationToken: currentRequest.request.toolInvocationToken,
+						editTracker: this._editTracker,
+						token: currentRequest.token,
+					}, {
+						unprocessedToolCalls,
+						otelToolSpans,
+						otelHookSpans,
+						parentTraceContext: this._otelTracker.traceContext,
+						subagentTraceContexts,
+					});
+				} catch (dispatchError) {
+					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
+				}
+
+				if (currentRequest.yieldRequested?.()) {
+					this.logService.trace('[ClaudeCodeSession] Yield requested - signaling session completion so next request can start');
+
+					// Complete the current request gracefully but don't kill the session
+					if (!currentRequest.deferred.isSettled) {
+						await currentRequest.deferred.complete();
+					}
+				}
 
 				if (result?.requestComplete) {
 					// End the invoke_agent span for this request
-					this._otelTracker!.endRequest();
+					this._otelTracker.endRequest();
 					// Clear the capturing token so subsequent requests get their own
 					this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
-					// Resolve and remove the completed request
-					if (this._promptQueue.length > 0) {
-						const completedRequest = this._promptQueue.shift()!;
-						await completedRequest.deferred.complete();
+					const completed = this._inFlightRequests.shift();
+					if (completed && !completed.deferred.isSettled) {
+						await completed.deferred.complete();
 					}
-					this._currentRequest = undefined;
-					this._startGatewayIdleTimer();
+					if (this._inFlightRequests.length === 0 && this._queuedRequests.length === 0) {
+						this._startGatewayIdleTimer();
+					}
 					subagentTraceContexts.clear();
 				}
 			}
 			// Generator ended normally - clean up so next invoke starts fresh
-			this._cleanup(new Error('Session ended unexpectedly'));
+			throw new Error('Session ended unexpectedly');
 		} catch (error) {
-			this._cleanup(error as Error);
+			// Graceful restart: the prompt iterable detected a non-hot-swappable change
+			// (effort or tools). Preserve queued requests and start a fresh session.
+			if (this._pendingRestart) {
+				this._pendingRestart = false;
+				this._restartSession();
+				const headToken = this._queuedRequests[0]?.token;
+				if (headToken) {
+					await this._startSession(headToken);
+				}
+				return;
+			}
+
+			// Clear the capturing token so it doesn't leak across sessions or error boundaries
+			this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
+			// End invoke_agent span with error if still open
+			this._otelTracker.endRequestWithError(error.message);
+
+			// Resets session state so the next session start can begin fresh.
+			// Preserves the sessionId for SDK resume.
+
+			this._queryGenerator = undefined;
+			this._abortController = new AbortController();
+
+			// Rejects all pending requests and clears the queues.
+
+			this._inFlightRequests.forEach(req => {
+				if (!req.deferred.isSettled) {
+					req.deferred.error(error);
+				}
+			});
+			this._inFlightRequests = [];
+			this._queuedRequests.forEach(req => {
+				if (!req.deferred.isSettled) {
+					req.deferred.error(error);
+				}
+			});
+			this._queuedRequests = [];
+			if (this._pendingPrompt && !this._pendingPrompt.isSettled) {
+				this._pendingPrompt.error(error);
+			}
+			this._pendingPrompt = undefined;
 		} finally {
 			// Clean up any remaining OTel spans
 			for (const [, span] of otelToolSpans) {
@@ -654,108 +705,20 @@ export class ClaudeCodeSession extends Disposable {
 			}
 			otelHookSpans.clear();
 			// End any lingering invoke_agent span
-			this._otelTracker!.endRequestWithError('session ended');
-		}
-	}
-
-	private _cleanup(error: Error): void {
-		// Clear the capturing token so it doesn't leak across sessions or error boundaries
-		this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
-		// End invoke_agent span with error if still open
-		this._otelTracker!.endRequestWithError(error.message);
-		this._resetSessionState();
-
-		const wasYielding = this._yieldInProgress;
-		this._yieldInProgress = false;
-
-		if (wasYielding) {
-			this._restartAfterYield();
-		} else {
-			this._rejectPendingRequests(error);
+			this._otelTracker.endRequestWithError('session ended');
 		}
 	}
 
 	/**
-	 * Resets session state so the next session start can begin fresh.
-	 * Preserves the sessionId for SDK resume.
-	 */
-	private _resetSessionState(): void {
-		this._queryGenerator = undefined;
-		this._abortController = new AbortController();
-		this._currentRequest = undefined;
-		this._currentEffort = undefined;
-	}
-
-	/**
-	 * After a yield, preserves the queue and restarts the session to process
-	 * any pending requests (e.g., the steering message).
-	 */
-	private _restartAfterYield(): void {
-		this.logService.trace(`[ClaudeCodeSession] Yield cleanup, sessionId=${this.sessionId}, pending requests=${this._promptQueue.length}`);
-
-		if (this._promptQueue.length > 0) {
-			const nextRequest = this._promptQueue[0];
-			void this._startSession(nextRequest.token).catch(err => {
-				this.logService.error('[ClaudeCodeSession] Failed to restart session after yield', err);
-				this._rejectPendingRequests(err);
-			});
-		}
-	}
-
-	/**
-	 * Rejects all pending requests and clears the queue.
-	 */
-	private _rejectPendingRequests(error: Error): void {
-		this._promptQueue.forEach(req => {
-			if (!req.deferred.isSettled) {
-				req.deferred.error(error);
-			}
-		});
-		this._promptQueue = [];
-		if (this._pendingPrompt && !this._pendingPrompt.isSettled) {
-			this._pendingPrompt.error(error);
-		}
-		this._pendingPrompt = undefined;
-	}
-
-	/**
-	 * Checks if the user has requested to interrupt the current request.
-	 * If so, completes the current request gracefully and aborts the SDK to allow the next message.
-	 * @returns true if a yield was detected and handled, false otherwise
-	 */
-	private async _checkYieldRequested(): Promise<boolean> {
-		if (!this._currentRequest?.yieldRequested?.()) {
-			return false;
-		}
-
-		this.logService.trace('[ClaudeCodeSession] Yield requested - interrupting session to allow user interruption');
-		this._yieldInProgress = true;
-
-		// Complete the current request gracefully
-		if (this._promptQueue.length > 0) {
-			const completedRequest = this._promptQueue.shift()!;
-			await completedRequest.deferred.complete();
-		}
-		this._currentRequest = undefined;
-
-		// Signal the SDK to stop generating
-		this._abortController.abort();
-
-		return true;
-	}
-
-	/**
-	 * Restarts the session to pick up settings changes.
-	 * Clears the query generator but preserves the session ID for resume.
+	 * Restarts the session by aborting the current SDK connection.
+	 * The abort causes _processMessages to enter error cleanup, which
+	 * rejects any remaining requests and resets session state.
 	 */
 	private _restartSession(): void {
-		// Clear the generator so _startSession will be called with resume
 		this._queryGenerator = undefined;
 		this._abortController.abort();
 		this._abortController = new AbortController();
 		this._isResumed = true;
-		// Note: We don't clear the prompt queue or pending prompts here
-		// because we're not erroring out, just restarting for settings reload
 	}
 
 	// #region Gateway Lifecycle
@@ -784,11 +747,11 @@ export class ClaudeCodeSession extends Disposable {
 	// #endregion
 
 	/**
-	 * Takes a snapshot of the current tools for later comparison.
+	 * Computes a snapshot of the MCP tool names from a chat request's tools map.
 	 */
-	private _snapshotTools(tools: vscode.ChatRequest['tools']): void {
+	private _computeToolsSnapshot(tools: vscode.ChatRequest['tools']): ReadonlySet<string> {
 		// TODO: Handle the enabled/disabled (true/false) state per tool once we have UI for it
-		this._currentToolNames = new Set(
+		return new Set(
 			[...tools]
 				.filter(([tool]) => tool.source instanceof LanguageModelToolMCPSource)
 				.map(([tool]) => tool.name)
@@ -796,31 +759,24 @@ export class ClaudeCodeSession extends Disposable {
 	}
 
 	/**
-	 * Checks whether the set of enabled tools has changed since the last snapshot.
+	 * Checks whether a tools snapshot matches the current session's tools.
 	 */
-	private _hasToolsChanged(tools: vscode.ChatRequest['tools']): boolean {
+	private _toolsMatch(snapshot: ReadonlySet<string>): boolean {
 		if (!this._currentToolNames) {
-			return false;
-		}
-
-		// TODO: Handle the enabled/disabled (true/false) state per tool once we have UI for it
-		const newToolNames = new Set(
-			[...tools]
-				.filter(([tool]) => tool.source instanceof LanguageModelToolMCPSource)
-				.map(([tool]) => tool.name)
-		);
-
-		if (newToolNames.size !== this._currentToolNames.size) {
 			return true;
 		}
 
-		for (const name of newToolNames) {
+		if (snapshot.size !== this._currentToolNames.size) {
+			return false;
+		}
+
+		for (const name of snapshot) {
 			if (!this._currentToolNames.has(name)) {
-				return true;
+				return false;
 			}
 		}
 
-		return false;
+		return true;
 	}
 
 }

@@ -87,6 +87,7 @@ export interface IChatWebSocketRequestOptions {
 	tokenCountMax: number;
 	modelMaxPromptTokens: number;
 	summarizedAtRoundId?: string;
+	modeChanged?: boolean;
 }
 
 export interface IChatWebSocketConnection extends IDisposable {
@@ -623,6 +624,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hasCompactionData,
 				summarizedAtRoundIdSet,
 				summarizedAtRoundIdMatched,
+				modeChanged: options.modeChanged,
 				compactionThreshold,
 				promptTokenCount,
 				tokenCountMax: options.tokenCountMax,
@@ -681,6 +683,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			hasCompactionData,
 			summarizedAtRoundIdSet,
 			summarizedAtRoundIdMatched,
+			modeChanged: options.modeChanged,
 			compactionThreshold,
 			tokenCountMax: options.tokenCountMax,
 			modelMaxPromptTokens: options.modelMaxPromptTokens,

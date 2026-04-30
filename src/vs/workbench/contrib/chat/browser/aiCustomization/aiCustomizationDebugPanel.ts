@@ -169,8 +169,11 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 			if (item.itemKey) {
 				lines.push(`      itemKey: ${item.itemKey}`);
 			}
-			if (item.extensionLabel) {
-				lines.push(`      extensionLabel: ${item.extensionLabel}`);
+			if (item.extensionId) {
+				lines.push(`      extensionId: ${item.extensionId}`);
+			}
+			if (item.pluginUri) {
+				lines.push(`      pluginUri: ${item.pluginUri.toString()}`);
 			}
 			if (item.badge) {
 				lines.push(`      badge: ${item.badge}`);

@@ -7,6 +7,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -14,12 +15,14 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
 import { Menus } from '../../../../browser/menus.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
@@ -136,11 +139,27 @@ function createMockMcpService(serverCount: number = 0): IMcpService {
 	}();
 }
 
+function createMockHarnessService(hiddenSections: readonly string[] = []): ICustomizationHarnessService {
+	const descriptor: IHarnessDescriptor = {
+		id: 'fixture',
+		label: 'Fixture',
+		icon: ThemeIcon.fromId('vm'),
+		hiddenSections,
+		getStorageSourceFilter: () => ({ sources: [] }),
+	};
+	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly activeHarness = observableValue('mockActiveHarness', descriptor.id);
+		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('mockAvailableHarnesses', [descriptor]);
+		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
+		override getActiveDescriptor() { return descriptor; }
+	}();
+}
+
 // ============================================================================
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts; hiddenSections?: readonly string[] }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
@@ -154,9 +173,16 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
+			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
+			}());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+				override readonly onDidVisibleEditorsChange = Event.None;
+				override readonly onDidEditorsChange = Event.None;
+				override async openEditor() { return undefined; }
 			}());
 		},
 	});

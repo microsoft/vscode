@@ -243,10 +243,53 @@ describe('toToolDefinitions', () => {
 	it('filters out tools without a function property', () => {
 		const result = toToolDefinitions([
 			{ type: 'function', function: { name: 'a' } },
-			{ type: 'function' }, // no function
+			{ type: 'function' }, // no function and no top-level name → skipped
 		]);
 		expect(result).toHaveLength(1);
 		expect(result![0].name).toBe('a');
+	});
+
+	it('flattens OpenAI Responses API tools (top-level name/parameters)', () => {
+		const result = toToolDefinitions([{
+			type: 'function',
+			name: 'searchCode',
+			description: 'Search the codebase',
+			parameters: { type: 'object', properties: { query: { type: 'string' } } },
+		}]);
+		expect(result).toEqual([{
+			type: 'function',
+			name: 'searchCode',
+			description: 'Search the codebase',
+			parameters: { type: 'object', properties: { query: { type: 'string' } } },
+		}]);
+	});
+
+	it('maps Anthropic input_schema → parameters', () => {
+		const result = toToolDefinitions([{
+			name: 'editFile',
+			description: 'Edit a file',
+			input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+		}]);
+		expect(result).toEqual([{
+			type: 'function',
+			name: 'editFile',
+			description: 'Edit a file',
+			parameters: { type: 'object', properties: { path: { type: 'string' } } },
+		}]);
+	});
+
+	it('maps VS Code inputSchema → parameters', () => {
+		const result = toToolDefinitions([{
+			name: 'runInTerminal',
+			description: 'Run a command',
+			inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
+		}]);
+		expect(result).toEqual([{
+			type: 'function',
+			name: 'runInTerminal',
+			description: 'Run a command',
+			parameters: { type: 'object', properties: { command: { type: 'string' } } },
+		}]);
 	});
 
 	it('returns undefined for empty array', () => {

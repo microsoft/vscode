@@ -304,6 +304,17 @@ declare module 'vscode' {
 		 */
 		subAgentInvocationId?: string;
 		/**
+		 * W3C trace context `traceparent` header value identifying the active distributed
+		 * tracing span. When provided to a tool implementation backed by an MCP server, this
+		 * value is forwarded as `_meta.traceparent` on the JSON-RPC `tools/call` request so
+		 * downstream servers can correlate their spans (MCP SEP-414).
+		 */
+		traceparent?: string;
+		/**
+		 * Optional W3C trace context `tracestate` header value paired with `traceparent`.
+		 */
+		tracestate?: string;
+		/**
 		 * Pre-tool-use hook result, if the hook was already executed by the caller.
 		 * When provided, the tools service will skip executing its own preToolUse hook
 		 * and use this result for permission decisions and input modifications instead.

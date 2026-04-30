@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -33,7 +33,7 @@ function stubServices(
 		storedEntries?: Map<string, string>;
 		setModelSpy?: (sessionId: string, modelId: string) => void;
 	},
-): { instantiationService: TestInstantiationService; storage: Map<string, string>; activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>> } {
+): { instantiationService: TestInstantiationService; storage: Map<string, string>; activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>>; fireLanguageModelsChanged: () => void } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const models = opts?.models ?? [];
 	const storage = opts?.storedEntries ?? new Map<string, string>();
@@ -44,8 +44,10 @@ function stubServices(
 
 	const setModelSpy = opts?.setModelSpy ?? (() => { });
 
+	const onDidChangeLanguageModelsEmitter = disposables.add(new Emitter<{ added?: readonly { identifier: string }[]; removed?: readonly string[] }>());
+
 	instantiationService.stub(ILanguageModelsService, {
-		onDidChangeLanguageModels: Event.None,
+		onDidChangeLanguageModels: onDidChangeLanguageModelsEmitter.event,
 		getLanguageModelIds: () => models.map(m => m.identifier),
 		lookupLanguageModel: (id: string) => models.find(m => m.identifier === id)?.metadata,
 	} as Partial<ILanguageModelsService>);
@@ -72,7 +74,7 @@ function stubServices(
 	// Stub IInstantiationService so SessionModelPicker can call createInstance for ModelPickerActionItem
 	instantiationService.stub(IInstantiationService, instantiationService);
 
-	return { instantiationService, storage, activeSession };
+	return { instantiationService, storage, activeSession, fireLanguageModelsChanged: () => onDidChangeLanguageModelsEmitter.fire({}) };
 }
 
 suite('modelPickerStorageKey', () => {
@@ -184,5 +186,46 @@ suite('SessionModelPicker', () => {
 		assert.strictEqual(storage.get(modelPickerStorageKey(CLAUDE_CODE_SESSION_TYPE)), 'claude-m');
 		// CLI key should still be intact
 		assert.strictEqual(storage.get(modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE)), 'cli-m');
+	});
+
+	test('propagates selected model to a new session of the same type (#313385)', () => {
+		const models = [makeModel('cli-a', COPILOT_CLI_SESSION_TYPE), makeModel('cli-b', COPILOT_CLI_SESSION_TYPE)];
+		const storedEntries = new Map([[modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE), 'cli-b']]);
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, activeSession } = stubServices(disposables, {
+			models,
+			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: COPILOT_CLI_SESSION_TYPE },
+			storedEntries,
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+		// Initial session receives the remembered model.
+		assert.ok(calls.some(c => c.sessionId === 's1' && c.modelId === 'cli-b'));
+
+		// Switch to a new session of the same type (e.g. user picked a different repo).
+		activeSession.set({ providerId: 'default-copilot', sessionId: 's2', sessionType: COPILOT_CLI_SESSION_TYPE } as IActiveSession, undefined);
+
+		// The new session must receive the same model so the request isn't sent with the default.
+		assert.ok(calls.some(c => c.sessionId === 's2' && c.modelId === 'cli-b'));
+	});
+
+	test('does not re-push model to the same session when language models change', () => {
+		const models = [makeModel('cli-a', COPILOT_CLI_SESSION_TYPE)];
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, fireLanguageModelsChanged } = stubServices(disposables, {
+			models,
+			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: COPILOT_CLI_SESSION_TYPE },
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+		const initialCallCount = calls.filter(c => c.sessionId === 's1').length;
+		assert.ok(initialCallCount > 0, 'expected initial setModel to fire');
+
+		// Re-fire language-models-changed multiple times. The active session and
+		// selected model haven't changed, so the provider must not be re-notified.
+		fireLanguageModelsChanged();
+		fireLanguageModelsChanged();
+
+		assert.strictEqual(calls.filter(c => c.sessionId === 's1').length, initialCallCount);
 	});
 });

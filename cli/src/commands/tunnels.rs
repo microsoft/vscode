@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
@@ -76,7 +75,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-fn fulfill_existing_tunnel_args(
+pub(super) fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -118,7 +117,6 @@ impl TunnelServiceContainer {
 	}
 }
 
-#[async_trait]
 impl ServiceContainer for TunnelServiceContainer {
 	async fn run_service(
 		&mut self,
@@ -639,7 +637,7 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());

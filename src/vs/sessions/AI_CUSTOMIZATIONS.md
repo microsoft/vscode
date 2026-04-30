@@ -54,7 +54,7 @@ src/vs/sessions/contrib/chat/browser/
 ├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
-├── aiCustomizationShortcutsWidget.ts           # Shortcuts widget
+├── aiCustomizationShortcutsWidget.ts           # Sidebar shortcuts widget with header overview action
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
@@ -227,6 +227,10 @@ Skills that are directly invoked by UI elements (toolbar buttons, menu items) ar
 ### Count Consistency
 
 Counts shown in the sidebar (per-link badges and the header total in `AICustomizationShortcutsWidget`) are driven by the same `IAICustomizationItemsModel` singleton (`workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.ts`) that feeds the customizations editor's list widget. The model owns the per-active-harness `ProviderCustomizationItemSource` cache and exposes per-section `IObservable<readonly IAICustomizationListItem[]>`; sidebar consumers `read` `.length` from those observables. There is exactly one discovery path, so editor and sidebar counts cannot diverge. McpServers and Plugins use their own service observables (`IMcpService.servers`, `IAgentPluginService.plugins`) directly.
+
+### Sidebar Overview Entrypoint
+
+The Agents sidebar `AICustomizationShortcutsWidget` exposes a home action in the Customizations header. The header label remains the collapse toggle, while the separate icon-only action opens the AI Customization management editor and calls `showWelcomePage()` so users can return to the overview/welcome page from any customization section. The action lives in the header, rather than inside the collapsible list content, so it remains visible and is not clipped by the sidebar's scrollable layout.
 
 ### Item Badges
 

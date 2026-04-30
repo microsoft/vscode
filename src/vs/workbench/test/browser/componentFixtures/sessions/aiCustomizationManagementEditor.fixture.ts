@@ -8,12 +8,12 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -41,6 +41,7 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
@@ -64,6 +65,9 @@ import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
@@ -135,6 +139,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: a.storage,
 					extensionId: a.extensionId ? new ExtensionIdentifier(a.extensionId) : undefined,
 				},
+				visibility: { userInvocable: true, agentInvocable: true },
 			})) as never[];
 		}
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
@@ -461,6 +466,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
 
+	// Holds a lazy reference to the model service so the ITextModelService mock
+	// (registered below) can create real ITextModel instances on demand. The
+	// management editor calls `createModelReference` when the user opens an
+	// item — fixtureUtils' default mock returns `{ textEditorModel: null }`,
+	// which crashes the editor. We populate this after the instantiation
+	// service is created.
+	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
+	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
+
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
@@ -469,6 +483,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
+				declare readonly _serviceBrand: undefined;
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					const modelService = modelServiceRef.value!;
+					const languageService = languageServiceRef.value!;
+					let model = modelService.getModel(resource);
+					if (!model) {
+						const languageId = languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? 'plaintext';
+						const languageSelection = languageService.createById(languageId);
+						model = modelService.createModel('', languageSelection, resource);
+					}
+					const onWillDispose = new Emitter<void>();
+					const textEditorModel: IResolvedTextEditorModel = {
+						textEditorModel: model,
+						onWillDispose: onWillDispose.event,
+						isReadonly: () => false,
+						isResolved: () => true,
+						isDisposed: () => false,
+						getLanguageId: () => model.getLanguageId(),
+						createSnapshot: () => model.createSnapshot(),
+						resolve: async () => { },
+						dispose: () => onWillDispose.dispose(),
+					};
+					return { object: textEditorModel, dispose: () => { } };
+				}
+				override canHandleResource() { return true; }
+				override registerTextModelContentProvider() { return { dispose: () => { } }; }
+			}());
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
 			reg.defineInstance(ICodeReviewService, codeReviewService);
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -497,6 +539,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			// AICustomizationItemsModel is the single source of truth for items
+			// in the editor. Register the real implementation — it will resolve
+			// items via the mock prompts service / harness service above.
+			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }
@@ -517,9 +563,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override userHome(): Promise<URI>;
 				override userHome(): URI | Promise<URI> { return userHome; }
 			}());
-			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() { }());
 			reg.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
 				override readonly onDidChangeDirty = Event.None;
+				override readonly onDidSave = Event.None;
+				override isDirty(_resource: URI) { return false; }
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
@@ -572,6 +619,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 		},
 	});
+
+	modelServiceRef.value = instantiationService.get(IModelService);
+	languageServiceRef.value = instantiationService.get(ILanguageService);
 
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())

@@ -13,6 +13,11 @@ const LOG_PREFIX = '[GitHubApiClient]';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 
+export interface IGitHubApiRequestOptions {
+	readonly data?: unknown;
+	readonly etag?: string;
+}
+
 export interface IGitHubApiResponse<T> {
 	readonly data: T | undefined;
 	readonly statusCode: number;
@@ -56,12 +61,8 @@ export class GitHubApiClient extends Disposable {
 		super();
 	}
 
-	async request<T>(method: string, path: string, callSite: string, body?: unknown): Promise<T> {
-		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body);
-	}
-
-	async request2<T>(method: string, path: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
-		return this._request2<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body, etag);
+	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, options);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -71,25 +72,25 @@ export class GitHubApiClient extends Disposable {
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			{ query, variables },
+			{ data: { query, variables } }
 		);
 
-		if (response.errors?.length) {
+		if (response.data?.errors?.length) {
 			throw new GitHubApiError(
-				response.errors.map(error => error.message).join('; '),
+				response.data.errors.map(error => error.message).join('; '),
 				200,
 				undefined,
 			);
 		}
 
-		if (!response.data) {
+		if (!response.data?.data) {
 			throw new GitHubApiError('GitHub GraphQL response did not include data', 200, undefined);
 		}
 
-		return response.data;
+		return response.data.data;
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown): Promise<T> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
@@ -101,59 +102,10 @@ export class GitHubApiClient extends Disposable {
 				'Authorization': `token ${token}`,
 				'Accept': accept,
 				'User-Agent': 'VSCode-Sessions-GitHub',
-				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+				...(options?.etag !== undefined ? { 'If-None-Match': options.etag } : {}),
+				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
-			data: body !== undefined ? JSON.stringify(body) : undefined,
-			callSite
-		}, CancellationToken.None);
-
-		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
-		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
-			this._logService.warn(`${LOG_PREFIX} GitHub API rate limit low: ${rateLimitRemaining} remaining`);
-		}
-
-		const statusCode = response.res.statusCode ?? 0;
-		if (statusCode < 200 || statusCode >= 300) {
-			const errorBody = await asJson<{ message?: string }>(response).catch(() => undefined);
-			throw new GitHubApiError(
-				errorBody?.message ?? `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`,
-				statusCode,
-				rateLimitRemaining,
-			);
-		}
-
-		if (statusCode === 204) {
-			return undefined as unknown as T;
-		}
-
-		const data = await asJson<T>(response);
-		if (!data) {
-			throw new GitHubApiError(
-				`Failed to parse response for ${method} ${pathForLogging}`,
-				statusCode,
-				rateLimitRemaining,
-			);
-		}
-
-		return data;
-	}
-
-	private async _request2<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown, etag?: string): Promise<IGitHubApiResponse<T>> {
-		const token = await this._getAuthToken();
-
-		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
-
-		const response = await this._requestService.request({
-			type: method,
-			url,
-			headers: {
-				'Authorization': `token ${token}`,
-				'Accept': accept,
-				'User-Agent': 'VSCode-Sessions-GitHub',
-				...(etag !== undefined ? { 'If-None-Match': etag } : {}),
-				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-			},
-			data: body !== undefined ? JSON.stringify(body) : undefined,
+			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
 			callSite
 		}, CancellationToken.None);
 

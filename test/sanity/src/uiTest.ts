@@ -78,7 +78,7 @@ export class UITest {
 		this.context.log('Dismissing welcome dialog (if shown)');
 		const closeButton = page.locator('button.onboarding-a-close-btn');
 		try {
-			await closeButton.waitFor({ state: 'visible', timeout: 5_000 });
+			await closeButton.waitFor({ state: 'visible', timeout: 8_000 });
 		} catch {
 			this.context.log('Welcome dialog not shown, continuing');
 			return;

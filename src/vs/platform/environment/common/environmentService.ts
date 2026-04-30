@@ -37,6 +37,20 @@ export interface INativeEnvironmentPaths {
 	 * OS tmp dir.
 	 */
 	tmpDir: string;
+
+	/**
+	 * The parent application user data directory, if the current instance is running as an embedded application.
+	 * This can be used to access data from the parent application that is not shared with the embedded application.
+	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 */
+	parentAppUserDataDir: string | undefined;
+
+	/**
+	 * The parent application home directory, if the current instance is running as an embedded application.
+	 * This can be used to access data from the parent application that is not shared with the embedded application.
+	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 */
+	parentAppUserHomeDir: string | undefined;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -297,6 +311,24 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	set continueOn(value: string | undefined) {
 		this.args['continueOn'] = value;
+	}
+
+	@memoize
+	get parentAppUserRoamingDataHome(): URI | undefined {
+		return this.paths.parentAppUserDataDir ? URI.file(this.paths.parentAppUserDataDir).with({ scheme: Schemas.vscodeUserData }) : undefined;
+	}
+
+	@memoize
+	get parentAppUserHome(): URI | undefined {
+		return this.paths.parentAppUserHomeDir ? URI.file(this.paths.parentAppUserHomeDir) : undefined;
+	}
+
+	@memoize
+	get parentAppExtensionsHome(): URI | undefined {
+		if (!this.parentAppUserHome) {
+			return undefined;
+		}
+		return joinPath(this.parentAppUserHome, 'extensions');
 	}
 
 	get args(): NativeParsedArgs { return this._args; }

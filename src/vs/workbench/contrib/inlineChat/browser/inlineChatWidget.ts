@@ -58,7 +58,7 @@ export interface IInlineChatWidgetConstructionOptions {
 	/**
 	 * The menu that rendered as button bar, use for accept, discard etc
 	 */
-	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
+	statusMenuId?: { menu: MenuId; options: IWorkbenchButtonBarOptions };
 
 	secondaryMenuId?: MenuId;
 
@@ -245,18 +245,19 @@ export abstract class InlineChatWidget {
 		this._store.add(this.chatWidget.inputEditor.onDidFocusEditorWidget(() => this.#ctxInputEditorFocused.set(true)));
 		this._store.add(this.chatWidget.inputEditor.onDidBlurEditorWidget(() => this.#ctxInputEditorFocused.set(false)));
 
-		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
 		// BUTTON bar
-		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
-		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar1, statusMenuId, {
-			toolbarOptions: { primaryGroup: '0_main' },
-			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
-			menuOptions: { renderShortTitle: true },
-			...statusMenuOptions,
-		});
-		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
-		this._store.add(statusButtonBar);
+		if (options.statusMenuId) {
+			const statusMenuOptions = options.statusMenuId.options;
+			const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar1, options.statusMenuId.menu, {
+				toolbarOptions: { primaryGroup: '0_main' },
+				telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+				menuOptions: { renderShortTitle: true },
+				...statusMenuOptions,
+			});
+			this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
+			this._store.add(statusButtonBar);
+		}
 
 		// secondary toolbar
 		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, options.secondaryMenuId ?? MenuId.for(''), {

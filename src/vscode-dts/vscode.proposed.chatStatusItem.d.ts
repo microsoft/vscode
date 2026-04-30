@@ -14,7 +14,7 @@ declare module 'vscode' {
 		/**
 		 * The main name of the entry, like 'Indexing Status'
 		 */
-		title: string | { label: string; link: string };
+		title: string | { label: string; link: string; helpText?: string };
 
 		/**
 		 * Optional additional description of the entry.

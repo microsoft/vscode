@@ -753,6 +753,7 @@ class IdleDetector {
 			if (isFirstSelectionRun) {
 				isFirstSelectionRun = false;
 				for (const doc of docs) {
+					// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 					this._selectionSnapshots.set(doc.id.uri, doc.primarySelectionLine.get());
 				}
 				return;
@@ -770,6 +771,7 @@ class IdleDetector {
 			// Find the doc whose selection line actually changed from what we last saw
 			for (const doc of docs) {
 				const currentDocId = doc.id.uri;
+				// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 				const currentLine = doc.primarySelectionLine.get();
 				const previousLine = this._selectionSnapshots.get(currentDocId);
 

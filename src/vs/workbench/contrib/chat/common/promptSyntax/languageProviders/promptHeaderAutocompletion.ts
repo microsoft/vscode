@@ -233,7 +233,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (attribute.key === PromptHeaderAttributes.agents) {
 			if (attribute.value.type === 'sequence') {
 				return this.provideArrayCompletions(model, position, attribute.value, async () => {
-					return await this.promptsService.getCustomAgents(CancellationToken.None);
+					return (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 				});
 			}
 		}

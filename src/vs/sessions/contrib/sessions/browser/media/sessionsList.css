@@ -214,6 +214,10 @@
 		font-size: 13px;
 	}
 
+	.session-title {
+		color: var(--vscode-strongForeground);
+	}
+
 	.session-time {
 		display: flex;
 		align-items: center;
@@ -371,11 +375,11 @@
 .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
 	background: linear-gradient(
 		90deg,
-		var(--vscode-foreground) 0%,
-		var(--vscode-foreground) 30%,
+		var(--vscode-strongForeground) 0%,
+		var(--vscode-strongForeground) 30%,
 		var(--vscode-chat-thinkingShimmer) 50%,
-		var(--vscode-foreground) 70%,
-		var(--vscode-foreground) 100%
+		var(--vscode-strongForeground) 70%,
+		var(--vscode-strongForeground) 100%
 	);
 	background-size: 400% 100%;
 	background-clip: text;
@@ -384,14 +388,26 @@
 	animation: session-title-shimmer 3s linear infinite;
 }
 
+.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
+.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background-image: linear-gradient(
+		90deg,
+		var(--vscode-strongForeground) 0%,
+		var(--vscode-strongForeground) 30%,
+		var(--vscode-descriptionForeground) 50%,
+		var(--vscode-strongForeground) 70%,
+		var(--vscode-strongForeground) 100%
+	);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
 		animation: none;
 		background: none;
 		background-clip: border-box;
 		-webkit-background-clip: border-box;
-		color: var(--vscode-foreground);
-		-webkit-text-fill-color: var(--vscode-foreground);
+		color: var(--vscode-strongForeground);
+		-webkit-text-fill-color: var(--vscode-strongForeground);
 	}
 }
 

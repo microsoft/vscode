@@ -1,6 +1,5 @@
 {
 	// --- Chat ---
-	"inlineChat.enableV2": true,
 	"inlineChat.affordance": "editor",
 	"chat.tools.terminal.autoApprove": {
 		"scripts/test.bat": true,

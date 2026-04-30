@@ -26,12 +26,11 @@ export class GitHubRepositoryFetcher {
 	) { }
 
 	async getRepository(owner: string, repo: string, etag?: string): Promise<IGitHubApiResponse<IGitHubRepository>> {
-		const response = await this._apiClient.request2<IGitHubRepoResponse>(
+		const response = await this._apiClient.request<IGitHubRepoResponse>(
 			'GET',
 			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
 			'githubApi.getRepository',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {

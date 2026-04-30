@@ -60,12 +60,11 @@ export class GitHubPRCIFetcher {
 	) { }
 
 	async getCheckRuns(owner: string, repo: string, ref: string, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubCICheck[]>> {
-		const response = await this._apiClient.request2<IGitHubCheckRunsListResponse>(
+		const response = await this._apiClient.request<IGitHubCheckRunsListResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
 			'githubApi.getCheckRuns',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
@@ -80,7 +79,7 @@ export class GitHubPRCIFetcher {
 	 * Rerun failed jobs in a GitHub Actions workflow run.
 	 */
 	async rerunFailedJobs(owner: string, repo: string, runId: number): Promise<void> {
-		await this._apiClient.request2<void>(
+		await this._apiClient.request<void>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/actions/runs/${runId}/rerun-failed-jobs`,
 			'githubApi.rerunFailedJobs'
@@ -101,7 +100,7 @@ export class GitHubPRCIFetcher {
 
 		// 1. Fetch check run detail for output fields
 		try {
-			const detailResponse = await this._apiClient.request2<IGitHubCheckRunDetailResponse>(
+			const detailResponse = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}`,
 				'githubApi.getCheckRunAnnotations'
@@ -122,7 +121,7 @@ export class GitHubPRCIFetcher {
 
 		// 2. Fetch annotations
 		try {
-			const annotationsResponse = await this._apiClient.request2<readonly IGitHubCheckRunAnnotationResponse[]>(
+			const annotationsResponse = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}/annotations`,
 				'githubApi.getCheckRunAnnotations.annotations'

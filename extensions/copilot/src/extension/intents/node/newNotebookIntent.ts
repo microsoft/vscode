@@ -178,6 +178,7 @@ export class NewNotebookResponseProcessor {
 				const sourceLines = filterFilePathFromCodeBlock2(streamLines(sourceStream.asyncIterable)
 					.filter(LineFilters.createCodeBlockFilter())
 					.map(line => {
+						// eslint-disable-next-line local/code-no-unused-expressions
 						newNotebook.value; // force the notebook to be created
 						return line;
 					}));

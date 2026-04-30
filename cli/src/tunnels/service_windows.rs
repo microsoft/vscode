@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
 use std::os::windows::process::CommandExt;
 use std::{path::PathBuf, process::Stdio};
@@ -46,7 +45,6 @@ impl WindowsService {
 	}
 }
 
-#[async_trait]
 impl CliServiceManager for WindowsService {
 	async fn register(&self, exe: std::path::PathBuf, args: &[&str]) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;

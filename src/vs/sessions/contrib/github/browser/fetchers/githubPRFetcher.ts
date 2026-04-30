@@ -160,12 +160,11 @@ export class GitHubPRFetcher {
 	) { }
 
 	async getPullRequest(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<IGitHubPullRequest>> {
-		const response = await this._apiClient.request2<IGitHubPRResponse>(
+		const response = await this._apiClient.request<IGitHubPRResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`,
 			'githubApi.getPullRequest',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
@@ -177,12 +176,11 @@ export class GitHubPRFetcher {
 	}
 
 	async getReviews(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubPullRequestReview[]>> {
-		const response = await this._apiClient.request2<readonly IGitHubReviewResponse[]>(
+		const response = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
 			'githubApi.getReviews',
-			undefined,
-			etag
+			{ etag }
 		);
 
 		return {
@@ -215,11 +213,11 @@ export class GitHubPRFetcher {
 		body: string,
 		inReplyTo: number,
 	): Promise<IGitHubPRComment> {
-		const response = await this._apiClient.request2<IGitHubReviewCommentResponse>(
+		const response = await this._apiClient.request<IGitHubReviewCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/comments`,
 			'githubApi.postReviewComment',
-			{ body, in_reply_to: inReplyTo },
+			{ data: { body, in_reply_to: inReplyTo } }
 		);
 		if (!response.data) {
 			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
@@ -233,11 +231,11 @@ export class GitHubPRFetcher {
 		prNumber: number,
 		body: string,
 	): Promise<IGitHubPRComment> {
-		const response = await this._apiClient.request2<IGitHubIssueCommentResponse>(
+		const response = await this._apiClient.request<IGitHubIssueCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/issues/${prNumber}/comments`,
 			'githubApi.postIssueComment',
-			{ body },
+			{ data: { body } },
 		);
 		const data = response.data;
 		if (!data) {

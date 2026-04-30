@@ -66,6 +66,12 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		this._register(this._agentHostFilterService.onDidChange(() => this._onScopedHostChanged()));
 	}
 
+	protected override _showTabs(): boolean {
+		// Scoped picker is already filtered to a single host \u2014 the categorical
+		// tab bar would be redundant.
+		return false;
+	}
+
 	private _onScopedHostChanged(): void {
 		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
 		const current = this.selectedProject;
