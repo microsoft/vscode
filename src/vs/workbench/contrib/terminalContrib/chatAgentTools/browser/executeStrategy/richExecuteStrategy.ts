@@ -102,11 +102,24 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
+			// Capture any command that is already executing in the terminal at
+			// strategy entry. `runCommand` (called below) may send ETX (Ctrl+C)
+			// to clear stale prompt input, which kills that prior command and
+			// produces an `onCommandFinished` event with exit code 130. Without
+			// this filter, the race below resolves with the prior command's
+			// finished event before our new command has even started — causing
+			// the new command to be reported as having instantly exited 130 and
+			// cascading to every subsequent command on the same terminal.
+			const staleExecutingCommand = this._commandDetection.executingCommandObject;
+			const onCommandFinishedFiltered = staleExecutingCommand
+				? Event.filter(this._commandDetection.onCommandFinished, e => e !== staleExecutingCommand, store)
+				: this._commandDetection.onCommandFinished;
+
 			// Subscribe to terminal lifecycle events BEFORE any awaits so that we
 			// don't miss events that fire while we're waiting for xterm to be
 			// ready (e.g. the pty exits during xtermReadyPromise resolution).
 			const onDone = Promise.race([
-				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+				Event.toPromise(onCommandFinishedFiltered, store).then(e => {
 					this._log('onDone via end event');
 					return {
 						'type': 'success',

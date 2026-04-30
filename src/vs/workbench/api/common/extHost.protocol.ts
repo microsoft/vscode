@@ -3643,7 +3643,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string | { label: string; link: string };
+	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
 };

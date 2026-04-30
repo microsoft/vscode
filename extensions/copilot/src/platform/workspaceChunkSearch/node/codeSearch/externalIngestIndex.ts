@@ -907,35 +907,39 @@ export class ExternalIngestIndex extends Disposable {
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
 
 		for (const folder of workspaceFolders) {
-			const paths = await this._searchService.findFilesWithDefaultExcludes(
-				new RelativePattern(folder, '**/*'),
-				Number.MAX_SAFE_INTEGER,
-				CancellationToken.None
-			);
+			try {
+				const paths = await this._searchService.findFilesWithDefaultExcludes(
+					new RelativePattern(folder, '**/*'),
+					Number.MAX_SAFE_INTEGER,
+					CancellationToken.None
+				);
 
-			this._logService.trace(`ExternalIngestIndex::reconcileDbFiles() Found ${paths.length} candidate files in workspace folder ${folder.toString()}.`);
+				this._logService.trace(`ExternalIngestIndex::reconcileDbFiles() Found ${paths.length} candidate files in workspace folder ${folder.toString()}.`);
 
-			for (const uri of paths) {
-				// Skip files under code search repos
-				if (!await this.shouldTrackFile(uri, CancellationToken.None)) {
-					continue;
+				for (const uri of paths) {
+					// Skip files under code search repos
+					if (!await this.shouldTrackFile(uri, CancellationToken.None)) {
+						continue;
+					}
+
+					const stat = await this.safeStat(uri);
+					if (!stat) {
+						continue;
+					}
+
+					seen.add(uri);
+
+					const existing = this.get(uri);
+					if (!existing) {
+						await this.tryAddOrUpdateFile(uri);
+						addedFileCount++;
+					} else if (existing.size !== stat.size || existing.mtime !== stat.mtime) {
+						await this.tryAddOrUpdateFile(uri);
+						updatedFileCount++;
+					}
 				}
-
-				const stat = await this.safeStat(uri);
-				if (!stat) {
-					continue;
-				}
-
-				seen.add(uri);
-
-				const existing = this.get(uri);
-				if (!existing) {
-					await this.tryAddOrUpdateFile(uri);
-					addedFileCount++;
-				} else if (existing.size !== stat.size || existing.mtime !== stat.mtime) {
-					await this.tryAddOrUpdateFile(uri);
-					updatedFileCount++;
-				}
+			} catch (err) {
+				this._logService.error(`ExternalIngestIndex::reconcileDbFiles() Error processing workspace folder ${folder.toString()}: ${toErrorMessage(err, true)}`);
 			}
 		}
 
@@ -955,14 +959,23 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		const addWatchersFolder = (folder: URI): IDisposable => {
-			const disposables = new DisposableStore();
+			if (this._fileSystemService.isWritableFileSystem(folder.scheme) === false) {
+				return Disposable.None;
+			}
 
-			const watcher = disposables.add(this._fileSystemService.createFileSystemWatcher(new RelativePattern(folder, '**/*')));
-			disposables.add(watcher.onDidCreate(uri => this.onFileAdded(uri)));
-			disposables.add(watcher.onDidChange(uri => this.onFileChanged(uri)));
-			disposables.add(watcher.onDidDelete(uri => this.onFileDeleted(uri)));
+			try {
+				const disposables = new DisposableStore();
 
-			return disposables;
+				const watcher = disposables.add(this._fileSystemService.createFileSystemWatcher(new RelativePattern(folder, '**/*')));
+				disposables.add(watcher.onDidCreate(uri => this.onFileAdded(uri)));
+				disposables.add(watcher.onDidChange(uri => this.onFileChanged(uri)));
+				disposables.add(watcher.onDidDelete(uri => this.onFileDeleted(uri)));
+
+				return disposables;
+			} catch (err) {
+				this._logService.warn(`ExternalIngestIndex::registerWatcher() Failed to create watcher for ${folder.toString()}. ${err}`);
+				return Disposable.None;
+			}
 		};
 
 		const watchersForWorkspaceFolders = new ResourceMap<IDisposable>();

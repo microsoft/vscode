@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.119.0",
-  "distro": "6de3b8c2129ba0b524b19a9151f1d7f8e2fa0baa",
+  "distro": "03ddc71f37189e8ced0ef924fe9b9600c402b67f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -268,6 +268,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "@vscode/macos-keychain": "^0.0.1",
     "windows-foreground-love": "0.6.1"
   }
 }

@@ -553,6 +553,16 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		// Header: account label + sign-out icon.
 		const headerSection = append(panel, $('.sessions-account-titlebar-panel-header'));
+		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
+		if (loadedAvatarUrl) {
+			const avatar = append(headerSection, $('img.sessions-account-titlebar-panel-avatar', {
+				alt: this.getAvatarAltText(true),
+				draggable: 'false',
+				src: loadedAvatarUrl,
+			})) as HTMLImageElement;
+			avatar.decoding = 'async';
+			avatar.referrerPolicy = 'no-referrer';
+		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
 		if (partitioned.signOut) {
@@ -708,7 +718,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private getPanelHeaderLabel(): string {
 		if (this.accountName) {
-			return localize('signedInAsHeader', "Signed in as {0}", this.accountName);
+			return this.accountName;
 		}
 
 		if (this.isAccountLoading) {
@@ -757,6 +767,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
 			disableQuickSettingsCollapsible: true,
+			disableContributedSectionsCollapsible: true,
 			...extraOptions,
 		});
 

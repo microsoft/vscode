@@ -6,6 +6,7 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
@@ -83,11 +84,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		headerButton.label = localize('customizations', "Customizations");
 		this._headerButton = headerButton;
 
-		const chevronContainer = DOM.append(headerButton.element, $('span.customization-link-counts'));
-		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
-		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
 		const headerActions = DOM.append(header, $('.ai-customization-header-actions'));
 		const openOverviewLabel = localize('openCustomizationsOverview', "Open Customizations Overview");
 		const openOverviewButton = this._register(new Button(headerActions, {
@@ -107,6 +103,18 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			e?.preventDefault();
 			this._openWelcomePage();
 		}));
+
+		// Chevron at far right (outside the link button so it sits to the
+		// right of the home overview action). Clicking the chevron toggles
+		// collapse — same as clicking the header label.
+		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
+		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
+		chevronContainer.type = 'button';
+		chevronContainer.setAttribute('aria-label', toggleCollapseLabel);
+		chevronContainer.title = toggleCollapseLabel;
+		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
+		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
 
 		// Toolbar container
 		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
@@ -172,6 +180,13 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
+		this._register(Gesture.addTarget(chevronContainer));
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(DOM.addDisposableListener(chevronContainer, eventType, e => {
+				DOM.EventHelper.stop(e, true);
+				toggleCollapse();
+			}));
+		}
 	}
 
 	private async _openWelcomePage(): Promise<void> {

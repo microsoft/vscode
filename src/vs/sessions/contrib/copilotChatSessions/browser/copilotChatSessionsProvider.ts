@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_CLOUD } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -1124,6 +1124,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		return {
 			label: getRepositoryName(session) ?? basename(repository.uri),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
+			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_CLOUD : SESSION_WORKSPACE_GROUP_LOCAL,
 			repositories: [repository],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
 		};
@@ -1261,16 +1262,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this.browseActions = [
 			{
 				label: localize('folders', "Folders"),
-				description: localize('local', "Local"),
-				group: 'folders',
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
 				icon: Codicon.folderOpened,
 				providerId: this.id,
 				run: () => this._browseForFolder(),
 			},
 			{
 				label: localize('repositories', "Repositories"),
-				description: localize('github', "GitHub"),
-				icon: Codicon.repo,
+				group: SESSION_WORKSPACE_GROUP_CLOUD,
+				icon: Codicon.library,
 				providerId: this.id,
 				run: () => this._browseForRepo(),
 			},
@@ -2161,6 +2161,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
 				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 				requiresWorkspaceTrust: true
 			};
@@ -2175,6 +2176,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
+				group: SESSION_WORKSPACE_GROUP_CLOUD,
 				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 				requiresWorkspaceTrust: false,
 			};
@@ -2189,9 +2191,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return {
 			label: this._labelFromUri(repositoryUri),
 			description: this._descriptionFromUri(repositoryUri),
-			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME
-				? localize('copilotProvider.workspaceGroupRepositories', "Repositories")
-				: localize('copilotProvider.workspaceGroupFolders', "Folders"),
+			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_CLOUD : SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: this._iconFromUri(repositoryUri),
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME

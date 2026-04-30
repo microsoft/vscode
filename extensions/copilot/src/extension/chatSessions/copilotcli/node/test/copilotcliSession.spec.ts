@@ -344,7 +344,7 @@ describe('CopilotCLISession', () => {
 
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in session state directory', async () => {
@@ -360,7 +360,7 @@ describe('CopilotCLISession', () => {
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves write permission for files in session state directory', async () => {
@@ -376,7 +376,7 @@ describe('CopilotCLISession', () => {
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for attached files outside workspace', async () => {
@@ -394,7 +394,7 @@ describe('CopilotCLISession', () => {
 
 		const attachments = [{ type: 'file' as const, path: attachedFilePath, displayName: 'attached-file.ts' }];
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, attachments as any, undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('does not auto-approve read permission for non-attached files outside workspace', async () => {
@@ -434,7 +434,7 @@ describe('CopilotCLISession', () => {
 
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in workspace folder when worktree is the working directory', async () => {
@@ -459,7 +459,7 @@ describe('CopilotCLISession', () => {
 		session.attachStream(stream);
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in the worktree when workspace has both worktree and repository', async () => {
@@ -484,7 +484,7 @@ describe('CopilotCLISession', () => {
 		session.attachStream(stream);
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('requires read permission outside workspace and working directory', async () => {
@@ -528,7 +528,7 @@ describe('CopilotCLISession', () => {
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Write' }, [], undefined, authInfo, CancellationToken.None);
 
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('denies write permission when handler returns false', async () => {
@@ -631,7 +631,7 @@ describe('CopilotCLISession', () => {
 
 		// Assert ordering of trackEdit invocations exactly matches toolCallIds 1..10
 		expect(trackedOrder).toEqual(Array.from({ length: 10 }, (_, i) => String(i + 1)));
-		expect(permissionResults.every(r => r.kind === 'approved')).toBe(true);
+		expect(permissionResults.every(r => r.kind === 'approve-once')).toBe(true);
 		expect(trackSpy).toHaveBeenCalledTimes(10);
 
 		trackSpy.mockRestore();
@@ -747,7 +747,7 @@ describe('CopilotCLISession', () => {
 
 		await requestPromise;
 
-		expect(permissionResult).toEqual({ kind: 'approved' });
+		expect(permissionResult).toEqual({ kind: 'approve-once' });
 		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
 			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
 		);
@@ -799,7 +799,7 @@ describe('CopilotCLISession', () => {
 			CancellationToken.None
 		);
 
-		expect(permissionResult).toEqual({ kind: 'approved' });
+		expect(permissionResult).toEqual({ kind: 'approve-once' });
 		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
 			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
 		);
@@ -1607,7 +1607,7 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, steeringRequest]);
 
 			// The file was attached in the steering request, so it should be auto-approved
-			expect(permissionResult).toEqual({ kind: 'approved' });
+			expect(permissionResult).toEqual({ kind: 'approve-once' });
 		});
 
 		it('updates the pending prompt to the latest steering message', async () => {
