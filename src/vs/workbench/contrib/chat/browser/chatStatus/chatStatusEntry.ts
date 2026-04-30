@@ -18,13 +18,12 @@ import { IInlineCompletionsService } from '../../../../../editor/browser/service
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { $ as h, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { isNewUser } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -33,6 +32,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
+	private readonly entryAnchor = h('span');
 
 	private runningSessionsCount: number;
 
@@ -45,15 +45,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
 		this._register(CommandsRegistry.registerCommand('workbench.action.chat.openCopilotStatus', () => {
-			const statusBarContainer = this.layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART);
-			if (!statusBarContainer) {
+			const target = this.entryAnchor.parentElement;
+			if (!target) {
 				return;
 			}
 
@@ -61,7 +60,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			const content = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
 			const hover = this.hoverService.showInstantHover({
 				content,
-				target: statusBarContainer,
+				target,
 				persistence: { hideOnHover: false, sticky: true },
 				appearance: { showPointer: true, compact: true, maxHeightRatio: 0.9 },
 				trapFocus: true
@@ -214,6 +213,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			command: ShowTooltipCommand,
 			showInAllWindows: true,
 			kind,
+			content: this.entryAnchor,
 			tooltip: {
 				element: (token: CancellationToken) => {
 					const store = new DisposableStore();
