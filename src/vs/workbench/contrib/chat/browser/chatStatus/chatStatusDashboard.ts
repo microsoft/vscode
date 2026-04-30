@@ -553,7 +553,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 					const selectOptions = modelInfo.models.map(m => ({ text: m.name }));
 					const selectedIndex = modelInfo.models.findIndex(m => m.id === modelInfo.currentModelId);
-					const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectModel', "Select Model") }));
+					const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectModel', "Select Model"), optionsAsChildren: true }));
 					const selectContainer = modelContainer.appendChild($('div.model-select-container'));
 					selectBox.render(selectContainer);
 					this._store.add(selectBox.onDidSelect(async e => {
@@ -579,7 +579,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 							const selectOptions = option.values.map(v => ({ text: v.label }));
 							const selectedIndex = option.values.findIndex(v => v.id === option.currentValueId);
-							const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectOption', "Select {0}", option.label) }));
+							const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectOption', "Select {0}", option.label), optionsAsChildren: true }));
 							const selectContainer = optionContainer.appendChild($('div.suggest-option-select-container'));
 							selectBox.render(selectContainer);
 							this._store.add(selectBox.onDidSelect(async e => {
