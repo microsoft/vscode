@@ -579,6 +579,34 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerChatSessionContentProvider(scheme: string, provider: ChatSessionContentProvider, defaultChatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+
+		/**
+		 * Inject a system-initiated request into a chat session owned by this extension.
+		 *
+		 * Used by a {@link ChatSessionContentProvider} to surface out-of-band events
+		 * (async terminal completion, background agent finishing, etc.) as a new turn in
+		 * the chat UI without requiring the user to type a message. The request is queued
+		 * as a steering request so it preempts the currently active turn.
+		 *
+		 * @param sessionResource Uri of the target chat session. Its scheme must match a {@link ChatSessionContentProvider} registered by this extension.
+		 * @param prompt The prompt sent to the session's participant. This becomes {@link ChatRequest.prompt} on the synthesized request.
+		 * @param options Display and routing options for the request.
+		 *
+		 * @returns A thenable that resolves once the request has been accepted and queued.
+		 */
+		export function sendSystemInitiatedRequest(sessionResource: Uri, prompt: string, options: SystemInitiatedChatRequestOptions): Thenable<void>;
+	}
+
+	/**
+	 * Options for {@link chat.sendSystemInitiatedRequest}.
+	 */
+	export interface SystemInitiatedChatRequestOptions {
+		/**
+		 * Short human-readable label for the system event that triggered this request.
+		 * Rendered as a compact system-notification chip in the chat transcript
+		 * (e.g. ``"`sleep 10` completed"``).
+		 */
+		readonly systemInitiatedLabel: string;
 	}
 
 	export interface ChatContext {

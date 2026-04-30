@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, SendOptions, Session, SessionOptions, SystemNotificationEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -304,6 +304,11 @@ function getPromptLabel(input: CopilotCLISessionInput): string {
 	return input.prompt;
 }
 
+export interface ICopilotCLISystemNotification {
+	readonly message: string;
+	readonly label: string;
+}
+
 export interface ICopilotCLISession extends IDisposable {
 	readonly sessionId: string;
 	readonly title?: string;
@@ -311,13 +316,14 @@ export interface ICopilotCLISession extends IDisposable {
 	readonly onDidChangeTitle: vscode.Event<string>;
 	readonly status: vscode.ChatSessionStatus | undefined;
 	readonly onDidChangeStatus: vscode.Event<vscode.ChatSessionStatus | undefined>;
+	readonly onDidReceiveSystemNotification: vscode.Event<ICopilotCLISystemNotification>;
 	readonly workspace: IWorkspaceInfo;
 	readonly additionalWorkspaces: IWorkspaceInfo[];
 	readonly pendingPrompt: string | undefined;
 	attachStream(stream: vscode.ChatResponseStream): IDisposable;
 	setPermissionLevel(level: string | undefined): void;
 	handleRequest(
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri; isSystemInitiated?: boolean },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		model: { model: string; reasoningEffort?: string } | undefined,
@@ -349,6 +355,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _onDidChangeTitle = this.add(new Emitter<string>());
 	public onDidChangeTitle = this._onDidChangeTitle.event;
+	private _onDidReceiveSystemNotification = this.add(new Emitter<ICopilotCLISystemNotification>());
+	public onDidReceiveSystemNotification = this._onDidReceiveSystemNotification.event;
 	private _stream?: vscode.ChatResponseStream;
 	private _toolInvocationToken?: ChatParticipantToolToken;
 	public get sdkSession() {
@@ -362,6 +370,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _lastUsedModel: string | undefined;
 	private _permissionLevel: string | undefined;
+	/**
+	 * True while we are inside `_handleRequestImplInner` for an
+	 * `isSystemInitiated` request (the SDK's auto-injected follow-up turn
+	 * triggered by a `system.notification`). The interactive confirmation
+	 * widget rendered by `handleShellPermission` does not surface in this
+	 * mode (no usable `toolInvocationToken` for system-initiated requests),
+	 * so we auto-approve shell permissions to avoid hanging the SDK turn.
+	 */
+	private _isInSystemInitiatedTurn = false;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
@@ -407,6 +424,112 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.sessionId = _sdkSession.sessionId;
 		this._missionControlApiClient = this.instantiationService.createInstance(MissionControlApiClient);
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
+
+		// [anthony] Session-lifetime wildcard trace so we can see every SDK event
+		// even after per-request listeners in _handleRequestImplInner are disposed.
+		this.add(toDisposable(this._sdkSession.on('*', (event: { type: string }) => {
+			this.logService.info(`[anthony] SDK event: type=${event.type} status=${this._status} session=${this.sessionId}`);
+		})));
+
+		// Forward SDK system notifications (async/detached shell completions,
+		// background agent completions, etc.) to consumers as a typed event.
+		// The chat sessions provider uses this to inject a system-initiated
+		// chat request via `vscode.chat.sendSystemInitiatedRequest` so the
+		// notification surfaces as a UI bubble and the SDK's auto-injected
+		// follow-up turn streams into a fresh chat response (issue #309290).
+		this.add(toDisposable(this._sdkSession.on('system.notification', (event: SystemNotificationEvent) => {
+			try {
+				this.logService.info(`[anthony] system.notification received: kind=${event?.data?.kind} status=${this._status} session=${this.sessionId}`);
+				// Skip forwarding when a user-typed turn is in flight — the SDK
+				// will fold the notification into the running turn and we avoid
+				// a wasteful round-trip plus an extra bubble. Chained
+				// system-initiated turns must still forward, otherwise the
+				// follow-up notification (e.g. shell B done while shell A's
+				// turn is still streaming) would be silently dropped.
+				if (this._status === ChatSessionStatus.InProgress && !this._isInSystemInitiatedTurn) {
+					this.logService.info(`[anthony] system.notification SKIPPED (user-typed turn in flight; SDK will fold inline) session=${this.sessionId}`);
+					return;
+				}
+
+				// Mark this session as being in a system-initiated turn for as long
+				// as the SDK is reacting to the notification. The SDK auto-fires
+				// its own follow-up turn from `Session.send()` *before* vscode's
+				// `sendSystemInitiatedRequest` round-trips back into our
+				// `_handleRequestImpl`, so the flag has to be set here for the
+				// auto-approve in the `permission.requested` listener to take effect
+				// on tools the SDK schedules during that turn.
+				//
+				// We deliberately do NOT clear this flag on `session.idle` — a single
+				// notification can drive multiple SDK turns (turn 1 reads shell
+				// output, turn 2 launches a chained async shell), each ending in
+				// `session.idle`. The flag is cleared in `handleRequest` when the
+				// next non-system-initiated (user-typed) request arrives.
+				this._isInSystemInitiatedTurn = true;
+				const notification = this._buildSystemNotification(event);
+				if (notification) {
+					this.logService.info(`[anthony] system.notification FORWARDING label="${notification.label}" message="${notification.message.slice(0, 80)}"`);
+					this._onDidReceiveSystemNotification.fire(notification);
+				} else {
+					this.logService.info(`[anthony] system.notification DROPPED (unhandled kind=${event?.data?.kind})`);
+				}
+			} catch (err) {
+				this.logService.error(err, `[CopilotCLISession] Failed to translate system.notification for session ${this.sessionId}`);
+			}
+		})));
+
+		// Session-lifetime auto-approve for system-initiated turns.
+		//
+		// The per-request `permission.requested` listener registered inside
+		// `_handleRequestImplInner` is torn down when that handler returns
+		// (e.g. when `_awaitNextSessionIdle` resolves). But a single
+		// `system.notification` can drive multiple SDK turns — turn 1 reads
+		// shell output, turn 2 launches a chained async shell that requests
+		// a `shell` permission. By the time turn 2's `permission.requested`
+		// fires, the per-request listener is already gone and the SDK hangs
+		// forever waiting for `respondToPermission`.
+		//
+		// To keep chained async-shell flows working we install a session-wide
+		// listener that auto-approves *only* while `_isInSystemInitiatedTurn`
+		// is true. The flag is set when a `system.notification` arrives and
+		// cleared in `handleRequest` when a real user-typed request follows.
+		this.add(toDisposable(this._sdkSession.on('permission.requested', (event) => {
+			if (!this._isInSystemInitiatedTurn) {
+				return; // let the per-request listener handle it
+			}
+			const permissionRequest = event.data.permissionRequest;
+			const requestId = event.data.requestId;
+			this.logService.info(`[anthony] session-wide permission auto-approved during system-initiated turn: kind=${permissionRequest.kind}`);
+			this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+		})));
+	}
+
+	private _buildSystemNotification(event: SystemNotificationEvent): ICopilotCLISystemNotification | undefined {
+		const data = event?.data;
+		const kind = data?.kind;
+		const message = data?.content;
+		if (!kind || typeof message !== 'string' || message.length === 0) {
+			return undefined;
+		}
+		const description = 'description' in kind ? kind.description : undefined;
+		const shellId = 'shellId' in kind ? kind.shellId : undefined;
+		let label: string | undefined;
+		switch (kind.type) {
+			case 'shell_completed':
+			case 'shell_detached_completed':
+				label = description
+					? l10n.t("`{0}` completed", description)
+					: shellId
+						? l10n.t("Shell `{0}` completed", shellId)
+						: l10n.t("Shell completed");
+				break;
+			case 'agent_completed':
+				label = l10n.t("Background agent completed");
+				break;
+			default:
+				// Skip event kinds we don't surface (agent_idle, new_inbox_message, etc.)
+				return undefined;
+		}
+		return { message, label };
 	}
 
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {
@@ -452,7 +575,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * When the session is idle, a normal full request is started instead.
 	 */
 	public async handleRequest(
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri; isSystemInitiated?: boolean },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		model: { model: string; reasoningEffort?: string } | undefined,
@@ -473,10 +596,25 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const handled = this._requestLogger.captureInvocation(capturingToken, async () => {
 			await this.updateModel(model?.model, model?.reasoningEffort, authInfo, token);
 
+			this.logService.info(`[anthony] handleRequest entry: id=${request.id} isSystemInitiated=${!!request.isSystemInitiated} status=${this._status} session=${this.sessionId}`);
+			if (!request.isSystemInitiated && this._isInSystemInitiatedTurn) {
+				// A real user-typed request closes the system-initiated window.
+				this.logService.info(`[anthony] handleRequest: clearing _isInSystemInitiatedTurn (user-initiated request arrived) session=${this.sessionId}`);
+				this._isInSystemInitiatedTurn = false;
+			}
+			if (request.isSystemInitiated) {
+				// System-initiated requests are triggered by `system.notification`
+				// events. The SDK has already received the notification and queued
+				// its own follow-up turn, so we must NOT call `_sdkSession.send()`
+				// again. Just attach our event listeners to a fresh chat response
+				// and stream the in-flight follow-up assistant turn into it.
+				return this._handleRequestImpl(request, input, attachments, model, token, /*isSystemInitiated*/ true);
+			}
+
 			if (isAlreadyBusyWithAnotherRequest) {
 				return this._handleRequestSteering(input, attachments, model, previousRequestSnapshot, token);
 			} else {
-				return this._handleRequestImpl(request, input, attachments, model, token);
+				return this._handleRequestImpl(request, input, attachments, model, token, /*isSystemInitiated*/ false);
 			}
 		});
 
@@ -537,7 +675,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		model: { model: string; reasoningEffort?: string } | undefined,
-		token: vscode.CancellationToken
+		token: vscode.CancellationToken,
+		isSystemInitiated: boolean
 	): Promise<void> {
 		const modelId = model?.model;
 		const promptLabel = getPromptLabel(input);
@@ -572,7 +711,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					this._updateSdkTraceContext(traceparent);
 				}
 				try {
-					return await this._handleRequestImplInner(span, request, input, attachments, modelId, token);
+					return await this._handleRequestImplInner(span, request, input, attachments, modelId, token, isSystemInitiated);
 				} finally {
 					if (traceCtx && this._bridgeProcessor) {
 						this._bridgeProcessor.unregisterTrace(traceCtx.traceId);
@@ -592,7 +731,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		modelId: string | undefined,
-		token: vscode.CancellationToken
+		token: vscode.CancellationToken,
+		isSystemInitiated: boolean
 	): Promise<void> {
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
@@ -686,6 +826,27 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
+					return;
+				}
+
+				// During a system-initiated follow-up turn (triggered by a shell
+				// completion `system.notification`), auto-approve `shell`
+				// permissions to keep chained async-shell flows working.
+				//
+				// The actual gap is: when our extension calls
+				// `toolsService.invokeTool('CoreTerminalConfirmationTool',
+				// { toolInvocationToken })` during a system-initiated chat
+				// request, the inline confirmation widget doesn't render in
+				// the response (or doesn't take user input back). The
+				// `invokeTool` call never resolves, so `respondToPermission`
+				// is never called and the SDK turn hangs forever.
+				//
+				// TODO: Until the chat platform supports interactive permission
+				// widgets inside system-initiated requests, we auto-approve
+				// here so the chained scenario from issue #309290 works.
+				if (this._isInSystemInitiatedTurn) {
+					// Session-wide listener handles auto-approve for system-initiated
+					// turns; don't double-respond here.
 					return;
 				}
 
@@ -1016,8 +1177,26 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			})));
 
 			if (!token.isCancellationRequested) {
-				await this.sendRequestInternal(input, attachments, false, logStartTime);
+				if (isSystemInitiated) {
+					// The SDK has already enqueued the system notification and is
+					// running its own follow-up turn. We just wait for that turn
+					// to complete (next `session.idle`) so the listeners above
+					// can stream `assistant.message_delta` / `tool.execution_*`
+					// events into this fresh chat response.
+					this.logService.info(`[anthony] system-initiated handler: awaiting next session.idle for session ${this.sessionId}`);
+					// `_isInSystemInitiatedTurn` is set in the `system.notification`
+					// listener (which fires before this handler is even invoked) and
+					// cleared in `handleRequest` when the next user-typed request arrives.
+					// We do NOT touch it here because a single notification can drive
+					// multiple SDK turns and clearing on the first `session.idle` would
+					// break auto-approve for permissions raised by later turns.
+					await this._awaitNextSessionIdle(token);
+					this.logService.info(`[anthony] system-initiated handler: session.idle resolved for session ${this.sessionId}`);
+				} else {
+					await this.sendRequestInternal(input, attachments, false, logStartTime);
+				}
 			}
+
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
@@ -1118,6 +1297,43 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this.logService.error(error, '[CopilotCLISession] Failed to update artifacts');
 			});
 	}
+	/**
+	 * Wait for the SDK to finish all turns triggered by a system notification.
+	 *
+	 * Used when handling a system-initiated request: the SDK has already
+	 * received a `system.notification` and will run one or more follow-up
+	 * turns (the model may emit further tool calls — including new async
+	 * shell launches — that require additional turns before the SDK is
+	 * actually done). We must keep our chat response open until the SDK
+	 * itself signals it has nothing left to process, which is `session.idle`.
+	 *
+	 * Waiting on `assistant.turn_end` is incorrect — the SDK emits one
+	 * `turn_end` per turn and may immediately start another, so resolving
+	 * on the first `turn_end` would let `_isInSystemInitiatedTurn` clear
+	 * before later in-flight tool permissions fire and would close the
+	 * response stream prematurely.
+	 *
+	 * Resolves on `session.idle`, on cancellation, or after a safety timeout.
+	 */
+	private async _awaitNextSessionIdle(token: vscode.CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const SAFETY_TIMEOUT_MS = 5 * 60 * 1000;
+		const disposables = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				const off = this._sdkSession.on('session.idle', () => resolve());
+				disposables.add(toDisposable(off));
+				disposables.add(token.onCancellationRequested(() => resolve()));
+				const timer = setTimeout(() => resolve(), SAFETY_TIMEOUT_MS);
+				disposables.add(toDisposable(() => clearTimeout(timer)));
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}
+
 	/**
 	 * Sends a request to the underlying SDK session.
 	 *

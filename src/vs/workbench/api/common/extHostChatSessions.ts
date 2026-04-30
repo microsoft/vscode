@@ -16,7 +16,7 @@ import * as objects from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
@@ -641,6 +641,23 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			disposables.dispose();
 			this._proxy.$unregisterChatSessionContentProvider(handle);
 		});
+	}
+
+	sendSystemInitiatedRequest(extension: IExtensionDescription, sessionResource: vscode.Uri, prompt: string, options: vscode.SystemInitiatedChatRequestOptions): Promise<void> {
+		let ownedHandle: number | undefined;
+		for (const [handle, entry] of this._chatSessionContentProviders) {
+			if (entry.chatSessionScheme === sessionResource.scheme && ExtensionIdentifier.equals(entry.extension.identifier, extension.identifier)) {
+				ownedHandle = handle;
+				break;
+			}
+		}
+		if (ownedHandle === undefined) {
+			return Promise.reject(new Error(`Extension '${extension.identifier.value}' has not registered a chat session content provider for scheme '${sessionResource.scheme}'`));
+		}
+		if (!options || typeof options.systemInitiatedLabel !== 'string' || options.systemInitiatedLabel.length === 0) {
+			return Promise.reject(new Error(`sendSystemInitiatedRequest: 'systemInitiatedLabel' is required`));
+		}
+		return this._proxy.$sendSystemInitiatedRequest(ownedHandle, sessionResource, prompt, { systemInitiatedLabel: options.systemInitiatedLabel });
 	}
 
 	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<IChatSessionDto> {

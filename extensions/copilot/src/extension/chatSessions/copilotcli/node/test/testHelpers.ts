@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import type { CancellationToken, Uri } from 'vscode';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../../util/vs/base/common/lifecycle';
@@ -44,6 +44,9 @@ export class MockCliSdkSession {
 	}
 	emit(event: string, args: { content: string | undefined }): void {
 		this.emittedEvents.push({ event, content: args.content });
+	}
+	on(_event: string, _handler: (payload: SessionEvent) => void): () => void {
+		return () => { /* no-op */ };
 	}
 	clearCustomAgent() {
 		return;

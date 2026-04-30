@@ -600,6 +600,20 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		@IChatFolderMruService private readonly folderMruService: IChatFolderMruService,
 	) {
 		super();
+
+		// Forward SDK system notifications (async shell completed, etc.) into
+		// the chat panel as a system-initiated request so the user sees a UI
+		// chip + fresh response bubble (issue #309290).
+		this._register(this.sessionService.onDidReceiveSystemNotification(({ sessionId, message, label }) => {
+			const sessionResource = SessionIdForCLI.getResource(sessionId);
+			this.logService.info(`[anthony] V1 sendSystemInitiatedRequest -> session=${sessionId} label="${label}"`);
+			vscode.chat.sendSystemInitiatedRequest(sessionResource, message, { systemInitiatedLabel: label })
+				.then(
+					() => this.logService.info(`[anthony] V1 sendSystemInitiatedRequest RESOLVED for session=${sessionId}`),
+					err => this.logService.error(err, `[anthony] V1 sendSystemInitiatedRequest FAILED for session ${sessionId}`),
+				);
+		}));
+
 		const originalRepos = this.getRepositoryOptionItems().length;
 		this._register(this.gitService.onDidFinishInitialization(() => {
 			if (originalRepos !== this.getRepositoryOptionItems().length) {

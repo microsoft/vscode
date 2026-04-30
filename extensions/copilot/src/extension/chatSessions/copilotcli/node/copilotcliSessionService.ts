@@ -26,7 +26,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError, SequencerBy
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
-import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -275,6 +275,14 @@ export interface ICopilotCLISessionService {
 	onDidChangeSession: Event<ICopilotCLISessionItem>;
 	onDidCreateSession: Event<ICopilotCLISessionItem>;
 
+	/**
+	 * Fires when an SDK session emits a system notification (e.g. an async
+	 * shell completes, a background agent finishes). Used by the chat sessions
+	 * provider to inject a system-initiated chat request so the notification
+	 * surfaces as a UI bubble (issue #309290).
+	 */
+	onDidReceiveSystemNotification: Event<{ readonly sessionId: string; readonly message: string; readonly label: string }>;
+
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined;
 
 	// Session metadata querying
@@ -306,6 +314,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _sessionManager: Lazy<Promise<internal.LocalSessionManager>>;
 	private _sessionWrappers = new DisposableMap<string, RefCountedSession>();
+	private _keepAliveDisposables = new DisposableMap<string, IDisposable>();
 	private readonly _partialSessionHistories = new Map<string, readonly (ChatRequestTurn2 | ChatResponseTurn2)[]>();
 
 
@@ -319,6 +328,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	public readonly onDidChangeSession = this._onDidChangeSession.event;
 	private readonly _onDidCreateSession = this._register(new Emitter<ICopilotCLISessionItem>());
 	public readonly onDidCreateSession = this._onDidCreateSession.event;
+
+	private readonly _onDidReceiveSystemNotification = this._register(new Emitter<{ readonly sessionId: string; readonly message: string; readonly label: string }>());
+	public readonly onDidReceiveSystemNotification = this._onDidReceiveSystemNotification.event;
 
 	private readonly _onDidCloseSession = this._register(new Emitter<string>());
 
@@ -1257,8 +1269,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			this.triggerOnDidChangeSessionItem(sdkSession.sessionId, 'statusChange');
 			this._onDidChangeSessions.fire();
 		}));
+		session.add(session.onDidReceiveSystemNotification(notification => {
+			this._onDidReceiveSystemNotification.fire({ sessionId: sdkSession.sessionId, ...notification });
+		}));
 		session.add(toDisposable(() => {
 			this._sessionWrappers.deleteAndLeak(sdkSession.sessionId);
+			this._keepAliveDisposables.deleteAndDispose(sdkSession.sessionId);
 			this.sessionMutexForGetSession.delete(sdkSession.sessionId);
 			(async () => {
 				if (sdkSession.isAbortable()) {
@@ -1275,6 +1291,47 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 		const refCountedSession = new RefCountedSession(session);
 		this._sessionWrappers.set(sdkSession.sessionId, refCountedSession);
+
+		// Keep the `RefCountedSession` alive for a post-turn window so the SDK
+		// session (and its shell-completion polling loops) survives past
+		// `assistant.turn_end`. Without this, the per-request `DisposableStore`
+		// releases its single ref and the SDK session is closed before any
+		// `system.notification` for an async/detached shell completion can
+		// fire, so no fresh chat bubble appears (issue #309290).
+		//
+		// Note: we can't rely on `getBackgroundTasks()` here because the public
+		// task list only includes *detached* shells and background agents, not
+		// plain `mode: "async"` shells (they're tracked internally by
+		// `shellContext.currentExecutions`). A status-based window covers every
+		// async-completion path the SDK emits.
+		const KEEP_ALIVE_TIMEOUT_MS = 5 * 60 * 1000;
+		let hasKeepAliveRef = false;
+		const releaseKeepAlive = () => {
+			if (hasKeepAliveRef) {
+				hasKeepAliveRef = false;
+				refCountedSession.release();
+			}
+		};
+		const keepAliveTimer = new MutableDisposable<IDisposable>();
+		const keepAliveDisposable = new DisposableStore();
+		keepAliveDisposable.add(keepAliveTimer);
+		keepAliveDisposable.add(toDisposable(releaseKeepAlive));
+		this._keepAliveDisposables.set(sdkSession.sessionId, keepAliveDisposable);
+		session.add(session.onDidChangeStatus(() => {
+			const status = session.status;
+			if (status === undefined || status === ChatSessionStatus.Completed || status === ChatSessionStatus.Failed) {
+				if (!hasKeepAliveRef) {
+					refCountedSession.acquire();
+					hasKeepAliveRef = true;
+				}
+				keepAliveTimer.value = disposableTimeout(releaseKeepAlive, KEEP_ALIVE_TIMEOUT_MS);
+			} else {
+				// Session is busy again (new turn started); hold the ref and
+				// cancel the release timer.
+				keepAliveTimer.clear();
+			}
+		}));
+
 		return refCountedSession;
 	}
 
@@ -1282,6 +1339,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionLabels.delete(sessionId);
 		this._partialSessionHistories.delete(sessionId);
 		this._sessionWorkingDirectories.delete(sessionId);
+		// Release the post-turn keep-alive ref (if any) before disposing the
+		// session wrapper, so the underlying refcount can actually reach zero
+		// and the session disposes synchronously instead of being held alive
+		// by a pending keep-alive timer for up to KEEP_ALIVE_TIMEOUT_MS.
+		this._keepAliveDisposables.deleteAndDispose(sessionId);
 		try {
 			{
 				const session = this._sessionWrappers.get(sessionId);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions } from '@github/copilot/sdk';
+import type { BackgroundTask, Session, SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatParticipantToolToken } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
@@ -151,6 +151,7 @@ class MockSdkSession {
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
 	async getEvents() { return []; }
 	getPlanPath(): string | null { return null; }
+	getBackgroundTasks(): BackgroundTask[] { return []; }
 
 	usage = {
 		getMetrics: async () => ({
