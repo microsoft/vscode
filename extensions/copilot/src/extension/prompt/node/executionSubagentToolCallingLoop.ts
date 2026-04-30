@@ -19,6 +19,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { ITerminalService } from '../../../platform/terminal/common/terminalService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart, ChatResponseReferencePart, LanguageModelToolResult2 } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
@@ -29,7 +30,6 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
-import { ITerminalService } from '../../../platform/terminal/common/terminalService';
 
 export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -114,7 +114,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		const shellType = this.terminalService.terminalShellType;
 
 		if (useAgenticProxy) {
-			// Our custom models are not trained for powershell yet. Fall back to main agent endpoint.
+			// Our custom models are not trained for PowerShell yet. Fall back to main agent endpoint.
 			if (shellType === 'powershell') {
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
