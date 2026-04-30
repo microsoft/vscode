@@ -134,6 +134,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'doubleClick',
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 	},
+	[TerminalSettingId.TabsAllowAgentCliTitle]: {
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		type: 'boolean',
+		default: true,
+	},
 	[TerminalSettingId.MacOptionIsMeta]: {
 		description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 		type: 'boolean',
@@ -625,7 +630,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to skip the wait entirely. The default value {1} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to {0} if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. The default value {0} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to a large value if your shell starts very slowly.", '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
@@ -712,6 +717,47 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
+		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
+		migrateFn: (value: unknown, valueAccessor) => {
+			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
+			// for new settings such as `chat.agent.sandbox.enabled` and
+			// `chat.agent.sandbox.fileSystem.mac`. As a result, inspecting the
+			// deprecated key may return an object representing the namespace tree
+			// (e.g. `{ fileSystem: { mac: {...} } }`) even when the user never set
+			// the original boolean setting. Only migrate when the value is actually
+			// the original boolean type and skip writing back undefined to avoid
+			// clobbering the new sub-settings.
+			if (typeof value !== 'boolean') {
+				return [];
+			}
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? 'on' : 'off' }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
 		key: TerminalSettingId.EnableBell,
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
@@ -722,25 +768,6 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
-			return configurationKeyValuePairs;
-		}
-	}]);
-
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
-		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[]; allowTrustedDomains?: boolean }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
-			}
-			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
-			}
-			if (value?.allowTrustedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains, { value: value.allowTrustedDomains }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}]);

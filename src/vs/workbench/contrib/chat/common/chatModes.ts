@@ -20,8 +20,8 @@ import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
-import { Target } from './promptSyntax/promptTypes.js';
+import { IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { PromptFileSource, Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -131,7 +131,9 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						target: cachedMode.target ?? Target.Undefined,
 						visibility,
 						agents: cachedMode.agents,
-						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
+						sessionTypes: cachedMode.sessionTypes,
+						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local },
+						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
@@ -161,7 +163,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
-				if (!customMode.visibility.userInvocable) {
+				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
@@ -258,6 +260,7 @@ export interface IChatModeData {
 	readonly target?: Target;
 	readonly visibility?: ICustomAgentVisibility;
 	readonly agents?: readonly string[];
+	readonly sessionTypes?: readonly string[];
 	readonly infer?: boolean; // deprecated, only available in old cached data
 }
 
@@ -279,6 +282,7 @@ export interface IChatMode {
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IVariableReference {
@@ -311,7 +315,8 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
 		(mode.target === undefined || isTarget(mode.target)) &&
 		(mode.visibility === undefined || isCustomAgentVisibility(mode.visibility)) &&
-		(mode.agents === undefined || Array.isArray(mode.agents));
+		(mode.agents === undefined || Array.isArray(mode.agents)) &&
+		(mode.sessionTypes === undefined || Array.isArray(mode.sessionTypes));
 }
 
 export class CustomChatMode implements IChatMode {
@@ -327,6 +332,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
+	private _sessionTypes: readonly string[] | undefined;
 
 	public readonly id: string;
 
@@ -390,6 +396,10 @@ export class CustomChatMode implements IChatMode {
 		return this._agentsObservable;
 	}
 
+	get sessionTypes(): readonly string[] | undefined {
+		return this._sessionTypes;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -408,6 +418,7 @@ export class CustomChatMode implements IChatMode {
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
+		this._sessionTypes = customChatMode.sessionTypes;
 	}
 
 	/**
@@ -427,6 +438,7 @@ export class CustomChatMode implements IChatMode {
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
+			this._sessionTypes = newData.sessionTypes;
 		});
 	}
 
@@ -445,14 +457,15 @@ export class CustomChatMode implements IChatMode {
 			source: serializeChatModeSource(this._source),
 			target: this.target.get(),
 			visibility: this.visibility.get(),
-			agents: this.agents.get()
+			agents: this.agents.get(),
+			sessionTypes: this.sessionTypes,
 		};
 	}
 }
 
 type IChatModeSourceData =
-	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.internal }
+	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -466,7 +479,7 @@ function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (data.storage === PromptsStorage.plugin) {
 		return isUriComponents(data.pluginUri);
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.internal;
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {
@@ -474,7 +487,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 		return undefined;
 	}
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
 	}
 	if (source.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
@@ -487,13 +500,10 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
-	}
-	if (data.storage === PromptsStorage.internal) {
-		return { storage: PromptsStorage.internal };
 	}
 	return { storage: data.storage };
 }

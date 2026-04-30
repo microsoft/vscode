@@ -127,6 +127,14 @@ declare module 'vscode' {
 		 * Whether any hooks are enabled for this request.
 		 */
 		readonly hasHooksEnabled: boolean;
+
+		/**
+		 * When true, this request was initiated by the system (e.g. a terminal
+		 * command completion notification) rather than by the user typing a
+		 * message. Extensions can use this to render the prompt differently
+		 * and skip billing.
+		 */
+		readonly isSystemInitiated?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -248,6 +256,15 @@ declare module 'vscode' {
 
 		isRateLimited?: boolean;
 
+		/**
+		 * If true, the error is an expected operational condition (e.g. user-actionable
+		 * configuration, network connectivity, missing dependency) and should not be
+		 * logged as a `chatAgentError` telemetry event. The error is still surfaced to
+		 * the user. Throwing an `Error` whose `name` is `'ChatExpectedError'` from a
+		 * chat participant handler will set this flag automatically.
+		 */
+		isExpectedError?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;
@@ -286,6 +303,17 @@ declare module 'vscode' {
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
+		/**
+		 * W3C trace context `traceparent` header value identifying the active distributed
+		 * tracing span. When provided to a tool implementation backed by an MCP server, this
+		 * value is forwarded as `_meta.traceparent` on the JSON-RPC `tools/call` request so
+		 * downstream servers can correlate their spans (MCP SEP-414).
+		 */
+		traceparent?: string;
+		/**
+		 * Optional W3C trace context `tracestate` header value paired with `traceparent`.
+		 */
+		tracestate?: string;
 		/**
 		 * Pre-tool-use hook result, if the hook was already executed by the caller.
 		 * When provided, the tools service will skip executing its own preToolUse hook
@@ -415,4 +443,17 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	export interface LanguageModelToolInformation {
+		/**
+		 * The full reference name of this tool as used in agent definition files.
+		 *
+		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
+		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
+		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
+		 *
+		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
+		 */
+		readonly fullReferenceName?: string;
+	}
 }

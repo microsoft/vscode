@@ -7,12 +7,28 @@
 import type * as playwright from 'playwright-core';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
+import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+
+type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
 declare module 'playwright-core' {
 	interface Page {
-		// A hidden Playwright method that returns an AI-friendly snapshot of the page.
-		_snapshotForAI(options?: { track?: string }): Promise<{ full: string; incremental?: string }>;
+		// We defined this here to be able to use the unofficial `_track` option
+		ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
+	}
+}
+
+/**
+ * Thrown when a dialog (alert, confirm, prompt) opens while a page action is
+ * running. The caller should defer the underlying promise and let the agent
+ * handle the dialog before retrying.
+ */
+export class DialogInterruptedError extends Error {
+	constructor() {
+		super('Action was interrupted by a dialog');
+		this.name = 'DialogInterruptedError';
 	}
 }
 
@@ -37,7 +53,8 @@ export class PlaywrightTab {
 		 * @deprecated prefer accessing the page via safeRunAgainstPage.
 		 * Only use this directly if you are sure it cannot be blocked by dialogs.
 		 */
-		private readonly page: playwright.Page
+		private readonly page: playwright.Page,
+		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		page.on('console', event => this._handleConsoleMessage(event))
 			.on('pageerror', error => this._handlePageError(error))
@@ -116,6 +133,23 @@ export class PlaywrightTab {
 	}
 
 	/**
+	 * Returns a blocked-by-policy error message if the current page URL is
+	 * denied by the network filter, or `undefined` if the URL is allowed.
+	 */
+	private _getBlockedURLErrorMessage(): string | undefined {
+		const url = this.page.url();
+		if (!url || url === 'about:blank') {
+			return undefined;
+		}
+		let uri: URI | undefined;
+		try { uri = URI.parse(url); } catch { }
+		if (uri && !this.agentNetworkFilterService.isUriAllowed(uri)) {
+			return this.agentNetworkFilterService.formatError(uri);
+		}
+		return undefined;
+	}
+
+	/**
 	 * Run a callback against the page and wait for it to complete.
 	 *
 	 * Because dialogs pause the page, execution races against any dialog that opens -- if a dialog
@@ -127,6 +161,12 @@ export class PlaywrightTab {
 	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
 		if (this._dialog) {
 			throw new Error(`Cannot perform action while a dialog is open`);
+		}
+
+		// Block agent actions when the current page URL is on the deny list.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			throw new Error(blockedError);
 		}
 
 		let actionDidComplete = false;
@@ -152,7 +192,7 @@ export class PlaywrightTab {
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
 			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
-				throw new Error('Action was interrupted by a dialog');
+				throw new DialogInterruptedError();
 			}
 			return result!;
 		});
@@ -161,11 +201,19 @@ export class PlaywrightTab {
 	async getSummary(full = this._needsFullSnapshot): Promise<string> {
 		await this._initialized;
 
+		// When the current page URL is blocked by network policy, return only a
+		// policy error — do not expose title, URL, console logs, or snapshot to
+		// avoid prompt-injection via blocked content.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			return blockedError;
+		}
+
 		if (full && this._needsFullSnapshot) {
 			this._needsFullSnapshot = false;
 		}
 
-		const snapshotFromPage = await this.safeRunAgainstPage((page) => page._snapshotForAI({ track: 'response' })).catch(() => {
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => this.getAiSnapshot(page, full)).catch(() => {
 			this._needsFullSnapshot = true;
 			return undefined;
 		});
@@ -174,7 +222,7 @@ export class PlaywrightTab {
 		const logs = this._logs;
 		this._logs = [];
 
-		const snapshot = (full ? snapshotFromPage?.full : snapshotFromPage?.incremental ?? snapshotFromPage?.full)?.trim() ?? '';
+		const snapshot = snapshotFromPage?.trim() ?? '';
 
 		return [
 			...(title ? [`Page Title: ${title}`] : []),
@@ -185,8 +233,16 @@ export class PlaywrightTab {
 				`Recent events:`,
 				...logs.map(log => `- [${new Date(log.time).toISOString()}] (${log.type}) ${log.description}`)
 			] : []),
-			...(snapshot ? ['Snapshot:', snapshot] : [])
+			`Snapshot: ${snapshotFromPage !== undefined ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
+	}
+
+	private getAiSnapshot(page: playwright.Page, full: boolean): Promise<string> {
+		const options: IAiAriaSnapshotOptions = { mode: 'ai' };
+		if (!full) {
+			options._track = 'response';
+		}
+		return page.ariaSnapshot(options);
 	}
 
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
@@ -216,8 +272,10 @@ export class PlaywrightTab {
 			if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
 			else { promises.push(request.response().catch(() => { })); }
 		}
-		const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
-		await Promise.race([Promise.all(promises), timeout]);
+		await raceCancellablePromises<unknown>([
+			Promise.all(promises),
+			timeout(5000) // Don't wait indefinitely for requests to finish
+		]);
 
 		return result;
 	}

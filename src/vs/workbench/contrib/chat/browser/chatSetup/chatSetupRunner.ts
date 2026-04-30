@@ -37,7 +37,6 @@ const defaultChat = {
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
@@ -80,7 +79,7 @@ export class ChatSetup {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -94,7 +93,7 @@ export class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
@@ -111,7 +110,9 @@ export class ChatSetup {
 		}
 
 		let setupStrategy: ChatSetupStrategy;
-		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
+		if (options?.setupStrategy !== undefined) {
+			setupStrategy = options.setupStrategy; // caller provided a specific strategy, skip dialog
+		} else if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
 		} else if (options?.forceAnonymous === ChatSetupAnonymous.EnabledWithoutDialog) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // anonymous setup without a dialog
@@ -155,6 +156,10 @@ export class ChatSetup {
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 			success = false;
+		}
+
+		if (success) {
+			this.context.update({ completed: true });
 		}
 
 		return { success, dialogSkipped };
@@ -265,6 +270,5 @@ export class ChatSetup {
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }

@@ -4,47 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
+import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
-import type { ICommandMap } from '../common/state/protocol/messages.js';
-import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
-import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
+import { AgentSession, type IAgentService } from '../common/agentService.js';
+import type { CommandMap } from '../common/state/protocol/messages.js';
+import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
+	AHP_AUTH_REQUIRED,
+	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
+	JsonRpcRequest,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	JSON_RPC_INTERNAL_ERROR,
+	JsonRpcErrorCodes,
 	ProtocolError,
-	type IAhpServerNotification,
-	type IBrowseDirectoryResult,
-	type ICreateSessionParams,
-	type IFetchContentResult,
-	type IInitializeParams,
-	type IJsonRpcResponse,
-	type IReconnectParams,
+	type AhpServerNotification,
+	type InitializeParams,
+	type JsonRpcResponse,
+	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
 
+const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
 /** Build a JSON-RPC success response suitable for transport.send(). */
-function jsonRpcSuccess(id: number, result: unknown): IJsonRpcResponse {
+function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, result };
 }
 
 /** Build a JSON-RPC error response suitable for transport.send(). */
-function jsonRpcError(id: number, code: number, message: string, data?: unknown): IJsonRpcResponse {
+function jsonRpcError(id: number, code: number, message: string, data?: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
 }
 
 /** Build a JSON-RPC error response from an unknown thrown value, preserving {@link ProtocolError} fields. */
-function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
+function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	if (err instanceof ProtocolError) {
 		return jsonRpcError(id, err.code, err.message, err.data);
 	}
@@ -56,7 +63,7 @@ function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
  */
-type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect' | 'authenticate'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -64,7 +71,7 @@ type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect' | 'au
  * result. The compiler will error if a handler returns the wrong shape.
  */
 type RequestHandlerMap = {
-	[M in RequestMethod]: (client: IConnectedClient, params: ICommandMap[M]['params']) => Promise<ICommandMap[M]['result']>;
+	[M in RequestMethod]: (client: IConnectedClient, params: CommandMap[M]['params']) => Promise<CommandMap[M]['result']>;
 };
 
 /**
@@ -79,14 +86,23 @@ interface IConnectedClient {
 }
 
 /**
+ * Configuration for protocol-level concerns outside of IAgentService.
+ */
+export interface IProtocolServerConfig {
+	/** Default directory returned to clients during the initialize handshake. */
+	readonly defaultDirectory?: string;
+}
+
+/**
  * Server-side handler that manages protocol connections, routes JSON-RPC
- * messages to the state manager, and broadcasts actions/notifications
+ * messages to the agent service, and broadcasts actions/notifications
  * to subscribed clients.
  */
 export class ProtocolServerHandler extends Disposable {
 
 	private readonly _clients = new Map<string, IConnectedClient>();
-	private readonly _replayBuffer: IActionEnvelope[] = [];
+	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private readonly _clientToolCallDisconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -94,9 +110,11 @@ export class ProtocolServerHandler extends Disposable {
 	readonly onDidChangeConnectionCount = this._onDidChangeConnectionCount.event;
 
 	constructor(
-		private readonly _stateManager: SessionStateManager,
+		private readonly _agentService: IAgentService,
+		private readonly _stateManager: AgentHostStateManager,
 		private readonly _server: IProtocolServer,
-		private readonly _sideEffectHandler: IProtocolSideEffectHandler,
+		private readonly _config: IProtocolServerConfig,
+		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -166,21 +184,32 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const origin = { clientId: client.clientId, clientSeq: msg.params.clientSeq };
-							const action = msg.params.action as ISessionAction;
-							this._stateManager.dispatchClientAction(action, origin);
-							this._sideEffectHandler.handleAction(action);
+							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
+							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+							}
 						}
 						break;
 				}
+			} else if (isJsonRpcResponse(msg)) {
+				const pending = this._pendingReverseRequests.get(msg.id);
+				if (pending) {
+					this._pendingReverseRequests.delete(msg.id);
+					if (hasKey(msg, { error: true })) {
+						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+					} else {
+						pending.resolve(msg.result);
+					}
+				}
 			}
-			// Responses from the client (if any) are ignored on the server side.
 		}));
 
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
-				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
+				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
 				this._clients.delete(client.clientId);
+				this._rejectPendingReverseRequests(client.clientId);
+				this._handleClientDisconnected(client.clientId);
 				this._onDidChangeConnectionCount.fire(this._clients.size);
 			}
 			disposables.dispose();
@@ -192,7 +221,7 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Handshake handlers ----------------------------------------------------
 
 	private _handleInitialize(
-		params: IInitializeParams,
+		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
@@ -215,6 +244,15 @@ export class ProtocolServerHandler extends Disposable {
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
+		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
+			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
+		}));
+
+
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
 			for (const uri of params.initialSubscriptions) {
@@ -222,6 +260,7 @@ export class ProtocolServerHandler extends Disposable {
 				if (snapshot) {
 					snapshots.push(snapshot);
 					client.subscriptions.add(uri.toString());
+					this._clearClientToolCallDisconnectTimeout(params.clientId, uri.toString());
 				}
 			}
 		}
@@ -232,13 +271,13 @@ export class ProtocolServerHandler extends Disposable {
 				protocolVersion: PROTOCOL_VERSION,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
-				defaultDirectory: this._sideEffectHandler.getDefaultDirectory?.(),
+				defaultDirectory: this._config.defaultDirectory,
 			},
 		};
 	}
 
 	private _handleReconnect(
-		params: IReconnectParams,
+		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
@@ -258,9 +297,10 @@ export class ProtocolServerHandler extends Disposable {
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		if (canReplay) {
-			const actions: IActionEnvelope[] = [];
+			const actions: ActionEnvelope[] = [];
 			for (const sub of params.subscriptions) {
 				client.subscriptions.add(sub.toString());
+				this._clearClientToolCallDisconnectTimeout(params.clientId, sub.toString());
 			}
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
@@ -277,9 +317,105 @@ export class ProtocolServerHandler extends Disposable {
 				if (snapshot) {
 					snapshots.push(snapshot);
 					client.subscriptions.add(sub);
+					this._clearClientToolCallDisconnectTimeout(params.clientId, sub);
 				}
 			}
 			return { client, response: { type: 'snapshot', snapshots } };
+		}
+	}
+
+	private _handleClientDisconnected(clientId: string): void {
+		for (const session of this._stateManager.getSessionUris()) {
+			const state = this._stateManager.getSessionState(session);
+			const ownsPendingToolCall = state ? this._hasPendingClientToolCall(state, clientId) : false;
+			if (state?.activeClient?.clientId === clientId) {
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionActiveClientChanged,
+					session,
+					activeClient: null,
+				});
+			}
+			if (state?.activeClient?.clientId === clientId || ownsPendingToolCall) {
+				this._startClientToolCallDisconnectTimeout(clientId, session);
+			}
+		}
+	}
+
+	private _hasPendingClientToolCall(state: ReturnType<AgentHostStateManager['getSessionState']>, clientId: string): boolean {
+		const activeTurn = state?.activeTurn;
+		if (!activeTurn) {
+			return false;
+		}
+		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
+			&& part.toolCall.toolClientId === clientId
+			&& (part.toolCall.status === ToolCallStatus.Streaming || part.toolCall.status === ToolCallStatus.Running || part.toolCall.status === ToolCallStatus.PendingConfirmation));
+	}
+
+	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
+		const activeClient = state.activeClient;
+		return activeClient !== undefined
+			&& activeClient.clientId !== clientId
+			&& activeClient.tools.some(tool => tool.name === toolName);
+	}
+
+	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, session);
+		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
+		this._clientToolCallDisconnectTimeouts.set(key, setTimeout(() => {
+			this._clientToolCallDisconnectTimeouts.delete(key);
+			this._completeDisconnectedClientToolCalls(clientId, session);
+		}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+	}
+
+	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
+		const timeout = this._clientToolCallDisconnectTimeouts.get(key);
+		if (timeout) {
+			clearTimeout(timeout);
+			this._clientToolCallDisconnectTimeouts.delete(key);
+		}
+	}
+
+	private _clientToolCallDisconnectTimeoutKey(clientId: string, session: string): string {
+		return `${clientId}\n${session}`;
+	}
+
+	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const activeTurn = state?.activeTurn;
+		if (!activeTurn) {
+			return;
+		}
+		for (const part of activeTurn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				continue;
+			}
+			const toolCall = part.toolCall;
+			if (toolCall.toolClientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
+				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
+				if (toolCall.status === ToolCallStatus.Streaming) {
+					this._stateManager.dispatchServerAction({
+						type: ActionType.SessionToolCallReady,
+						session,
+						turnId: activeTurn.id,
+						toolCallId: toolCall.toolCallId,
+						invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					});
+				}
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionToolCallComplete,
+					session,
+					turnId: activeTurn.id,
+					toolCallId: toolCall.toolCallId,
+					result: {
+						success: false,
+						pastTenseMessage: `${toolCall.displayName} failed`,
+						...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
+						error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
+					},
+				});
+			}
 		}
 	}
 
@@ -291,31 +427,113 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
-			let snapshot = this._stateManager.getSnapshot(params.resource);
-			if (!snapshot) {
-				// Session may exist on the agent backend but not in the
-				// current state manager (e.g. from a previous server
-				// lifetime). Try to restore it.
-				await this._sideEffectHandler.handleRestoreSession(params.resource);
-				snapshot = this._stateManager.getSnapshot(params.resource);
-			}
-			if (!snapshot) {
+			try {
+				const snapshot = await this._agentService.subscribe(URI.parse(params.resource));
+				client.subscriptions.add(params.resource);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, params.resource);
+				return { snapshot };
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${params.resource}`);
 			}
-			client.subscriptions.add(params.resource);
-			return { snapshot };
 		},
 		createSession: async (_client, params) => {
-			await this._sideEffectHandler.handleCreateSession(params);
+			let createdSession: URI;
+			// Resolve fork turnId to a 0-based index using the source session's
+			// turn list in the state manager.
+			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
+			if (params.fork) {
+				const sourceState = this._stateManager.getSessionState(params.fork.session);
+				if (!sourceState) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
+				}
+				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
+				if (turnIndex < 0) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
+				}
+				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
+			}
+			// If the client eagerly claimed the active client role, validate
+			// the clientId matches the connection before forwarding.
+			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.activeClient.clientId must match the connection's clientId`);
+			}
+			try {
+				createdSession = await this._agentService.createSession({
+					provider: params.provider,
+					model: params.model,
+					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+					session: URI.parse(params.session),
+					fork,
+					config: params.config,
+					activeClient: params.activeClient,
+				});
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
+				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));
+			}
+			// Verify the provider honored the client-chosen session URI per the protocol contract
+			if (createdSession.toString() !== URI.parse(params.session).toString()) {
+				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.session}`);
+			}
 			return null;
 		},
 		disposeSession: async (_client, params) => {
-			this._sideEffectHandler.handleDisposeSession(params.session);
+			await this._agentService.disposeSession(URI.parse(params.session));
 			return null;
 		},
+		resourceWrite: async (_client, params) => {
+			return this._agentService.resourceWrite(params);
+		},
 		listSessions: async () => {
-			const items = await this._sideEffectHandler.handleListSessions();
+			const sessions = await this._agentService.listSessions();
+			const items = sessions.map(s => {
+				const provider = AgentSession.provider(s.session);
+				if (!provider) {
+					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+				}
+				// Encode isRead/isArchived as status bitmask flags
+				let status = s.status ?? SessionStatus.Idle;
+				if (s.isRead) {
+					status |= SessionStatus.IsRead;
+				}
+				if (s.isArchived) {
+					status |= SessionStatus.IsArchived;
+				}
+				return {
+					resource: s.session.toString(),
+					provider,
+					title: s.summary ?? 'Session',
+					status,
+					createdAt: s.startTime,
+					modifiedAt: s.modifiedTime,
+					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+					model: s.model,
+					workingDirectory: s.workingDirectory?.toString(),
+					diffs: s.diffs ? [...s.diffs] : undefined,
+				};
+			});
 			return { items };
+		},
+		resolveSessionConfig: async (_client, params) => {
+			return this._agentService.resolveSessionConfig({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+			});
+		},
+		sessionConfigCompletions: async (_client, params) => {
+			return this._agentService.sessionConfigCompletions({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+				property: params.property,
+				query: params.query,
+			});
 		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);
@@ -339,13 +557,73 @@ export class ProtocolServerHandler extends Disposable {
 				hasMore: startIndex > 0,
 			};
 		},
-		browseDirectory: async (_client, params) => {
-			return this._sideEffectHandler.handleBrowseDirectory(params.uri);
+		resourceList: async (_client, params) => {
+			return this._agentService.resourceList(URI.parse(params.uri));
 		},
-		fetchContent: async (_client, params) => {
-			return this._sideEffectHandler.handleFetchContent(params.uri);
+		resourceRead: async (_client, params) => {
+			return this._agentService.resourceRead(URI.parse(params.uri));
+		},
+		resourceCopy: async (_client, params) => {
+			return this._agentService.resourceCopy(params);
+		},
+		resourceDelete: async (_client, params) => {
+			return this._agentService.resourceDelete(params);
+		},
+		resourceMove: async (_client, params) => {
+			return this._agentService.resourceMove(params);
+		},
+		authenticate: async (_client, params) => {
+			const result = await this._agentService.authenticate(params);
+			if (!result.authenticated) {
+				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+			}
+			return {};
+		},
+		createTerminal: async (_client, params) => {
+			await this._agentService.createTerminal(params);
+			return null;
+		},
+		disposeTerminal: async (_client, params) => {
+			await this._agentService.disposeTerminal(URI.parse(params.terminal));
+			return null;
 		},
 	};
+
+
+	// ---- Reverse RPC (server → client requests) ----------------------------
+
+	private _reverseRequestId = 0;
+	private readonly _pendingReverseRequests = new Map<number, { clientId: string; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+
+	/**
+	 * Sends a JSON-RPC request to a connected client and waits for the response.
+	 * Used for reverse-RPC operations like reading client-side files.
+	 * Rejects if the client disconnects or the server is disposed.
+	 */
+	private _sendReverseRequest<T>(clientId: string, method: string, params: unknown): Promise<T> {
+		const client = this._clients.get(clientId);
+		if (!client) {
+			return Promise.reject(new Error(`Client ${clientId} is not connected`));
+		}
+		const id = ++this._reverseRequestId;
+		return new Promise<T>((resolve, reject) => {
+			this._pendingReverseRequests.set(id, { clientId, resolve: resolve as (value: unknown) => void, reject });
+			const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+			client.transport.send(request);
+		});
+	}
+
+	/**
+	 * Rejects and clears all pending reverse-RPC requests for a given client.
+	 */
+	private _rejectPendingReverseRequests(clientId: string): void {
+		for (const [id, pending] of this._pendingReverseRequests) {
+			if (pending.clientId === clientId) {
+				this._pendingReverseRequests.delete(id);
+				pending.reject(new Error(`Client ${clientId} disconnected`));
+			}
+		}
+	}
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
@@ -380,18 +658,10 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
 		switch (method) {
-			case 'getResourceMetadata':
-				return Promise.resolve(this._sideEffectHandler.handleGetResourceMetadata());
-			case 'authenticate':
-				return this._sideEffectHandler.handleAuthenticate(params as IAuthenticateParams);
-			case 'refreshModels':
-				return this._sideEffectHandler.handleRefreshModels?.() ?? Promise.resolve(null);
-			case 'listAgents':
-				return Promise.resolve(this._sideEffectHandler.handleListAgents?.() ?? []);
 			case 'shutdown':
-				return this._sideEffectHandler.handleShutdown?.() ?? Promise.resolve(null);
+				return this._agentService.shutdown();
 			default:
 				return undefined;
 		}
@@ -399,9 +669,9 @@ export class ProtocolServerHandler extends Disposable {
 
 	// ---- Broadcasting -------------------------------------------------------
 
-	private _broadcastAction(envelope: IActionEnvelope): void {
+	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
-		const msg: IAhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
+		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {
 				client.transport.send(msg);
@@ -410,22 +680,22 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _broadcastNotification(notification: INotification): void {
-		const msg: IAhpServerNotification<'notification'> = { jsonrpc: '2.0', method: 'notification', params: { notification } };
+		const msg: AhpServerNotification<'notification'> = { jsonrpc: '2.0', method: 'notification', params: { notification } };
 		for (const client of this._clients.values()) {
 			client.transport.send(msg);
 		}
 	}
 
-	private _isRelevantToClient(client: IConnectedClient, envelope: IActionEnvelope): boolean {
+	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		const action = envelope.action;
-		if (!isActionKnownToVersion(action, client.protocolVersion)) {
-			return false;
-		}
 		if (action.type.startsWith('root/')) {
 			return client.subscriptions.has(ROOT_STATE_URI);
 		}
 		if (isSessionAction(action)) {
 			return client.subscriptions.has(action.session);
+		}
+		if (isTerminalAction(action)) {
+			return client.subscriptions.has(action.terminal);
 		}
 		return false;
 	}
@@ -435,32 +705,15 @@ export class ProtocolServerHandler extends Disposable {
 			client.disposables.dispose();
 		}
 		this._clients.clear();
+		for (const [, pending] of this._pendingReverseRequests) {
+			pending.reject(new Error('ProtocolServerHandler disposed'));
+		}
+		this._pendingReverseRequests.clear();
+		for (const timeout of this._clientToolCallDisconnectTimeouts.values()) {
+			clearTimeout(timeout);
+		}
+		this._clientToolCallDisconnectTimeouts.clear();
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}
-}
-
-/**
- * Interface for side effects that the protocol server delegates to.
- * These are operations that involve I/O, agent backends, etc.
- */
-export interface IProtocolSideEffectHandler {
-	handleAction(action: ISessionAction): void;
-	handleCreateSession(command: ICreateSessionParams): Promise<void>;
-	handleDisposeSession(session: URI): void;
-	handleListSessions(): Promise<ISessionSummary[]>;
-	/** Restore a session from a previous server lifetime into the state manager. */
-	handleRestoreSession(session: URI): Promise<void>;
-	handleGetResourceMetadata(): IResourceMetadata;
-	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
-	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
-	/** Returns the server's default browsing directory, if available. */
-	getDefaultDirectory?(): URI;
-	/** Refresh models from all providers (VS Code extension method). */
-	handleRefreshModels?(): Promise<void>;
-	/** List agent descriptors (VS Code extension method). */
-	handleListAgents?(): IAgentDescriptor[];
-	/** Shut down all providers (VS Code extension method). */
-	handleShutdown?(): Promise<void>;
 }

@@ -18,7 +18,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../serv
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
 	return {
 		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
-		sentiment: { installed: true } as IChatEntitlementService['sentiment'],
+		sentiment: { completed: true } as IChatEntitlementService['sentiment'],
 		isInternal: opts?.isInternal ?? false,
 		anonymous: opts?.anonymous ?? false,
 	} as IChatEntitlementService;
@@ -105,7 +105,6 @@ function callBuild(
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
-		undefined,
 		stubLanguageModelsService,
 	);
 }
@@ -484,7 +483,6 @@ suite('buildModelPickerItems', () => {
 			stubChatEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -571,7 +569,6 @@ suite('buildModelPickerItems', () => {
 			businessEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 
@@ -658,7 +655,6 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -731,5 +727,25 @@ suite('buildModelPickerItems', () => {
 		// It should still appear in Other Models since it was not placed
 		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
 		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
+	});
+
+	test('model description includes pricing when set', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, pricing: '3x' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, '3x');
+	});
+
+	test('model description combines detail and pricing', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, 'High · 3x');
 	});
 });

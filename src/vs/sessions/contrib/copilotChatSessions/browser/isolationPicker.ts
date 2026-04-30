@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -13,10 +13,16 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
+
+interface IIsolationPickerItem {
+	readonly mode: IsolationMode;
+	readonly checked?: boolean;
+}
 
 /**
  * A self-contained widget for selecting the isolation mode.
@@ -32,12 +38,8 @@ export type IsolationMode = 'worktree' | 'workspace';
  */
 export class IsolationPicker extends Disposable {
 
-	private _isolationMode: IsolationMode = 'worktree';
 	private _hasGitRepo = false;
 	private _isolationOptionEnabled: boolean;
-
-	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
-	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
@@ -47,6 +49,7 @@ export class IsolationPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -55,7 +58,7 @@ export class IsolationPicker extends Disposable {
 			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
 				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 				if (!this._isolationOptionEnabled) {
-					this._setMode('worktree');
+					this._setModeOnSession('worktree');
 				}
 				this._updateTriggerLabel();
 			}
@@ -63,23 +66,29 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				const isLoading = session.loading.read(reader);
-				this.setHasGitRepo(!isLoading && !!session.gitRepository);
+			const isLoading = session?.loading.read(reader);
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
+			if (providerSession) {
+				const gitRepo = providerSession.gitRepository;
+				const repoState = gitRepo?.state?.read?.(reader);
+				const hasHeadCommit = repoState ? !!repoState.HEAD?.commit : true;
+				// Enable only when git repo exists and HEAD has a valid commit (not an empty repo)
+				this._hasGitRepo = !isLoading && !!gitRepo && hasHeadCommit;
+				// Read isolation mode from session — session is the source of truth
+				providerSession.isolationMode.read(reader);
 			} else {
-				this.setHasGitRepo(false);
+				this._hasGitRepo = false;
 			}
+			this._updateTriggerLabel();
 		}));
 	}
 
-	private setHasGitRepo(hasRepo: boolean): void {
-		this._hasGitRepo = hasRepo;
-		if (!hasRepo) {
-			this._setMode('workspace');
-		} else {
-			this._setMode('worktree');
-		}
-		this._updateTriggerLabel();
+	private _getSessionIsolationMode(): IsolationMode {
+		const session = this.sessionsManagementService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
+		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -95,10 +104,13 @@ export class IsolationPicker extends Disposable {
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -117,31 +129,32 @@ export class IsolationPicker extends Disposable {
 			return;
 		}
 
-		const items: IActionListItem<IsolationMode>[] = [
+		const currentIsolationMode = this._getSessionIsolationMode();
+		const items: IActionListItem<IIsolationPickerItem>[] = [
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
-				item: 'worktree',
+				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
 			},
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.folder', "Folder"),
 				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
+				item: { mode: 'workspace', checked: currentIsolationMode === 'workspace' || undefined },
 			},
 		];
 
 		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IsolationMode> = {
-			onSelect: (mode) => {
+		const delegate: IActionListDelegate<IIsolationPickerItem> = {
+			onSelect: ({ mode }) => {
 				this.actionWidgetService.hide();
-				this._setMode(mode);
+				this._setModeOnSession(mode);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		this.actionWidgetService.show<IsolationMode>(
+		this.actionWidgetService.show<IIsolationPickerItem>(
 			'isolationPicker',
 			false,
 			items,
@@ -156,18 +169,11 @@ export class IsolationPicker extends Disposable {
 		);
 	}
 
-	private _setMode(mode: IsolationMode): void {
-		if (this._isolationMode !== mode) {
-			this._isolationMode = mode;
-			this._updateTriggerLabel();
-			this._onDidChange.fire(mode);
-
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!(session instanceof CopilotCLISession)) {
-				throw new Error('IsolationPicker requires a CopilotCLISession');
-			}
-			session.setIsolationMode(mode);
-		}
+	private _setModeOnSession(mode: IsolationMode): void {
+		const session = this.sessionsManagementService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
+		providerSession?.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {
@@ -177,10 +183,11 @@ export class IsolationPicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
+		const isolationMode = this._getSessionIsolationMode();
 		let modeIcon;
 		let modeLabel: string;
 
-		switch (this._isolationMode) {
+		switch (isolationMode) {
 			case 'workspace':
 				modeIcon = Codicon.folder;
 				modeLabel = localize('isolationMode.folder', "Folder");
@@ -196,6 +203,8 @@ export class IsolationPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('isolationPicker.triggerAriaLabel', "Pick Isolation Mode, {0}", modeLabel);
 
 		const isDisabled = !this._hasGitRepo;
 		this._slotElement?.classList.toggle('disabled', isDisabled);

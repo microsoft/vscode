@@ -9,14 +9,15 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
-import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { IPromptsService, matchesSessionType } from '../promptSyntax/service/promptsService.js';
 import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
-const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
-const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
+export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
+export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
@@ -26,6 +27,7 @@ export interface IChatParserContext {
 	/** Parse as this agent, even when it does not appear in the query text */
 	forcedAgent?: IChatAgentData;
 	attachmentCapabilities?: IChatAgentAttachmentCapabilities;
+	sessionType?: string;
 }
 
 export class ChatRequestParser {
@@ -36,9 +38,12 @@ export class ChatRequestParser {
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
-	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context: IChatParserContext = {}): IParsedChatRequest {
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
 		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
+		if (!context.sessionType) {
+			context = { ...context, sessionType: getChatSessionType(sessionResource) };
+		}
 		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
 	}
 
@@ -225,7 +230,7 @@ export class ChatRequestParser {
 
 		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
 		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
-		const slashCommand = slashCommands.find(c => c.command === command);
+		const slashCommand = slashCommands.find(c => c.command === command && matchesSessionType(c.sessionTypes, context?.sessionType));
 		// If there is no agent, we allow any slash command.
 		// If there is an agent, we let
 		// * silent ones go through since they are only UI-facing and don't influence chat history

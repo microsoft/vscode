@@ -1,6 +1,8 @@
 ---
 name: chat-customizations-editor
 description: Use when working on the Chat Customizations editor — the management UI for agents, skills, instructions, hooks, prompts, MCP servers, and plugins.
+metadata:
+  allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
 # Chat Customizations Editor
@@ -27,8 +29,23 @@ When changing harness descriptor interfaces or factory functions, verify both co
 - **`IHarnessDescriptor`** — drives all UI behavior declaratively (hidden sections, button overrides, file filters, agent gating). See spec for full field reference.
 - **`ISectionOverride`** — per-section button customization (command invocation, root file creation, type labels, file extensions).
 - **`IStorageSourceFilter`** — controls which storage sources and user roots are visible per harness/type.
+- **`IExternalCustomizationItemProvider`** / **`IExternalCustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
+
+## Extension API (`chatSessionCustomizationProvider`)
+
+The proposed API in `src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts` lets extensions register customization providers. Changes to `IExternalCustomizationItem` or `IExternalCustomizationItemProvider` must be kept in sync across the full chain:
+
+| Layer | File | Type |
+|-------|------|------|
+| Extension API | `vscode.proposed.chatSessionCustomizationProvider.d.ts` | `ChatSessionCustomizationItem` |
+| IPC DTO | `extHost.protocol.ts` | `IChatSessionCustomizationItemDto` |
+| ExtHost mapping | `extHostChatAgents2.ts` | `$provideChatSessionCustomizations()` |
+| MainThread mapping | `mainThreadChatAgents2.ts` | `provideChatSessionCustomizations` callback |
+| Internal interface | `customizationHarnessService.ts` | `IExternalCustomizationItem` |
+
+When adding fields to `IExternalCustomizationItem`, update all five layers. The proposed API `.d.ts` is additive-only (new optional fields are backward-compatible and do not require a version bump).
 
 ## Testing
 
@@ -135,30 +152,29 @@ See the `sessions` skill for sessions-window specific guidance.
 
 Component fixtures use mock data and a fixed container size. Layout bugs caused by reflow timing, real data shapes, or narrow window sizes often **don't reproduce in fixtures**. When a user reports a broken layout, debug in the live Code OSS product.
 
-For launching Code OSS with CDP and connecting `agent-browser`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
+For launching Code OSS with CDP and connecting `@playwright/cli`, see the **`launch` skill**. Use `--user-data-dir /tmp/code-oss-debug` to avoid colliding with an already-running instance from another worktree.
 
 ### Navigating to the customizations editor
 
-After connecting, use `snapshot -i` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
+After connecting, use `snapshot` to find the "Open Customizations" button (in the Chat panel header), then click it. To switch sections, use `eval` with a DOM click since sidebar items aren't interactive refs:
 
 ```bash
-npx agent-browser eval "const items = [...document.querySelectorAll('.section-list-item')]; \
-  items.find(el => el.textContent?.includes('MCP'))?.click();"
+npx @playwright/cli eval "(() => { const items = [...document.querySelectorAll('.section-list-item')]; items.find(el => el.textContent?.includes('MCP'))?.click(); })()"
 ```
 
 ### Inspecting widget layout
 
-`agent-browser eval` doesn't always print return values. Use `document.title` as a return channel:
+`@playwright/cli eval` wraps the expression in `() => (...)` — use an IIFE for multi-statement code. Use `document.title` as a return channel:
 
 ```bash
-npx agent-browser eval "const w = document.querySelector('.mcp-list-widget'); \
+npx @playwright/cli eval "(() => { const w = document.querySelector('.mcp-list-widget'); \
   const lc = w?.querySelector('.mcp-list-container'); \
   const rows = lc?.querySelectorAll('.monaco-list-row'); \
   document.title = 'DBG:rows=' + (rows?.length ?? -1) \
     + ',listH=' + (lc?.offsetHeight ?? -1) \
     + ',seStH=' + (lc?.querySelector('.monaco-scrollable-element')?.style?.height ?? '') \
-    + ',wH=' + (w?.offsetHeight ?? -1);"
-npx agent-browser eval "document.title" 2>&1
+    + ',wH=' + (w?.offsetHeight ?? -1); })()"
+npx @playwright/cli eval "document.title" 2>&1
 ```
 
 Key diagnostics:

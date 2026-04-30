@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* "Open in Agents" titlebar widget — icon-only at rest, expands on hover/focus. */
+.monaco-workbench .open-in-agents-titlebar-widget {
+	display: inline-flex;
+	align-items: center;
+	height: 22px;
+	padding: 0 4px;
+	margin: 0 10px 0 2px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--vscode-titleBar-activeForeground);
+	-webkit-app-region: no-drag;
+	white-space: nowrap;
+	position: relative;
+}
+
+/* Vertical separator drawn as an absolutely positioned pseudo-element so it isn't clipped by any ancestor `overflow: hidden`. */
+.monaco-workbench .open-in-agents-titlebar-widget::after {
+	content: '';
+	position: absolute;
+	right: -6px;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
+	pointer-events: none;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+	background-image: url('../../../../sessions/browser/media/sessions-icon.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: contain;
+	/* Keep desaturated for legibility against light/dark titlebar backgrounds; brighten on hover/focus. */
+	filter: grayscale(1);
+	transition: filter 150ms ease;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-icon {
+	filter: none;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label {
+	display: inline-block;
+	max-width: 0;
+	opacity: 0;
+	margin-left: 0;
+	color: var(--vscode-foreground);
+	font: inherit;
+	overflow: hidden;
+	white-space: nowrap;
+	transition: max-width 150ms ease, opacity 150ms ease, margin-left 150ms ease;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:hover,
+.monaco-workbench .open-in-agents-titlebar-widget:focus-visible {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: none;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label {
+	max-width: 200px;
+	opacity: 1;
+	margin-left: 6px;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

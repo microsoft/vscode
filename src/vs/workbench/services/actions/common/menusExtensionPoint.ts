@@ -525,6 +525,20 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider',
 	},
 	{
+		key: 'chat/customizations/create',
+		id: MenuId.for('AICustomizationManagementCreate'),
+		description: localize('menus.chatCustomizationsCreate', "The create button in the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
+		key: 'chat/customizations/item',
+		id: MenuId.for('AICustomizationManagementEditorItem'),
+		description: localize('menus.chatCustomizationsItem', "The item context menu in the Chat Customizations management editor, including inline actions."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
 		key: 'chat/editor/inlineGutter',
 		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),

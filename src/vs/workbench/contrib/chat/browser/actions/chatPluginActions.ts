@@ -13,13 +13,13 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
+import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -60,6 +60,7 @@ class InstallFromSourceAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 1,
@@ -70,19 +71,24 @@ class InstallFromSourceAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
 		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
 		store.add(inputBox.onDidChangeValue(() => {
 			inputBox.validationMessage = undefined;
 		}));
 
+		let installing = false;
 		store.add(inputBox.onDidHide(() => {
-			store.dispose();
+			if (!installing) {
+				store.dispose();
+			}
 		}));
 
 		store.add(inputBox.onDidAccept(async () => {
@@ -101,6 +107,7 @@ class InstallFromSourceAction extends Action2 {
 			// Show busy state and prevent concurrent installs.
 			inputBox.busy = true;
 			inputBox.enabled = false;
+			installing = true;
 			try {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
@@ -115,12 +122,16 @@ class InstallFromSourceAction extends Action2 {
 				} else {
 					const ref = parseMarketplaceReference(source);
 					if (ref) {
-						accessor.get(IExtensionsWorkbenchService).openSearch(`@agentPlugins ${ref.displayLabel}`);
+						extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 					}
+					store.dispose();
 				}
 			} finally {
-				inputBox.busy = false;
-				inputBox.enabled = true;
+				installing = false;
+				if (!store.isDisposed) {
+					inputBox.busy = false;
+					inputBox.enabled = true;
+				}
 			}
 		}));
 	}
@@ -146,6 +157,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 2,

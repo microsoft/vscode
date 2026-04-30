@@ -64,6 +64,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly isSessionsWindow = false;
 
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
+
 	readonly hasOverrideProjectRoot = constObservable(false);
 	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }
@@ -92,6 +96,12 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		return this.promptsService.getPromptSlashCommands(token);
+	}
+
+	private static readonly _emptyIntegrations: ReadonlyMap<string, string> = new Map();
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return AICustomizationWorkspaceService._emptyIntegrations;
 	}
 }
 

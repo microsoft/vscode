@@ -1,0 +1,32 @@
+[
+	{
+		"name": "/tests (real world) [inline] [python] - creates new test file with test method and includes method name and test method name",
+		"requests": [
+			"d98147c4aae20d1286676447786d9be9a555ad8c87ee4d342c358c762d08b526"
+		]
+	},
+	{
+		"name": "/tests (real world) [inline] [typescript] - add another test for containsUppercaseCharacter with other non latin chars",
+		"requests": [
+			"31032a78e3858810de4f26625f84210ee84c9a9dc5e30d0d2b7b5d314074fe7c"
+		]
+	},
+	{
+		"name": "/tests (real world) [inline] [typescript] - generate a unit test",
+		"requests": [
+			"5925599e184809bb553c5dd0d3be503cfe89fa479b3fa342472f210790a2f839"
+		]
+	},
+	{
+		"name": "/tests (real world) [inline] [typescript] - issue #3699: add test for function",
+		"requests": [
+			"8d3fbfd87a95cf2b7ea55d16bbdee81948d5f9b6f7deda07609ddefa6751e952"
+		]
+	},
+	{
+		"name": "/tests (real world) [inline] [typescript] - issue #3701: add some more tests for folding",
+		"requests": [
+			"fb778bd2353aa4fb54e01e8f8a1187a30720ad5bff8398f3677e465cfd429a1a"
+		]
+	}
+]
