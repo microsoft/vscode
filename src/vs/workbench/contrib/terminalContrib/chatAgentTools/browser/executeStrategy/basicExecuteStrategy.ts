@@ -172,10 +172,22 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			);
 
 			if (this._hasReceivedUserInput()) {
-				this._log('Command timed out, sending SIGINT and retrying');
-				// Send SIGINT (Ctrl+C)
-				await this._instance.sendText('\x03', false);
-				await waitForIdle(this._instance.onData, 100);
+				// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
+				// command is still executing. Sending Ctrl+C at an idle prompt can be
+				// misinterpreted by the shell as cancelling the command we are about
+				// to send via sendText, producing spurious "Command exited with code
+				// 130" results for what should be the next, unrelated command.
+				if (this._commandDetection.executingCommandObject !== undefined) {
+					this._log('Previous command still executing with pending input, sending SIGINT before retrying');
+					await this._instance.sendText('\x03', false);
+					await waitForIdle(this._instance.onData, 100);
+				} else {
+					// Use Ctrl+U (kill line) to clear any pending input on the prompt
+					// without killing any running command. No-op on a clean prompt.
+					this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
+					await this._instance.sendText('\x15', false);
+					await waitForIdle(this._instance.onData, 100);
+				}
 			}
 
 			// Execute the command
