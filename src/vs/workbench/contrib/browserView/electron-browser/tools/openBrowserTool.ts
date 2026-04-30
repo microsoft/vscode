@@ -23,13 +23,14 @@ import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
 export const OpenBrowserToolData: IToolData = {
 	id: OpenPageToolId,
-	toolReferenceName: 'openBrowserPage',
+	toolReferenceName: BrowserChatToolReferenceName.OpenBrowserPage,
 	displayName: localize('openBrowserTool.displayName', 'Open Browser Page'),
 	userDescription: localize('openBrowserTool.userDescription', 'Open a URL in the integrated browser'),
 	modelDescription: `Open a new browser page in the integrated browser at the given URL.

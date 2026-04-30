@@ -187,6 +187,7 @@ import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionIt
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -194,24 +195,6 @@ CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
-
-/**
- * Tool reference names for the integrated browser tools.
- * These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
- * out of these, only the tools that are actually registered/enabled are seen by the agent.
- */
-const browserClientTools = [
-	'openBrowserPage',
-	'readPage',
-	'screenshotPage',
-	'navigatePage',
-	'clickElement',
-	'typeInPage',
-	'hoverElement',
-	'dragElement',
-	'handleDialog',
-	'runPlaywrightCode',
-];
 
 // Register JSON schema for hook files
 const jsonContributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -989,7 +972,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
 			default: [
 				'runTask', 'getTaskOutput', 'problems', 'runTests',
-				...browserClientTools,
+				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
+				// out of these, only the tools that are actually registered/enabled are seen by the agent.
+				...browserChatToolReferenceNames,
 			],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
