@@ -36,7 +36,7 @@ import { pluginIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { ICustomizationHarnessService, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -904,7 +904,7 @@ export class PluginListWidget extends Disposable {
 		try {
 			const provided = await provider.provideChatSessionCustomizations(CancellationToken.None) ?? [];
 			return provided.filter(item =>
-				item.type === 'plugin'
+				isPluginCustomizationItem(item)
 				&& (!query
 					|| item.name.toLowerCase().includes(query)
 					|| item.description?.toLowerCase().includes(query)
@@ -1039,7 +1039,7 @@ export class PluginListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.remoteItems.length + this.installedItems.length;
+		return this.remoteItems.filter(item => item.groupKey !== 'remote-client').length + this.installedItems.length;
 	}
 
 	/**
