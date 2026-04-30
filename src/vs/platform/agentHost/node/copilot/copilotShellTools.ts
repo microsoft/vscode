@@ -227,6 +227,14 @@ function prepareOutputForModel(rawOutput: string): string {
 	return text;
 }
 
+export function getContentSinceOffset(fullContent: string, offsetBefore: number): string {
+	// When terminal scrollback gets trimmed, the previously captured offset can
+	// point past the current buffer. In that case, return the current buffer so
+	// callers still see the remaining output instead of an empty string.
+	const validOffset = Number.isFinite(offsetBefore) && offsetBefore >= 0 ? offsetBefore : 0;
+	return validOffset > fullContent.length ? fullContent : fullContent.substring(validOffset);
+}
+
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
@@ -355,11 +363,7 @@ async function executeCommandWithSentinel(
 
 		const checkForSentinel = () => {
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			// Clamp offset: the terminal manager trims content when it exceeds
-			// 100k chars (slices to last 80k). If trimming happened after we
-			// captured offsetBefore, scan from the start of the current buffer.
-			const clampedOffset = Math.min(offsetBefore, fullContent.length);
-			const newContent = fullContent.substring(clampedOffset);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const parsed = parseSentinel(newContent, sentinelId);
 			if (parsed.found) {
 				const output = prepareOutputForModel(parsed.outputBeforeSentinel);
@@ -379,7 +383,7 @@ async function executeCommandWithSentinel(
 		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
 			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
 		}));
@@ -394,7 +398,7 @@ async function executeCommandWithSentinel(
 		const timer = setTimeout(() => {
 			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(
 				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
