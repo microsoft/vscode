@@ -728,7 +728,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const openItemLabel = options.openItemLabel;
 		const rowToOpen = openItemLabel
 			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row') as HTMLElement | undefined;
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
 		if (rowToOpen) {
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
