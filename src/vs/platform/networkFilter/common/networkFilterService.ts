@@ -140,7 +140,7 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 	// For sandbox mode, network filtering is applied only when the global network filter is disabled
 	// and the request is coming from the fetch web tool.
 	private shouldFilter(toolName: string | undefined): boolean {
-		return this.networkFilterEnabled || (!this.networkFilterEnabled && this.terminalSandboxEnabled && toolName === AgentNetworkFilterFetchWebToolName);
+		return this.networkFilterEnabled || (this.terminalSandboxEnabled && toolName === AgentNetworkFilterFetchWebToolName);
 	}
 
 	formatError(uri: URI): string {
