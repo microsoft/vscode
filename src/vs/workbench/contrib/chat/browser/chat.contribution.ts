@@ -197,9 +197,8 @@ const toolReferenceNameEnumDescriptions: string[] = [];
 
 /**
  * Tool reference names for the integrated browser tools.
- * Always present in the {@link ChatConfiguration.AgentHostClientTools} default but
- * only effective when the tools themselves are actually registered, which is currently
- * feature-flag-gated.
+ * These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
+ * out of these, only the tools that are actually registered/enabled are seen by the agent.
  */
 const browserClientTools = [
 	'openBrowserPage',
