@@ -6,6 +6,7 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
@@ -106,7 +107,11 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		// Chevron at far right (outside the link button so it sits to the
 		// right of the home overview action). Clicking the chevron toggles
 		// collapse — same as clicking the header label.
-		const chevronContainer = DOM.append(header, $('span.customization-link-counts'));
+		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
+		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
+		chevronContainer.type = 'button';
+		chevronContainer.setAttribute('aria-label', toggleCollapseLabel);
+		chevronContainer.title = toggleCollapseLabel;
 		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
 		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
@@ -175,11 +180,13 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
-		this._register(DOM.addDisposableListener(chevronContainer, DOM.EventType.CLICK, e => {
-			e.preventDefault();
-			e.stopPropagation();
-			toggleCollapse();
-		}));
+		this._register(Gesture.addTarget(chevronContainer));
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(DOM.addDisposableListener(chevronContainer, eventType, e => {
+				DOM.EventHelper.stop(e, true);
+				toggleCollapse();
+			}));
+		}
 	}
 
 	private async _openWelcomePage(): Promise<void> {
