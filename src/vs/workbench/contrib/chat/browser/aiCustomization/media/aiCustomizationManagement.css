@@ -1288,22 +1288,10 @@
 	gap: 16px;
 }
 
-.ai-customization-management-editor .editor-preview-scroll-container:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .ai-customization-management-editor .editor-preview-section {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
-}
-
-.ai-customization-management-editor .editor-preview-section-title {
-	margin: 0;
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .editor-preview-frontmatter-list {

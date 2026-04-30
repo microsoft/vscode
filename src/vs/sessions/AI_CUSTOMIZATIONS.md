@@ -205,7 +205,7 @@ AHP Remote Server ────────────────────�
 For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`, `.prompt.md`), the management editor opens a **structured preview** by default instead of showing the raw file immediately.
 
 - The preview parses the file with `PromptFileParser`
-- Front matter is rendered as labeled rows
+- Header metadata is rendered as labeled rows
 - Each row includes an inline help affordance whose hover text comes from `getAttributeDefinition(...)`
 - The markdown body is rendered via `IMarkdownRendererService`
 - A header button switches between the structured preview and the raw editor/viewer

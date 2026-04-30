@@ -1413,7 +1413,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.editorDisplayMode === 'raw') {
 				this.embeddedEditor?.focus();
 			} else {
-				this.editorPreviewScrollContainer?.focus();
+				this.editorModeButton?.focus();
 			}
 			return;
 		}
@@ -1539,18 +1539,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.editorPreviewContainer = DOM.append(this.editorContentContainer, $('.editor-preview-container'));
 		this.editorPreviewScrollContainer = DOM.append(this.editorPreviewContainer, $('.editor-preview-scroll-container'));
-		this.editorPreviewScrollContainer.tabIndex = 0;
 		this.editorPreviewScrollContainer.setAttribute('role', 'region');
 		this.editorPreviewScrollContainer.setAttribute('aria-label', localize('customizationPreviewAriaLabel', "Customization preview"));
 
 		this.editorPreviewIssuesContainer = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-issues'));
 
 		const frontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
-		DOM.append(frontMatterSection, $('h2.editor-preview-section-title')).textContent = localize('frontMatterTitle', "Front Matter");
 		this.editorPreviewFrontMatterContainer = DOM.append(frontMatterSection, $('.editor-preview-frontmatter-list'));
 
 		const bodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
-		DOM.append(bodySection, $('h2.editor-preview-section-title')).textContent = localize('bodyTitle', "Body");
 		this.editorPreviewBodyContainer = DOM.append(bodySection, $('.editor-preview-body-content'));
 
 		this.embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
@@ -1621,7 +1618,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (this.editorDisplayMode === 'raw') {
 					this.embeddedEditor!.focus();
 				} else {
-					this.editorPreviewScrollContainer?.focus();
+					this.editorModeButton?.focus();
 				}
 
 				this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
@@ -1650,7 +1647,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.editorDisplayMode === 'raw') {
 				this.embeddedEditor!.focus();
 			} else {
-				this.editorPreviewScrollContainer?.focus();
+				this.editorModeButton?.focus();
 			}
 
 			this._editorContentChanged = this.workingCopyService.isDirty(uri);
@@ -2007,7 +2004,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.editorDisplayMode === 'raw') {
 			this.embeddedEditor?.focus();
 		} else {
-			this.editorPreviewScrollContainer?.focus();
+			this.editorModeButton?.focus();
 		}
 	}
 
@@ -2113,7 +2110,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const issuesContainer = DOM.append(this.editorPreviewIssuesContainer, $('.editor-preview-issues-box'));
 		DOM.append(issuesContainer, $('div.editor-preview-issues-title')).textContent = localize('previewHeaderIssuesTitle', "Header issues detected");
-		DOM.append(issuesContainer, $('div.editor-preview-issues-description')).textContent = localize('previewHeaderIssuesDescription', "Switch to raw view to fix invalid or unsupported front matter entries.");
+		DOM.append(issuesContainer, $('div.editor-preview-issues-description')).textContent = localize('previewHeaderIssuesDescription', "Switch to raw view to fix invalid or unsupported metadata entries.");
 		const list = DOM.append(issuesContainer, $('ul.editor-preview-issues-list'));
 		for (const error of parsedPromptFile.header.errors) {
 			DOM.append(list, $('li.editor-preview-issues-item')).textContent = error.message;
@@ -2127,7 +2124,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const attributes = parsedPromptFile.header?.attributes ?? [];
 		if (!attributes.length) {
-			DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No front matter metadata found in this file.");
+			DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No metadata found in this file.");
 			return;
 		}
 
@@ -2149,10 +2146,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		helpButton.type = 'button';
 		helpButton.setAttribute('aria-label', localize('previewFieldHelpAriaLabel', "Show help for '{0}'", attribute.key));
 		const helpIcon = DOM.append(helpButton, $('span.editor-preview-row-help-icon'));
-		helpIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.question));
+		helpIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		helpIcon.setAttribute('aria-hidden', 'true');
 
-		const description = getAttributeDefinition(attribute.key, promptType, target)?.description ?? localize('previewUnknownFieldDescription', "Custom front matter field `{0}`.", attribute.key);
+		const description = getAttributeDefinition(attribute.key, promptType, target)?.description ?? localize('previewUnknownFieldDescription', "Custom metadata field `{0}`.", attribute.key);
 		const helpHover = this.editorPreviewDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), helpButton, {
 			markdown: new MarkdownString(description),
 			markdownNotSupportedFallback: description,
