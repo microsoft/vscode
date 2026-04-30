@@ -461,5 +461,4 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
-
 //#endregion
