@@ -459,8 +459,9 @@
 	touch-action: manipulation;
 	overflow: hidden;
 	transition: border-color 100ms, transform 100ms;
-	width: calc(25% - 8px);
-	min-width: 120px;
+	width: calc(33.333% - 7px);
+	max-width: 240px;
+	min-width: 180px;
 	box-sizing: border-box;
 }
 
@@ -511,15 +512,12 @@
 
 .sessions-walkthrough-theme-preview {
 	overflow: hidden;
-	min-height: 140px;
 }
 
 .sessions-walkthrough-theme-preview-img {
 	display: block;
 	width: 100%;
 	height: auto;
-	transform: scale(2);
-	transform-origin: top left;
 }
 
 .sessions-walkthrough-vscode-theme-option {
@@ -574,9 +572,15 @@
 	margin-top: 16px;
 }
 
+@media (max-width: 720px) {
+	.sessions-walkthrough-theme-card {
+		width: calc(50% - 5px);
+	}
+}
+
 @media (max-width: 480px) {
 	.sessions-walkthrough-theme-card {
-		width: calc(50% - 8px);
+		width: 100%;
 	}
 }
 
