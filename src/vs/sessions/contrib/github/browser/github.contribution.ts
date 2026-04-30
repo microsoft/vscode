@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -77,7 +77,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		for (const session of e.changed) {
 			// Archived
 			if (session.isArchived.get()) {
-				this._stopPolling(session);
+				this._disposePolling(session);
 				continue;
 			}
 
@@ -86,7 +86,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Removed sessions
 		for (const session of e.removed) {
-			this._stopPolling(session);
+			this._disposePolling(session);
 		}
 	}
 
@@ -102,12 +102,10 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		}
 
 		const model = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		this._pullRequests.set(key, toDisposable(() => model.stopPolling()));
-
-		model.startPolling();
+		this._pullRequests.set(key, model.startPolling());
 	}
 
-	private _stopPolling(session: ISession): void {
+	private _disposePolling(session: ISession): void {
 		const gitHubInfo = session.gitHubInfo.get();
 		if (!gitHubInfo || !gitHubInfo.pullRequest) {
 			return;

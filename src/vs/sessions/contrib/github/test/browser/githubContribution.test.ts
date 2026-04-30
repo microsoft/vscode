@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -238,12 +238,9 @@ class TestPullRequestModel implements IDisposable {
 	stopPollingCalls = 0;
 	disposeCalls = 0;
 
-	startPolling(): void {
+	startPolling(): IDisposable {
 		this.startPollingCalls++;
-	}
-
-	stopPolling(): void {
-		this.stopPollingCalls++;
+		return toDisposable(() => this.stopPollingCalls++);
 	}
 
 	refresh(): Promise<void> {

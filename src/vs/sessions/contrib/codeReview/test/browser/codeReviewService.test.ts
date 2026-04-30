@@ -10,7 +10,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -209,14 +209,13 @@ suite('CodeReviewService', () => {
 		startPollingCalls = 0;
 		stopPollingCalls = 0;
 
-		override startPolling(intervalMs?: number): void {
+		override startPolling(intervalMs?: number): IDisposable {
 			this.startPollingCalls++;
-			super.startPolling(intervalMs);
-		}
-
-		override stopPolling(): void {
-			this.stopPollingCalls++;
-			super.stopPolling();
+			const polling = super.startPolling(intervalMs);
+			return toDisposable(() => {
+				this.stopPollingCalls++;
+				polling.dispose();
+			});
 		}
 	}
 

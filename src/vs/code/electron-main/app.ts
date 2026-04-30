@@ -87,6 +87,7 @@ import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { AbstractUpdateService } from '../../platform/update/electron-main/abstractUpdateService.js';
 import { CrossAppUpdateCoordinator } from '../../platform/update/electron-main/crossAppUpdateIpc.js';
+import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
 import { MacOSCrossAppSecretSharing } from '../../platform/secrets/electron-main/macOSCrossAppSecretSharing.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
@@ -1269,6 +1270,10 @@ export class CodeApplication extends Disposable {
 		}
 		const updateChannel = new UpdateChannel(effectiveUpdateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
+
+		// Show a native "no updates available" dialog from the focused app's main
+		// process to avoid double dialogs across apps and ensure a native dialog.
+		this._register(new NotAvailableUpdateDialog(effectiveUpdateService, accessor.get(IDialogMainService)));
 
 		// Cross-app secret sharing (macOS only, demand-driven)
 		if (isMacintosh) {
