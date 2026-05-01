@@ -72,15 +72,15 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 
 	if (model.metadata.inputCost !== undefined || model.metadata.outputCost !== undefined || model.metadata.cacheCost !== undefined) {
 		if (model.metadata.inputCost !== undefined) {
-			markdown.appendMarkdown(`${localize('models.inputCost', 'Input Cost')}: ${model.metadata.inputCost} credits/1M tokens`);
+			markdown.appendMarkdown(localize('models.inputCost', 'Input Cost: {0} credits/1M tokens', model.metadata.inputCost));
 			markdown.appendText(`\n`);
 		}
 		if (model.metadata.outputCost !== undefined) {
-			markdown.appendMarkdown(`${localize('models.outputCost', 'Output Cost')}: ${model.metadata.outputCost} credits/1M tokens`);
+			markdown.appendMarkdown(localize('models.outputCost', 'Output Cost: {0} credits/1M tokens', model.metadata.outputCost));
 			markdown.appendText(`\n`);
 		}
 		if (model.metadata.cacheCost !== undefined) {
-			markdown.appendMarkdown(`${localize('models.cacheCost', 'Cache Cost')}: ${model.metadata.cacheCost} credits/1M tokens`);
+			markdown.appendMarkdown(localize('models.cacheCost', 'Cache Cost: {0} credits/1M tokens', model.metadata.cacheCost));
 			markdown.appendText(`\n`);
 		}
 	}
@@ -538,7 +538,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 	readonly templateId: string = CombinedCostColumnRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IHoverService private readonly hoverService: IHoverService
+		private readonly isUsageBasedBilling: boolean,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -575,7 +576,7 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
 		const { inputCost, outputCost, cacheCost } = entry.model.metadata;
-		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined;
+		const hasCost = this.isUsageBasedBilling && (inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined);
 
 		if (hasCost) {
 			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
@@ -927,7 +928,8 @@ export class ChatModelsWidget extends Disposable {
 
 	private readonly searchFocusContextKey: IContextKey<boolean>;
 
-	private tableDisposables = this._register(new DisposableStore());
+	private readonly tableDisposables = this._register(new DisposableStore());
+	private _isUsageBasedBilling = false;
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -1063,11 +1065,15 @@ export class ChatModelsWidget extends Disposable {
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
+		this._isUsageBasedBilling = this.chatEntitlementService.quotas.chat?.usageBasedBilling === true;
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
 			this.updateAddModelsButton();
-			this.createTable();
+			this.recreateTableIfBillingChanged();
+		}));
+		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => {
+			this.recreateTableIfBillingChanged();
 		}));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
@@ -1077,13 +1083,21 @@ export class ChatModelsWidget extends Disposable {
 		}));
 	}
 
+	private recreateTableIfBillingChanged(): void {
+		const isUBB = this.chatEntitlementService.quotas.chat?.usageBasedBilling === true;
+		if (isUBB !== this._isUsageBasedBilling) {
+			this._isUsageBasedBilling = isUBB;
+			this.createTable();
+		}
+	}
+
 	private createTable(): void {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
 
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
-		const combinedCostColumnRenderer = this.instantiationService.createInstance(CombinedCostColumnRenderer);
+		const combinedCostColumnRenderer = this.instantiationService.createInstance(CombinedCostColumnRenderer, this._isUsageBasedBilling);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
