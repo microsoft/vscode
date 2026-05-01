@@ -666,6 +666,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
+		const requestStream = this._stream;
 		disposables.add(token.onCancellationRequested(() => {
 			this._sdkSession.abort();
 		}));
@@ -701,7 +702,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const toolCallWaitingForPermissions: [ChatToolInvocationPart, ToolCall][] = [];
 		const flushPendingInvocationMessages = () => {
 			for (const [invocationMessage,] of toolCallWaitingForPermissions) {
-				this._stream?.push(invocationMessage);
+				requestStream?.push(invocationMessage);
 			}
 			toolCallWaitingForPermissions.length = 0;
 		};
@@ -716,7 +717,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const index = toolCallWaitingForPermissions.findIndex(([, tc]) => tc.toolCallId === toolCallId);
 			if (index !== -1) {
 				const [[invocationMessage]] = toolCallWaitingForPermissions.splice(index, 1);
-				this._stream?.push(invocationMessage);
+				requestStream?.push(invocationMessage);
 			}
 		};
 
@@ -724,10 +725,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const assistantMessageChunks: string[] = [];
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
-			if (token.isCancellationRequested || !this._stream) {
+			if (token.isCancellationRequested || !requestStream) {
 				return;
 			}
-			this._stream.usage({
+			requestStream.usage({
 				promptTokens,
 				completionTokens,
 				promptTokenDetails: buildPromptTokenDetails(lastUsageInfo),
@@ -773,7 +774,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						case 'write':
 							return handleWritePermission(
 								this.sessionId, permissionRequest, toolData, toolParentCallId,
-								this._stream, editTracker, this.workspace, this.workspaceService,
+								requestStream, editTracker, this.workspace, this.workspaceService,
 								this.instantiationService, this._toolsService, toolInvocationToken, this.logService, permissionToken,
 							);
 						case 'shell':
@@ -898,7 +899,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sdkRequestId = sdkRequestId ?? event.id;
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
-				if (this._stream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
+				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 			})));
@@ -923,7 +924,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
-					this._stream?.markdown(event.data.deltaContent);
+					requestStream?.markdown(event.data.deltaContent);
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message', (event) => {
@@ -934,7 +935,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
-					this._stream?.markdown(event.data.content);
+					requestStream?.markdown(event.data.content);
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_start', (event) => {
@@ -947,8 +948,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const responsePart = processToolExecutionStart(event, pendingToolInvocations, getWorkingDirectory(this.workspace));
 					if (responsePart instanceof ChatResponseThinkingProgressPart) {
 						flushPendingInvocationMessages();
-						this._stream?.push(responsePart);
-						this._stream?.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
+						requestStream?.push(responsePart);
+						requestStream?.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
 					} else if (responsePart instanceof ChatResponseMarkdownPart) {
 						// Wait for completion to push into stream.
 					} else if (responsePart instanceof ChatToolInvocationPart) {
@@ -958,7 +959,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							toolCallWaitingForPermissions.push([responsePart, event.data as ToolCall]);
 						} else {
 							flushPendingInvocationMessages();
-							this._stream?.push(responsePart);
+							requestStream?.push(responsePart);
 						}
 					}
 				}
@@ -993,7 +994,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (responsePart instanceof ChatToolInvocationPart) {
 						responsePart.enablePartialUpdate = true;
 					}
-					this._stream?.push(responsePart);
+					requestStream?.push(responsePart);
 				}
 
 				const success = `success: ${event.data.success}`;
@@ -1028,7 +1029,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				this._stream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+				requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -1116,7 +1117,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			this._stream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
+			requestStream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
 			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
 			if (error instanceof Error) {
