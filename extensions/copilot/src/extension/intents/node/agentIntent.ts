@@ -885,7 +885,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					throw new Error(`Background summarization request failed: ${response.type}`);
 				}
 				const rawSummaryText = extractSummary(response.value);
-				if (!rawSummaryText) {
+				if (rawSummaryText === undefined) {
 					throw new Error('Background summarization: no <summary> tags found in response');
 				}
 				if (!toolCallRoundId) {
