@@ -96,7 +96,7 @@ In sessions, harnesses are accepted for any session type that has a registered c
 Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
 - an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
 - a `disableProvider` that lets users opt out individual files/plugins from auto-sync, and
-- `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install/create actions.
+- `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install-from-source action. The create action remains a separate toolbar button.
 
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
 

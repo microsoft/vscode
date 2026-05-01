@@ -147,8 +147,8 @@ export interface IHarnessDescriptor {
 	/**
 	 * Optional plugin-management actions shown in the Plugins section add menu.
 	 * Harnesses can use these to add environment-specific commands alongside
-	 * the default install/create actions (for example, configuring plugins on a
-	 * remote agent host).
+	 * the default install-from-source action (for example, configuring plugins on
+	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
 }

@@ -78,12 +78,31 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
 		const repo = this._parseOrThrow(cloneUrl);
 		const cancel = token ?? CancellationToken.None;
-		const authToken = await this._lookupGitHubToken();
-		try {
+		const cloneWithToken = async (authToken: string | undefined): Promise<void> => {
 			const sha = await resolveGitHubRefToSha(this._requestService, repo, ref, authToken, cancel);
 			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, sha, targetDir, authToken, cancel);
 			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.repo, ref, sha, fetchedAt: Date.now() });
+		};
+
+		try {
+			await cloneWithToken(await this._lookupGitHubToken());
 		} catch (err) {
+			if (err instanceof GitHubAuthRequiredError && !cancel.isCancellationRequested) {
+				try {
+					await cloneWithToken(await this._requestGitHubToken(repo));
+					return;
+				} catch (retryErr) {
+					this._maybeLogTransientError(retryErr, repo);
+					if (retryErr instanceof GitHubAuthRequiredError) {
+						throw new Error(localize(
+							'pluginsBrowserGitHubAccessRequired',
+							"GitHub authentication is required to install '{0}'. Sign in with an account that has access to this repository, then try again.",
+							`${repo.owner}/${repo.repo}`,
+						));
+					}
+					throw retryErr;
+				}
+			}
 			this._maybeLogTransientError(err, repo);
 			throw err;
 		}
@@ -210,10 +229,9 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	 * `undefined` when no session is available; callers fall back to the
 	 * unauthenticated request, which still works for public repositories.
 	 *
-	 * We deliberately do not prompt the user from inside this service —
-	 * that would surprise users who add a public plugin. The
-	 * {@link GitHubAuthRequiredError} thrown by the helper on a 401/403 is
-	 * the right place for higher layers to drive a sign-in flow.
+	 * This is used for the first clone attempt so public repositories do not
+	 * surprise users with a sign-in prompt. User-initiated clone failures can
+	 * then call {@link _requestGitHubToken} to prompt and retry once.
 	 *
 	 * `getSessions` filters by the requested scopes, so the returned
 	 * sessions are guaranteed to grant `repo` access. With multiple
@@ -231,6 +249,20 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		} catch (err) {
 			this._logService.trace('[BrowserPluginGitCommandService] Silent GitHub session lookup failed:', err);
 			return undefined;
+		}
+	}
+
+	private async _requestGitHubToken(repo: IGitHubRepoRef): Promise<string> {
+		try {
+			const session = await this._authenticationService.createSession('github', ['repo'], { activateImmediate: true });
+			return session.accessToken;
+		} catch (err) {
+			this._logService.trace('[BrowserPluginGitCommandService] GitHub session request failed:', err);
+			throw new Error(localize(
+				'pluginsBrowserGitHubSignInRequired',
+				"Sign in to GitHub with an account that has access to '{0}' to install this plugin.",
+				`${repo.owner}/${repo.repo}`,
+			));
 		}
 	}
 

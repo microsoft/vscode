@@ -444,6 +444,7 @@ export class PluginListWidget extends Disposable {
 	private addButtonContainer!: HTMLElement;
 	private addButtonSimple!: Button;
 	private addButton!: ButtonWithDropdown;
+	private createPluginButton!: Button;
 	private readonly addDropdownActions = this._register(new DisposableStore());
 
 	private installedItems: IInstalledPluginItem[] = [];
@@ -510,7 +511,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace + Add actions)
+		// Button container (Browse Marketplace + Add actions + Create Plugin)
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
@@ -533,6 +534,12 @@ export class PluginListWidget extends Disposable {
 		}));
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.runPrimaryAddAction()));
+
+		const createPluginLabel = localize('createPlugin', "Create Plugin");
+		this.createPluginButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: createPluginLabel, ariaLabel: createPluginLabel }));
+		this.createPluginButton.element.classList.add('list-icon-button');
+		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
+		this._register(this.createPluginButton.onDidClick(() => this.runCreatePluginAction()));
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -752,6 +759,7 @@ export class PluginListWidget extends Disposable {
 			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web."));
 
 		this.updateAddButton();
+		this.createPluginButton.enabled = true;
 	}
 
 	private isBrowseMarketplaceAvailable(): boolean {
@@ -794,13 +802,6 @@ export class PluginListWidget extends Disposable {
 				icon: Codicon.add,
 				run: () => this.commandService.executeCommand('workbench.action.chat.installPluginFromSource'),
 			},
-			{
-				id: 'plugin.createPlugin',
-				label: localize('createPlugin', "Create Plugin"),
-				tooltip: localize('createPlugin', "Create Plugin"),
-				icon: Codicon.newFile,
-				run: () => this.commandService.executeCommand('workbench.action.chat.createPlugin'),
-			},
 		];
 	}
 
@@ -824,6 +825,10 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
+	private async runCreatePluginAction(): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.chat.createPlugin');
+	}
+
 	private async runPluginAction(action: ICustomizationItemAction): Promise<void> {
 		if (action.enabled !== false) {
 			await action.run();
@@ -831,6 +836,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	public showBrowseMarketplace(): void {
+		if (!this.isBrowseMarketplaceAvailable()) {
+			return;
+		}
 		if (!this.browseMode) {
 			this.toggleBrowseMode(true);
 		}

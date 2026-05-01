@@ -103,12 +103,12 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'deadbeef');
 		});
 
-		test('surfaces a GitHubAuthRequiredError on 401', async () => {
+		test('surfaces a sign-in message on 401 when auth is unavailable', async () => {
 			requestStub.queue('GET', /\/commits\/main$/, plainResponse(401));
 
 			await assert.rejects(
 				() => service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main'),
-				/GitHubAuthRequiredError|401/,
+				/Sign in to GitHub/,
 			);
 		});
 
@@ -126,6 +126,28 @@ suite('BrowserPluginGitCommandService', () => {
 				captured = err;
 			}
 			assert.ok(captured instanceof Error && captured.name === 'GitHubRateLimitError', `expected GitHubRateLimitError, got ${(captured as Error)?.name}`);
+		});
+
+		test('requests GitHub auth and retries when GitHub returns 403', async () => {
+			const state = { createSessionCalls: 0 };
+			service = new BrowserPluginGitCommandService(
+				fileService,
+				new NullLogService(),
+				requestStub as unknown as IRequestService,
+				storage,
+				stubAuthenticationService({ createdAccessToken: 'repo-token', state }),
+			);
+
+			const tarball = await makeGzippedTar({ 'pkg-sha1/private.txt': 'secret' });
+			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+
+			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
+
+			const file = await fileService.readFile(URI.joinPath(targetDir, 'private.txt'));
+			assert.strictEqual(file.value.toString(), 'secret');
+			assert.strictEqual(state.createSessionCalls, 1);
 		});
 
 		test('failed extraction leaves the previous targetDir intact', async () => {
@@ -487,8 +509,22 @@ function writeOctal(view: Uint8Array, offset: number, value: number, length: num
 	view[offset + length - 1] = 0;
 }
 
-function stubAuthenticationService(): IAuthenticationService {
+interface IStubAuthenticationServiceOptions {
+	readonly createdAccessToken?: string;
+	readonly state?: { createSessionCalls: number };
+}
+
+function stubAuthenticationService(options: IStubAuthenticationServiceOptions = {}): IAuthenticationService {
 	return {
 		getSessions: async () => [],
+		createSession: async () => {
+			if (options.state) {
+				options.state.createSessionCalls++;
+			}
+			if (!options.createdAccessToken) {
+				throw new Error('No GitHub session available');
+			}
+			return { accessToken: options.createdAccessToken };
+		},
 	} as unknown as IAuthenticationService;
 }
