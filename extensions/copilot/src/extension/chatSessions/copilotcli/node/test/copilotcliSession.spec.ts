@@ -1023,7 +1023,7 @@ describe('CopilotCLISession', () => {
 		expect(output).toContain('Use the button below to open in your browser, or scan to steer from the GitHub mobile app.');
 		expect(output).not.toContain('Scan with GitHub mobile:');
 		expect(output).toContain('QR code to open this remote session in GitHub mobile');
-		expect(output).toContain('data:image/png;base64,');
+		expect(output).toContain('data:image/svg+xml;base64,');
 		expect(output).not.toContain('```');
 	});
 
