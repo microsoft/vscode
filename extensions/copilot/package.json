@@ -4678,10 +4678,10 @@
 							"advanced"
 						]
 					},
-					"github.copilot.chat.cli.modelDetails.enabled": {
+					"github.copilot.chat.agent.modelDetails.enabled": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "%github.copilot.config.cli.modelDetails.enabled%",
+						"markdownDescription": "%github.copilot.config.chat.agent.modelDetails.enabled%",
 						"tags": [
 							"advanced"
 						]
