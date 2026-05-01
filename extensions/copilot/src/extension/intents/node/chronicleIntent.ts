@@ -368,6 +368,10 @@ export class ChronicleIntent implements IIntent {
 		return {};
 	}
 
+	private _getWorkspacePath(request: vscode.ChatRequest): string | undefined {
+		return request.workspaceFolder?.uri?.fsPath;
+	}
+
 	private async _handleTips(
 		extra: string | undefined,
 		stream: vscode.ChatResponseStream,
@@ -380,6 +384,7 @@ export class ChronicleIntent implements IIntent {
 	): Promise<vscode.ChatResult> {
 		const hasCloud = this._indexingPreference.hasCloudConsent();
 		const schema = this._getSchemaDescription(hasCloud);
+		const workspacePath = this._getWorkspacePath(request);
 
 		let prompt = `You have access to the session_store_sql tool that can execute read-only SQL queries against the user's Copilot session database.
 
@@ -387,10 +392,19 @@ Your task: Analyze the user's Copilot usage patterns and provide personalized, a
 
 Database schema:
 
-${schema}
+${schema}`;
+
+		if (workspacePath) {
+			prompt += `
+
+**IMPORTANT - Workspace Scoping**: Always filter queries to the current workspace: ${workspacePath}
+Use the \`cwd\` column in the sessions table. For example: \`WHERE cwd = '${workspacePath.replace(/'/g, "''")}'\`. Do not include sessions from other workspaces.`;
+		}
+
+		prompt += `
 
 Instructions:
-1. IMMEDIATELY call the session_store_sql tool to query sessions from the last 7 days. Do not explain what you will do first.
+1. IMMEDIATELY call the session_store_sql tool to query sessions from the last 7 days${workspacePath ? ' in the current workspace' : ''}. Do not explain what you will do first.
 2. Query the turns table to understand what kinds of prompts the user writes and how conversations flow.
 3. Query session_files to see which files and tools are used most frequently.
 4. Query session_refs to see PR/issue/commit activity patterns.
@@ -406,7 +420,7 @@ Analysis dimensions to explore:
 Query guidelines:
 - Only one query per call — do not combine multiple statements with semicolons.
 - Always use LIMIT (max 100) in your queries and prefer aggregations (COUNT, GROUP BY) over raw row dumps.
-- Use the turns table to understand conversation quality, not just session metadata.`;
+- Use the turns table to understand conversation quality, not just session metadata.${workspacePath ? '\n- Always filter on \`cwd\` to scope results to the current workspace.' : ''}`;
 
 		if (extra) {
 			prompt += `\n\nThe user is especially interested in: ${extra}`;
