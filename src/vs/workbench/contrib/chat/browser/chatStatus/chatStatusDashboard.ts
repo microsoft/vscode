@@ -674,6 +674,7 @@ export class ChatStatusDashboard extends DomWidget {
 			quotaValue,
 			quotaValueSuffix
 		);
+		quotaPercentage.tabIndex = 0;
 
 		container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-title', undefined, label),
@@ -687,6 +688,7 @@ export class ChatStatusDashboard extends DomWidget {
 		));
 
 		let currentQuota: IQuotaSnapshot | string = quota;
+		let isHovered = false;
 
 		const showPercentage = () => {
 			if (typeof currentQuota === 'string') {
@@ -702,7 +704,7 @@ export class ChatStatusDashboard extends DomWidget {
 		const showCredits = () => {
 			if (typeof currentQuota !== 'string' && currentQuota.entitlement !== undefined) {
 				const total = currentQuota.entitlement;
-				const used = Math.round(total * (100 - currentQuota.percentRemaining) / 100);
+				const used = total * (100 - currentQuota.percentRemaining) / 100;
 				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
 				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
 				quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
@@ -710,8 +712,10 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		};
 
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => showCredits()));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => showPercentage()));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => { isHovered = false; showPercentage(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.FOCUS, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.BLUR, () => { isHovered = false; showPercentage(); }));
 
 		const update = (quota: IQuotaSnapshot | string) => {
 			currentQuota = quota;
@@ -723,7 +727,11 @@ export class ChatStatusDashboard extends DomWidget {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
 
-			showPercentage();
+			if (isHovered) {
+				showCredits();
+			} else {
+				showPercentage();
+			}
 			quotaBit.style.width = `${usedPercentage}%`;
 		};
 

@@ -154,11 +154,15 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 					if (readyRepos.length) {
 						return this._writeStatusItem({
 							primary: {
-								message: t('{0} repos with indexes', readyRepos.length),
+								message: readyRepos.length === 1
+									? t('1 repo with index')
+									: t('{0} repos with indexes', readyRepos.length),
 								icon: '$(warning)',
 							},
 							details: {
-								message: t(`[Try re-authenticating for {0} additional repos](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`, errorRepos.length),
+								message: errorRepos.length === 1
+									? t(`[Try re-authenticating for 1 additional repo](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`)
+									: t(`[Try re-authenticating for {0} additional repos](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`, errorRepos.length),
 								busy: false,
 							},
 						});
