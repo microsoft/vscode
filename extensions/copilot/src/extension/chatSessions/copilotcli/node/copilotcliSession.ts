@@ -372,7 +372,7 @@ export interface ICopilotCLISession extends IDisposable {
 	readonly workspace: IWorkspaceInfo;
 	readonly additionalWorkspaces: IWorkspaceInfo[];
 	readonly pendingPrompt: string | undefined;
-	attachStream(stream: vscode.ChatResponseStream): IDisposable;
+	attachStream(stream: vscode.ChatResponseStream, options?: { markPreviousResponseInterrupted?: boolean }): IDisposable;
 	setPermissionLevel(level: string | undefined): void;
 	handleRequest(
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
@@ -467,7 +467,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
 	}
 
-	attachStream(stream: vscode.ChatResponseStream): IDisposable {
+	attachStream(stream: vscode.ChatResponseStream, options?: { markPreviousResponseInterrupted?: boolean }): IDisposable {
+		if (options?.markPreviousResponseInterrupted && this._stream && this._status === ChatSessionStatus.InProgress) {
+			this._stream.markdown(l10n.t('Previous response was interrupted.'));
+		}
 		this._stream = stream;
 		return toDisposable(() => {
 			if (this._stream === stream) {

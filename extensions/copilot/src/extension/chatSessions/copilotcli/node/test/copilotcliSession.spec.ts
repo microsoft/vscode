@@ -1679,7 +1679,7 @@ describe('CopilotCLISession', () => {
 			expect(session.status).toBe(ChatSessionStatus.InProgress);
 
 			const remoteStream = new MockChatResponseStream();
-			session.attachStream(remoteStream);
+			session.attachStream(remoteStream, { markPreviousResponseInterrupted: true });
 			const remoteRequest = session.handleRequest(
 				{ id: 'req-2', toolInvocationToken: undefined as never },
 				{ command: 'remote', prompt: '' }, [], undefined, authInfo, CancellationToken.None
@@ -1690,6 +1690,7 @@ describe('CopilotCLISession', () => {
 			resolveFirstSend();
 			await Promise.all([firstRequest, remoteRequest]);
 
+			expect(firstStream.output.join('')).toContain('Previous response was interrupted.');
 			expect(firstStream.output.join('')).toContain('Echo: First prompt');
 			const output = remoteStream.output.join('');
 			expect(output).not.toContain('Echo: First prompt');
