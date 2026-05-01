@@ -1536,10 +1536,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	private async _showRemoteControlEnabled(frontendUrl: string): Promise<void> {
 		const banner = new MarkdownString();
-		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}**\n\n${l10n.t('Use the button below to open in your browser, or scan to steer from the GitHub Mobile app.')}\n\n${l10n.t('Use /remote off to disable it.')}\n\n`);
+		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}**\n\n${l10n.t('Use the button below to open in your browser, or scan to steer from the GitHub mobile app.')}\n\n${l10n.t('Use /remote off to disable it.')}\n\n`);
 		try {
 			const qrDataUrl = await renderRemoteControlQrCode(frontendUrl);
-			banner.appendMarkdown(`![${l10n.t('QR code to open this remote session in GitHub Mobile')}](${qrDataUrl})`);
+			banner.appendMarkdown(`![${l10n.t('QR code to open this remote session in GitHub mobile')}](${qrDataUrl})`);
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to render remote control QR code: ${error instanceof Error ? error.message : String(error)}`);
 			banner.appendMarkdown(l10n.t('QR code could not be rendered. Open this session from any device: {0}', frontendUrl));
