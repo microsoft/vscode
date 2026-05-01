@@ -145,10 +145,10 @@ export interface IHarnessDescriptor {
 	 */
 	readonly syncProvider?: ICustomizationSyncProvider;
 	/**
-	 * Optional plugin-management actions shown in the Plugins section toolbar.
-	 * Harnesses can use these to replace the default local install/create
-	 * actions with environment-specific commands (for example, configuring
-	 * plugins on a remote agent host).
+	 * Optional plugin-management actions shown in the Plugins section add menu.
+	 * Harnesses can use these to add environment-specific commands alongside
+	 * the default install/create actions (for example, configuring plugins on a
+	 * remote agent host).
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
 }

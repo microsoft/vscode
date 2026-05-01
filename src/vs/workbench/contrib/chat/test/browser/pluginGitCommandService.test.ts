@@ -150,11 +150,11 @@ suite('BrowserPluginGitCommandService', () => {
 		test('extracts archives that exercise GNU LongLink and USTAR prefix', async () => {
 			const longSegment = 'a'.repeat(120); // > 100 bytes -> forces LongLink path
 			const longLinkPath = `pkg-sha1/${longSegment}/file.txt`;
-			const prefixPath: readonly [string, string, string] = ['pkg-sha1', 'short'.repeat(30), 'name.txt'];
+			const prefixPath: readonly [string, string, string] = ['pkg-sha1', 'short'.repeat(29), 'name.txt'];
 
 			const tarball = await makeGzippedTarWithSpecial([
-				{ longLink: longLinkPath, content: 'long' },
-				{ prefixSplit: prefixPath, content: 'pfx' },
+				{ type: 'longLink', longLink: longLinkPath, content: 'long' },
+				{ type: 'prefixSplit', prefixSplit: prefixPath, content: 'pfx' },
 			]);
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
 			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
@@ -439,13 +439,13 @@ function buildTarFromEntries(entries: readonly ITarEntrySpec[]): Uint8Array {
 	return out;
 }
 
-interface ILongLinkSpec { readonly longLink: string; readonly content: string }
-interface IPrefixSplitSpec { readonly prefixSplit: readonly [string, string, string]; readonly content: string }
+interface ILongLinkSpec { readonly type: 'longLink'; readonly longLink: string; readonly content: string }
+interface IPrefixSplitSpec { readonly type: 'prefixSplit'; readonly prefixSplit: readonly [string, string, string]; readonly content: string }
 
 async function makeGzippedTarWithSpecial(specs: readonly (ILongLinkSpec | IPrefixSplitSpec)[]): Promise<Uint8Array> {
 	const entries: ITarEntrySpec[] = [];
 	for (const spec of specs) {
-		if ('longLink' in spec) {
+		if (spec.type === 'longLink') {
 			// GNU LongLink: emit a 'L'-typed entry whose payload is the
 			// long path, immediately followed by a regular entry whose
 			// header `name` is truncated (the parser prefers the longLink
