@@ -86,7 +86,6 @@ export class ChatInputNotificationWidget extends Disposable {
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));
 		titleElement.textContent = notification.message;
-		titleElement.title = notification.message;
 
 		// Dismiss button (in header row, pushed to the right)
 		if (notification.dismissible) {
@@ -115,7 +114,6 @@ export class ChatInputNotificationWidget extends Disposable {
 			if (notification.description) {
 				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
 				descriptionElement.textContent = notification.description;
-				descriptionElement.title = notification.description;
 			}
 
 			if (notification.actions.length > 0) {
