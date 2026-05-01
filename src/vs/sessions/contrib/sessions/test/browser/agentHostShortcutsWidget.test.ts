@@ -71,7 +71,7 @@ function createWidget(disposables: DisposableStore): { container: HTMLElement } 
 suite('AgentHostShortcutsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders an always-expanded toolbar with header and no collapse affordance', () => {
+	test('renders an always-expanded toolbar with content and no collapse affordance', () => {
 		const testDisposables = disposables.add(new DisposableStore());
 		const { container } = createWidget(testDisposables);
 
