@@ -299,24 +299,24 @@ function logChatEntitlements(state: IChatEntitlementContextState, configurationS
 	});
 }
 
-type ChatOverageConfigurationClassification = {
+type ChatAdditionalSpendConfigurationClassification = {
 	owner: 'pwang347';
-	comment: 'Tracks when a user enables or disables overage / additional spend.';
+	comment: 'Tracks when a user enables or disables additional spend.';
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether additional spend is now enabled or disabled.' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
 };
-type ChatOverageConfigurationEvent = {
+type ChatAdditionalSpendConfigurationEvent = {
 	enabled: boolean;
 	entitlement: ChatEntitlement;
 };
 
-type ChatOverageActiveClassification = {
+type ChatAdditionalSpendActiveClassification = {
 	owner: 'pwang347';
-	comment: 'Tracks when a user enters the overage budget (included quota exhausted while overage is enabled).';
+	comment: 'Tracks when a user enters additional spend (included quota exhausted while additional spend is enabled).';
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
-	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used so far.' };
+	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of additional spend interactions used so far.' };
 };
-type ChatOverageActiveEvent = {
+type ChatAdditionalSpendActiveEvent = {
 	entitlement: ChatEntitlement;
 	additionalUsageCount: number;
 };
@@ -528,18 +528,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
-		// Track overage configuration changes
-		if (oldQuota.additionalUsageEnabled !== undefined && oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
-			this.telemetryService.publicLog2<ChatOverageConfigurationEvent, ChatOverageConfigurationClassification>('chatOverageConfiguration', {
+		// Track additional spend configuration changes (only when both values come from server snapshots)
+		if (oldQuota.additionalUsageEnabled !== undefined && quotas.additionalUsageEnabled !== undefined && oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
+			this.telemetryService.publicLog2<ChatAdditionalSpendConfigurationEvent, ChatAdditionalSpendConfigurationClassification>('chatAdditionalSpendConfiguration', {
 				enabled: quotas.additionalUsageEnabled ?? false,
 				entitlement: this.entitlement,
 			});
 		}
 
-		// Track entering overage budget: included quota just exhausted while overage is enabled
+		// Track entering additional spend: included quota just exhausted while additional spend is enabled
 		if (quotas.additionalUsageEnabled && quotas.premiumChat?.percentRemaining === 0
 			&& oldQuota.premiumChat?.percentRemaining !== undefined && oldQuota.premiumChat.percentRemaining > 0) {
-			this.telemetryService.publicLog2<ChatOverageActiveEvent, ChatOverageActiveClassification>('chatOverageActive', {
+			this.telemetryService.publicLog2<ChatAdditionalSpendActiveEvent, ChatAdditionalSpendActiveClassification>('chatAdditionalSpendActive', {
 				entitlement: this.entitlement,
 				additionalUsageCount: quotas.additionalUsageCount ?? 0,
 			});
