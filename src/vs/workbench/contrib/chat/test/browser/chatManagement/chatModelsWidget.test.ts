@@ -54,11 +54,11 @@ suite('ChatModelsWidget', () => {
 			const value = markdown.value;
 
 			assert.ok(value.includes('Input Cost'));
-			assert.ok(value.includes('4 credits/1M tokens'));
+			assert.ok(value.includes('4 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
-			assert.ok(value.includes('14 credits/1M tokens'));
+			assert.ok(value.includes('14 credits per 1M tokens'));
 			assert.ok(value.includes('Cache Cost'));
-			assert.ok(value.includes('1 credits/1M tokens'));
+			assert.ok(value.includes('1 credit per 1M tokens'));
 		});
 
 		test('includes only present cost fields', () => {
@@ -72,9 +72,9 @@ suite('ChatModelsWidget', () => {
 			const value = markdown.value;
 
 			assert.ok(value.includes('Input Cost'));
-			assert.ok(value.includes('3 credits/1M tokens'));
+			assert.ok(value.includes('3 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
-			assert.ok(value.includes('12 credits/1M tokens'));
+			assert.ok(value.includes('12 credits per 1M tokens'));
 			assert.ok(!value.includes('Cache Cost'));
 		});
 
@@ -87,7 +87,8 @@ suite('ChatModelsWidget', () => {
 			assert.ok(!value.includes('Input Cost'));
 			assert.ok(!value.includes('Output Cost'));
 			assert.ok(!value.includes('Cache Cost'));
-			assert.ok(!value.includes('credits/1M tokens'));
+			assert.ok(!value.includes('credits per 1M tokens'));
+			assert.ok(!value.includes('credit per 1M tokens'));
 		});
 
 		test('includes pricing text when set', () => {
@@ -114,7 +115,7 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('Pricing'));
 			assert.ok(value.includes('1x'));
 			assert.ok(value.includes('Input Cost'));
-			assert.ok(value.includes('4 credits/1M tokens'));
+			assert.ok(value.includes('4 credits per 1M tokens'));
 		});
 
 		test('handles zero cost values', () => {
@@ -128,7 +129,7 @@ suite('ChatModelsWidget', () => {
 			const value = markdown.value;
 
 			assert.ok(value.includes('Input Cost'));
-			assert.ok(value.includes('0 credits/1M tokens'));
+			assert.ok(value.includes('0 credits per 1M tokens'));
 		});
 	});
 });
