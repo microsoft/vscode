@@ -799,13 +799,13 @@ export class ChatEntitlementRequests extends Disposable {
 				if (!rawQuotaSnapshot) {
 					continue;
 				}
-				const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? parseInt(rawQuotaSnapshot.entitlement, 10) : undefined;
+				const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
 				const quotaSnapshot: IQuotaSnapshot = {
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					unlimited: rawQuotaSnapshot.unlimited,
 					usageBasedBilling: rawQuotaSnapshot.token_based_billing,
 					resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-					entitlement: parsedEntitlement !== undefined && !isNaN(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+					entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
 				};
 
 				switch (quotaType) {

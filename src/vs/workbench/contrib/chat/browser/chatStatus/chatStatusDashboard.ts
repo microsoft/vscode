@@ -314,10 +314,10 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 			disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
+
 			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
 			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
 
 			statusEl = disclosureHeader.appendChild($('span.collapsible-status', undefined, getStatusText()));
 		}
@@ -370,13 +370,13 @@ export class ChatStatusDashboard extends DomWidget {
 					: $('button.collapsible-header')
 			);
 			let chevron: HTMLElement | undefined;
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
+
 			if (!nonCollapsible) {
 				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
 				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
 			}
-
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
 
 			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
 			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));

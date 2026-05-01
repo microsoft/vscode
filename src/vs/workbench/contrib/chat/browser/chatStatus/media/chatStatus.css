@@ -23,7 +23,6 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	margin-top: 8px;
 	padding: 6px 0 6px 0;
 	border: none;
 	border-top: 1px solid var(--vscode-editorWidget-border);
