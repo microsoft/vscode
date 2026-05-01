@@ -40,12 +40,10 @@ export function parseGitHubCloneUrl(cloneUrl: string): IGitHubRepoRef | undefine
 	if (url.protocol !== 'https:' || !GITHUB_HOSTS.has(url.hostname.toLowerCase())) {
 		return undefined;
 	}
-	// Strip leading and trailing slashes BEFORE removing the optional .git
-	// suffix so URLs like `.../o/r.git/` are normalised to `o/r`.
+	// Trim slashes before stripping `.git` so `.../o/r.git/` normalises to `o/r`.
 	const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '');
 	const segments = path.split('/');
-	// Require exactly two non-empty segments so we don't mis-parse non-clone
-	// GitHub URLs (e.g. https://github.com/owner/repo/issues/42) as repos.
+	// Require exactly two segments to avoid mis-parsing `.../owner/repo/issues/42`.
 	if (segments.length !== 2 || !segments[0] || !segments[1]) {
 		return undefined;
 	}
@@ -148,12 +146,10 @@ function isRateLimited(headers: Record<string, string | string[] | undefined> | 
 	if (!headers) {
 		return false;
 	}
-	const remaining = readHeader(headers, 'x-ratelimit-remaining');
-	if (remaining === '0') {
+	if (readHeader(headers, 'x-ratelimit-remaining') === '0') {
 		return true;
 	}
-	// Secondary rate limit -- GitHub does not always set X-RateLimit-Remaining
-	// in this case, but does set Retry-After.
+	// Secondary rate limit: GitHub omits X-RateLimit-Remaining but sets Retry-After.
 	return readHeader(headers, 'retry-after') !== undefined;
 }
 

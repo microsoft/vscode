@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -82,40 +83,43 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.repo, ref, sha, fetchedAt: Date.now() });
 		};
 
+		// Auth ladder: signed-in token → anonymous → freshly-requested repo session.
+		// Each rung only runs when the previous one failed with a 401/403 (the
+		// `GitHubAuthRequiredError`); other errors propagate immediately.
 		const initialAuthToken = await this._lookupGitHubToken();
-		try {
-			await cloneWithToken(initialAuthToken);
-		} catch (err) {
-			if (err instanceof GitHubAuthRequiredError && !cancel.isCancellationRequested) {
-				if (initialAuthToken) {
-					try {
-						await cloneWithToken(undefined);
-						return;
-					} catch (anonymousErr) {
-						this._maybeLogTransientError(anonymousErr, repo);
-						if (!(anonymousErr instanceof GitHubAuthRequiredError)) {
-							throw anonymousErr;
-						}
-					}
-				}
-				try {
-					await cloneWithToken(await this._requestGitHubToken(repo));
-					return;
-				} catch (retryErr) {
-					this._maybeLogTransientError(retryErr, repo);
-					if (retryErr instanceof GitHubAuthRequiredError) {
-						throw new Error(localize(
-							'pluginsBrowserGitHubAccessRequired',
-							"GitHub authentication is required to install '{0}'. Sign in with an account that has access to this repository, then try again.",
-							`${repo.owner}/${repo.repo}`,
-						));
-					}
-					throw retryErr;
+		const attempts: Array<() => Promise<string | undefined>> = [
+			async () => initialAuthToken,
+		];
+		if (initialAuthToken) {
+			attempts.push(async () => undefined);
+		}
+		attempts.push(() => this._requestGitHubToken(repo));
+
+		let lastErr: unknown;
+		for (const getToken of attempts) {
+			if (cancel.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			try {
+				await cloneWithToken(await getToken());
+				return;
+			} catch (err) {
+				lastErr = err;
+				this._maybeLogTransientError(err, repo);
+				if (!(err instanceof GitHubAuthRequiredError)) {
+					throw err;
 				}
 			}
-			this._maybeLogTransientError(err, repo);
-			throw err;
 		}
+
+		if (lastErr instanceof GitHubAuthRequiredError) {
+			throw new Error(localize(
+				'pluginsBrowserGitHubAccessRequired',
+				"GitHub authentication is required to install '{0}'. Sign in with an account that has access to this repository, then try again.",
+				`${repo.owner}/${repo.repo}`,
+			));
+		}
+		throw lastErr;
 	}
 
 	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
@@ -151,9 +155,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
 		const requestedRef = treeish.trim();
 
-		// SHA-pinned plugin sources call us with a 40-hex commit SHA after
-		// `cloneRepository`; resolve other refs (branches, tags, short SHAs)
-		// through the GitHub commits API like clone/pull do.
+		// 40-hex SHA refs skip the resolveSha round-trip (clone pins to the SHA already).
 		const isFullSha = /^[0-9a-f]{40}$/i.test(requestedRef);
 		const requestedSha = isFullSha
 			? requestedRef.toLowerCase()
@@ -182,10 +184,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		if (!entry) {
 			throw new Error(`Cannot resolve ref: no cached metadata for ${repoDir.toString()}`);
 		}
-		// Tree-cached plugins only know one SHA per directory (the one
-		// we materialised). Reject queries for unrelated SHAs so callers
-		// notice when they expected a real `git rev-parse` and got a
-		// cache hit instead.
+		// Reject unrelated SHAs so callers notice they got a cache hit instead of `git rev-parse`.
 		const trimmed = ref.trim();
 		const isFullSha = /^[0-9a-f]{40}$/i.test(trimmed);
 		if (isFullSha && trimmed.toLowerCase() !== entry.sha.toLowerCase()) {
