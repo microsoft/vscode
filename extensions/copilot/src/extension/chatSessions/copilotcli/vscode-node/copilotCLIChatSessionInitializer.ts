@@ -32,6 +32,7 @@ export interface SessionInitOptions {
 	folder?: vscode.Uri;
 	newBranch?: Promise<string | undefined>;
 	stream: vscode.ChatResponseStream;
+	attachStream?: boolean;
 }
 
 export interface ICopilotCLIChatSessionInitializer {
@@ -127,7 +128,9 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 		this.logService.info(`Using Copilot CLI session: ${session.object.sessionId} (isNewSession: ${isNewSession}, isolationEnabled: ${isIsolationEnabled(workspaceInfo)}, workingDirectory: ${workingDirectory}, worktreePath: ${worktreeProperties?.worktreePath})`);
 
 		disposables.add(session);
-		disposables.add(session.object.attachStream(stream));
+		if (options.attachStream !== false) {
+			disposables.add(session.object.attachStream(stream));
+		}
 		session.object.setPermissionLevel(request.permissionLevel);
 
 		return { session, isNewSession, model, agent, trusted };

@@ -63,6 +63,10 @@ const CHECK_FOR_STEERING_DELAY = 100; // ms
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
 
+function isSessionInProgress(status: vscode.ChatSessionStatus | undefined): boolean {
+	return status === vscode.ChatSessionStatus.InProgress || status === vscode.ChatSessionStatus.NeedsInput;
+}
+
 // Re-export for backward compatibility
 export { resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from './sessionOptionGroupBuilder';
 
@@ -832,9 +836,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 
 			const selectedOptions = getSelectedSessionOptions(chatSessionContext.inputState);
-			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream }, disposables, token);
+			const isRemoteCommand = request.command === 'remote';
+			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream, attachStream: !isRemoteCommand }, disposables, token);
 			({ session } = sessionResult);
-			shouldRefreshSessionItem = !(isNewSession && request.command === 'remote');
+			shouldRefreshSessionItem = !(isNewSession && isRemoteCommand);
 
 
 			if (isNewSession && !sessionResult.trusted) {
@@ -852,6 +857,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 
 			sdkSessionId = session.object.sessionId;
+
+			if (isRemoteCommand) {
+				await this.waitForSessionIdle(session.object, token);
+				if (token.isCancellationRequested) {
+					return {};
+				}
+				disposables.add(session.object.attachStream(stream));
+			}
 
 			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0, session.object.workspace, agent?.name);
 
@@ -896,6 +909,28 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 
 		return { session, isNewSession, model, agent, trusted };
+	}
+
+	private async waitForSessionIdle(session: ICopilotCLISession, token: vscode.CancellationToken): Promise<void> {
+		if (!isSessionInProgress(session.status)) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		try {
+			const idle = new DeferredPromise<void>();
+			disposables.add(session.onDidChangeStatus(status => {
+				if (!isSessionInProgress(status)) {
+					idle.complete();
+				}
+			}));
+			if (!isSessionInProgress(session.status)) {
+				idle.complete();
+			}
+			await raceCancellation(idle.p, token);
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	private async handleDelegationToCloud(session: ICopilotCLISession, request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {

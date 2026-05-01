@@ -18,8 +18,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
+import { ChatSessionStatus } from '../../../../vscodeTypes';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
@@ -334,7 +335,9 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			sessionId: 'new-session',
 			workspace: emptyWorkspaceInfo,
 			status: undefined,
+			onDidChangeStatus: Event.None,
 			createdPullRequestUrl: undefined,
+			attachStream: vi.fn(() => ({ dispose: vi.fn() })),
 			handleRequest: vi.fn(async () => { }),
 		} as unknown as ICopilotCLISession;
 		const sessionService = new TestSessionService();
@@ -423,6 +426,126 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			CancellationToken.None,
 		);
 		expect(sessionItemProvider.refreshSession).not.toHaveBeenCalled();
+	});
+
+	it('waits for active sessions before attaching /remote stream', async () => {
+		const resource = SessionIdForCLI.getResource('session-1');
+		const sessionItemProvider = {
+			refreshSession: vi.fn(async () => { }),
+			dispose: vi.fn(),
+		};
+		const statusEmitter = new Emitter<vscode.ChatSessionStatus | undefined>();
+		let status: vscode.ChatSessionStatus | undefined = ChatSessionStatus.InProgress;
+		const stream = {} as vscode.ChatResponseStream;
+		const session = {
+			sessionId: 'session-1',
+			workspace: emptyWorkspaceInfo,
+			get status() {
+				return status;
+			},
+			onDidChangeStatus: statusEmitter.event,
+			createdPullRequestUrl: undefined,
+			attachStream: vi.fn(() => ({ dispose: vi.fn() })),
+			handleRequest: vi.fn(async () => { }),
+		} as unknown as ICopilotCLISession;
+		const sessionService = new TestSessionService();
+		const promptResolver = {
+			resolvePrompt: vi.fn(async () => ({ prompt: 'on', attachments: [] })),
+		} as unknown as CopilotCLIPromptResolver;
+		const logService = new class extends mock<ILogService>() {
+			declare readonly _serviceBrand: undefined;
+			override error = vi.fn();
+		}();
+		const sessionInitializer = new class extends mock<ICopilotCLIChatSessionInitializer>() {
+			declare readonly _serviceBrand: undefined;
+			override getOrCreateSession = vi.fn(async () => ({
+				session: { object: session, dispose: vi.fn() },
+				isNewSession: false,
+				model: undefined,
+				agent: undefined,
+				trusted: true,
+			}));
+		}();
+		const requestLifecycle = new class extends mock<ISessionRequestLifecycle>() {
+			declare readonly _serviceBrand: undefined;
+			override startRequest = vi.fn(async () => { });
+			override endRequest = vi.fn(async () => { });
+		}();
+		const participant = new CopilotCLIChatSessionParticipant(
+			sessionItemProvider,
+			promptResolver,
+			undefined,
+			undefined,
+			new TestGitService(),
+			sessionService,
+			new TestWorktreeService(),
+			new class extends mock<ITelemetryService>() {
+				declare readonly _serviceBrand: undefined;
+				override sendMSFTTelemetryEvent = vi.fn();
+			}(),
+			logService,
+			new class extends mock<IChatDelegationSummaryService>() {
+				declare readonly _serviceBrand: undefined;
+			}(),
+			new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
+			new class extends mock<ICopilotCLISDK>() {
+				declare readonly _serviceBrand: undefined;
+				override getAuthInfo = vi.fn(async () => ({ type: 'token' as const, token: 'token', host: 'https://github.com' }));
+			}(),
+			sessionInitializer,
+			requestLifecycle,
+			new class extends mock<PullRequestDetectionService>() {
+				override onDidDetectPullRequest = Event.None;
+			}() as unknown as PullRequestDetectionService,
+			new class extends mock<ISessionOptionGroupBuilder>() {
+				declare readonly _serviceBrand: undefined;
+				override lockInputStateGroups = vi.fn();
+				override updateBranchInInputState = vi.fn();
+			}(),
+		);
+
+		const handled = participant.createHandler()(
+			{
+				id: 'request-2',
+				command: 'remote',
+				prompt: 'on',
+				sessionResource: resource,
+				references: [],
+				tools: [],
+				toolInvocationToken: undefined,
+			} as unknown as vscode.ChatRequest,
+			{
+				history: [],
+				yieldRequested: false,
+				chatSessionContext: {
+					chatSessionItem: { resource, label: 'Session' },
+					inputState: { groups: [] },
+				},
+			} as unknown as vscode.ChatContext,
+			stream,
+			CancellationToken.None,
+		);
+
+		await vi.waitFor(() => expect(sessionInitializer.getOrCreateSession).toHaveBeenCalled());
+		expect(sessionInitializer.getOrCreateSession).toHaveBeenCalledWith(
+			expect.anything(),
+			resource,
+			expect.objectContaining({ attachStream: false }),
+			expect.anything(),
+			expect.anything(),
+		);
+		expect(session.attachStream).not.toHaveBeenCalled();
+		expect(requestLifecycle.startRequest).not.toHaveBeenCalled();
+		expect(session.handleRequest).not.toHaveBeenCalled();
+
+		status = ChatSessionStatus.Completed;
+		statusEmitter.fire(status);
+		await handled;
+
+		expect(session.attachStream).toHaveBeenCalledWith(stream);
+		expect(requestLifecycle.startRequest).toHaveBeenCalled();
+		expect(session.handleRequest).toHaveBeenCalled();
+		statusEmitter.dispose();
 	});
 });
 
