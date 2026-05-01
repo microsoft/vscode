@@ -345,8 +345,6 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	 * then optionally runs cloud reindex if session sync is enabled.
 	 */
 	private async _reindexFromCommandPalette(): Promise<void> {
-		const cts = new vscode.CancellationTokenSource();
-
 		await vscode.window.withProgress(
 			{
 				location: vscode.ProgressLocation.Notification,
@@ -375,18 +373,21 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				);
 
 				// Show summary
-				const parts: string[] = [
-					vscode.l10n.t('{0} session(s) indexed locally', localResult.processed),
-				];
-				if (cloudResult && cloudResult.created > 0) {
-					parts.push(vscode.l10n.t('{0} synced to cloud', cloudResult.created));
+				if (localResult.processed === 0 && (!cloudResult || cloudResult.created === 0)) {
+					vscode.window.showInformationMessage(
+						vscode.l10n.t('Session index is up to date. {0} session(s) checked.', localResult.skipped)
+					);
+				} else if (cloudResult && cloudResult.created > 0) {
+					vscode.window.showInformationMessage(
+						vscode.l10n.t('{0} session(s) indexed locally, {1} synced to cloud.', localResult.processed, cloudResult.created)
+					);
+				} else {
+					vscode.window.showInformationMessage(
+						vscode.l10n.t('{0} session(s) indexed locally.', localResult.processed)
+					);
 				}
-
-				vscode.window.showInformationMessage(parts.join(', ') + '.');
 			},
 		);
-
-		cts.dispose();
 	}
 
 	// ── Delete sessions (Command Palette) ───────────────────────────────────────
