@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
-import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -141,6 +141,46 @@ describe('AzureBYOKModelProvider', () => {
 	});
 
 	describe('CustomOAIBYOKModelProvider toolSearch mapping', () => {
+		it('preserves toolSearch when migrating deprecated Custom OAI settings', async () => {
+			const configurationService = accessor.get(IConfigurationService);
+			configurationService.setConfig(ConfigKey.Deprecated.CustomOAIModels, {
+				'custom-model': {
+					name: 'Custom Model',
+					url: 'https://example.test/v1/responses',
+					maxInputTokens: 4096,
+					maxOutputTokens: 2048,
+					toolCalling: false,
+					vision: false,
+					toolSearch: true,
+				},
+			});
+
+			const provider = new CustomOAIBYOKModelProvider(
+				createStorageService(),
+				accessor.get(ILogService),
+				accessor.get(IFetcherService),
+				accessor.get(IInstantiationService),
+				configurationService,
+				accessor.get(IExperimentationService),
+				{
+					globalState: {
+						get: vi.fn().mockReturnValueOnce(true).mockReturnValue(false),
+						update: vi.fn().mockResolvedValue(undefined),
+					},
+				} as any,
+			);
+			const configureDefaultGroupIfExists = vi.spyOn(provider as any, 'configureDefaultGroupIfExists').mockResolvedValue(undefined);
+
+			await (provider as any).migrateConfig(ConfigKey.Deprecated.CustomOAIModels, CustomOAIBYOKModelProvider.providerName, CustomOAIBYOKModelProvider.providerName);
+
+			expect(configureDefaultGroupIfExists).toHaveBeenCalledWith(
+				CustomOAIBYOKModelProvider.providerName,
+				expect.objectContaining({
+					models: [expect.objectContaining({ id: 'custom-model', toolSearch: true })],
+				})
+			);
+		});
+
 		it('enables toolSearch for Responses custom models when explicitly configured', async () => {
 			const provider = createProvider();
 			const endpoint = await (provider as any).createOpenAIEndPoint(createCustomModel('https://example.test/v1/responses', true));

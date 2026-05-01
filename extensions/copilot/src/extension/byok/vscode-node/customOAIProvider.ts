@@ -56,6 +56,7 @@ interface _CustomOAIModelConfig {
 	maxOutputTokens: number;
 	toolCalling: boolean;
 	vision: boolean;
+	toolSearch?: boolean;
 	thinking?: boolean;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
@@ -132,6 +133,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomOAIModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const url = this.resolveUrl(model.id, model.url);
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		const usesResponsesApi = url.includes(ModelSupportedEndpoint.Responses);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
@@ -145,13 +147,18 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
-		if (modelCapabilities?.url?.includes('/responses')) {
+		modelInfo.capabilities.supports.tool_search = this.getToolSearchSupport(modelConfiguration, usesResponsesApi);
+		if (usesResponsesApi) {
 			modelInfo.supported_endpoints = [
 				ModelSupportedEndpoint.ChatCompletions,
 				ModelSupportedEndpoint.Responses
 			];
 		}
 		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
+	}
+
+	protected getToolSearchSupport(modelConfiguration: CustomOAIModelConfig | undefined, usesResponsesApi: boolean): boolean {
+		return false;
 	}
 
 	protected getModelsBaseUrl(configuration: CustomOAIModelProviderConfig | undefined): string | undefined {
@@ -182,6 +189,10 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 	// TODO: Remove this after 6 months
 	private async migrateExistingConfigs(): Promise<void> {
 		await this.migrateConfig(ConfigKey.Deprecated.CustomOAIModels, this.providerName, this.providerName);
+	}
+
+	protected override getToolSearchSupport(modelConfiguration: CustomOAIModelConfig | undefined, usesResponsesApi: boolean): boolean {
+		return usesResponsesApi && (modelConfiguration?.toolSearch ?? false);
 	}
 
 	protected resolveUrl(modelId: string, url: string): string {

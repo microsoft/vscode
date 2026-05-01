@@ -1934,6 +1934,10 @@
 										"type": "boolean",
 										"description": "Whether the model supports vision capabilities"
 									},
+									"toolSearch": {
+										"type": "boolean",
+										"description": "Whether the model supports client-executed tool search when this endpoint uses the Responses API"
+									},
 									"maxInputTokens": {
 										"type": "number",
 										"description": "Maximum number of input tokens supported by the model"
