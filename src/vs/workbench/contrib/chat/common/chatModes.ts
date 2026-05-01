@@ -21,6 +21,7 @@ import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { ICustomizationHarnessService } from './customizationHarnessService.js';
 import { PromptFileSource, Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -90,6 +91,7 @@ class ChatModes extends Disposable implements IChatModes {
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
 
@@ -103,12 +105,22 @@ class ChatModes extends Disposable implements IChatModes {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => {
 			this._pendingRefresh = this.refreshCustomPromptModes(true);
 		}));
+		// When the harness service is the source, also react to its change events for our session type.
+		this._register(this.customizationHarnessService.onDidChangeCustomAgents(e => {
+			if (e.sessionType === this.sessionType && this.useChatSessionCustomizationsForCustomAgents()) {
+				this._pendingRefresh = this.refreshCustomPromptModes(true);
+			}
+		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
 
 		// Builtin mode availability depends on configuration policy and tools-agent availability.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChange.fire();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.UseChatSessionCustomizationsForCustomAgents)) {
+				// Source switched: re-fetch from the now-active provider.
+				this._pendingRefresh = this.refreshCustomPromptModes(true);
 			}
 		}));
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
@@ -201,16 +213,23 @@ class ChatModes extends Disposable implements IChatModes {
 		}
 	}
 
+	private useChatSessionCustomizationsForCustomAgents(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionCustomizationsForCustomAgents) === true;
+	}
+
 	private async refreshCustomPromptModes(fireChangeEvent?: boolean): Promise<void> {
 		try {
-			const customModes = await this.promptsService.getCustomAgents(CancellationToken.None);
+			const useHarness = this.useChatSessionCustomizationsForCustomAgents();
+
+			const customModes = useHarness
+				? await this.customizationHarnessService.getCustomAgents(this.sessionType, CancellationToken.None)
+				: (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(mode => matchesSessionType(mode.sessionTypes, this.sessionType));
 
 			// Create a new set of mode instances, reusing existing ones where possible
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
-				// Filter custom agents by the session type this instance was created for
-				if (!customMode.visibility.userInvocable || !customMode.enabled || !matchesSessionType(customMode.sessionTypes, this.sessionType)) {
+				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
