@@ -8,6 +8,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { VSBuffer, streamToBuffer } from '../../../../base/common/buffer.js';
 import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRequestService, asJson, isClientError, isSuccess } from '../../../../platform/request/common/request.js';
@@ -38,7 +39,9 @@ export function parseGitHubCloneUrl(cloneUrl: string): IGitHubRepoRef | undefine
 	if (url.protocol !== 'https:' || !GITHUB_HOSTS.has(url.hostname.toLowerCase())) {
 		return undefined;
 	}
-	const path = url.pathname.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+	// Strip leading and trailing slashes BEFORE removing the optional .git
+	// suffix so URLs like `.../o/r.git/` are normalised to `o/r`.
+	const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '');
 	const segments = path.split('/');
 	// Require exactly two non-empty segments so we don't mis-parse non-clone
 	// GitHub URLs (e.g. https://github.com/owner/repo/issues/42) as repos.
@@ -79,6 +82,9 @@ export async function resolveGitHubRefToSha(
 		throw new CancellationError();
 	}
 	const status = ctx.res.statusCode ?? 0;
+	if (status === 403 && isRateLimited(ctx.res.headers)) {
+		throw new GitHubRateLimitError(`GitHub rate limit hit resolving ref '${ref ?? 'HEAD'}' on ${repo.owner}/${repo.repo}`, retryAfterFromHeaders(ctx.res.headers));
+	}
 	if (status === 401 || status === 403) {
 		throw new GitHubAuthRequiredError(`GitHub returned ${status} resolving ref '${ref ?? 'HEAD'}' on ${repo.owner}/${repo.repo}`);
 	}
@@ -107,14 +113,70 @@ export class GitHubAuthRequiredError extends Error {
 }
 
 /**
+ * Thrown when GitHub responds with 403 + `X-RateLimit-Remaining: 0` to
+ * indicate the caller has exhausted the request quota for the current
+ * window. Distinct from {@link GitHubAuthRequiredError} so callers don't
+ * push users to sign in when the actual fix is "wait".
+ */
+export class GitHubRateLimitError extends Error {
+	constructor(message: string, public readonly retryAfterSeconds?: number) {
+		super(message);
+		this.name = 'GitHubRateLimitError';
+	}
+}
+
+function isRateLimited(headers: Record<string, string | string[] | undefined> | undefined): boolean {
+	if (!headers) {
+		return false;
+	}
+	const remaining = readHeader(headers, 'x-ratelimit-remaining');
+	if (remaining === '0') {
+		return true;
+	}
+	// Secondary rate limit -- GitHub does not always set X-RateLimit-Remaining
+	// in this case, but does set Retry-After.
+	return readHeader(headers, 'retry-after') !== undefined;
+}
+
+function retryAfterFromHeaders(headers: Record<string, string | string[] | undefined> | undefined): number | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const value = readHeader(headers, 'retry-after');
+	if (!value) {
+		return undefined;
+	}
+	const parsed = parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
+	const value = headers[name] ?? headers[name.toLowerCase()];
+	if (Array.isArray(value)) {
+		return value[0];
+	}
+	return value;
+}
+
+/**
  * Fetches a GitHub repository tarball at the given SHA and extracts its
  * contents into {@link targetDir} via {@link IFileService}.
  *
- * The tarball is fetched from `codeload.github.com` (resolved via the
- * standard `/tarball` redirect). All entries are extracted relative to the
- * repository root: GitHub wraps every file in a top-level
- * `{repo}-{shortSha}/` directory which is stripped here so callers see a
- * clean tree.
+ * Extraction is staged to a sibling directory and atomically swapped into
+ * place on success. If anything fails (network, gunzip, malformed tar,
+ * cancellation), the staging directory is cleaned up and the original
+ * `targetDir` is left untouched.
+ *
+ * All entries are extracted relative to the repository root: GitHub wraps
+ * every file in a top-level `{repo}-{shortSha}/` directory which is
+ * stripped here so callers see a clean tree.
+ *
+ * Note on auth + redirects: GitHub's tarball endpoint 302s to a signed
+ * `codeload.github.com` URL whose authorization is encoded in the URL
+ * itself, so the `Authorization` header being stripped on the cross-origin
+ * redirect (browser fetch behaviour per spec) does not break private-repo
+ * downloads. We deliberately do not pass `followRedirects` since it is
+ * silently ignored by the browser request implementation.
  */
 export async function fetchAndExtractGitHubTarball(
 	requestService: IRequestService,
@@ -136,11 +198,14 @@ export async function fetchAndExtractGitHubTarball(
 	}
 
 	logService.trace(`[GitHubTarballFetcher] GET ${url}`);
-	const ctx = await requestService.request({ type: 'GET', url, headers, followRedirects: 5, callSite: 'pluginGit.tarball' }, token);
+	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.tarball' }, token);
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
 	const status = ctx.res.statusCode ?? 0;
+	if (status === 403 && isRateLimited(ctx.res.headers)) {
+		throw new GitHubRateLimitError(`GitHub rate limit hit downloading tarball for ${repo.owner}/${repo.repo}@${sha}`, retryAfterFromHeaders(ctx.res.headers));
+	}
 	if (status === 401 || status === 403) {
 		throw new GitHubAuthRequiredError(`GitHub returned ${status} downloading tarball for ${repo.owner}/${repo.repo}@${sha}`);
 	}
@@ -158,17 +223,29 @@ export async function fetchAndExtractGitHubTarball(
 		throw new CancellationError();
 	}
 
-	// Wipe any prior contents so files removed upstream don't linger and so
-	// that we never partially overlay a previous extraction.
-	if (await fileService.exists(targetDir)) {
+	// Stage the extraction in a sibling directory and swap into place on
+	// success. If anything throws (cancellation, malformed tar, FS write
+	// error), the staging directory is cleaned up and the existing
+	// targetDir contents -- if any -- are left untouched. This avoids a
+	// failure mode where an aborted update wipes the target and leaves the
+	// persisted SHA cache pointing at a now-empty directory.
+	const stagingDir = joinPath(dirname(targetDir), `.staging-${generateUuid()}`);
+	try {
+		await extractTarToFileService(tar, stagingDir, fileService, logService, token);
+		// move() with overwrite=true atomically (from the consumer's POV)
+		// replaces the target with the freshly-extracted tree, dropping any
+		// files removed upstream.
+		await fileService.move(stagingDir, targetDir, true);
+	} catch (err) {
 		try {
-			await fileService.del(targetDir, { recursive: true });
-		} catch (err) {
-			logService.warn(`[GitHubTarballFetcher] Failed to clear ${targetDir.toString()} before extraction:`, err);
+			if (await fileService.exists(stagingDir)) {
+				await fileService.del(stagingDir, { recursive: true });
+			}
+		} catch (cleanupErr) {
+			logService.warn(`[GitHubTarballFetcher] Failed to clean up staging dir ${stagingDir.toString()}:`, cleanupErr);
 		}
+		throw err;
 	}
-
-	await extractTarToFileService(tar, targetDir, fileService, logService, token);
 }
 
 /**
@@ -202,21 +279,65 @@ async function gunzip(input: Uint8Array): Promise<Uint8Array> {
 const BLOCK_SIZE = 512;
 
 /**
- * Decode an octal-encoded numeric field from a tar header. Tar uses
- * NUL/space-terminated octal strings for size, mode, mtime, etc.
+ * Decode a numeric field from a tar header.
+ *
+ * Tar fields are either:
+ *  - Classic POSIX: NUL/space-terminated, optionally space-leading, octal
+ *    ASCII digits (e.g. `   01234\0`).
+ *  - GNU base-256: when the high bit (0x80) of byte 0 is set, the
+ *    remaining bytes hold a big-endian binary integer. Used for sizes
+ *    that don't fit in 11 octal digits (>8 GiB) and for negative mtimes.
+ *    GitHub source tarballs almost never use this in practice, but the
+ *    parser must handle it without silently mis-aligning subsequent
+ *    blocks.
+ *
+ * @returns the decoded non-negative integer, or `undefined` for an
+ * unparseable / empty / negative-base-256 field. Callers treat
+ * `undefined` as a fatal parser error since silently substituting `0`
+ * would mis-align padding for the next entry.
  */
-function readOctal(view: Uint8Array, offset: number, length: number): number {
-	let end = offset + length;
-	while (end > offset && (view[end - 1] === 0 || view[end - 1] === 0x20)) {
-		end--;
+function readNumericField(view: Uint8Array, offset: number, length: number): number | undefined {
+	if (length <= 0) {
+		return undefined;
 	}
+	const first = view[offset];
+	// GNU base-256 binary encoding (high bit set on byte 0).
+	if ((first & 0x80) !== 0) {
+		// Negative numbers (high bit 1, second-highest 1) are not used for
+		// any field we read (size, mode, mtime); reject them so we don't
+		// produce bogus block offsets.
+		if ((first & 0x40) !== 0) {
+			return undefined;
+		}
+		let value = first & 0x3f;
+		for (let i = 1; i < length; i++) {
+			value = (value * 256) + view[offset + i];
+			if (!Number.isSafeInteger(value)) {
+				return undefined;
+			}
+		}
+		return value;
+	}
+	// Classic octal: skip leading spaces, accumulate octal digits, stop at
+	// space / NUL / non-octal-digit. Empty / all-whitespace fields are 0.
 	let value = 0;
-	for (let i = offset; i < end; i++) {
+	let sawDigit = false;
+	for (let i = offset; i < offset + length; i++) {
 		const ch = view[i];
+		if (ch === 0x20) { // space
+			if (sawDigit) {
+				break;
+			}
+			continue; // leading whitespace
+		}
+		if (ch === 0) {
+			break;
+		}
 		if (ch < 0x30 || ch > 0x37) {
-			break; // stop at first non-octal digit
+			return undefined;
 		}
 		value = (value << 3) | (ch - 0x30);
+		sawDigit = true;
 	}
 	return value;
 }
@@ -238,11 +359,16 @@ function readAsciiField(view: Uint8Array, offset: number, length: number): strin
 /**
  * Strip the leading GitHub-archive directory component from an entry path
  * (e.g. `vscode-abcdef0/src/foo.ts` → `src/foo.ts`). Returns `undefined`
- * when the entry is the wrapper directory itself or has no inner path.
+ * when the entry is the wrapper directory itself, has no inner path, or
+ * is an absolute path (which GitHub never emits but which we reject
+ * defensively rather than silently rebasing under `targetDir`).
  */
 function stripArchiveRoot(path: string): string | undefined {
+	if (path.startsWith('/')) {
+		return undefined;
+	}
 	const idx = path.indexOf('/');
-	if (idx < 0) {
+	if (idx <= 0) {
 		return undefined;
 	}
 	const rest = path.substring(idx + 1);
@@ -252,12 +378,25 @@ function stripArchiveRoot(path: string): string | undefined {
 /**
  * Sanitize a tar entry path to safe segments under {@link targetDir}.
  *
- * Rejects empty / `.` / `..` segments, absolute paths (leading `/`), and
- * NUL bytes. Returns the resolved URI plus the segments used to create it,
- * or `undefined` for paths that would escape `targetDir`.
+ * Rejects:
+ *  - NUL bytes anywhere in the input
+ *  - absolute paths (leading `/`)
+ *  - `.` or `..` segments after splitting on `/`
+ *  - any segment containing a backslash (which the workbench POSIX-style
+ *    `joinPath` treats as a literal character, but Windows path APIs --
+ *    e.g. on a Windows AHP server materialising files via the
+ *    `agent-client:` provider -- treat as a separator and would escape
+ *    `targetDir`)
+ *
+ * Then joins the surviving segments under `targetDir` and double-checks
+ * the result with `isEqualOrParent` as defence in depth against any
+ * platform-specific normalisation we missed.
+ *
+ * @returns the resolved URI, or `undefined` for paths that should be
+ * skipped.
  */
 function safeJoinUnderTarget(targetDir: URI, inner: string): URI | undefined {
-	if (inner.includes('\0') || inner.startsWith('/')) {
+	if (inner.includes('\0') || inner.startsWith('/') || inner.startsWith('\\')) {
 		return undefined;
 	}
 	const segments: string[] = [];
@@ -265,7 +404,7 @@ function safeJoinUnderTarget(targetDir: URI, inner: string): URI | undefined {
 		if (seg.length === 0 || seg === '.') {
 			continue;
 		}
-		if (seg === '..') {
+		if (seg === '..' || seg.includes('\\')) {
 			return undefined;
 		}
 		segments.push(seg);
@@ -316,13 +455,21 @@ async function extractTarToFileService(
 			break;
 		}
 
+		const fromLongLink = pendingLongName !== undefined;
 		const name = pendingLongName ?? readAsciiField(tar, offset, 100);
-		const size = readOctal(tar, offset + 124, 12);
+		const size = readNumericField(tar, offset + 124, 12);
+		if (size === undefined) {
+			throw new Error('Corrupt tar archive: invalid size field');
+		}
 		const typeFlag = String.fromCharCode(tar[offset + 156] || 0x30);
 		const prefix = readAsciiField(tar, offset + 345, 155);
 		pendingLongName = undefined;
 
-		const fullName = prefix && !name.startsWith(prefix) ? `${prefix}/${name}` : name;
+		// USTAR: when prefix is non-empty, the full path is unconditionally
+		// `${prefix}/${name}` per spec. GNU LongLink entries encode the
+		// full path in the payload and should ignore the (often empty)
+		// header prefix field.
+		const fullName = (prefix && !fromLongLink) ? `${prefix}/${name}` : name;
 		const dataStart = offset + BLOCK_SIZE;
 		const dataEnd = dataStart + size;
 		const padded = Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE;

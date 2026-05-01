@@ -57,6 +57,8 @@ suite('BrowserPluginGitCommandService', () => {
 		test('strips trailing slash and missing .git suffix', () => {
 			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World/'), { owner: 'octocat', repo: 'Hello-World' });
 			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World'), { owner: 'octocat', repo: 'Hello-World' });
+			// Order of trim + .git strip matters: trailing slash first, then .git
+			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World.git/'), { owner: 'octocat', repo: 'Hello-World' });
 		});
 
 		test('rejects URLs with extra path segments', () => {
@@ -108,6 +110,61 @@ suite('BrowserPluginGitCommandService', () => {
 				() => service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main'),
 				/GitHubAuthRequiredError|401/,
 			);
+		});
+
+		test('surfaces a GitHubRateLimitError on 403 with X-RateLimit-Remaining: 0', async () => {
+			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403, VSBuffer.fromString('rate limit'), {
+				'x-ratelimit-remaining': '0',
+				'retry-after': '60',
+			}));
+
+			let captured: unknown;
+			try {
+				await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+				assert.fail('expected rejection');
+			} catch (err) {
+				captured = err;
+			}
+			assert.ok(captured instanceof Error && captured.name === 'GitHubRateLimitError', `expected GitHubRateLimitError, got ${(captured as Error)?.name}`);
+		});
+
+		test('failed extraction leaves the previous targetDir intact', async () => {
+			// First install: succeeds.
+			const tarball = await makeGzippedTar({ 'pkg-sha1/keep.txt': 'preserved' });
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+
+			// Second install: corrupted tarball -> gunzip / parse throws.
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
+			requestStub.queue('GET', /\/tarball\/sha2$/, bytesResponse(200, new Uint8Array([0xff, 0xff, 0xff, 0xff])));
+
+			await assert.rejects(() => service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'));
+
+			// Original tree still readable; cache still reports old SHA.
+			const keep = await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'));
+			assert.strictEqual(keep.value.toString(), 'preserved');
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'sha1');
+		});
+
+		test('extracts archives that exercise GNU LongLink and USTAR prefix', async () => {
+			const longSegment = 'a'.repeat(120); // > 100 bytes -> forces LongLink path
+			const longLinkPath = `pkg-sha1/${longSegment}/file.txt`;
+			const prefixPath: readonly [string, string, string] = ['pkg-sha1', 'short'.repeat(30), 'name.txt'];
+
+			const tarball = await makeGzippedTarWithSpecial([
+				{ longLink: longLinkPath, content: 'long' },
+				{ prefixSplit: prefixPath, content: 'pfx' },
+			]);
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+
+			const longFile = await fileService.readFile(URI.joinPath(targetDir, longSegment, 'file.txt'));
+			assert.strictEqual(longFile.value.toString(), 'long');
+			const prefixFile = await fileService.readFile(URI.joinPath(targetDir, prefixPath[1], prefixPath[2]));
+			assert.strictEqual(prefixFile.value.toString(), 'pfx');
 		});
 	});
 
@@ -181,6 +238,23 @@ suite('BrowserPluginGitCommandService', () => {
 			const escapedSibling = URI.from({ scheme: targetDir.scheme, path: '/cache/github.com/octocat/escaped.txt' });
 			assert.strictEqual(await fileService.exists(escapedSibling), false);
 		});
+
+		test('rejects backslash-traversal entries (Windows path separator)', async () => {
+			const tarball = await makeGzippedTar({
+				'pkg-sha1/safe.txt': 'safe',
+				'pkg-sha1/..\\..\\escaped.txt': 'evil',
+			});
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+
+			const safe = await fileService.readFile(URI.joinPath(targetDir, 'safe.txt'));
+			assert.strictEqual(safe.value.toString(), 'safe');
+			// The malicious entry should not have been written under any
+			// reasonable interpretation of its path.
+			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, '..\\..\\escaped.txt')), false);
+		});
 	});
 
 	// ---- checkout -----------------------------------------------------------
@@ -215,6 +289,22 @@ suite('BrowserPluginGitCommandService', () => {
 
 		test('throws when called for a target with no cached metadata', async () => {
 			await assert.rejects(() => service.checkout(targetDir, 'abc'), /no cached metadata/);
+		});
+	});
+
+	// ---- revParse -----------------------------------------------------------
+
+	suite('revParse', () => {
+		test('throws when asked for an unrelated full SHA', async () => {
+			const tarball = await makeGzippedTar({ 'pkg-sha1/a.txt': 'a' });
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'aabbccddeeff00112233445566778899aabbccdd' }));
+			requestStub.queue('GET', /\/tarball\/aabbccddeeff00112233445566778899aabbccdd$/, bytesResponse(200, tarball));
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+
+			// Querying the cached SHA still works
+			assert.strictEqual(await service.revParse(targetDir, 'aabbccddeeff00112233445566778899aabbccdd'), 'aabbccddeeff00112233445566778899aabbccdd');
+			// Querying an unrelated SHA must not silently lie
+			await assert.rejects(() => service.revParse(targetDir, '1111111111111111111111111111111111111111'), /only HEAD/);
 		});
 	});
 
@@ -258,15 +348,15 @@ class StubRequestService implements Partial<IRequestService> {
 	}
 }
 
-function plainResponse(statusCode: number, body: VSBuffer = VSBuffer.alloc(0)): () => IRequestContext {
+function plainResponse(statusCode: number, body: VSBuffer = VSBuffer.alloc(0), headers: Record<string, string> = {}): () => IRequestContext {
 	return () => ({
-		res: { statusCode, headers: {} },
+		res: { statusCode, headers },
 		stream: bufferToStream(body),
 	});
 }
 
-function bytesResponse(statusCode: number, body: Uint8Array): () => IRequestContext {
-	return plainResponse(statusCode, VSBuffer.wrap(body));
+function bytesResponse(statusCode: number, body: Uint8Array, headers: Record<string, string> = {}): () => IRequestContext {
+	return plainResponse(statusCode, VSBuffer.wrap(body), headers);
 }
 
 function jsonResponse(statusCode: number, body: unknown): () => IRequestContext {
@@ -293,24 +383,35 @@ async function makeGzippedTar(files: Record<string, string>): Promise<Uint8Array
 
 // Build a minimal USTAR archive matching what the production parser expects.
 function buildTar(files: Record<string, string>): Uint8Array {
+	return buildTarFromEntries(Object.entries(files).map(([path, content]) => ({ path, content, prefix: '' })));
+}
+
+interface ITarEntrySpec {
+	readonly path: string;
+	readonly content: string;
+	readonly prefix: string;
+	readonly typeFlag?: '0' | 'L';
+}
+
+function buildTarFromEntries(entries: readonly ITarEntrySpec[]): Uint8Array {
 	const blocks: Uint8Array[] = [];
 	const enc = new TextEncoder();
-	for (const [path, content] of Object.entries(files)) {
+	for (const { path, content, prefix, typeFlag } of entries) {
 		const data = enc.encode(content);
 		const header = new Uint8Array(512);
 		writeAscii(header, 0, path, 100);
-		writeOctal(header, 100, 0o644, 8);   // mode
-		writeOctal(header, 108, 0, 8);       // uid
-		writeOctal(header, 116, 0, 8);       // gid
-		writeOctal(header, 124, data.length, 12); // size
-		writeOctal(header, 136, 0, 12);      // mtime
-		// checksum field initially filled with spaces for the sum
+		writeOctal(header, 100, 0o644, 8);
+		writeOctal(header, 108, 0, 8);
+		writeOctal(header, 116, 0, 8);
+		writeOctal(header, 124, data.length, 12);
+		writeOctal(header, 136, 0, 12);
 		for (let i = 148; i < 156; i++) {
 			header[i] = 0x20;
 		}
-		header[156] = '0'.charCodeAt(0);     // typeflag: regular file
+		header[156] = (typeFlag ?? '0').charCodeAt(0);
 		writeAscii(header, 257, 'ustar', 6);
 		writeAscii(header, 263, '00', 2);
+		writeAscii(header, 345, prefix, 155);
 		let sum = 0;
 		for (let i = 0; i < 512; i++) {
 			sum += header[i];
@@ -323,7 +424,6 @@ function buildTar(files: Record<string, string>): Uint8Array {
 		padded.set(data);
 		blocks.push(padded);
 	}
-	// two empty 512-byte blocks signal end of archive
 	blocks.push(new Uint8Array(1024));
 
 	let totalLen = 0;
@@ -337,6 +437,40 @@ function buildTar(files: Record<string, string>): Uint8Array {
 		pos += b.length;
 	}
 	return out;
+}
+
+interface ILongLinkSpec { readonly longLink: string; readonly content: string }
+interface IPrefixSplitSpec { readonly prefixSplit: readonly [string, string, string]; readonly content: string }
+
+async function makeGzippedTarWithSpecial(specs: readonly (ILongLinkSpec | IPrefixSplitSpec)[]): Promise<Uint8Array> {
+	const entries: ITarEntrySpec[] = [];
+	for (const spec of specs) {
+		if ('longLink' in spec) {
+			// GNU LongLink: emit a 'L'-typed entry whose payload is the
+			// long path, immediately followed by a regular entry whose
+			// header `name` is truncated (the parser prefers the longLink
+			// payload). We use a unique placeholder in the truncated name
+			// to make the test's intent explicit.
+			entries.push({ path: '././@LongLink', content: spec.longLink + '\0', prefix: '', typeFlag: 'L' });
+			entries.push({ path: 'truncated-by-longlink', content: spec.content, prefix: '' });
+		} else {
+			// USTAR prefix split: encode the path as `${prefix}/${name}`
+			// in the dedicated header fields. This is the spec-compliant
+			// way to express paths > 100 bytes without GNU extensions.
+			const [prefixDir, midDir, name] = spec.prefixSplit;
+			entries.push({ path: name, content: spec.content, prefix: `${prefixDir}/${midDir}` });
+		}
+	}
+	const tar = buildTarFromEntries(entries).slice();
+	const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
+		start(controller) {
+			controller.enqueue(tar);
+			controller.close();
+		},
+	});
+	const compressed = source.pipeThrough(new CompressionStream('gzip'));
+	const out = await new Response(compressed).arrayBuffer();
+	return new Uint8Array(out);
 }
 
 function writeAscii(view: Uint8Array, offset: number, value: string, max: number): void {

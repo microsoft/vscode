@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -14,6 +15,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import {
 	GitHubAuthRequiredError,
+	GitHubRateLimitError,
 	IGitHubRepoRef,
 	fetchAndExtractGitHubTarball,
 	parseGitHubCloneUrl,
@@ -82,7 +84,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, sha, targetDir, authToken, cancel);
 			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.repo, ref, sha, fetchedAt: Date.now() });
 		} catch (err) {
-			this._maybeLogAuth(err, repo);
+			this._maybeLogTransientError(err, repo);
 			throw err;
 		}
 	}
@@ -95,13 +97,18 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const cancel = token ?? CancellationToken.None;
 		const authToken = await this._lookupGitHubToken();
 		const repo: IGitHubRepoRef = { owner: entry.owner, repo: entry.repo };
-		const newSha = await resolveGitHubRefToSha(this._requestService, repo, entry.ref, authToken, cancel);
-		if (newSha === entry.sha) {
-			return false;
+		try {
+			const newSha = await resolveGitHubRefToSha(this._requestService, repo, entry.ref, authToken, cancel);
+			if (newSha === entry.sha) {
+				return false;
+			}
+			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, newSha, repoDir, authToken, cancel);
+			this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
+			return true;
+		} catch (err) {
+			this._maybeLogTransientError(err, repo);
+			throw err;
 		}
-		await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, newSha, repoDir, authToken, cancel);
-		this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
-		return true;
 	}
 
 	async checkout(repoDir: URI, treeish: string, _detached?: boolean, token?: CancellationToken): Promise<void> {
@@ -136,19 +143,25 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 				fetchedAt: Date.now(),
 			});
 		} catch (err) {
-			this._maybeLogAuth(err, repo);
+			this._maybeLogTransientError(err, repo);
 			throw err;
 		}
 	}
 
-	async revParse(repoDir: URI, _ref: string): Promise<string> {
+	async revParse(repoDir: URI, ref: string): Promise<string> {
 		const entry = this._getCacheEntry(repoDir);
 		if (!entry) {
 			throw new Error(`Cannot resolve ref: no cached metadata for ${repoDir.toString()}`);
 		}
-		// We only know one SHA per cached directory (the one we materialised),
-		// so every ref query maps to it. Sources that need a different ref
-		// reclone into a different `targetDir` (see `gitRevisionCacheSuffix`).
+		// Tarball-cached plugins only know one SHA per directory (the one
+		// we materialised). Reject queries for unrelated SHAs so callers
+		// notice when they expected a real `git rev-parse` and got a
+		// cache hit instead.
+		const trimmed = ref.trim();
+		const isFullSha = /^[0-9a-f]{40}$/i.test(trimmed);
+		if (isFullSha && trimmed.toLowerCase() !== entry.sha.toLowerCase()) {
+			throw new Error(`Cannot resolve ref '${ref}' in tarball-cached plugin: only HEAD/${entry.sha} is materialised`);
+		}
 		return entry.sha;
 	}
 
@@ -183,9 +196,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		return parsed;
 	}
 
-	private _maybeLogAuth(err: unknown, repo: IGitHubRepoRef): void {
+	private _maybeLogTransientError(err: unknown, repo: IGitHubRepoRef): void {
 		if (err instanceof GitHubAuthRequiredError) {
 			this._logService.warn(`[BrowserPluginGitCommandService] GitHub auth required for ${repo.owner}/${repo.repo}: ${err.message}`);
+		} else if (err instanceof GitHubRateLimitError) {
+			const wait = err.retryAfterSeconds !== undefined ? ` (retry after ${err.retryAfterSeconds}s)` : '';
+			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.repo}${wait}: ${err.message}`);
 		}
 	}
 
@@ -198,6 +214,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	 * that would surprise users who add a public plugin. The
 	 * {@link GitHubAuthRequiredError} thrown by the helper on a 401/403 is
 	 * the right place for higher layers to drive a sign-in flow.
+	 *
+	 * `getSessions` filters by the requested scopes, so the returned
+	 * sessions are guaranteed to grant `repo` access. With multiple
+	 * matching sessions (e.g. EMU + personal), we pick the first; that
+	 * mirrors the broader VS Code authentication UX where account
+	 * selection is owned by the auth provider, not consumers.
 	 */
 	private async _lookupGitHubToken(): Promise<string | undefined> {
 		try {
@@ -214,12 +236,46 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 	// -- metadata cache (IStorageService) -------------------------------------
 
+	private _cacheKey(targetDir: URI): string {
+		// `getComparisonKey` normalises trailing slashes, percent-encoding
+		// case, and (when ignoreFragment=true) ignores fragments, so
+		// callers passing semantically-equivalent URIs hit the same cache
+		// entry instead of silently missing.
+		return getComparisonKey(targetDir, true);
+	}
+
+	private async _pruneStaleEntries(cache: Map<string, IBrowserPluginCacheEntry>, knownDirs: ReadonlyMap<string, URI>): Promise<void> {
+		// Best-effort sweep: drop cache entries whose dir no longer exists
+		// (e.g. another component called `cleanupPluginSource`). Runs in
+		// the background; a brief stale window is acceptable since the
+		// next read for that key would fall through to a clone anyway.
+		const removed: string[] = [];
+		await Promise.all(Array.from(knownDirs, async ([key, uri]) => {
+			try {
+				if (!(await this._fileService.exists(uri))) {
+					removed.push(key);
+				}
+			} catch {
+				// ignore -- treat as still-present rather than risk a false-positive removal
+			}
+		}));
+		if (removed.length === 0) {
+			return;
+		}
+		for (const key of removed) {
+			cache.delete(key);
+		}
+		this._logService.trace(`[BrowserPluginGitCommandService] Pruned ${removed.length} stale cache entries`);
+		this._persistCache();
+	}
+
 	private _ensureCacheLoaded(): Map<string, IBrowserPluginCacheEntry> {
 		if (this._cache) {
 			return this._cache;
 		}
 		const cache = new Map<string, IBrowserPluginCacheEntry>();
 		const stored = this._storageService.getObject<IStoredBrowserPluginCache>(BROWSER_CACHE_STORAGE_KEY, StorageScope.APPLICATION);
+		const knownDirs = new Map<string, URI>();
 		if (stored) {
 			for (const [key, entry] of Object.entries(stored)) {
 				if (entry && typeof entry.sha === 'string' && typeof entry.owner === 'string' && typeof entry.repo === 'string') {
@@ -230,20 +286,32 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 						sha: entry.sha,
 						fetchedAt: typeof entry.fetchedAt === 'number' ? entry.fetchedAt : 0,
 					});
+					try {
+						knownDirs.set(key, URI.parse(key));
+					} catch {
+						// invalid stored key -- drop it on the floor at next persist
+						cache.delete(key);
+					}
 				}
 			}
 		}
 		this._cache = cache;
+		// Fire-and-forget prune of dirs that no longer exist on disk.
+		if (knownDirs.size > 0) {
+			this._pruneStaleEntries(cache, knownDirs).catch(err => {
+				this._logService.trace('[BrowserPluginGitCommandService] Cache prune failed:', err);
+			});
+		}
 		return cache;
 	}
 
 	private _getCacheEntry(targetDir: URI): IBrowserPluginCacheEntry | undefined {
-		return this._ensureCacheLoaded().get(targetDir.toString());
+		return this._ensureCacheLoaded().get(this._cacheKey(targetDir));
 	}
 
 	private _setCacheEntry(targetDir: URI, entry: IBrowserPluginCacheEntry): void {
 		const cache = this._ensureCacheLoaded();
-		cache.set(targetDir.toString(), entry);
+		cache.set(this._cacheKey(targetDir), entry);
 		this._persistCache();
 	}
 
