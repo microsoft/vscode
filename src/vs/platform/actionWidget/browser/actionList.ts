@@ -482,8 +482,6 @@ export interface IActionListOptions {
 	 */
 	readonly showGroupTitleOnFirstItem?: boolean;
 
-
-
 	/**
 	 * When true and filtering is enabled, focuses the filter input when the list opens.
 	 */

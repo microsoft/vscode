@@ -14,7 +14,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_CLOUD } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -44,6 +44,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
+
+const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 
 export interface ICopilotChatSession {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -1124,7 +1126,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		return {
 			label: getRepositoryName(session) ?? basename(repository.uri),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
-			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_CLOUD : SESSION_WORKSPACE_GROUP_LOCAL,
+			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			repositories: [repository],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
 		};
@@ -1226,13 +1228,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private _claudeEnabled: boolean;
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	readonly supportsLocalWorkspaces = true;
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1261,15 +1263,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this.browseActions = [
 			{
-				label: localize('folders', "Folders"),
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-				icon: Codicon.folderOpened,
-				providerId: this.id,
-				run: () => this._browseForFolder(),
-			},
-			{
 				label: localize('repositories', "Repositories"),
-				group: SESSION_WORKSPACE_GROUP_CLOUD,
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				icon: Codicon.library,
 				providerId: this.id,
 				run: () => this._browseForRepo(),
@@ -2150,25 +2145,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Private --
 
-	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
-		const result = await this.fileDialogService.showOpenDialog({
-			canSelectFolders: true,
-			canSelectFiles: false,
-			canSelectMany: false,
-		});
-		if (result?.length) {
-			const uri = result[0];
-			return {
-				label: this._labelFromUri(uri),
-				icon: this._iconFromUri(uri),
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
-				requiresWorkspaceTrust: true
-			};
-		}
-		return undefined;
-	}
-
 	private async _browseForRepo(): Promise<ISessionWorkspace | undefined> {
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
 		if (repoId) {
@@ -2176,7 +2152,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
-				group: SESSION_WORKSPACE_GROUP_CLOUD,
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 				requiresWorkspaceTrust: false,
 			};
@@ -2191,7 +2167,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return {
 			label: this._labelFromUri(repositoryUri),
 			description: this._descriptionFromUri(repositoryUri),
-			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_CLOUD : SESSION_WORKSPACE_GROUP_LOCAL,
+			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: this._iconFromUri(repositoryUri),
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME

@@ -42,7 +42,7 @@
     "watch-copilotd": "deemon npm run watch-copilot",
     "kill-watch-copilotd": "deemon --kill npm run watch-copilot",
     "precommit": "node --experimental-strip-types build/hygiene.ts",
-    "gulp": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
+    "gulp": "node --experimental-strip-types --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron.ts",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.ts",

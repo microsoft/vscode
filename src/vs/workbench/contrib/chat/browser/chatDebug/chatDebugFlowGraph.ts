@@ -793,6 +793,9 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			if (event.outputTokens) {
 				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
+			if (event.cachedTokens !== undefined) {
+				parts.push(localize('tooltipCachedTokens', "Cached tokens: {0}", event.cachedTokens));
+			}
 			if (event.durationInMillis) {
 				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}

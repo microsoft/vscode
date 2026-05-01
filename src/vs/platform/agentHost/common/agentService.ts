@@ -82,6 +82,8 @@ export interface IAgentSessionMetadata {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
 	readonly status?: SessionStatus;
+	/** Human-readable description of what the session is currently doing. */
+	readonly activity?: string;
 	readonly model?: ModelSelection;
 	readonly workingDirectory?: URI;
 	readonly customizationDirectory?: URI;
@@ -268,6 +270,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * If set, the tool call belongs to the subagent rooted at this
+	 * parent tool call. Used by the host to route the resulting
+	 * `SessionToolCallReady` to the subagent session — otherwise the
+	 * action would land on the parent session, where there is no
+	 * matching `SessionToolCallStart`.
+	 */
+	readonly parentToolCallId?: string;
 }
 
 /**

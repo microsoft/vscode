@@ -682,6 +682,30 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
+		test('report_intent surfaces as session activity', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-intent-1',
+				toolName: 'report_intent',
+				arguments: { intent: 'Reading repo docs' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.strictEqual(signals.length, 1);
+			const signal = signals[0];
+			assert.ok(isAction(signal, ActionType.SessionActivityChanged));
+			if (isAction(signal, ActionType.SessionActivityChanged)) {
+				assert.strictEqual((signal.action as { activity: string | undefined }).activity, 'Reading repo docs');
+			}
+
+			// Going idle clears the activity.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const clearSignal = signals.find((s, i) => i > 0 && isAction(s, ActionType.SessionActivityChanged));
+			assert.ok(clearSignal, 'expected activity to be cleared on idle');
+			if (clearSignal && isAction(clearSignal, ActionType.SessionActivityChanged)) {
+				assert.strictEqual((clearSignal.action as { activity: string | undefined }).activity, undefined);
+			}
+		});
+
 		test('tool_complete event produces past-tense message', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
@@ -1182,6 +1206,38 @@ suite('CopilotAgentSession', () => {
 				pastTenseMessage: 'did it',
 			});
 			await handlerPromise;
+		});
+
+		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
+			// Regression: when a client tool runs inside a subagent the
+			// permission-flow `pending_confirmation` must carry the
+			// parentToolCallId from the originating tool_start. Without it
+			// the host has no way to route the resulting
+			// SessionToolCallReady to the subagent session and emits a
+			// stray ready against the parent session (no preceding
+			// SessionToolCallStart).
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+				arguments: {},
+				parentToolCallId: 'tc-parent-subagent',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+			assert.strictEqual(permSignals.length, 1);
+			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
+
+			session.respondToPermissionRequest('tc-sub-client', false);
+			await resultPromise;
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {

@@ -263,6 +263,16 @@
           "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "group": "navigation"
         }
       ],
       "explorer/context": [

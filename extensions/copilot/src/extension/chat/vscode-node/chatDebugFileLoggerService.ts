@@ -932,6 +932,9 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 						...(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS] !== undefined
 							? { outputTokens: asNumber(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS]) }
 							: {}),
+						...(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS] !== undefined
+							? { cachedTokens: asNumber(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]) }
+							: {}),
 						...(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN] !== undefined
 							? { ttft: asNumber(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN]) }
 							: {}),

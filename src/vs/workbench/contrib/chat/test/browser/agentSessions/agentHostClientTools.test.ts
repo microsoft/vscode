@@ -17,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -651,6 +651,102 @@ suite('AgentHostClientTools', () => {
 			// _beginClientToolInvocation takes over.
 			assert.ok(IChatToolInvocation.isComplete(snapshotInvocation),
 				'the initial snapshot invocation should be completed, not orphaned');
+		});
+
+		test('invokes a client tool inside a subagent session and dispatches completion against the subagent URI', async () => {
+			// Regression: a client-provided tool running inside a subagent
+			// must be invoked locally (the renderer owns the tool
+			// implementation, not the agent host). Before the fix, the
+			// renderer skipped local invocation for subagent tool calls,
+			// leaving the subagent's deferred unresolved. After the fix the
+			// tool is invoked locally and the SessionToolCallComplete is
+			// dispatched against the subagent session URI — the agent then
+			// resolves it back to the parent session that owns the deferred.
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const parentToolCallId = 'tc-parent-task';
+			const subagentBackendSession = buildSubagentSessionUri(backendSession, parentToolCallId);
+
+			// Parent turn with a `task` tool that spawns a subagent.
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: backendSession,
+				turnId: 'turn-1',
+				userMessage: { text: 'do work' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				toolName: 'task',
+				displayName: 'Task',
+				_meta: { toolKind: 'subagent' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				invocationMessage: 'Spawning subagent',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			// Subagent turn carrying a client-provided tool call (toolClientId
+			// matches the renderer's clientId so the renderer owns the
+			// invocation).
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				userMessage: { text: '' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				toolCallId: 'inner-tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: connection.clientId,
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				toolCallId: 'inner-tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+
+			// The inner client tool must have been invoked locally — without
+			// the fix the renderer would skip subagent client-tool setup and
+			// `invokedToolCalls` would be empty for the inner call.
+			const innerInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'inner-tool-call-1');
+			assert.ok(innerInvocation, 'inner client tool inside the subagent should be invoked locally');
+			assert.strictEqual(innerInvocation!.toolId, 'vscode.runTask');
+			assert.deepStrictEqual(innerInvocation!.parameters, { task: 'build' });
+
+			// The completion must be dispatched against the subagent session
+			// URI (the agent will then resolve it to the parent session that
+			// owns the SDK deferred).
+			const completion = connection.dispatchedActions.find(action =>
+				isSessionAction(action)
+				&& action.type === ActionType.SessionToolCallComplete
+				&& action.toolCallId === 'inner-tool-call-1'
+			);
+			assert.ok(completion, 'completion for the inner client tool should be dispatched');
+			assert.strictEqual(
+				isSessionAction(completion!) ? completion.session : undefined,
+				subagentBackendSession,
+				'completion should target the subagent session URI'
+			);
 		});
 	});
 });

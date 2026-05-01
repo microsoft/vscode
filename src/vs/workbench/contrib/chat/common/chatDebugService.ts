@@ -63,6 +63,7 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly durationInMillis?: number;
 }

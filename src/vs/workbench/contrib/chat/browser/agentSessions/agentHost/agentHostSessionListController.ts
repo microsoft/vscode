@@ -107,6 +107,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				const item = this._makeItem(rawId, {
 					title: n.summary.title,
 					status: n.summary.status,
+					activity: n.summary.activity,
 					workingDirectory: workingDir,
 					createdAt: n.summary.createdAt,
 					modifiedAt: n.summary.modifiedAt,
@@ -178,6 +179,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					provider: this._provider,
 					title: s.summary ?? `Session ${rawId.substring(0, 8)}`,
 					status,
+					activity: s.activity,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					workingDirectory: s.workingDirectory?.toString(),
@@ -185,6 +187,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				return this._makeItem(rawId, {
 					title: s.summary,
 					status,
+					activity: s.activity,
 					workingDirectory: s.workingDirectory,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
@@ -204,6 +207,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,
+			activity: summary.activity,
 			workingDirectory: workingDir,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
@@ -214,15 +218,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _makeItem(rawId: string, opts: {
 		title?: string;
 		status?: SessionStatus;
+		activity?: string;
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
 		diffs?: readonly ISessionFileDiff[] | readonly ICompactSessionFileDiff[];
 	}): IChatSessionItem {
+		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
+		const description = inProgress && opts.activity ? opts.activity : this._description;
 		return {
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
-			description: this._description,
+			description,
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,

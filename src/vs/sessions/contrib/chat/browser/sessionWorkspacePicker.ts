@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
-import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -22,14 +22,17 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_CLOUD, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { getStatusHover, getStatusLabel, showRemoteHostOptions } from '../../remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
@@ -47,18 +50,6 @@ const MAX_RECENT_WORKSPACES = 10;
  * tabs.
  */
 const TABBED_PICKER_WIDTH = 360;
-
-/**
- * Canonical order in which well-known tab labels are rendered. Tabs whose
- * labels don't match any of these constants are appended in registration
- * order after the recognized ones.
- */
-const KNOWN_TAB_ORDER: readonly string[] = [
-	SESSION_WORKSPACE_GROUP_LOCAL,
-	SESSION_WORKSPACE_GROUP_CLOUD,
-	SESSION_WORKSPACE_GROUP_REMOTE,
-];
-const KNOWN_TAB_SET = new Set<string>(KNOWN_TAB_ORDER);
 
 /**
  * Grace period for a restored remote workspace's provider to reach Connected
@@ -95,6 +86,8 @@ export interface IWorkspacePickerItem {
 	readonly checked?: boolean;
 	/** Command to execute when this item is selected. */
 	readonly commandId?: string;
+	/** Inline action to run when this item is selected. */
+	readonly run?: () => void;
 }
 
 /**
@@ -128,9 +121,13 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
 
+	/** Provider ID chosen during the last local folder browse. */
+	private _selectedLocalProviderId: string | undefined;
+
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
+	private readonly _pickerGroupContext: IContextKey<string>;
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
@@ -164,10 +161,21 @@ export class WorkspacePicker extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
 		this._tabbedWidget = this._register(this.instantiationService.createInstance(TabbedActionListWidget));
+		this._pickerGroupContext = SessionWorkspacePickerGroupContext.bindTo(this.contextKeyService);
+		this._register(this._tabbedWidget.onDidChangeTab(tab => {
+			this._activeTab = tab;
+			this._userPickedTab = true;
+			this._pickerGroupContext.set(tab);
+		}));
+		this._register(this._tabbedWidget.onDidHide(() => {
+			this._pickerGroupContext.reset();
+		}));
 
 		// Migrate legacy storage to new key
 		this._migrateLegacyStorage();
@@ -275,7 +283,7 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 
-		const tabs = this._showTabs() ? this._getAvailableTabs() : [];
+		const tabs = this._showTabs() ? this._getAvailableGroups() : [];
 
 		// Default the active tab to the group of the currently selected
 		// workspace. The user-pick latch is reset on every selection change,
@@ -308,31 +316,23 @@ export class WorkspacePicker extends Disposable {
 		return true;
 	}
 
-	/**
-	 * Discovers the union of `group` labels contributed by all providers'
-	 * browse actions and recent workspaces. Well-known labels (Local /
-	 * Cloud / Remote) come first in canonical order; any custom labels
-	 * provider plug-ins might contribute follow in registration order.
-	 *
-	 * Visible to tests; not part of the public API.
-	 */
-	protected _getAvailableTabs(): string[] {
-		const seen = new Set<string>();
+	protected _getAvailableGroups(): string[] {
+		const groups = new Set<string>();
+		groups.add(SESSION_WORKSPACE_GROUP_REMOTE);
 		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (provider.supportsLocalWorkspaces) {
+				groups.add(SESSION_WORKSPACE_GROUP_LOCAL);
+			}
 			for (const action of provider.browseActions) {
 				if (action.group) {
-					seen.add(action.group);
+					groups.add(action.group);
 				}
 			}
 		}
-		for (const { workspace } of this._getRecentWorkspaces()) {
-			if (workspace.group) {
-				seen.add(workspace.group);
-			}
-		}
-		const known = KNOWN_TAB_ORDER.filter(g => seen.has(g));
-		const extra = [...seen].filter(g => !KNOWN_TAB_SET.has(g));
-		return [...known, ...extra];
+		return Array.from(groups).sort((a, b) =>
+			a === SESSION_WORKSPACE_GROUP_LOCAL ? -1
+				: b === SESSION_WORKSPACE_GROUP_LOCAL ? 1
+					: a.localeCompare(b));
 	}
 
 	/**
@@ -343,7 +343,9 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				if (item.commandId) {
+				if (item.run) {
+					item.run();
+				} else if (item.commandId) {
 					this.commandService.executeCommand(item.commandId);
 				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
@@ -419,24 +421,21 @@ export class WorkspacePicker extends Disposable {
 		};
 
 		triggerElement.setAttribute('aria-expanded', 'true');
+		this._pickerGroupContext.set(this._activeTab ?? tabs[0]);
 		this._tabbedWidget.show<IWorkspacePickerItem>({
 			user: 'workspacePicker',
 			anchor: triggerElement,
 			tabs,
 			initialTab: this._activeTab ?? tabs[0],
-			buildItems: (tab) => {
+			createActionList: (tab) => {
 				this._activeTab = tab;
 				const items = this._buildItems();
-				return { items, listOptions: this._buildListOptions(items, TABBED_PICKER_WIDTH) };
+				return { items, listOptions: { inlineDescription: true, showGroupTitleOnFirstItem: true } };
 			},
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
-			onDidChangeTab: (tab) => {
-				this._activeTab = tab;
-				this._userPickedTab = true;
-			},
 		});
 	}
 
@@ -510,7 +509,15 @@ export class WorkspacePicker extends Disposable {
 		try {
 			const workspace = await action.run();
 			if (workspace) {
-				this._selectProject({ providerId: action.providerId, workspace });
+				let providerId = action.providerId;
+				if (!providerId) {
+					// Picker-owned local action — use the provider chosen during browse
+					providerId = this._selectedLocalProviderId ?? '';
+					this._selectedLocalProviderId = undefined;
+				}
+				if (providerId) {
+					this._selectProject({ providerId, workspace });
+				}
 			}
 		} catch {
 			// browse action was cancelled or failed
@@ -523,27 +530,62 @@ export class WorkspacePicker extends Disposable {
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
+		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
+		if (hasLocalSupport) {
+			const localAction: ISessionWorkspaceBrowseAction = {
+				label: localize('workspacePicker.browseSelectLocal', "Select..."),
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				icon: Codicon.folderOpened,
+				providerId: '',
+				run: () => this._browseForLocalFolder(),
+			};
+			all.unshift(localAction);
+		}
 		if (!this._isTabFiltered()) {
 			return all;
 		}
 		return all.filter(a => a.group === this._activeTab);
 	}
 
-	/** True when the picker is currently scoped to a single tab. */
-	protected _isTabFiltered(): boolean {
-		return this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1;
+	/**
+	 * Opens a folder picker dialog and resolves the selected folder through
+	 * a provider that supports local workspaces. When multiple providers
+	 * support local workspaces, shows a quick pick to choose the provider first.
+	 */
+	private async _browseForLocalFolder(): Promise<ISessionWorkspace | undefined> {
+		const localProviders = this.sessionsProvidersService.getProviders().filter(p => p.supportsLocalWorkspaces);
+		if (localProviders.length === 0) {
+			return undefined;
+		}
+
+		let provider = localProviders[0];
+		if (localProviders.length > 1) {
+			const picked = await this.quickInputService.pick(
+				localProviders.map(p => ({ label: p.label, provider: p })),
+				{ placeHolder: localize('pickLocalProvider', "Select a provider") },
+			);
+			if (!picked) {
+				return undefined;
+			}
+			provider = picked.provider;
+		}
+
+		const result = await this.fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+		});
+		if (!result?.length) {
+			return undefined;
+		}
+
+		this._selectedLocalProviderId = provider.id;
+		return provider.resolveWorkspace(result[0]);
 	}
 
-	/**
-	 * Whether the bottom "Manage…" submenu should be included. Hidden
-	 * outside the Remote tab because the contributed actions (Tunnels…,
-	 * SSH…, remote provider list) are remote-specific.
-	 */
-	protected _includeManageSubmenu(): boolean {
-		if (!this._isTabFiltered()) {
-			return true;
-		}
-		return this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
+	/** True when the picker is currently scoped to a single tab. */
+	protected _isTabFiltered(): boolean {
+		return this._showTabs() && !!this._activeTab && this._getAvailableGroups().length > 1;
 	}
 
 	/**
@@ -595,12 +637,12 @@ export class WorkspacePicker extends Disposable {
 
 		// Browse actions from all providers (filtered to the active tab)
 		const allBrowseActions = this._getAllBrowseActions();
-		// Remote providers with connection status — only relevant for the
-		// Manage submenu, which is itself only included on the Remote tab.
+		// Remote providers with connection status — shown as dynamic rows
+		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
-		const includeManage = this._includeManageSubmenu();
+		const includeRemoteProviders = this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
 
-		if (items.length > 0 && (allBrowseActions.length > 0 || (includeManage && remoteProviders.length > 0))) {
+		if (items.length > 0 && (allBrowseActions.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
 
@@ -613,7 +655,7 @@ export class WorkspacePicker extends Disposable {
 			const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.browseSelectAction', "Select {0}...", action.label),
+				label: localize('workspacePicker.browseSelectAction', "Select..."),
 				description: action.description,
 				group: { title: '', icon: action.icon },
 				disabled: isUnavailable,
@@ -621,12 +663,11 @@ export class WorkspacePicker extends Disposable {
 			});
 		});
 
-		// Inline "Manage" entries: dynamic remote provider rows + menu-contributed
-		// actions (Tunnels…, SSH…), separated from the workspace list above.
-		// The actions are tracked in a per-render array so the picker delegate
-		// can dispatch by index when an item is selected.
+		// Inline "Manage" entries: dynamic remote provider rows (scoped to
+		// the Remote tab) + menu-contributed actions (filtered by the
+		// `sessionWorkspacePickerGroup` context key).
 		const manageActions: IAction[] = [];
-		if (includeManage) {
+		if (includeRemoteProviders) {
 			for (const provider of remoteProviders) {
 				const status = provider.connectionStatus!.get();
 				const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
@@ -651,14 +692,14 @@ export class WorkspacePicker extends Disposable {
 				}
 				manageActions.push(action);
 			}
+		}
 
-			const menuActions = this.menuService.getMenuActions(Menus.SessionWorkspaceManage, this.contextKeyService, { renderShortTitle: true });
-			for (const [, actions] of menuActions) {
-				for (const menuAction of actions) {
-					if (menuAction instanceof MenuItemAction) {
-						const icon = ThemeIcon.isThemeIcon(menuAction.item.icon) ? menuAction.item.icon : undefined;
-						manageActions.push(Object.assign(menuAction, { icon }));
-					}
+		const menuActions = this.menuService.getMenuActions(Menus.SessionWorkspaceManage, this.contextKeyService, { renderShortTitle: true });
+		for (const [, actions] of menuActions) {
+			for (const menuAction of actions) {
+				if (menuAction instanceof MenuItemAction) {
+					const icon = ThemeIcon.isThemeIcon(menuAction.item.icon) ? menuAction.item.icon : undefined;
+					manageActions.push(Object.assign(menuAction, { icon }));
 				}
 			}
 		}
@@ -667,13 +708,15 @@ export class WorkspacePicker extends Disposable {
 			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.manage', "Manage..."),
-				group: { title: '', icon: Codicon.settingsGear },
-				item: {},
-				submenuActions: [new SubmenuAction('workspacePicker.manage.submenu', '', manageActions)],
-			});
+			for (const action of manageActions) {
+				const icon = (action as IAction & { icon?: ThemeIcon }).icon;
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					group: { title: '', icon: icon ?? Codicon.settingsGear },
+					item: { run: () => action.run(), commandId: action.id },
+				});
+			}
 		}
 
 		return items;

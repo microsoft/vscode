@@ -4145,16 +4145,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.workspace.maxDiffSizeBeforeUsingExternalIngest": {
-						"type": "number",
-						"default": 100,
-						"markdownDescription": "%github.copilot.config.workspace.maxDiffSizeBeforeUsingExternalIngest%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.workspace.preferredEmbeddingsModel": {
 						"type": "string",
 						"default": "",
@@ -4890,6 +4880,15 @@
 						"markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Requires window reload.",
 						"tags": [
 							"advanced"
+						]
+					},
+					"github.copilot.chat.workspace.codeSearchExternalIngest.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.workspace.codeSearchExternalIngest.enabled%",
+						"tags": [
+							"advanced",
+							"onExp"
 						]
 					}
 				}
