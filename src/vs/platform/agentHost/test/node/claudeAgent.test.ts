@@ -330,7 +330,7 @@ suite('ClaudeAgent', () => {
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 		);
-		const instantiationService: IInstantiationService = new InstantiationService(services);
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
 
 		await agent.authenticate('https://api.github.com', 'tok');
