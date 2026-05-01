@@ -299,6 +299,28 @@ function logChatEntitlements(state: IChatEntitlementContextState, configurationS
 	});
 }
 
+type ChatOverageConfigurationClassification = {
+	owner: 'bpasero';
+	comment: 'Tracks when a user enables or disables overage / additional spend.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether additional spend is now enabled or disabled.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+};
+type ChatOverageConfigurationEvent = {
+	enabled: boolean;
+	entitlement: ChatEntitlement;
+};
+
+type ChatOverageActiveClassification = {
+	owner: 'bpasero';
+	comment: 'Tracks when a user enters the overage budget (included quota exhausted while overage is enabled).';
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used so far.' };
+};
+type ChatOverageActiveEvent = {
+	entitlement: ChatEntitlement;
+	additionalUsageCount: number;
+};
+
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
 
 	declare _serviceBrand: undefined;
@@ -505,6 +527,23 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
+
+		// Track overage configuration changes
+		if (oldQuota.additionalUsageEnabled !== undefined && oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
+			this.telemetryService.publicLog2<ChatOverageConfigurationEvent, ChatOverageConfigurationClassification>('chatOverageConfiguration', {
+				enabled: quotas.additionalUsageEnabled ?? false,
+				entitlement: this.entitlement,
+			});
+		}
+
+		// Track entering overage budget: included quota just exhausted while overage is enabled
+		if (quotas.additionalUsageEnabled && quotas.premiumChat?.percentRemaining === 0
+			&& oldQuota.premiumChat?.percentRemaining !== undefined && oldQuota.premiumChat.percentRemaining > 0) {
+			this.telemetryService.publicLog2<ChatOverageActiveEvent, ChatOverageActiveClassification>('chatOverageActive', {
+				entitlement: this.entitlement,
+				additionalUsageCount: quotas.additionalUsageCount ?? 0,
+			});
+		}
 	}
 
 	private compareQuotas(oldQuota: IQuotaSnapshot | undefined, newQuota: IQuotaSnapshot | undefined): { changed: { exceeded: boolean; remaining: boolean } } {
@@ -598,6 +637,9 @@ type EntitlementClassification = {
 	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inline suggestions available to the user' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
+	usageBasedBilling: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is on usage-based billing' };
+	additionalUsageEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether overage / additional spend is enabled' };
+	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
 };
@@ -610,6 +652,9 @@ type EntitlementEvent = {
 	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
 	quotaResetDate: string | undefined;
+	usageBasedBilling: boolean | undefined;
+	additionalUsageEnabled: boolean | undefined;
+	additionalUsageCount: number | undefined;
 };
 
 interface IEntitlements {
@@ -764,7 +809,10 @@ export class ChatEntitlementRequests extends Disposable {
 			quotaChat: entitlements.quotas?.chat?.percentRemaining,
 			quotaPremiumChat: entitlements.quotas?.premiumChat?.percentRemaining,
 			quotaCompletions: entitlements.quotas?.completions?.percentRemaining,
-			quotaResetDate: entitlements.quotas?.resetDate
+			quotaResetDate: entitlements.quotas?.resetDate,
+			usageBasedBilling: entitlements.quotas?.premiumChat?.usageBasedBilling,
+			additionalUsageEnabled: entitlements.quotas?.additionalUsageEnabled,
+			additionalUsageCount: entitlements.quotas?.additionalUsageCount
 		});
 
 		return entitlements;
