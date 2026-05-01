@@ -97,6 +97,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+	private readonly quotaCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
@@ -166,7 +167,10 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
 				headerAdditionalSpendButton.element.classList.add('header-cta-button');
 				headerAdditionalSpendButton.label = initialAdditionalUsageEnabled ? localize('manageAdditionalSpend', "Manage Additional Spend") : localize('configureAdditionalSpend', "Configure Additional Spend");
-				this._store.add(headerAdditionalSpendButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
+				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
+					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+				}));
 				if (actionBarElement) {
 					header.insertBefore(headerAdditionalSpendButton.element, actionBarElement);
 				}
@@ -313,10 +317,10 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 			disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
+
 			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
 			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
 
 			statusEl = disclosureHeader.appendChild($('span.collapsible-status', undefined, getStatusText()));
 		}
@@ -369,13 +373,13 @@ export class ChatStatusDashboard extends DomWidget {
 					: $('button.collapsible-header')
 			);
 			let chevron: HTMLElement | undefined;
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
+
 			if (!nonCollapsible) {
 				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
 				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
 			}
-
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
 
 			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
 			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));
@@ -669,13 +673,16 @@ export class ChatStatusDashboard extends DomWidget {
 			resetValue.textContent = resetLabel;
 		}
 
+		const quotaPercentage = $('div.quota-percentage', undefined,
+			quotaValue,
+			quotaValueSuffix
+		);
+		quotaPercentage.tabIndex = 0;
+
 		container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-title', undefined, label),
 			$('div.quota-details', undefined,
-				$('div.quota-percentage', undefined,
-					quotaValue,
-					quotaValueSuffix
-				),
+				quotaPercentage,
 				resetValue
 			),
 			$('div.quota-bar', undefined,
@@ -683,7 +690,39 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
+		let currentQuota: IQuotaSnapshot | string = quota;
+		let isHovered = false;
+
+		const showPercentage = () => {
+			if (typeof currentQuota === 'string') {
+				quotaValue.textContent = currentQuota;
+				quotaValueSuffix.textContent = '';
+			} else {
+				const usedPercentage = Math.max(0, 100 - currentQuota.percentRemaining);
+				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
+				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+			}
+		};
+
+		const showCredits = () => {
+			if (typeof currentQuota !== 'string' && currentQuota.entitlement !== undefined) {
+				const total = currentQuota.entitlement;
+				const used = total * (100 - currentQuota.percentRemaining) / 100;
+				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
+				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
+				quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+			}
+		};
+
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => { isHovered = false; showPercentage(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.FOCUS, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.BLUR, () => { isHovered = false; showPercentage(); }));
+
 		const update = (quota: IQuotaSnapshot | string) => {
+			currentQuota = quota;
+
 			let usedPercentage: number;
 			if (typeof quota === 'string') {
 				usedPercentage = 0;
@@ -691,14 +730,11 @@ export class ChatStatusDashboard extends DomWidget {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
 
-			if (typeof quota === 'string') {
-				quotaValue.textContent = quota;
-				quotaValueSuffix.textContent = '';
+			if (isHovered) {
+				showCredits();
 			} else {
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
-				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+				showPercentage();
 			}
-
 			quotaBit.style.width = `${usedPercentage}%`;
 		};
 

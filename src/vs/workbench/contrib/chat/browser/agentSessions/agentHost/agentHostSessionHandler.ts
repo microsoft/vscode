@@ -34,6 +34,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2297,7 +2298,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!rawModelId) {
 			return undefined;
 		}
-		const prefix = `${sessionResource.scheme}:`;
+		const prefix = `${getChatSessionType(sessionResource)}:`;
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
 	}
 

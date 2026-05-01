@@ -164,11 +164,11 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
-	subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource);
+	private subscribe(resource: URI): Promise<IStateSnapshot> {
+		return this._proxy.subscribe(resource, this.clientId);
 	}
-	unsubscribe(resource: URI): void {
-		this._proxy.unsubscribe(resource);
+	private unsubscribe(resource: URI): void {
+		this._proxy.unsubscribe(resource, this.clientId);
 	}
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);

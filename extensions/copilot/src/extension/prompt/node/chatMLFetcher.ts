@@ -304,6 +304,15 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					if (toolDefs) {
 						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
 					}
+					// Cache-relevant request options. Anything in this blob, when changed
+					// between two requests, will invalidate the prompt cache even when
+					// the messages array is byte-identical. The Cache Explorer uses
+					// this to surface "options changed" drift alongside the message
+					// signature diff.
+					const requestOptions = pickCacheRelevantRequestOptions(requestBody);
+					if (requestOptions) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions)));
+					}
 				}
 				tokenCount = await countTokens();
 				const extensionId = source?.extensionId ?? EXTENSION_ID;
@@ -2236,4 +2245,35 @@ export function locationToIntent(location: ChatLocation): string {
 		case ChatLocation.MessagesProxy:
 			return 'messages-proxy';
 	}
+}
+
+/**
+ * Curate the cache-relevant subset of a request body. Anything in the
+ * returned object that differs between two requests will invalidate the
+ * prompt cache even when the message array itself is byte-identical
+ * (e.g. switching from `tool_choice: 'auto'` to `'required'`, raising
+ * `reasoning_effort`, enabling thinking, changing the response format).
+ *
+ * Strict allowlist on purpose: we never want a future provider-specific
+ * body field (especially anything resembling auth headers, API keys, or
+ * personal identifiers) to silently leak into the OTel attribute or the
+ * on-disk debug log via a catch-all. New cache-keying knobs must be
+ * added explicitly here.
+ */
+function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	for (const key of [
+		'tool_choice', 'reasoning', 'reasoning_effort', 'thinking', 'thinking_budget',
+		'output_config', 'response_format', 'text', 'truncation', 'context_management',
+		'frequency_penalty', 'presence_penalty', 'top_logprobs', 'logit_bias',
+		'store', 'stream', 'stream_options', 'prediction', 'seed', 'parallel_tool_calls',
+		'service_tier', 'metadata', 'verbosity', 'snippy', 'state', 'intent', 'intent_threshold',
+		'include',
+	] as const) {
+		const value = (body as Record<string, unknown>)[key];
+		if (value !== undefined) {
+			out[key] = value;
+		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
 }

@@ -8,6 +8,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -47,7 +48,7 @@ import { ChatModeService, IChatMode, IChatModeService } from '../common/chatMode
 import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -485,6 +486,31 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			}
+		},
+		[ChatConfiguration.SessionSyncEnabled]: {
+			default: false,
+			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires local session tracking to also be enabled."),
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			policy: {
+				name: 'CopilotSessionSync',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.119',
+				value: (policyData) => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.sessionSync.enabled.policy',
+						value: nls.localize('chat.sessionSync.enabled.policy', "Enable session sync to GitHub.com for cross-device Copilot session history. When disabled by organization policy, session data is kept local only."),
+					}
+				},
+			}
+		},
+		[ChatConfiguration.SessionSyncExcludeRepositories]: {
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			markdownDescription: nls.localize('chat.sessionSync.excludeRepositories', "Repository patterns to exclude from session sync. Use exact `owner/repo` names or glob patterns like `my-org/*`. Sessions from matching repositories will only be stored locally."),
+			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
 			default: {
@@ -2002,8 +2028,10 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._store.add(this._modeActionDisposables);
 
+		const chatModes = this.chatModeService.getModes(SessionType.Local);
+		const { builtin, custom } = chatModes;
+
 		// Register actions for existing custom modes (avoiding name collisions)
-		const { builtin, custom } = this.chatModeService.getModes();
 		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 		for (const mode of custom) {
 			if (currentModeIds.has(mode.id)) {
@@ -2012,8 +2040,8 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Listen for custom mode changes by tracking snapshots
-		this._register(this.chatModeService.onDidChangeChatModes(() => {
-			const { builtin, custom } = this.chatModeService.getModes();
+		this._register(chatModes.onDidChange(() => {
+			const { builtin, custom } = chatModes;
 			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 
 			// Remove modes that no longer exist and those replaced by modes later in the list with same name
