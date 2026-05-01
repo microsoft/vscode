@@ -728,7 +728,9 @@ class CompositeMouseTracker extends Widget {
 	 * is cleared when the mouse next enters a tracked element.
 	 */
 	suppressPendingMouseOut(): void {
-		this._suppressNextMouseOut = true;
+		if (!this._isMouseIn) {
+			this._suppressNextMouseOut = true;
+		}
 	}
 
 	/**
