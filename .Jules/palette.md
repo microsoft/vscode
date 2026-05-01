@@ -5,3 +5,7 @@
 ## 2024-04-22 - Missing focus-visible states on core interactive elements
 **Learning:** The base UI components like `Button` (`src/vs/base/browser/ui/button/button.css`) define focus states using `:focus`, but they are missing `outline` property for `:focus` and explicit styling using `:focus-visible` pseudoclass with `outline: 1px solid var(--vscode-focusBorder)`. Some places use outline-offset without defining the outline itself, or missing outline color entirely.
 **Action:** When working on interactive UI components, ensure that `:focus-visible` or `:focus` states explicitly include the outline style using `outline: 1px solid var(--vscode-focusBorder)` to maintain accessibility for keyboard navigation.
+
+## 2026-04-29 - Adding Accessible Properties to Custom Button roles
+**Learning:** Interactive elements mapped to `role="button"` via standard HTML tags (like `<a>` or `<div>`) inside complex widgets (such as Diff Editor collapsed regions or Preference dropdowns) often omit keyboard accessibility (`tabindex="0"`) and explicit screen reader support (`aria-label`). These UI components are commonly wrapped inside `DOM.` or `h()` helper functions.
+**Action:** Whenever identifying custom interactive elements with `role="button"` built using DOM helper functions, always ensure `tabindex: '0'` and `'aria-label'` properties are explicitly declared alongside the role to enable full accessibility.
