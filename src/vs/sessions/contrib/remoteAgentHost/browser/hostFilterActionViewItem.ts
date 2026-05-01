@@ -38,15 +38,6 @@ export type HostFilterAppearance = 'titlebar' | 'sidebar';
  * Compound widget showing the agent host picker plus a connection-state
  * button. Originally lived in the desktop titlebar, now also rendered as a
  * sidebar row via {@link HostFilterAppearance}.
- *
- *  - Left: a dropdown indicating the currently selected host; clicking
- *    opens a context menu to pick a different host. When only a single
- *    host is available the control renders as a static label (no chevron,
- *    no click target).
- *  - Right: a connection-status button for the selected host:
- *      • Connected   → clickable `debug-disconnect`; click tears down the connection
- *      • Connecting  → pulsing `debug-disconnect`; click cancels the attempt
- *      • Disconnected → clickable `debug-connected`; click triggers a fresh connect
  */
 export class HostFilterActionViewItem extends BaseActionViewItem {
 
@@ -180,13 +171,14 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			if (!this._isInteractive()) {
 				return;
 			}
-			// Sidebar appearance: when there are no hosts the picker is
-			// not a menu — the dedicated refresh button (in the connect
-			// slot) drives re-discovery. The picker click is a no-op.
-			if (this._filterService.hosts.length === 0) {
-				return;
-			}
-			this._showMenu((e instanceof MouseEvent || e instanceof KeyboardEvent) ? e : new MouseEvent('click'));
+			// Pass the original event through to `_showMenu`. It will
+			// anchor on the mouse position when `e` is a real
+			// `MouseEvent` and otherwise fall back to anchoring on the
+			// dropdown element (the right behavior for keyboard /
+			// touch / gesture activations). When there are no hosts,
+			// `_showMenu` triggers re-discovery instead of opening the
+			// menu — same as the dedicated refresh button next to it.
+			this._showMenu(e);
 		}));
 
 		// Connect indicator — sibling of the picker button so it reads as
@@ -464,7 +456,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	protected _showMenu(e: MouseEvent | KeyboardEvent): void {
+	protected _showMenu(e: Event): void {
 		if (!this._dropdownElement) {
 			return;
 		}

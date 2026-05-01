@@ -52,7 +52,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		return true;
 	}
 
-	protected override _showMenu(_e: MouseEvent | KeyboardEvent): void {
+	protected override _showMenu(_e: Event): void {
 		if (!this.element) {
 			return;
 		}
