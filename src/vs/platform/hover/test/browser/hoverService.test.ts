@@ -727,5 +727,53 @@ suite('HoverService', () => {
 			// Without layout suppression, the hover should be dismissed
 			assertNotInDOM(hover, 'Hover should be dismissed after mouseout without layout');
 		}));
+
+		test('suppression clears after mouse re-enters and a new mouseleave dismisses normally', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.textContent = 'Resizable content';
+
+			const hover = hoverService.showInstantHover({
+				content,
+				target
+			});
+			assert.ok(hover);
+			assertInDOM(hover, 'Hover should be in DOM');
+
+			const widget = asHoverWidget(hover);
+
+			// Simulate mouseleave + layout to suppress
+			widget.domNode.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+			widget.layout();
+			await timeout(300);
+			assertInDOM(hover, 'Hover should remain after suppressed mouseout');
+
+			// Mouse re-enters, clearing the suppression flag
+			widget.domNode.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+			// Mouse leaves again — this time no layout, so it should dismiss
+			widget.domNode.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+			await timeout(300);
+
+			assertNotInDOM(hover, 'Hover should dismiss on normal mouseout after suppression was cleared');
+		}));
+
+		test('clicking outside should dismiss non-sticky hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.textContent = 'Content';
+
+			const hover = hoverService.showInstantHover({
+				content,
+				target
+			});
+			assert.ok(hover);
+			assertInDOM(hover, 'Hover should be in DOM');
+
+			// Click outside the hover
+			document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			assertNotInDOM(hover, 'Non-sticky hover should be dismissed after clicking outside');
+		}));
 	});
 });
