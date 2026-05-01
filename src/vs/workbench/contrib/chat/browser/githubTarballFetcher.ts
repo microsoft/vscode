@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../../base/common/async.js';
-import { VSBuffer, streamToBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer, decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
@@ -58,6 +58,27 @@ interface IGitHubCommitResponse {
 }
 
 /**
+ * Wrap a `requestService.request` call so transport-level errors (the
+ * browser fetch API throws an opaque `TypeError: Failed to fetch` for
+ * CORS / DNS / connection failures) surface as a message that names the
+ * URL we were trying to reach. Without this, the only signal in the
+ * console is the generic TypeError; the URL appears in a separate
+ * browser-emitted CORS error log that is easy to miss.
+ */
+async function loggedRequest(
+	requestService: IRequestService,
+	options: { url: string; headers: Record<string, string>; callSite: string },
+	token: CancellationToken,
+) {
+	try {
+		return await requestService.request({ type: 'GET', url: options.url, headers: options.headers, callSite: options.callSite }, token);
+	} catch (err) {
+		const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+		throw new Error(`Network error during ${options.callSite} (GET ${options.url}): ${reason}`, { cause: err instanceof Error ? err : undefined });
+	}
+}
+
+/**
  * Resolve a ref (branch / tag / SHA / undefined for default branch) to a
  * commit SHA via the GitHub commits API.
  */
@@ -78,7 +99,7 @@ export async function resolveGitHubRefToSha(
 		headers['Authorization'] = `Bearer ${authToken}`;
 	}
 
-	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.resolveSha' }, token);
+	const ctx = await loggedRequest(requestService, { url, headers, callSite: 'pluginGit.resolveSha' }, token);
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
@@ -165,15 +186,19 @@ function readHeader(headers: Record<string, string | string[] | undefined>, name
  *
  * Browser fetch cannot follow GitHub's tarball endpoint because that URL
  * 302-redirects to `codeload.github.com`, which does not return CORS
- * headers and therefore fails the browser preflight check. To stay in
- * pure-browser-friendly territory we use two endpoints that *do* support
- * CORS:
+ * headers and therefore fails the browser preflight check.
+ * `raw.githubusercontent.com` is similarly unusable: it accepts simple
+ * GETs but rejects the OPTIONS preflight that any `Authorization: Bearer`
+ * header forces.
+ *
+ * To stay in pure-browser-friendly territory we use two endpoints on
+ * `api.github.com`, which is properly CORS-enabled even with auth:
  *
  *  - `GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1` returns a
  *    flat listing of every blob/tree/submodule entry.
- *  - `GET https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}`
- *    returns the raw bytes of an individual blob (and accepts the same
- *    `Authorization: Bearer` header for private repos).
+ *  - `GET /repos/{owner}/{repo}/git/blobs/{blob_sha}` returns each blob's
+ *    bytes as base64 JSON. The blob SHA comes from the tree response so
+ *    we never have to encode the file path into a URL.
  *
  * Extraction is staged to a sibling directory and atomically swapped into
  * place on success. If anything fails (network, parse, cancellation), the
@@ -257,7 +282,7 @@ export async function fetchAndExtractGitHubRepo(
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const content = await fetchRawBlob(requestService, repo, sha, entry.path, authToken, token);
+			const content = await fetchGitHubBlob(requestService, repo, sha, entry, authToken, token);
 			await fileService.writeFile(dest, content);
 		})));
 
@@ -317,7 +342,7 @@ async function fetchGitHubTree(
 		headers['Authorization'] = `Bearer ${authToken}`;
 	}
 
-	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.tree' }, token);
+	const ctx = await loggedRequest(requestService, { url, headers, callSite: 'pluginGit.tree' }, token);
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
@@ -341,40 +366,59 @@ async function fetchGitHubTree(
 	return body;
 }
 
-async function fetchRawBlob(
+async function fetchGitHubBlob(
 	requestService: IRequestService,
 	repo: IGitHubRepoRef,
-	sha: string,
-	path: string,
+	commitSha: string,
+	entry: IGitHubTreeEntry,
 	authToken: string | undefined,
 	token: CancellationToken,
 ): Promise<VSBuffer> {
-	// raw.githubusercontent.com returns blob content directly with CORS
-	// support. Fetching by SHA (rather than branch) keeps the result
-	// deterministic if the upstream branch advances between the tree
-	// listing and the blob downloads.
-	const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
-	const url = `https://raw.githubusercontent.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/${encodeURIComponent(sha)}/${encodedPath}`;
-	const headers: Record<string, string> = {};
+	// Use the Git Blobs API (api.github.com) rather than
+	// raw.githubusercontent.com: the raw host does not respond to CORS
+	// preflight requests, so any browser request that includes an
+	// `Authorization` header is rejected before it ever leaves the user's
+	// machine. The blobs endpoint is on api.github.com which is properly
+	// CORS-enabled, returns base64-encoded content, and accepts the same
+	// auth header for private repos.
+	const url = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/git/blobs/${encodeURIComponent(entry.sha)}`;
+	const headers: Record<string, string> = {
+		'Accept': 'application/vnd.github+json',
+		'X-GitHub-Api-Version': '2022-11-28',
+	};
 	if (authToken) {
 		headers['Authorization'] = `Bearer ${authToken}`;
 	}
 
-	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.blob' }, token);
+	const ctx = await loggedRequest(requestService, { url, headers, callSite: 'pluginGit.blob' }, token);
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
 	const status = ctx.res.statusCode ?? 0;
 	if (status === 403 && isRateLimited(ctx.res.headers)) {
-		throw new GitHubRateLimitError(`GitHub rate limit hit fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`, retryAfterFromHeaders(ctx.res.headers));
+		throw new GitHubRateLimitError(`GitHub rate limit hit fetching blob '${entry.path}' for ${repo.owner}/${repo.repo}@${commitSha}`, retryAfterFromHeaders(ctx.res.headers));
 	}
 	if (status === 401 || status === 403) {
-		throw new GitHubAuthRequiredError(`GitHub returned ${status} fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`);
+		throw new GitHubAuthRequiredError(`GitHub returned ${status} fetching blob '${entry.path}' for ${repo.owner}/${repo.repo}@${commitSha}`);
 	}
 	if (!isSuccess(ctx)) {
-		throw new Error(`GitHub returned ${status} fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`);
+		throw new Error(`GitHub returned ${status} fetching blob '${entry.path}' for ${repo.owner}/${repo.repo}@${commitSha}`);
 	}
-	return await streamToBuffer(ctx.stream);
+	const body = await asJson<IGitHubBlobResponse>(ctx);
+	if (!body || typeof body.content !== 'string') {
+		throw new Error(`GitHub blob response for '${entry.path}' missing 'content' field`);
+	}
+	if (body.encoding !== 'base64') {
+		throw new Error(`GitHub blob response for '${entry.path}' has unsupported encoding '${body.encoding}'`);
+	}
+	// GitHub wraps base64 at 60 columns; strip whitespace before decoding.
+	return decodeBase64(body.content.replace(/\s+/g, ''));
+}
+
+/** Response shape from `GET /repos/{owner}/{repo}/git/blobs/{sha}`. */
+interface IGitHubBlobResponse {
+	readonly content: string;
+	readonly encoding: string;
 }
 
 /**

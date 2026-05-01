@@ -234,6 +234,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		} else if (err instanceof GitHubRateLimitError) {
 			const wait = err.retryAfterSeconds !== undefined ? ` (retry after ${err.retryAfterSeconds}s)` : '';
 			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.repo}${wait}: ${err.message}`);
+		} else if (err instanceof Error) {
+			// Surface every other failure with full context so that
+			// browser-fetch errors (CORS, DNS, offline, blocked redirects)
+			// don't reach the user as a bare `TypeError: Failed to fetch`.
+			const cause = err.cause instanceof Error ? ` (cause: ${err.cause.name}: ${err.cause.message})` : '';
+			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.repo}: ${err.message}${cause}`);
 		}
 	}
 

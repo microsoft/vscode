@@ -215,12 +215,12 @@ suite('BrowserPluginGitCommandService', () => {
 				sha: 'sha1',
 				truncated: false,
 				tree: [
-					{ path: 'README.md', mode: '100644', type: 'blob', sha: 'b1', size: 3 },
-					{ path: 'link.txt', mode: '120000', type: 'blob', sha: 'b2', size: 8 },
-					{ path: 'subrepo', mode: '160000', type: 'commit', sha: 'b3' },
+					{ path: 'README.md', mode: '100644', type: 'blob', sha: 'b-readme', size: 3 },
+					{ path: 'link.txt', mode: '120000', type: 'blob', sha: 'b-link', size: 8 },
+					{ path: 'subrepo', mode: '160000', type: 'commit', sha: 'b-sub' },
 				],
 			}));
-			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/README\.md$/, bytesResponse(200, new TextEncoder().encode('hi\n')));
+			requestStub.queue('GET', /\/git\/blobs\/b-readme$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('hi\n')), encoding: 'base64' }));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -284,11 +284,11 @@ suite('BrowserPluginGitCommandService', () => {
 				sha: 'sha1',
 				truncated: false,
 				tree: [
-					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b1', size: 4 },
-					{ path: '../escaped.txt', mode: '100644', type: 'blob', sha: 'b2', size: 4 },
+					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b-safe', size: 4 },
+					{ path: '../escaped.txt', mode: '100644', type: 'blob', sha: 'b-escape', size: 4 },
 				],
 			}));
-			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/safe\.txt$/, bytesResponse(200, new TextEncoder().encode('safe')));
+			requestStub.queue('GET', /\/git\/blobs\/b-safe$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('safe')), encoding: 'base64' }));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -306,11 +306,11 @@ suite('BrowserPluginGitCommandService', () => {
 				sha: 'sha1',
 				truncated: false,
 				tree: [
-					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b1', size: 4 },
-					{ path: '..\\..\\escaped.txt', mode: '100644', type: 'blob', sha: 'b2', size: 4 },
+					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b-safe', size: 4 },
+					{ path: '..\\..\\escaped.txt', mode: '100644', type: 'blob', sha: 'b-escape', size: 4 },
 				],
 			}));
-			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/safe\.txt$/, bytesResponse(200, new TextEncoder().encode('safe')));
+			requestStub.queue('GET', /\/git\/blobs\/b-safe$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('safe')), encoding: 'base64' }));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -428,12 +428,13 @@ function jsonResponse(statusCode: number, body: unknown): () => IRequestContext 
 
 /**
  * Queue stub responses representing a recursive Git Trees fetch followed
- * by per-blob raw.githubusercontent.com downloads for the given SHA and
+ * by per-blob `git/blobs/{sha}` downloads for the given commit SHA and
  * file map. The order of `files` does not matter; the request stub picks
  * the first regex that matches each outgoing URL.
  */
 function queueRepoFetch(stub: StubRequestService, sha: string, files: Record<string, string>): void {
-	const tree = Object.entries(files).map(([path, content], i) => ({
+	const entries = Object.entries(files);
+	const tree = entries.map(([path, content], i) => ({
 		path,
 		mode: '100644',
 		type: 'blob' as const,
@@ -441,14 +442,24 @@ function queueRepoFetch(stub: StubRequestService, sha: string, files: Record<str
 		size: content.length,
 	}));
 	stub.queue('GET', new RegExp(`/git/trees/${escapeForRegExp(sha)}\\?recursive=1$`), jsonResponse(200, { sha, tree, truncated: false }));
-	for (const [path, content] of Object.entries(files)) {
-		stub.queue('GET', rawBlobMatcher(sha, path), bytesResponse(200, new TextEncoder().encode(content)));
-	}
+	entries.forEach(([, content], i) => {
+		stub.queue('GET', blobShaMatcher(tree[i].sha), jsonResponse(200, {
+			content: encodeBase64(new TextEncoder().encode(content)),
+			encoding: 'base64',
+		}));
+	});
 }
 
-function rawBlobMatcher(sha: string, path: string): RegExp {
-	const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-	return new RegExp(`raw\\.githubusercontent\\.com/[^/]+/[^/]+/${escapeForRegExp(sha)}/${escapeForRegExp(encodedPath)}$`);
+function blobShaMatcher(blobSha: string): RegExp {
+	return new RegExp(`/git/blobs/${escapeForRegExp(blobSha)}$`);
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+	let binary = '';
+	for (let i = 0; i < bytes.length; i++) {
+		binary += String.fromCharCode(bytes[i]);
+	}
+	return btoa(binary);
 }
 
 function escapeForRegExp(value: string): string {
