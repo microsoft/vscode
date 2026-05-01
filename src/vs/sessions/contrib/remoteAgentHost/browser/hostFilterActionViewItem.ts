@@ -46,6 +46,8 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	private _chevronElement: HTMLElement | undefined;
 	private _connectElement: HTMLElement | undefined;
 	private _sidebarButton: Button | undefined;
+	private _sidebarLeadingIcon: HTMLElement | undefined;
+	private _sidebarTrailingIcon: HTMLElement | undefined;
 
 	private readonly _dropdownHover = this._register(new MutableDisposable());
 	private readonly _connectHover = this._register(new MutableDisposable());
@@ -161,11 +163,18 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._sidebarButton.element.classList.add('customization-link-button', 'sidebar-action-button', 'agent-host-filter-button', 'monaco-text-button');
 
 		this._dropdownElement = this._sidebarButton.element;
-		// The label element is a dedicated span we own; `_update()` writes
-		// the host name into its `textContent`. The leading host icon and
-		// trailing chevron are rendered into the button by `_update()` too,
-		// alongside this span (icon · label · chevron).
+		// Build the button content manually as three direct children so
+		// we can keep stable references to each element (icon · label ·
+		// chevron) without DOM querying. The label takes `flex: 1` so
+		// the trailing chevron is pushed to the right edge.
+		this._sidebarLeadingIcon = dom.append(this._sidebarButton.element, dom.$('span.agent-host-filter-leading-icon'));
+		this._sidebarLeadingIcon.classList.add('codicon', `codicon-${Codicon.remote.id}`);
 		this._labelElement = dom.append(this._sidebarButton.element, dom.$('span.agent-host-filter-label'));
+		// Trailing chevron is created up-front but only attached to the
+		// button when this is a real picker (2+ hosts). See
+		// `_renderSidebarButtonAffordances`.
+		this._sidebarTrailingIcon = dom.$('span.agent-host-filter-trailing-icon.codicon');
+		this._sidebarTrailingIcon.classList.add(`codicon-${Codicon.chevronDown.id}`);
 
 		this._register(this._sidebarButton.onDidClick(e => {
 			if (!this._isInteractive()) {
@@ -207,34 +216,22 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private _renderSidebarButtonAffordances(interactive: boolean, canRetry: boolean): void {
-		if (!this._sidebarButton || !this._labelElement) {
+		if (!this._sidebarButton || !this._sidebarTrailingIcon) {
 			return;
 		}
-		const buttonElement = this._sidebarButton.element;
 
-		// Leading host icon — append once, before the label span.
-		let leading = buttonElement.querySelector<HTMLElement>(':scope > .agent-host-filter-leading-icon');
-		if (!leading) {
-			leading = dom.$('span.agent-host-filter-leading-icon');
-			leading.classList.add(...['codicon', `codicon-${Codicon.remote.id}`]);
-			buttonElement.insertBefore(leading, this._labelElement);
-		}
-
-		// Trailing chevron — only when this is a real picker (i.e. there
-		// are 2+ hosts to choose from). For canRetry / single-host the
-		// button is *not* a dropdown — in canRetry the refresh action
-		// lives in the trailing connect slot instead, mirroring the
-		// disconnect button shape.
+		// Trailing chevron — only attached when this is a real picker
+		// (i.e. there are 2+ hosts to choose from). For canRetry /
+		// single-host the button is *not* a dropdown — in canRetry the
+		// refresh action lives in the trailing connect slot instead,
+		// mirroring the disconnect button shape.
 		const showChevron = interactive && !canRetry;
-		const trailing = buttonElement.querySelector<HTMLElement>(':scope > .agent-host-filter-trailing-icon');
-		if (!showChevron) {
-			trailing?.remove();
-			return;
-		}
-		if (!trailing) {
-			const el = dom.$('span.agent-host-filter-trailing-icon.codicon');
-			el.classList.add(`codicon-${Codicon.chevronDown.id}`);
-			buttonElement.appendChild(el);
+		if (showChevron) {
+			if (!this._sidebarTrailingIcon.isConnected) {
+				this._sidebarButton.element.appendChild(this._sidebarTrailingIcon);
+			}
+		} else {
+			this._sidebarTrailingIcon.remove();
 		}
 	}
 
