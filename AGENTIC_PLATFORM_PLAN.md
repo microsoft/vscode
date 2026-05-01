@@ -581,7 +581,7 @@ Three sprints to land the subscription-integration foundation, then the existing
   - `vscode.SecretStorage` integration.
   - RPC surface implemented; integration tests with a fake provider.
 - [x] **Uniform event shape** in a shared types package consumed by router and IDE (§4.3).
-- [ ] **AnthropicOAuth adapter** in `services/model-router/src/providers/anthropic-oauth.ts` (§5.1).
+- [x] **AnthropicOAuth adapter** in `services/model-router/src/providers/anthropic-oauth.ts` (§5.1).
   - PKCE flow.
   - `cache_control` preserved end-to-end.
 - [ ] **Streaming chat UI rewrite** in `src/vs/sessions/contrib/chat/browser/` (§7.3, §9.5).
