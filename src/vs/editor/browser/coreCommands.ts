@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import * as types from '../../base/common/types.js';
 import { status } from '../../base/browser/ui/aria/aria.js';
 import { ICodeEditor } from './editorBrowser.js';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from './editorExtensions.js';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand, DeleteLeftCommand, DeleteRightCommand } from './editorExtensions.js';
 import { ICodeEditorService } from './services/codeEditorService.js';
 import { ColumnSelection, IColumnSelectResult } from '../common/cursor/cursorColumnSelection.js';
 import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../common/cursorCommon.js';
@@ -2044,22 +2044,20 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
+	export const DeleteLeft = new class extends EditorOrNativeTextInputCommand {
+		public readonly id = 'deleteLeft';
 		constructor() {
-			super({
-				id: 'deleteLeft',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Backspace,
-					secondary: [KeyMod.Shift | KeyCode.Backspace],
-					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KeyH, KeyMod.WinCtrl | KeyCode.Backspace] }
-				}
-			});
+			super(DeleteLeftCommand);
 		}
-
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('delete');
+		}
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void {
+			const viewModel = editor._getViewModel();
+			if (!viewModel) {
+				// the editor has no view => has no cursors
+				return;
+			}
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
@@ -2067,23 +2065,22 @@ export namespace CoreEditingCommands {
 			editor.executeCommands(this.id, commands);
 			viewModel.setPrevEditOperationType(EditOperationType.DeletingLeft);
 		}
-	});
+	}();
 
-	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends CoreEditingCommand {
+	export const DeleteRight = new class extends EditorOrNativeTextInputCommand {
+		public readonly id = 'deleteRight';
 		constructor() {
-			super({
-				id: 'deleteRight',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Delete,
-					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KeyD, KeyMod.WinCtrl | KeyCode.Delete] }
-				}
-			});
+			super(DeleteRightCommand);
 		}
-
-		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('forwardDelete');
+		}
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void {
+			const viewModel = editor._getViewModel();
+			if (!viewModel) {
+				// the editor has no view => has no cursors
+				return;
+			}
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
@@ -2091,7 +2088,7 @@ export namespace CoreEditingCommands {
 			editor.executeCommands(this.id, commands);
 			viewModel.setPrevEditOperationType(EditOperationType.DeletingRight);
 		}
-	});
+	}();
 
 	export const Undo = new class extends EditorOrNativeTextInputCommand {
 		constructor() {
