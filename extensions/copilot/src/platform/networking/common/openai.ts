@@ -68,9 +68,10 @@ export interface APIUsage {
 }
 
 export function isApiUsage(obj: unknown): obj is APIUsage {
+	// total_tokens is intentionally not required — many OpenAI-compatible local
+	// models (Ollama, LM Studio, custom proxies) omit it; it equals prompt_tokens + completion_tokens.
 	return typeof (obj as APIUsage).prompt_tokens === 'number' &&
-		typeof (obj as APIUsage).completion_tokens === 'number' &&
-		typeof (obj as APIUsage).total_tokens === 'number';
+		typeof (obj as APIUsage).completion_tokens === 'number';
 }
 
 

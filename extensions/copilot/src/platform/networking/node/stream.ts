@@ -295,6 +295,10 @@ export class SSEProcessor {
 				}
 
 				if (completion) {
+					if (usage && typeof usage.total_tokens !== 'number') {
+						// Synthesize total_tokens for models that omit it (e.g. Ollama, LM Studio)
+						usage = { ...usage, total_tokens: usage.prompt_tokens + usage.completion_tokens };
+					}
 					completion.usage = usage;
 					yield completion;
 				}
