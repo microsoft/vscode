@@ -580,7 +580,7 @@ Three sprints to land the subscription-integration foundation, then the existing
   - Localhost socket / named pipe transport with peer-creds check.
   - `vscode.SecretStorage` integration.
   - RPC surface implemented; integration tests with a fake provider.
-- [ ] **Uniform event shape** in a shared types package consumed by router and IDE (§4.3).
+- [x] **Uniform event shape** in a shared types package consumed by router and IDE (§4.3).
 - [ ] **AnthropicOAuth adapter** in `services/model-router/src/providers/anthropic-oauth.ts` (§5.1).
   - PKCE flow.
   - `cache_control` preserved end-to-end.
