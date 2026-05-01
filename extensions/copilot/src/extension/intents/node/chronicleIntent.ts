@@ -183,17 +183,29 @@ export class ChronicleIntent implements IIntent {
 
 		stream.markdown(lines.join('\n'));
 
-		this._telemetryService.sendMSFTTelemetryEvent('chronicle', {
-			subcommand: 'reindex',
-			querySource: 'local',
+		const durationMs = Date.now() - startTime;
+		/* __GDPR__
+			"chronicle.reindex" : {
+				"owner": "digitarald",
+				"comment": "Tracks Chronicle session reindex operations.",
+				"operation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Reindex operation outcome: completed or cancelled." },
+				"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What triggered reindex: command." },
+				"force": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether force mode was used." },
+				"processed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions successfully reindexed." },
+				"skipped": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions skipped (already indexed)." },
+				"totalSessions": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total session count on disk." },
+				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Total reindex duration in ms." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.reindex', {
+			operation: result.cancelled ? 'cancelled' : 'completed',
+			trigger: 'command',
 			force: String(force),
-			cancelled: String(result.cancelled),
 		}, {
-			localSessionCount: result.processed,
-			cloudSessionCount: 0,
-			totalSessionCount: result.processed + result.skipped,
-			skippedCount: result.skipped,
-			durationMs: Date.now() - startTime,
+			processed: result.processed,
+			skipped: result.skipped,
+			totalSessions: result.processed + result.skipped,
+			durationMs,
 		});
 
 		return {};
@@ -205,6 +217,8 @@ export class ChronicleIntent implements IIntent {
 		request: vscode.ChatRequest,
 		token: CancellationToken,
 	): Promise<vscode.ChatResult> {
+		const queryStart = Date.now();
+
 		// Always query local SQLite (has current machine's sessions)
 		const localSessions = this._queryLocalStore();
 
@@ -289,15 +303,44 @@ export class ChronicleIntent implements IIntent {
 
 		const standupPrompt = buildStandupPrompt(capped, cappedRefs, cappedTurns, cappedFiles, extra);
 
+		const localCount = capped.filter(s => s.source !== 'cloud').length;
+		const cloudCount = capped.filter(s => s.source === 'cloud').length;
+		const queryDurationMs = Date.now() - queryStart;
+
+		/* __GDPR__
+			"chronicle.standup" : {
+				"owner": "digitarald",
+				"comment": "Tracks Chronicle standup prompt data richness, gathering performance, and emptiness rate.",
+				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Data sources used: local, cloud, or both." },
+				"isEmpty": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the standup had no sessions to report." },
+				"localSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions from local store." },
+				"cloudSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions from cloud store." },
+				"mergedSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Final sessions after dedup (capped at 20)." },
+				"turnsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total turn messages included in prompt." },
+				"filesCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total files included in prompt." },
+				"refsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total refs (PRs/issues/commits) included." },
+				"queryDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time to gather all data for prompt generation." },
+				"promptLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Final prompt character length sent to LLM." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.standup', {
+			querySource: cloudCount > 0 && localCount > 0 ? 'both' : cloudCount > 0 ? 'cloud' : 'local',
+			isEmpty: String(capped.length === 0),
+		}, {
+			localSessionCount: localCount,
+			cloudSessionCount: cloudCount,
+			mergedSessionCount: capped.length,
+			turnsCount: cappedTurns.length,
+			filesCount: cappedFiles.length,
+			refsCount: cappedRefs.length,
+			queryDurationMs,
+			promptLength: standupPrompt.length,
+		});
+
 		if (capped.length === 0) {
 			stream.markdown(l10n.t('No sessions found. There\'s nothing to report for a standup.'));
 			return {};
 		}
-
-		const localCount = capped.filter(s => s.source !== 'cloud').length;
-		const cloudCount = capped.filter(s => s.source === 'cloud').length;
-
-		this._sendTelemetry('standup', localCount, cloudCount);
 
 		if (cloudCount > 0 && localCount > 0) {
 			stream.progress(l10n.t('Generating standup from {0} cloud and {1} local session(s)...', cloudCount, localCount));
@@ -370,7 +413,20 @@ Query guidelines:
 		}
 
 		this._pendingSystemPrompt = prompt;
-		this._sendTelemetry('tips', 0, 0);
+		/* __GDPR__
+			"chronicle.prompt" : {
+				"owner": "digitarald",
+				"comment": "Tracks Chronicle tips/freeform prompt setup and consent state.",
+				"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chronicle subcommand: tips or freeform." },
+				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Query target: local or cloud." },
+				"hasCloudConsent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether user has cloud indexing consent." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.prompt', {
+			subcommand: 'tips',
+			querySource: hasCloud ? 'cloud' : 'local',
+			hasCloudConsent: String(hasCloud),
+		}, {});
 		return this._delegateToToolCallingHandler(conversation, request, stream, token, documentContext, location, chatTelemetry);
 	}
 
@@ -403,7 +459,20 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 - Join tables to correlate sessions with their turns, files, and refs for complete answers
 - Present results in a clear, readable format with markdown tables or bullet points`;
 
-		this._sendTelemetry('freeform', 0, 0);
+		/* __GDPR__
+			"chronicle.prompt" : {
+				"owner": "digitarald",
+				"comment": "Tracks Chronicle tips/freeform prompt setup and consent state.",
+				"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chronicle subcommand: tips or freeform." },
+				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Query target: local or cloud." },
+				"hasCloudConsent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether user has cloud indexing consent." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.prompt', {
+			subcommand: 'freeform',
+			querySource: hasCloud ? 'cloud' : 'local',
+			hasCloudConsent: String(hasCloud),
+		}, {});
 		return this._delegateToToolCallingHandler(conversation, request, stream, token, documentContext, location, chatTelemetry);
 	}
 
@@ -430,35 +499,6 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 			undefined,
 		);
 		return handler.getResult();
-	}
-
-	private _sendTelemetry(subcommand: string, localSessionCount: number, cloudSessionCount: number): void {
-		const hasCloudConsent = this._indexingPreference.hasCloudConsent();
-		const querySource = hasCloudConsent ? (localSessionCount > 0 ? 'both' : 'cloud') : 'local';
-		/* __GDPR__
-"chronicle" : {
-"owner": "vijayu",
-"comment": "Tracks chronicle subcommand usage, data sources, and query failures",
-"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chronicle subcommand: standup, tips, freeform, or reindex." },
-"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The data source used: local, cloud, both, or cloudRefs." },
-"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message." },
-"force": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether force mode was used (reindex only)." },
-"cancelled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the operation was cancelled (reindex only)." },
-"localSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of local sessions used." },
-"cloudSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of cloud sessions used." },
-"totalSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total sessions used." },
-"skippedCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of sessions skipped during reindex." },
-"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Duration of the reindex operation in milliseconds." }
-}
-*/
-		this._telemetryService.sendMSFTTelemetryEvent('chronicle', {
-			subcommand,
-			querySource,
-		}, {
-			localSessionCount,
-			cloudSessionCount,
-			totalSessionCount: localSessionCount + cloudSessionCount,
-		});
 	}
 
 	private _getSchemaDescription(hasCloud: boolean): string {
