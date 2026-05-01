@@ -253,7 +253,7 @@ describe('extractPlainTextFromContent', () => {
 		expect(extractPlainTextFromContent('{"role":"user","content":[{"type":"text"}]}')).toBeUndefined();
 	});
 
-	it('returns original string for invalid/truncated JSON', () => {
-		expect(extractPlainTextFromContent('[{"type":"text","text":"Fix')).toBe('[{"type":"text","text":"Fix');
+	it('returns undefined for invalid/truncated JSON', () => {
+		expect(extractPlainTextFromContent('[{"type":"text","text":"Fix')).toBeUndefined();
 	});
 });

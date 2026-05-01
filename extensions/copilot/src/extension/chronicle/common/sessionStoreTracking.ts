@@ -291,7 +291,7 @@ export function extractPlainTextFromContent(content: string): string | undefined
 		}
 		return undefined; // Unrecognized JSON structure
 	} catch {
-		return trimmed || undefined; // JSON parse failed — keep as plain text
+		return undefined; // JSON-looking input that failed to parse — skip to avoid storing raw/truncated JSON
 	}
 }
 

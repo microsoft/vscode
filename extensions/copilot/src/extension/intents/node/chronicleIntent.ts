@@ -476,7 +476,7 @@ Always JOIN sessions with turns to get session content — do not rely on sessio
 - **turns**: session_id, turn_index, user_message, assistant_response (first ~1000 characters of the assistant reply, with an ellipsis if truncated — not the full response; may be empty for older sessions), timestamp. The richest source of what actually happened — always JOIN sessions with turns for meaningful results.
 - **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used. May be empty for older sessions.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made. May be empty for older sessions.
-- **search_index**: FTS5 virtual table indexing turns.user_message and turns.assistant_response. Use \`WHERE search_index MATCH 'query'\` for full-text search across conversation content.
+- **search_index**: FTS5 virtual table indexing conversation turns (user_message + assistant_response), checkpoint sections (overview, history, work_done, etc.), and workspace artifacts. Records have a source_type column (unindexed) distinguishing content origin. Use \`WHERE search_index MATCH 'query'\` for full-text search across all indexed session content.
 
 Use \`datetime('now', '-1 day')\` for date math.
 Join sessions with turns/files/refs using session_id for complete analysis.`;
