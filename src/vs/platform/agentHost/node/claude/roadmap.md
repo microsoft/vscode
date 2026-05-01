@@ -151,7 +151,7 @@ interface ICopilotApiService {
 - Where does **model ID translation** live? Tentatively the proxy (Phase 2),
   so `model` in `MessageCreateParams` stays an opaque string here.
 
-### Phase 2 — `IClaudeProxyService` (local proxy)
+### Phase 2 — `IClaudeProxyService` (local proxy) ✅ **DONE**
 
 A local HTTP server that speaks Anthropic's `/v1/messages`, `/v1/models`, and
 `/v1/messages/count_tokens` wire format on the inbound side, and
