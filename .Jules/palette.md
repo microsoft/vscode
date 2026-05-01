@@ -9,3 +9,7 @@
 ## 2026-04-29 - Adding Accessible Properties to Custom Button roles
 **Learning:** Interactive elements mapped to `role="button"` via standard HTML tags (like `<a>` or `<div>`) inside complex widgets (such as Diff Editor collapsed regions or Preference dropdowns) often omit keyboard accessibility (`tabindex="0"`) and explicit screen reader support (`aria-label`). These UI components are commonly wrapped inside `DOM.` or `h()` helper functions.
 **Action:** Whenever identifying custom interactive elements with `role="button"` built using DOM helper functions, always ensure `tabindex: '0'` and `'aria-label'` properties are explicitly declared alongside the role to enable full accessibility.
+
+## 2026-04-30 - Custom Button Keyboard Navigation
+**Learning:** Custom interactive UI elements (like `<a>` or `<div>`) with `role="button"` created using internal DOM helpers (e.g., `DOM.$()` or `h()`) must explicitly be given a `tabindex: '0'` attribute. Otherwise, they are completely skipped by keyboard navigation, breaking accessibility for a core interaction pattern.
+**Action:** When adding or modifying custom button elements, always ensure they have `tabindex: 0` and an `aria-label` (if icon-only) to guarantee they are reachable and readable by all users.

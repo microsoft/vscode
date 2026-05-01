@@ -98,7 +98,7 @@ class CodeLensContentWidget implements IContentWidget {
 				const title = renderLabelWithIcons(lens.command.title.trim());
 				if (lens.command.id) {
 					const id = `c${(CodeLensContentWidget._idPool++)}`;
-					children.push(dom.$('a', { id, title: lens.command.tooltip, role: 'button' }, ...title));
+					children.push(dom.$('a', { id, title: lens.command.tooltip, role: 'button', tabindex: 0 }, ...title));
 					this._commands.set(id, lens.command);
 				} else {
 					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
