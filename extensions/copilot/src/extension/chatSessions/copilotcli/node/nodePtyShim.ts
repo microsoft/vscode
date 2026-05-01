@@ -46,9 +46,28 @@ export async function ensureNodePtyShim(extensionPath: string, vscodeAppRoot: st
 }
 
 async function _ensureNodePtyShim(extensionPath: string, vscodeAppRoot: string, logService: ILogService): Promise<void> {
-	const vscodeNodePtyPath = path.join(vscodeAppRoot, 'node_modules', 'node-pty', 'build', 'Release');
+	const vscodeNodePtyPath = await resolveNodePtySourcePath(vscodeAppRoot, logService);
 
 	await copyNodePtyFiles(extensionPath, vscodeNodePtyPath, logService);
+}
+
+export async function resolveNodePtySourcePath(vscodeAppRoot: string, logService: ILogService): Promise<string> {
+	const nodePtyRoot = path.join(vscodeAppRoot, 'node_modules', 'node-pty');
+	const candidatePaths = [
+		path.join(nodePtyRoot, 'build', 'Release'),
+		path.join(nodePtyRoot, 'prebuilds', process.platform + '-' + process.arch),
+	];
+
+	for (const candidatePath of candidatePaths) {
+		if (await isDirectory(candidatePath)) {
+			if (candidatePath !== candidatePaths[0]) {
+				logService.info(`Using node-pty prebuilds from ${candidatePath}`);
+			}
+			return candidatePath;
+		}
+	}
+
+	throw new Error(`Unable to find node-pty binaries. Checked: ${candidatePaths.join(', ')}`);
 }
 
 export async function copyNodePtyFiles(extensionPath: string, sourceNodePtyPath: string, logService: ILogService): Promise<void> {
@@ -95,6 +114,11 @@ async function copyNodePtyWithRetries(sourceDir: string, destDir: string, entrie
 			await new Promise(resolve => setTimeout(resolve, delayMs));
 		}
 	}
+}
+
+async function isDirectory(candidatePath: string): Promise<boolean> {
+	const stat = await fs.stat(candidatePath).catch(() => undefined);
+	return !!stat?.isDirectory();
 }
 
 async function shouldCopyEntry(srcPath: string, logService: ILogService): Promise<boolean> {
