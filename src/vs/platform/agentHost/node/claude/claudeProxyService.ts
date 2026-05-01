@@ -260,24 +260,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		const nonce = generateNonce();
 		const inFlight = new Set<IInFlight>();
 		const httpModule = await import('http');
-		const server = httpModule.createServer((req, res) => {
-			this._handleRequest(req, res, runtime).catch(err => {
-				// Last-resort safety net. All known throw paths are
-				// already handled inside `_handleRequest`.
-				this._logService.error(`[${PROXY_USER_FACING_NAME}] unhandled request error: ${stringifyError(err)}`);
-				if (!res.headersSent) {
-					try {
-						writeJsonError(res, 500, 'api_error', 'Internal proxy error');
-					} catch {
-						// nothing else we can do
-					}
-				} else if (!res.writableEnded) {
-					try {
-						res.end();
-					} catch { /* ignore */ }
-				}
-			});
-		});
+		const server = httpModule.createServer();
 
 		await new Promise<void>((resolve, reject) => {
 			const onError = (err: Error) => { reject(err); };
@@ -296,8 +279,6 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
 		this._logService.info(`[${PROXY_USER_FACING_NAME}] listening on ${baseUrl}`);
 
-		// Bound below so the `createServer` callback can reference the
-		// runtime via closure even though it's constructed afterwards.
 		const runtime: IProxyRuntime = {
 			server,
 			baseUrl,
@@ -306,6 +287,31 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			githubToken,
 			refcount: 0,
 		};
+
+		// Attach the request handler only after `runtime` is fully
+		// built. Node's single-threaded event loop guarantees no
+		// `request` event can be parsed and dispatched between
+		// `listen` resolving and this synchronous registration, so
+		// the handler can safely close over `runtime` as a `const`.
+		server.on('request', (req, res) => {
+			this._handleRequest(req, res, runtime).catch(err => {
+				// Last-resort safety net. All known throw paths are
+				// already handled inside `_handleRequest`.
+				this._logService.error(`[${PROXY_USER_FACING_NAME}] unhandled request error: ${stringifyError(err)}`);
+				if (!res.headersSent) {
+					try {
+						writeJsonError(res, 500, 'api_error', 'Internal proxy error');
+					} catch {
+						// nothing else we can do
+					}
+				} else if (!res.writableEnded) {
+					try {
+						res.end();
+					} catch { /* ignore */ }
+				}
+			});
+		});
+
 		return runtime;
 	}
 
