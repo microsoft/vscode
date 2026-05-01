@@ -10,11 +10,12 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { createBrowserPageLink, errorResult } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const ReadBrowserToolData: IToolData = {
 	id: 'read_page',
-	toolReferenceName: 'readPage',
+	toolReferenceName: BrowserChatToolReferenceName.ReadPage,
 	displayName: localize('readBrowserTool.displayName', 'Read Page'),
 	userDescription: localize('readBrowserTool.userDescription', 'Read the content of a browser page'),
 	modelDescription: 'Get a snapshot of the current browser page state. This is better than screenshot.',

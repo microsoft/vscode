@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -242,6 +242,7 @@ type IPullRequestReviewThreadsModel = ReturnType<IGitHubService['getPullRequestR
 interface IPRSessionReviewData {
 	readonly state: ReturnType<typeof observableValue<IPRReviewState>>;
 	readonly disposables: DisposableStore;
+	readonly pollingDisposable: DisposableStore;
 	reviewThreadsModel?: IPullRequestReviewThreadsModel;
 	initialized: boolean;
 }
@@ -353,15 +354,22 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const gitHubInfo = gitHubInfoObs.read(reader);
 			const data = this._ensurePRReviewInitialized(activeSessionResource, gitHubInfo);
 
+			if (!data.reviewThreadsModel) {
+				return;
+			}
+
 			// Initial fetch of review threads
-			data.reviewThreadsModel?.refresh().catch(err => {
+			data.reviewThreadsModel.refresh().catch(err => {
 				this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
 				data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
 			});
 
 			// Start polling of review threads
-			data.reviewThreadsModel?.startPolling();
-			reader.store.add({ dispose: () => data.reviewThreadsModel?.stopPolling() });
+			data.pollingDisposable.add(data.reviewThreadsModel.startPolling());
+
+			reader.store.add(toDisposable(() => {
+				data.pollingDisposable.clear();
+			}));
 		}));
 	}
 
@@ -669,8 +677,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			data = {
 				state: observableValue<IPRReviewState>(`prReview.state.${key}`, { kind: PRReviewStateKind.None }),
 				disposables: new DisposableStore(),
+				pollingDisposable: new DisposableStore(),
 				initialized: false,
 			};
+			data.disposables.add(data.pollingDisposable);
 			this._prReviewBySession.set(key, data);
 		}
 		return data;
@@ -736,7 +746,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		const data = this._prReviewBySession.get(key);
 		if (data) {
 			data.disposables.dispose();
-			data.reviewThreadsModel?.stopPolling();
 
 			this._prReviewBySession.delete(key);
 		}
@@ -745,7 +754,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	override dispose(): void {
 		for (const data of this._prReviewBySession.values()) {
 			data.disposables.dispose();
-			data.reviewThreadsModel?.stopPolling();
 		}
 		this._prReviewBySession.clear();
 

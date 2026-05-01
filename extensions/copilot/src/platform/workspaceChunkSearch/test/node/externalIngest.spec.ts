@@ -139,6 +139,10 @@ class MockFileSystem extends mock<IFileSystemService & ISearchService>() impleme
 		return entry.content;
 	}
 
+	override isWritableFileSystem(scheme: string): boolean {
+		return false;
+	}
+
 	override createFileSystemWatcher(): FileSystemWatcher {
 		return {
 			onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),

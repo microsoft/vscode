@@ -137,11 +137,6 @@ export class WebviewViewPane extends ViewPane {
 		super.saveState();
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.layoutWebview();
-	}
-
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();

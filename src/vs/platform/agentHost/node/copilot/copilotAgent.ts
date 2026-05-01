@@ -769,7 +769,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		const entry = this._sessions.get(AgentSession.id(session));
+		const sessionId = AgentSession.id(parseSubagentSessionUri(session.toString())?.parentSession || session);
+		const entry = this._sessions.get(sessionId);
 		entry?.handleClientToolCallComplete(toolCallId, result);
 	}
 
@@ -903,19 +904,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const rawTurns = await entry.getMessages();
 
 		// If a worktree was created for this session at create-time, prepend
+		// If a worktree was created for this session at create-time, prepend
 		// the announcement to the first turn so it appears at the top of the
 		// first response when the session is reopened. The live path
 		// (sendMessage) handles the very first turn when the session is fresh;
 		// this path takes over on subsequent loads, where
 		// _pendingFirstTurnAnnouncements is empty.
-		const branchName = await this._readWorktreeBranchMetadata(session).catch(err => {
+		const worktreeMeta = await this._readWorktreeMetadata(session).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to read worktree branch metadata`, err);
 			return undefined;
 		});
-		if (!branchName) {
+		if (!worktreeMeta?.branchName) {
 			return rawTurns;
 		}
-		return prependAnnouncementToFirstTurn(rawTurns, buildWorktreeAnnouncementText(branchName));
+		return prependAnnouncementToFirstTurn(rawTurns, buildWorktreeAnnouncementText(worktreeMeta.branchName));
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -923,6 +925,90 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._sessionSequencer.queue(sessionId, async () => {
 			await this._destroyAndDisposeSession(sessionId);
 		});
+	}
+
+	async onArchivedChanged(session: URI, isArchived: boolean): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			if (isArchived) {
+				await this._cleanupWorktreeOnArchive(session, sessionId);
+			} else {
+				await this._recreateWorktreeOnUnarchive(session, sessionId);
+			}
+		});
+	}
+
+	private async _cleanupWorktreeOnArchive(session: URI, sessionId: string): Promise<void> {
+		const meta = await this._readWorktreeMetadata(session).catch(() => undefined);
+		if (!meta?.worktreePath || !meta.repositoryRoot) {
+			return;
+		}
+		const { branchName, worktreePath, repositoryRoot } = meta;
+
+		// Skip if the worktree directory is already gone — nothing to clean.
+		try {
+			await fs.access(worktreePath.fsPath);
+		} catch {
+			this._createdWorktrees.delete(sessionId);
+			return;
+		}
+
+		// Skip if the branch is missing — without it we can't safely recreate
+		// the worktree on unarchive, so leave the working tree intact.
+		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
+		if (!branchPresent) {
+			this._logService.info(`[Copilot:${sessionId}] Skipping worktree cleanup: branch '${branchName}' is missing`);
+			return;
+		}
+
+		// Skip if there are uncommitted changes — don't silently destroy work.
+		const dirty = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
+		if (dirty) {
+			this._logService.info(`[Copilot:${sessionId}] Skipping worktree cleanup: '${worktreePath.fsPath}' has uncommitted changes`);
+			return;
+		}
+
+		try {
+			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
+			this._logService.info(`[Copilot:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			this._createdWorktrees.delete(sessionId);
+		}
+	}
+
+	private async _recreateWorktreeOnUnarchive(session: URI, sessionId: string): Promise<void> {
+		const meta = await this._readWorktreeMetadata(session).catch(() => undefined);
+		if (!meta?.worktreePath || !meta.repositoryRoot) {
+			return;
+		}
+		const { branchName, worktreePath, repositoryRoot } = meta;
+
+		// Skip if the worktree directory already exists — nothing to do.
+		try {
+			await fs.access(worktreePath.fsPath);
+			return;
+		} catch {
+			// expected when the worktree was cleaned up on archive
+		}
+
+		// Skip if the branch is missing — we have no commit to attach the
+		// recreated worktree to.
+		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
+		if (!branchPresent) {
+			this._logService.info(`[Copilot:${sessionId}] Skipping worktree recreation: branch '${branchName}' is missing`);
+			return;
+		}
+
+		try {
+			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
+			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._logService.info(`[Copilot:${sessionId}] Recreated worktree '${worktreePath.fsPath}' on unarchive`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to recreate worktree '${worktreePath.fsPath}' on unarchive: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -1196,7 +1282,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		try {
-			await this._writeWorktreeBranchMetadata(sessionUri, branchName, baseBranch);
+			await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktree, repositoryRoot });
 		} catch (error) {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to persist worktree branch metadata: ${error instanceof Error ? error.message : String(error)}`);
 		}
@@ -1226,13 +1312,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
 	private static readonly _META_WORKTREE_BRANCH = 'copilot.worktree.branchName';
+	private static readonly _META_WORKTREE_PATH = 'copilot.worktree.path';
+	private static readonly _META_WORKTREE_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 
-	private async _writeWorktreeBranchMetadata(session: URI, branchName: string, baseBranch: string | undefined): Promise<void> {
+	private async _writeWorktreeMetadata(session: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		try {
-			const work: Promise<void>[] = [dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName)];
-			if (baseBranch) {
-				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			const work: Promise<void>[] = [
+				dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, metadata.branchName),
+				dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_PATH, metadata.worktreePath.toString()),
+				dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_REPOSITORY_ROOT, metadata.repositoryRoot.toString()),
+			];
+			if (metadata.baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
 			}
 			await Promise.all(work);
 		} finally {
@@ -1240,14 +1332,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readWorktreeBranchMetadata(session: URI): Promise<string | undefined> {
+	private async _readWorktreeMetadata(session: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;
 		}
 		try {
-			const value = await ref.object.getMetadata(CopilotAgent._META_WORKTREE_BRANCH);
-			return value ?? undefined;
+			const [branchName, worktreePathRaw, repositoryRootRaw] = await Promise.all([
+				ref.object.getMetadata(CopilotAgent._META_WORKTREE_BRANCH),
+				ref.object.getMetadata(CopilotAgent._META_WORKTREE_PATH),
+				ref.object.getMetadata(CopilotAgent._META_WORKTREE_REPOSITORY_ROOT),
+			]);
+			if (!branchName) {
+				return undefined;
+			}
+			const worktreePath = worktreePathRaw ? URI.parse(worktreePathRaw) : undefined;
+			const repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
+			return { branchName, worktreePath, repositoryRoot };
 		} finally {
 			ref.dispose();
 		}

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -20,8 +22,12 @@ import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHub
 
 class MockRepositoryFetcher {
 	nextResult: IGitHubRepository | undefined;
+	getRepositoryCalls = 0;
+	getRepositoryGate: DeferredPromise<void> | undefined;
 
 	async getRepository(_owner: string, _repo: string, _etag?: string): Promise<{ data: IGitHubRepository | undefined; statusCode: number; etag?: string }> {
+		this.getRepositoryCalls++;
+		await this.getRepositoryGate?.p;
 		if (!this.nextResult) {
 			throw new Error('No mock result');
 		}
@@ -36,12 +42,15 @@ class MockPRFetcher {
 	getPullRequestCalls = 0;
 	getReviewsCalls = 0;
 	getReviewThreadsCalls = 0;
+	getPullRequestGate: DeferredPromise<void> | undefined;
+	getReviewThreadsGate: DeferredPromise<void> | undefined;
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 	resolveThreadCalls: { threadId: string }[] = [];
 
 	async getPullRequest(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: IGitHubPullRequest | undefined; statusCode: number; etag?: string }> {
 		this.getPullRequestCalls++;
+		await this.getPullRequestGate?.p;
 		if (!this.nextPR) {
 			throw new Error('No mock PR');
 		}
@@ -55,7 +64,9 @@ class MockPRFetcher {
 
 	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 		this.getReviewThreadsCalls++;
-		return this.nextThreads;
+		const result = this.nextThreads;
+		await this.getReviewThreadsGate?.p;
+		return result;
 	}
 
 	async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
@@ -75,10 +86,17 @@ class MockPRFetcher {
 
 class MockCIFetcher {
 	nextChecks: IGitHubCICheck[] = [];
+	getCheckRunsCalls = 0;
+	getCheckRunsGate: DeferredPromise<void> | undefined;
 
 	async getCheckRuns(_owner: string, _repo: string, _ref: string, _etag?: string): Promise<{ data: readonly IGitHubCICheck[] | undefined; statusCode: number; etag?: string }> {
-		return { data: this.nextChecks, statusCode: 200 };
+		this.getCheckRunsCalls++;
+		const result = this.nextChecks;
+		await this.getCheckRunsGate?.p;
+		return { data: result, statusCode: 200 };
 	}
+
+	async rerunFailedJobs(_owner: string, _repo: string, _runId: number): Promise<void> { }
 
 	async getCheckRunAnnotations(_owner: string, _repo: string, _checkRunId: number): Promise<string> {
 		return 'mock annotations';
@@ -119,6 +137,36 @@ suite('GitHubRepositoryModel', () => {
 
 		await model.refresh();
 		assert.deepStrictEqual(model.repository.get(), mockFetcher.nextResult);
+	});
+
+	test('refresh shares an in-progress request', async () => {
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
+		mockFetcher.nextResult = makeRepository();
+		mockFetcher.getRepositoryGate = new DeferredPromise<void>();
+
+		const firstRefresh = model.refresh();
+		const secondRefresh = model.refresh();
+
+		try {
+			assert.deepStrictEqual({
+				samePromise: firstRefresh === secondRefresh,
+				getRepositoryCalls: mockFetcher.getRepositoryCalls,
+			}, {
+				samePromise: true,
+				getRepositoryCalls: 1,
+			});
+		} finally {
+			await mockFetcher.getRepositoryGate.complete(undefined);
+		}
+
+		await firstRefresh;
+		assert.deepStrictEqual({
+			repository: model.repository.get(),
+			getRepositoryCalls: mockFetcher.getRepositoryCalls,
+		}, {
+			repository: mockFetcher.nextResult,
+			getRepositoryCalls: 1,
+		});
 	});
 
 	test('refresh handles errors gracefully', async () => {
@@ -172,6 +220,41 @@ suite('GitHubPullRequestModel', () => {
 		});
 	});
 
+	test('refresh shares an in-progress request', async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [];
+		mockFetcher.getPullRequestGate = new DeferredPromise<void>();
+
+		const firstRefresh = model.refresh();
+		const secondRefresh = model.refresh();
+
+		try {
+			assert.deepStrictEqual({
+				samePromise: firstRefresh === secondRefresh,
+				getPullRequestCalls: mockFetcher.getPullRequestCalls,
+				getReviewsCalls: mockFetcher.getReviewsCalls,
+			}, {
+				samePromise: true,
+				getPullRequestCalls: 1,
+				getReviewsCalls: 1,
+			});
+		} finally {
+			await mockFetcher.getPullRequestGate.complete(undefined);
+		}
+
+		await firstRefresh;
+		assert.deepStrictEqual({
+			prNumber: model.pullRequest.get()?.number,
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+		}, {
+			prNumber: 1,
+			getPullRequestCalls: 1,
+			getReviewsCalls: 1,
+		});
+	});
+
 	test('postIssueComment calls fetcher', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 
@@ -183,9 +266,52 @@ suite('GitHubPullRequestModel', () => {
 	test('polling can be started and stopped', () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		// Just ensure no errors; actual polling behavior is timer-based
-		model.startPolling(60_000);
-		model.stopPolling();
+		const polling = model.startPolling(60_000);
+		polling.dispose();
+		polling.dispose();
 	});
+
+	test('polling stops when the last client stops polling', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [];
+		mockFetcher.getPullRequestGate = new DeferredPromise<void>();
+
+		const firstPolling = model.startPolling(10);
+		const secondPolling = model.startPolling(1_000);
+		firstPolling.dispose();
+
+		await timeout(10);
+		assert.deepStrictEqual({
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+		}, {
+			getPullRequestCalls: 1,
+			getReviewsCalls: 1,
+		});
+
+		await mockFetcher.getPullRequestGate.complete(undefined);
+		await timeout(0);
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+		}, {
+			getPullRequestCalls: 2,
+			getReviewsCalls: 2,
+		});
+
+		secondPolling.dispose();
+		await timeout(60_000);
+
+		assert.deepStrictEqual({
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+		}, {
+			getPullRequestCalls: 2,
+			getReviewsCalls: 2,
+		});
+	}));
 });
 
 suite('GitHubPullRequestReviewThreadsModel', () => {
@@ -226,6 +352,36 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		});
 	});
 
+	test('refresh shares an in-progress request', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
+		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		const firstRefresh = model.refresh();
+		const secondRefresh = model.refresh();
+
+		try {
+			assert.deepStrictEqual({
+				samePromise: firstRefresh === secondRefresh,
+				getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+			}, {
+				samePromise: true,
+				getReviewThreadsCalls: 1,
+			});
+		} finally {
+			await mockFetcher.getReviewThreadsGate.complete(undefined);
+		}
+
+		await firstRefresh;
+		assert.deepStrictEqual({
+			threads: model.reviewThreads.get().map(thread => thread.id),
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+		}, {
+			threads: ['thread-100'],
+			getReviewThreadsCalls: 1,
+		});
+	});
+
 	test('postReviewComment calls fetcher and refreshes threads', async () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
@@ -240,6 +396,30 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			commentBody: 'LGTM',
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-100'],
+		});
+	});
+
+	test('postReviewComment refreshes after an in-progress refresh completes', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
+		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		const inProgressRefresh = model.refresh();
+		mockFetcher.nextThreads = [makeThread('thread-200', 'src/b.ts')];
+		const comment = model.postReviewComment('LGTM', 100);
+
+		await mockFetcher.getReviewThreadsGate.complete(undefined);
+		await inProgressRefresh;
+		await comment;
+
+		assert.deepStrictEqual({
+			postReviewCommentCalls: mockFetcher.postReviewCommentCalls,
+			threads: model.reviewThreads.get().map(thread => thread.id),
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+		}, {
+			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
+			threads: ['thread-200'],
+			getReviewThreadsCalls: 2,
 		});
 	});
 
@@ -260,11 +440,59 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		});
 	});
 
+	test('resolveThread refreshes after an in-progress refresh completes', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
+		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		const inProgressRefresh = model.refresh();
+		mockFetcher.nextThreads = [];
+		const resolveThread = model.resolveThread('thread-100');
+
+		await mockFetcher.getReviewThreadsGate.complete(undefined);
+		await inProgressRefresh;
+		await resolveThread;
+
+		assert.deepStrictEqual({
+			resolveThreadCalls: mockFetcher.resolveThreadCalls,
+			threads: model.reviewThreads.get().map(thread => thread.id),
+			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+		}, {
+			resolveThreadCalls: [{ threadId: 'thread-100' }],
+			threads: [],
+			getReviewThreadsCalls: 2,
+		});
+	});
+
 	test('polling can be started and stopped', () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
-		model.startPolling(60_000);
-		model.stopPolling();
+		const polling = model.startPolling(60_000);
+		polling.dispose();
+		polling.dispose();
 	});
+
+	test('polling stops when the last client stops polling', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
+		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		const firstPolling = model.startPolling(10);
+		const secondPolling = model.startPolling(1_000);
+		firstPolling.dispose();
+
+		await timeout(10);
+		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 1);
+
+		await mockFetcher.getReviewThreadsGate.complete(undefined);
+		await timeout(0);
+		await timeout(60_000);
+		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 2);
+
+		secondPolling.dispose();
+		await timeout(60_000);
+
+		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 2);
+	}));
 });
 
 suite('GitHubPullRequestCIModel', () => {
@@ -299,11 +527,94 @@ suite('GitHubPullRequestCIModel', () => {
 		assert.strictEqual(model.overallStatus.get(), GitHubCIOverallStatus.Failure);
 	});
 
+	test('refresh shares an in-progress request', async () => {
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		mockFetcher.nextChecks = [
+			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
+		];
+		mockFetcher.getCheckRunsGate = new DeferredPromise<void>();
+
+		const firstRefresh = model.refresh();
+		const secondRefresh = model.refresh();
+
+		try {
+			assert.deepStrictEqual({
+				samePromise: firstRefresh === secondRefresh,
+				getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
+			}, {
+				samePromise: true,
+				getCheckRunsCalls: 1,
+			});
+		} finally {
+			await mockFetcher.getCheckRunsGate.complete(undefined);
+		}
+
+		await firstRefresh;
+		assert.deepStrictEqual({
+			checks: model.checks.get().map(check => check.id),
+			getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
+		}, {
+			checks: [1],
+			getCheckRunsCalls: 1,
+		});
+	});
+
 	test('getCheckRunAnnotations delegates to fetcher', async () => {
 		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
 		const result = await model.getCheckRunAnnotations(1);
 		assert.strictEqual(result, 'mock annotations');
 	});
+
+	test('rerunFailedCheck refreshes after an in-progress refresh completes', async () => {
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		mockFetcher.nextChecks = [
+			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
+		];
+		mockFetcher.getCheckRunsGate = new DeferredPromise<void>();
+
+		const inProgressRefresh = model.refresh();
+		mockFetcher.nextChecks = [
+			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
+		];
+		const rerun = model.rerunFailedCheck({ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' });
+
+		await mockFetcher.getCheckRunsGate.complete(undefined);
+		await inProgressRefresh;
+		await rerun;
+
+		assert.deepStrictEqual({
+			checks: model.checks.get().map(check => check.conclusion),
+			getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
+		}, {
+			checks: [GitHubCheckConclusion.Success],
+			getCheckRunsCalls: 2,
+		});
+	});
+
+	test('polling stops when the last client stops polling', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
+		mockFetcher.nextChecks = [
+			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: undefined },
+		];
+		mockFetcher.getCheckRunsGate = new DeferredPromise<void>();
+
+		const firstPolling = model.startPolling(10);
+		const secondPolling = model.startPolling(1_000);
+		firstPolling.dispose();
+
+		await timeout(10);
+		assert.strictEqual(mockFetcher.getCheckRunsCalls, 1);
+
+		await mockFetcher.getCheckRunsGate.complete(undefined);
+		await timeout(0);
+		await timeout(60_000);
+		assert.strictEqual(mockFetcher.getCheckRunsCalls, 2);
+
+		secondPolling.dispose();
+		await timeout(60_000);
+
+		assert.strictEqual(mockFetcher.getCheckRunsCalls, 2);
+	}));
 });
 
 suite('parseWorkflowRunId', () => {
@@ -335,6 +646,17 @@ suite('parseWorkflowRunId', () => {
 
 
 //#region Test Helpers
+
+function makeRepository(): IGitHubRepository {
+	return {
+		owner: 'owner',
+		name: 'repo',
+		fullName: 'owner/repo',
+		defaultBranch: 'main',
+		isPrivate: false,
+		description: 'test',
+	};
+}
 
 function makePR(): IGitHubPullRequest {
 	return {

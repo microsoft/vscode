@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.119.0",
-  "distro": "6de3b8c2129ba0b524b19a9151f1d7f8e2fa0baa",
+  "distro": "03ddc71f37189e8ced0ef924fe9b9600c402b67f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -42,7 +42,7 @@
     "watch-copilotd": "deemon npm run watch-copilot",
     "kill-watch-copilotd": "deemon --kill npm run watch-copilot",
     "precommit": "node --experimental-strip-types build/hygiene.ts",
-    "gulp": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
+    "gulp": "node --experimental-strip-types --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron.ts",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.ts",
@@ -90,6 +90,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.49",
+    "@anthropic-ai/sdk": "^0.82.0",
     "@github/copilot": "1.0.39",
     "@github/copilot-sdk": "^0.3.0",
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -101,7 +102,8 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-5",
+    "@vscode/codicons": "^0.0.46-6",
+    "@vscode/copilot-api": "^0.3.0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

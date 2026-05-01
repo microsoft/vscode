@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { setParentFlowTo } from './dom.js';
+import { getComputedStyle, setParentFlowTo } from './dom.js';
 import { IDisposable } from '../common/lifecycle.js';
 import { generateUuid } from '../common/uuid.js';
 
@@ -101,6 +101,24 @@ export class OverlayLayoutElement implements IDisposable {
 		}
 
 		this._updateClipping(options?.clippingContainer);
+		this._updateZIndex(anchorElement);
+	}
+
+	/**
+	 * Walk up from the anchor element to find the nearest ancestor with an explicit
+	 * z-index and place the overlay one level above it. This ensures the overlay sits
+	 * above modal layers or other stacking contexts.
+	 */
+	private _updateZIndex(anchorElement: HTMLElement): void {
+		let zIndex = '';
+		for (let el: HTMLElement | null = anchorElement; el; el = el.parentElement) {
+			const computed = getComputedStyle(el).zIndex;
+			if (computed && computed !== 'auto') {
+				zIndex = String(Number(computed) + 1);
+				break;
+			}
+		}
+		this.content.style.zIndex = zIndex;
 	}
 
 	private _updateClipping(clippingContainer: HTMLElement | undefined): void {

@@ -158,13 +158,19 @@ export class ProtocolServerHandler extends Disposable {
 					return;
 				}
 				if (!client && msg.method === 'reconnect') {
+					let responsePromise: Promise<unknown>;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						responsePromise = result.responsePromise;
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
+						return;
 					}
+					responsePromise.then(
+						response => transport.send(jsonRpcSuccess(msg.id, response)),
+						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+					);
 					return;
 				}
 
@@ -178,7 +184,10 @@ export class ProtocolServerHandler extends Disposable {
 				switch (msg.method) {
 					case 'unsubscribe':
 						if (client) {
-							client.subscriptions.delete(msg.params.resource);
+							const resource = msg.params.resource;
+							if (client.subscriptions.delete(resource)) {
+								this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+							}
 						}
 						break;
 					case 'dispatchAction':
@@ -207,6 +216,13 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
+				// Treat disconnect as an implicit unsubscribe of every resource the
+				// client held, so the server-side refcount can drop to zero and any
+				// idle restored session state can be evicted.
+				for (const resource of client.subscriptions) {
+					this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+				}
+				client.subscriptions.clear();
 				this._clients.delete(client.clientId);
 				this._rejectPendingReverseRequests(client.clientId);
 				this._handleClientDisconnected(client.clientId);
@@ -259,8 +275,10 @@ export class ProtocolServerHandler extends Disposable {
 				const snapshot = this._stateManager.getSnapshot(uri);
 				if (snapshot) {
 					snapshots.push(snapshot);
-					client.subscriptions.add(uri.toString());
-					this._clearClientToolCallDisconnectTimeout(params.clientId, uri.toString());
+					const key = uri.toString();
+					client.subscriptions.add(key);
+					this._agentService.addSubscriber(URI.parse(key), client.clientId);
+					this._clearClientToolCallDisconnectTimeout(params.clientId, key);
 				}
 			}
 		}
@@ -280,9 +298,12 @@ export class ProtocolServerHandler extends Disposable {
 		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; responsePromise: Promise<unknown> } {
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 
+		// Synchronously install the client so messages arriving on this transport
+		// while we restore subscriptions can find a valid client object. The
+		// reconnect response is only sent once `responsePromise` resolves below.
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
@@ -296,12 +317,38 @@ export class ProtocolServerHandler extends Disposable {
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
+		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
+		return { client, responsePromise };
+	}
+
+	/**
+	 * Re-establish each of the client's prior subscriptions on the server side.
+	 * Uses {@link IAgentService.subscribe} (rather than a bare `addSubscriber`
+	 * + `getSnapshot`) so any session state that was evicted while the client
+	 * was disconnected is restored. Returns the appropriate reconnect response
+	 * payload — `replay` actions when the client's last-seen seq is still in
+	 * the buffer, otherwise fresh `snapshot`s.
+	 */
+	private async _restoreReconnectSubscriptions(
+		client: IConnectedClient,
+		params: ReconnectParams,
+		canReplay: boolean,
+	): Promise<unknown> {
+		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
+			const key = sub.toString();
+			try {
+				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
+				client.subscriptions.add(key);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
+				return snapshot;
+			} catch (err) {
+				this._logService.warn(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
+				return undefined;
+			}
+		}));
+
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
-			for (const sub of params.subscriptions) {
-				client.subscriptions.add(sub.toString());
-				this._clearClientToolCallDisconnectTimeout(params.clientId, sub.toString());
-			}
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
 					if (this._isRelevantToClient(client, envelope)) {
@@ -309,19 +356,9 @@ export class ProtocolServerHandler extends Disposable {
 					}
 				}
 			}
-			return { client, response: { type: 'replay', actions } };
-		} else {
-			const snapshots: IStateSnapshot[] = [];
-			for (const sub of params.subscriptions) {
-				const snapshot = this._stateManager.getSnapshot(sub);
-				if (snapshot) {
-					snapshots.push(snapshot);
-					client.subscriptions.add(sub);
-					this._clearClientToolCallDisconnectTimeout(params.clientId, sub);
-				}
-			}
-			return { client, response: { type: 'snapshot', snapshots } };
+			return { type: 'replay', actions };
 		}
+		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
 	private _handleClientDisconnected(clientId: string): void {
@@ -428,7 +465,7 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.resource));
+				const snapshot = await this._agentService.subscribe(URI.parse(params.resource), client.clientId);
 				client.subscriptions.add(params.resource);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, params.resource);
 				return { snapshot };
@@ -509,6 +546,7 @@ export class ProtocolServerHandler extends Disposable {
 					provider,
 					title: s.summary ?? 'Session',
 					status,
+					activity: s.activity,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),

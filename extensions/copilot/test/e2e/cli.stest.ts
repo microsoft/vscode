@@ -6,12 +6,9 @@
 import type { SessionOptions } from '@github/copilot/sdk';
 import assert from 'assert';
 import * as fs from 'fs/promises';
-import * as http from 'http';
 import { platform, tmpdir } from 'os';
 import * as path from 'path';
 import type { ChatParticipantToolToken, ChatPromptReference } from 'vscode';
-import { OpenAIAdapterFactoryForSTests } from '../../src/extension/agents/node/adapters/openaiAdapterForSTests';
-import { ILanguageModelServer, ILanguageModelServerConfig, LanguageModelServer } from '../../src/extension/agents/node/langModelServer';
 import { IAgentSessionsWorkspace } from '../../src/extension/chatSessions/common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../../src/extension/chatSessions/common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../src/extension/chatSessions/common/chatSessionWorkspaceFolderService';
@@ -24,38 +21,32 @@ import { CopilotCLIAgents, CopilotCLIModels, CopilotCLISDK, ICopilotCLIAgents, I
 import { CopilotCLIImageSupport, ICopilotCLIImageSupport } from '../../src/extension/chatSessions/copilotcli/node/copilotCLIImageSupport';
 import { CopilotCLIPromptResolver } from '../../src/extension/chatSessions/copilotcli/node/copilotcliPromptResolver';
 import { ICopilotCLISession } from '../../src/extension/chatSessions/copilotcli/node/copilotcliSession';
-import { CopilotCLISessionService, ICopilotCLISessionService } from '../../src/extension/chatSessions/copilotcli/node/copilotcliSessionService';
+import { CopilotCLISessionService, ICopilotCLISessionService, ICreateSessionOptions } from '../../src/extension/chatSessions/copilotcli/node/copilotcliSessionService';
 import { CopilotCLISkills, ICopilotCLISkills } from '../../src/extension/chatSessions/copilotcli/node/copilotCLISkills';
 import { CopilotCLIMCPHandler, ICopilotCLIMCPHandler } from '../../src/extension/chatSessions/copilotcli/node/mcpHandler';
-import { IPromptVariablesService, NullPromptVariablesService } from '../../src/extension/prompt/node/promptVariablesService';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../src/extension/chatSessions/copilotcli/node/userInputHelpers';
+import { IPromptVariablesService, NullPromptVariablesService } from '../../src/extension/prompt/node/promptVariablesService';
 import { ChatSummarizerProvider } from '../../src/extension/prompt/node/summarizer';
 import { MockChatResponseStream, TestChatRequest } from '../../src/extension/test/node/testHelpers';
 import { IToolsService } from '../../src/extension/tools/common/toolsService';
 import { TestToolsService } from '../../src/extension/tools/node/test/testToolsService';
 import { IChatDebugFileLoggerService, NullChatDebugFileLoggerService } from '../../src/platform/chat/common/chatDebugFileLoggerService';
-import { IEndpointProvider } from '../../src/platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../src/platform/filesystem/common/fileSystemService';
 import { NodeFileSystemService } from '../../src/platform/filesystem/node/fileSystemServiceImpl';
-import { ILogService } from '../../src/platform/log/common/logService';
 import { IMcpService, NullMcpService } from '../../src/platform/mcp/common/mcpService';
+import { IPromptsService } from '../../src/platform/promptFiles/common/promptsService';
+import { MockPromptsService } from '../../src/platform/promptFiles/test/common/mockPromptsService';
 import { TestingServiceCollection } from '../../src/platform/test/node/services';
 import { IQualifiedFile, SimulationWorkspace } from '../../src/platform/test/node/simulationWorkspace';
-import { createServiceIdentifier } from '../../src/util/common/services';
 import { ChatReferenceDiagnostic } from '../../src/util/common/test/shims/chatTypes';
 import { disposableTimeout, IntervalTimer } from '../../src/util/vs/base/common/async';
 import { CancellationToken } from '../../src/util/vs/base/common/cancellation';
-import { Lazy } from '../../src/util/vs/base/common/lazy';
 import { DisposableStore, IReference } from '../../src/util/vs/base/common/lifecycle';
 import { URI } from '../../src/util/vs/base/common/uri';
 import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../src/util/vs/platform/instantiation/common/instantiation';
 import { ChatRequest, ChatSessionStatus, ChatToolInvocationPart, Diagnostic, DiagnosticSeverity, LanguageModelTextPart, LanguageModelToolResult2, Location, Range, Uri } from '../../src/vscodeTypes';
 import { ssuite, stest } from '../base/stest';
-
-interface ChatToolResourcesInvocationData {
-	values: Array<Uri | Location>;
-}
 
 const permissionConfirmationInvocations: Array<{ name: string; input: unknown }> = [];
 
@@ -66,40 +57,55 @@ class TestCopilotCLIToolsService extends TestToolsService {
 			return new LanguageModelToolResult2([new LanguageModelTextPart('yes')]);
 		}
 
+		// `manage_todo_list` is invoked by CopilotCLISession at session start to clear any
+		// previous todo list, but the underlying tool does not implement `invoke` in the
+		// test toolsService. Return a no-op success result so session startup does not fail.
+		if (name === 'manage_todo_list') {
+			return new LanguageModelToolResult2([new LanguageModelTextPart('ok')]);
+		}
 		return super.invokeTool(name, options, token);
 	}
 }
 
-const keys = ['COPILOT_ENABLE_ALT_PROVIDERS', 'COPILOT_AGENT_MODEL', 'GH_TOKEN', 'COPILOT_API_URL', 'GITHUB_COPILOT_API_TOKEN'];
-const originalValues: Record<string, string | undefined> = {};
-for (const key of keys) {
-	originalValues[key] = process.env[key];
-}
-
-function restoreEnvVariables() {
-	for (const key of keys) {
-		process.env[key] = originalValues[key];
-	}
-}
-
-let testCounter = 0;
-function trackEnvVariablesBeforeTests() {
-	testCounter++;
-}
-
 /**
- * Tests run in parallel, so only restore env variables after all tests have completed.
+ * Reads the GitHub OAuth token from the environment.
+ *
+ * The token is loaded automatically by `dotenv.config()` in `test/simulationMain.ts`
+ * from the `.env` file at the workspace root. We only ever read `process.env` so the
+ * token value never appears in any tool call output, log line, or LM request emitted
+ * by this test file.
  */
-function restoreEnvVariablesAfterTests() {
-	testCounter--;
-	if (testCounter === 0) {
-		restoreEnvVariables();
+function getGitHubTokenFromEnv(): string {
+	const token = process.env.GITHUB_OAUTH_TOKEN;
+	if (!token) {
+		throw new Error('GITHUB_OAUTH_TOKEN is not set. Add it to the .env file at the repo root (it is loaded by dotenv in test/simulationMain.ts).');
 	}
+	return token;
 }
 
-function sessionOptionsFor(workingDirectory: Uri | undefined) {
+// Force the Copilot CLI runtime to use the public CAPI endpoint regardless of
+// the AuthInfo we hand it. The runtime's `getCopilotApiUrl()` checks
+// `process.env.COPILOT_API_URL` first (highest precedence), so setting it here
+// guarantees the model list is fetched against an endpoint we know works with
+// the GITHUB_OAUTH_TOKEN, instead of getting an empty list and cascading into
+// "No model available."
+if (!process.env.COPILOT_API_URL) {
+	process.env.COPILOT_API_URL = 'https://api.githubcopilot.com';
+}
+
+// Force the SDK to route Anthropic models to `/v1/messages` instead of
+// `/responses`. The default routing sends Claude models to `/responses`,
+// which CAPI rejects with `400 model_not_supported`. The runtime reads ExP
+// flag overrides from `process.env.COPILOT_EXP_<UPPER_SNAKE_CASE_FLAG>`,
+// which works without setting up an ExP service in tests.
+// if (!process.env.COPILOT_EXP_COPILOT_CLI_ANTHROPIC_MESSAGES_API) {
+// process.env.COPILOT_EXP_COPILOT_CLI_ANTHROPIC_MESSAGES_API = 'true';
+// }
+
+function sessionOptionsFor(workingDirectory: Uri | undefined): ICreateSessionOptions {
 	return {
-		workingDirectory,
+		// workingDirectory,
+		model: 'claude-opus-4.7',
 		workspace: {
 			folder: workingDirectory,
 			repository: undefined,
@@ -110,44 +116,6 @@ function sessionOptionsFor(workingDirectory: Uri | undefined) {
 }
 
 async function registerChatServices(testingServiceCollection: TestingServiceCollection) {
-	const ITestSessionOptionsProvider = createServiceIdentifier<TestSessionOptionsProvider>('ITestSessionOptionsProvider');
-	class TestSessionOptionsProvider {
-		declare _serviceBrand: undefined;
-
-		private readonly langModelServerConfig: Lazy<Promise<ILanguageModelServerConfig>>;
-
-		constructor(
-			@ILanguageModelServer private readonly languageModelServer: ILanguageModelServer,
-		) {
-			this.langModelServerConfig = new Lazy<Promise<ILanguageModelServerConfig>>(async () => {
-				await this.languageModelServer.start();
-				return this.languageModelServer.getConfig();
-			});
-		}
-
-		public async getOptions(): Promise<Pick<SessionOptions, 'authInfo' | 'copilotUrl'>> {
-			const serverConfig = await this.langModelServerConfig.value;
-
-			const url = `http://localhost:${serverConfig.port}`;
-			const ghToken = serverConfig.nonce;
-			process.env.COPILOT_ENABLE_ALT_PROVIDERS = 'true';
-			process.env.COPILOT_AGENT_MODEL = 'sweagent-capi:gpt-5';
-			process.env.GH_TOKEN = ghToken;
-			process.env.COPILOT_API_URL = url;
-			process.env.GITHUB_COPILOT_API_TOKEN = ghToken;
-			return {
-				authInfo: {
-					type: 'env',
-					login: '',
-					envVar: 'GH_TOKEN',
-					token: ghToken,
-					host: url
-				},
-				copilotUrl: url,
-			};
-		}
-	}
-
 	class TestCustomSessionTitleService implements ICustomSessionTitleService {
 		readonly _serviceBrand: undefined;
 		private readonly titles = new Map<string, string>();
@@ -167,12 +135,8 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 			// Override to do nothing in tests
 		}
 		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspace: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; sessionId?: string; debugTargetSessionIds?: readonly string[] }) {
-			const testOptionsProvider = this.instantiationService.invokeFunction((accessor) => accessor.get(ITestSessionOptionsProvider));
-			const overrideOptions = await testOptionsProvider.getOptions();
 			const sessionOptions = await super.createSessionsOptions({ ...options, agent: undefined });
 			const mutableOptions = sessionOptions as SessionOptions;
-			mutableOptions.authInfo = overrideOptions.authInfo ?? sessionOptions.authInfo;
-			mutableOptions.copilotUrl = overrideOptions.copilotUrl ?? sessionOptions.copilotUrl;
 			mutableOptions.enableStreaming = true;
 			mutableOptions.skipCustomInstructions = true;
 			return sessionOptions;
@@ -184,59 +148,21 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 			// Override to do nothing in tests
 		}
 		override async getAuthInfo(): Promise<NonNullable<SessionOptions['authInfo']>> {
-			const testOptionsProvider = this.instantiationService.invokeFunction((accessor) => accessor.get(ITestSessionOptionsProvider));
-			const options = await testOptionsProvider.getOptions();
-			return options.authInfo!;
-		}
-	}
-
-	const requestHooks: ((body: string) => string)[] = [];
-	const responseHooks: ((body: string) => string)[] = [];
-	class TestLanguageModelServer extends LanguageModelServer {
-		constructor(
-			@ILogService logService: ILogService,
-			@IEndpointProvider endpointProvider: IEndpointProvider
-		) {
-			super(logService, endpointProvider);
-			const oaiAdapterFactory = new OpenAIAdapterFactoryForSTests();
-			this.adapterFactories.set('/chat/completions', oaiAdapterFactory);
-			requestHooks.forEach(requestHook => oaiAdapterFactory.addHooks(requestHook));
-			responseHooks.forEach(responseHook => oaiAdapterFactory.addHooks(undefined, responseHook));
-			this.requestHandlers.set('/graphql', { method: 'POST', handler: this.graphqlHandler.bind(this) });
-			this.requestHandlers.set('/models', { method: 'GET', handler: this.modelsHandler.bind(this) });
-		}
-
-		private async graphqlHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			const data = {
-				viewer: {
-					login: '',
-					copilotEndpoints: {
-						api: `http://localhost:${this.config.port}`
-					}
-				}
+			return {
+				type: 'token',
+				token: getGitHubTokenFromEnv(),
+				host: 'https://github.com',
+				// Without `copilotUser.endpoints.api` the runtime's `getCopilotApiUrl()`
+				// returns undefined, `retrieveAvailableModels()` short-circuits to an
+				// empty list, and every model check below fails. Pointing it at the
+				// public Copilot API endpoint makes model resolution actually contact
+				// CAPI for the user's enabled models.
+				copilotUser: {
+					endpoints: {
+						api: 'https://api.githubcopilot.com',
+					},
+				},
 			};
-			res.end(JSON.stringify({ data }));
-		}
-		private async modelsHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-			res.writeHead(200, { 'Content-Type': 'application/json', 'x-github-request-id': 'TESTREQUESTID1234' });
-			const endpoints = await this.endpointProvider.getAllChatEndpoints();
-			const data = endpoints.map(e => {
-				return {
-					id: e.model,
-					name: e.model,
-					capabilities: {
-						supports: {
-							vision: e.supportsVision,
-						},
-						limits: {
-							max_prompt_tokens: e.modelMaxPromptTokens,
-							max_context_window_tokens: e.maxOutputTokens,
-						}
-					}
-				};
-			});
-			res.end(JSON.stringify({ data }));
 		}
 	}
 
@@ -256,8 +182,6 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 	const delegatingSummarizerProvider = instaService.createInstance(ChatDelegationSummaryService, summarizer);
 	testingServiceCollection.define(ICopilotCLISkills, new SyncDescriptor(CopilotCLISkills));
 	testingServiceCollection.define(ICopilotCLISessionService, new SyncDescriptor(TestCopilotCLISessionService));
-	testingServiceCollection.define(ITestSessionOptionsProvider, new SyncDescriptor(TestSessionOptionsProvider));
-	testingServiceCollection.define(ILanguageModelServer, new SyncDescriptor(TestLanguageModelServer));
 	testingServiceCollection.define(ICopilotCLIModels, new SyncDescriptor(CopilotCLIModels));
 	testingServiceCollection.define(ICopilotCLISDK, new SyncDescriptor(TestCopilotCLISDK));
 	testingServiceCollection.define(ICopilotCLIAgents, new SyncDescriptor(CopilotCLIAgents));
@@ -304,6 +228,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		onDidChangeWorktreeChanges: () => ({ dispose() { } }),
 	} as IChatSessionWorktreeService);
 	testingServiceCollection.define(IPromptVariablesService, new SyncDescriptor(NullPromptVariablesService));
+	testingServiceCollection.define(IPromptsService, new SyncDescriptor(MockPromptsService));
 	testingServiceCollection.define(IChatDebugFileLoggerService, new NullChatDebugFileLoggerService());
 	const simulationWorkspace = new SimulationWorkspace();
 	simulationWorkspace.setupServices(testingServiceCollection);
@@ -348,70 +273,8 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		simulationWorkspace.resetFromFiles(fileList, [workspaceUri]);
 	}
 
-	function registerHooks(workingDirectory: string) {
-		requestHooks.push((body: string) => {
-			// Replace PID and <current_datetime> values with static values
-			body = body.replace(/Current process PID: \d+ - CRITICAL: Do not kill this process or any parent processes as this is your own runtime\./g,
-				'Current process PID: 1111 - CRITICAL: Do not kill this process or any parent processes as this is your own runtime.');
-			body = body.replace(/<current_datetime>[^<]+<\/current_datetime>/g,
-				'<current_datetime>2025-01-01T12:10:00.111Z</current_datetime>');
-			return body;
-		});
-
-		// Any file/folder reference in body should be replaced with static values
-		const folderName = path.basename(workingDirectory);
-		const testPath = `/Users/testUser/vscode-copilot-chat/test/scenarios/test-cli/${folderName}`;
-		const testPathParent = `/Users/testUser/vscode-copilot-chat/test/scenarios/test-cli`;
-		const workingDirectoryParent = path.dirname(workingDirectory);
-
-		function replacePaths(body: string, from: string, to: string) {
-			body = body
-				// Unix folders that are part of file names, e.g. /folder/file.txt
-				.replaceAll(`${from}/`, `${to}/`)
-				// Windows folders that are part of file names, e.g. c:\folder\file.txt
-				.replaceAll(`${from}\\`, `${to}\\`);
-
-			// Any other references to the working directory
-			body = body.replaceAll(from, to);
-
-			// Replace in JSON content, Unix folders that are part of file names, e.g. /folder/file.txt
-			from = from.replaceAll('/', '//').replaceAll('\\', '\\\\');
-			to = to.replaceAll('/', '//').replaceAll('\\', '\\\\');
-
-			body = body
-				// Unix folders that are part of file names, e.g. /folder/file.txt
-				.replaceAll(`${from}/`, `${to}/`)
-				// Windows folders that are part of file names, e.g. c:\folder\file.txt
-				.replaceAll(`${from}\\`, `${to}\\`);
-			// Replace in JSON content, Any other references to the working directory
-			body = body.replaceAll(from, to);
-			return body;
-		}
-
-		requestHooks.push((body: string) => {
-			body = replacePaths(body, workingDirectory, testPath);
-			body = replacePaths(body, workingDirectoryParent, testPathParent);
-
-			// Replace references to vsc-copilot-chat root with test dir
-			body = replacePaths(body, vscCopilotRoot, testPath);
-			return body;
-		});
-
-		responseHooks.push((body: string) => {
-			body = replacePaths(body, testPath, workingDirectory);
-			body = replacePaths(body, testPathParent, workingDirectoryParent);
-			return body;
-		});
-	}
-
 	return {
 		sessionService: copilotCLISessionService, promptResolver, init: async (workingDirectory: URI) => {
-			if (platform() !== 'win32') {
-				// Paths conversions are only done for non-Windows platforms.
-				// Hooks are used to ensure we have stable paths on linux/macOS, so that request/responses can be cached.
-				registerHooks(workingDirectory.fsPath);
-			}
-
 			await populateWorkspaceFiles(workingDirectory.fsPath);
 			await sdk.getPackage();
 		},
@@ -419,13 +282,11 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 	};
 }
 
-const vscCopilotRoot = path.join(__dirname, '..');
 // NOTE: Ensure all files/folders/workingDirectories are under test/scenarios/test-cli for path replacements to work correctly.
 const sourcePath = path.join(__dirname, '..', 'test', 'scenarios', 'test-cli');
 let tmpDirCounter = 0;
 function testRunner(cb: (services: { sessionService: ICopilotCLISessionService; promptResolver: CopilotCLIPromptResolver; init: (workingDirectory: URI) => Promise<void>; authInfo: NonNullable<SessionOptions['authInfo']> }, scenariosPath: string, toolInvocations: ChatToolInvocationPart[], stream: MockChatResponseStream, disposables: DisposableStore) => Promise<void>) {
 	return async (testingServiceCollection: TestingServiceCollection) => {
-		trackEnvVariablesBeforeTests();
 		const disposables = new DisposableStore();
 		// Temp folder can be `/var/folders/....` in our code we use `realpath` to resolve any symlinks.
 		// That results in these temp folders being resolved as `/private/var/folders/...` on macOS.
@@ -445,19 +306,18 @@ function testRunner(cb: (services: { sessionService: ICopilotCLISessionService; 
 			await cb(services, await fs.realpath(scenariosPath), toolInvocations, stream, disposables);
 		} finally {
 			await fs.rm(scenariosPath, { recursive: true }).catch(() => { /* Ignore */ });
-			restoreEnvVariablesAfterTests();
 			disposables.dispose();
 		}
 	};
 }
 
 function assertStreamContains(stream: MockChatResponseStream, expectedContent: string, message?: string) {
-	const output = stream.output.join('\n');
+	const output = stream.output.join('');
 	assert.ok(output.includes(expectedContent), message ?? `Expected response to include "${expectedContent}", actual output: ${output}`);
 }
 
 function assertNoErrorsInStream(stream: MockChatResponseStream) {
-	const output = stream.output.join('\n');
+	const output = stream.output.join('');
 	assert.ok(!output.includes('❌'), `Expected no errors in stream, actual output: ${output}`);
 	assert.ok(!output.includes('Error'), `Expected no errors in stream, actual output: ${output}`);
 }
@@ -474,22 +334,6 @@ async function assertFileContains(filePath: string, expectedContent: string, exa
 async function assertFileNotContains(filePath: string, expectedContent: string) {
 	const fileContent = await fs.readFile(filePath, 'utf-8');
 	assert.ok(!fileContent.includes(expectedContent), `Expected not to contain "${expectedContent}", contents = ${fileContent}`);
-}
-
-function getToolInvocationsByName(toolInvocations: ChatToolInvocationPart[], toolName: string): ChatToolInvocationPart[] {
-	return toolInvocations.filter(t => t.toolName.toLocaleLowerCase() === toolName.toLocaleLowerCase());
-}
-
-function assertToolInvocationHasFiles(invocation: ChatToolInvocationPart, expectedFileCount: number, message?: string) {
-	const data = invocation.toolSpecificData as ChatToolResourcesInvocationData | undefined;
-	assert.ok(data, message ?? 'Expected toolSpecificData to exist');
-	assert.ok(data.values, message ?? 'Expected toolSpecificData.values to exist');
-	assert.strictEqual(data.values.length, expectedFileCount, message ?? `Expected ${expectedFileCount} files, got ${data.values.length}`);
-}
-
-function assertToolInvocationMessageContains(invocation: ChatToolInvocationPart, expectedPattern: string, message?: string) {
-	const pastTenseMessage = typeof invocation.pastTenseMessage === 'string' ? invocation.pastTenseMessage : invocation.pastTenseMessage?.value;
-	assert.ok(pastTenseMessage?.includes(expectedPattern), message ?? `Expected pastTenseMessage to contain "${expectedPattern}", got "${pastTenseMessage}"`);
 }
 
 ssuite.skip({ title: '@cli', location: 'external' }, async (_) => {
@@ -587,7 +431,7 @@ ssuite.skip({ title: '@cli', location: 'external' }, async (_) => {
 
 			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
 			assertNoErrorsInStream(stream);
-			const streamOutput = stream.output.join('\n');
+			const streamOutput = stream.output.join('');
 			assert.ok(permissionConfirmationInvocations.length > 0, 'Expected permission to be requested for external file, output:' + streamOutput);
 		})
 	);
@@ -795,121 +639,6 @@ ssuite.skip({ title: '@cli', location: 'external' }, async (_) => {
 			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
 			assertStreamContains(stream, 'wkspc1');
 			assert.ok(permissionConfirmationInvocations.some(invocation => invocation.name === 'vscode_get_terminal_confirmation'));
-		})
-	);
-
-	stest({ description: 'glob tool returns files with correct toolSpecificData' },
-		testRunner(async ({ sessionService, promptResolver, init, authInfo }, scenariosPath, toolInvocations, stream, disposables) => {
-			const workingDirectory = URI.file(path.join(scenariosPath, 'wkspc1'));
-			await init(workingDirectory);
-			const { prompt, attachments } = await resolvePromptWithFileReferences(
-				`Use the glob tool to find all JavaScript files (*.js) in the current directory. Do not use any other search tools.`,
-				[],
-				promptResolver
-			);
-
-			const session = await sessionService.createSession(sessionOptionsFor(workingDirectory), CancellationToken.None);
-			disposables.add(session);
-			disposables.add(session.object.attachStream(stream));
-
-			await session.object.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt }, attachments, undefined, authInfo, CancellationToken.None);
-
-			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
-			assertNoErrorsInStream(stream);
-
-			const globInvocations = getToolInvocationsByName(toolInvocations, 'search');
-			assert.ok(globInvocations.length > 0, 'Expected at least one glob tool invocation');
-			const invocation = globInvocations[globInvocations.length - 1];
-			// wkspc1 has sample.js, utils.js, stringUtils.js
-			assertToolInvocationHasFiles(invocation, 3);
-			assertToolInvocationMessageContains(invocation, '3 result');
-		})
-	);
-
-	stest({ description: 'glob tool with no matches has empty toolSpecificData' },
-		testRunner(async ({ sessionService, promptResolver, init, authInfo }, scenariosPath, toolInvocations, stream, disposables) => {
-			const workingDirectory = URI.file(path.join(scenariosPath, 'wkspc1'));
-			await init(workingDirectory);
-			const { prompt, attachments } = await resolvePromptWithFileReferences(
-				`Use the glob tool to find all files matching *.xyz in the current directory. Do not use any other search tools.`,
-				[],
-				promptResolver
-			);
-
-			const session = await sessionService.createSession(sessionOptionsFor(workingDirectory), CancellationToken.None);
-			disposables.add(session);
-			disposables.add(session.object.attachStream(stream));
-
-			await session.object.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt }, attachments, undefined, authInfo, CancellationToken.None);
-
-			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
-			assertNoErrorsInStream(stream);
-
-			const globInvocations = getToolInvocationsByName(toolInvocations, 'search');
-			assert.ok(globInvocations.length > 0, 'Expected at least one glob tool invocation');
-			const invocation = globInvocations[globInvocations.length - 1];
-			assertToolInvocationHasFiles(invocation, 0);
-			// When no results, the message ends with '.' (no result count)
-			const pastTenseMessage = typeof invocation.pastTenseMessage === 'string' ? invocation.pastTenseMessage : invocation.pastTenseMessage?.value;
-			assert.ok(pastTenseMessage?.endsWith('.'), `Expected pastTenseMessage to end with '.', got "${pastTenseMessage}"`);
-		})
-	);
-
-	stest({ description: 'grep tool returns files with correct toolSpecificData' },
-		testRunner(async ({ sessionService, promptResolver, init, authInfo }, scenariosPath, toolInvocations, stream, disposables) => {
-			const workingDirectory = URI.file(path.join(scenariosPath, 'wkspc1'));
-			await init(workingDirectory);
-			const { prompt, attachments } = await resolvePromptWithFileReferences(
-				`Use the grep tool to search for the word 'function' in the current directory. Do not use any other search tools.`,
-				[],
-				promptResolver
-			);
-
-			const session = await sessionService.createSession(sessionOptionsFor(workingDirectory), CancellationToken.None);
-			disposables.add(session);
-			disposables.add(session.object.attachStream(stream));
-
-			await session.object.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt }, attachments, undefined, authInfo, CancellationToken.None);
-
-			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
-			assertNoErrorsInStream(stream);
-
-			const grepInvocations = getToolInvocationsByName(toolInvocations, 'search');
-			assert.ok(grepInvocations.length > 0, 'Expected at least one grep tool invocation');
-			const invocation = grepInvocations[grepInvocations.length - 1];
-			// All JS files in wkspc1 contain 'function': sample.js, utils.js, stringUtils.js
-			const data = invocation.toolSpecificData as ChatToolResourcesInvocationData | undefined;
-			assert.ok(data && data.values && data.values.length > 0, 'Expected grep to find matching files');
-			assertToolInvocationMessageContains(invocation, 'result');
-		})
-	);
-
-	stest({ description: 'grep tool with no matches has empty toolSpecificData' },
-		testRunner(async ({ sessionService, promptResolver, init, authInfo }, scenariosPath, toolInvocations, stream, disposables) => {
-			const workingDirectory = URI.file(path.join(scenariosPath, 'wkspc1'));
-			await init(workingDirectory);
-			const { prompt, attachments } = await resolvePromptWithFileReferences(
-				`Use the grep tool to search for the pattern 'xyzNonExistentPattern123' in the current directory. Do not use any other search tools.`,
-				[],
-				promptResolver
-			);
-
-			const session = await sessionService.createSession(sessionOptionsFor(workingDirectory), CancellationToken.None);
-			disposables.add(session);
-			disposables.add(session.object.attachStream(stream));
-
-			await session.object.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt }, attachments, undefined, authInfo, CancellationToken.None);
-
-			assert.strictEqual(session.object.status, ChatSessionStatus.Completed);
-			assertNoErrorsInStream(stream);
-
-			const grepInvocations = getToolInvocationsByName(toolInvocations, 'search');
-			assert.ok(grepInvocations.length > 0, 'Expected at least one grep tool invocation');
-			const invocation = grepInvocations[grepInvocations.length - 1];
-			assertToolInvocationHasFiles(invocation, 0);
-			// When no results, the message ends with '.' (no result count)
-			const pastTenseMessage = typeof invocation.pastTenseMessage === 'string' ? invocation.pastTenseMessage : invocation.pastTenseMessage?.value;
-			assert.ok(pastTenseMessage?.endsWith('.'), `Expected pastTenseMessage to end with '.', got "${pastTenseMessage}"`);
 		})
 	);
 });

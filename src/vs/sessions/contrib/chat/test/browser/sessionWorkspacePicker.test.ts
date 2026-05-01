@@ -26,11 +26,16 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -39,6 +44,7 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
+	browseActions?: readonly ISessionWorkspaceBrowseAction[];
 }): ISessionsProvider {
 	const base = {
 		id,
@@ -46,7 +52,7 @@ function createMockProvider(id: string, opts?: {
 		icon: Codicon.remote,
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
-		browseActions: [],
+		browseActions: opts?.browseActions ?? [],
 		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
 			label: uri.path.substring(1) || uri.path,
 			icon: Codicon.folder,
@@ -135,6 +141,7 @@ function createTestPicker(
 	const storage = storageService ?? disposables.add(new TestStorageService());
 
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(ISessionsProvidersService, providersService);
@@ -145,6 +152,9 @@ function createTestPicker(
 	instantiationService.stub(IOutputService, {});
 	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
+	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
@@ -501,5 +511,148 @@ suite('WorkspacePicker - Connection Status', () => {
 		providersService.setProviders([copilotProvider, agentHostProvider]);
 
 		assertSelectedProvider(picker, 'default-copilot', 'User selection is preserved across late provider registration');
+	});
+});
+
+// ---- Tab discovery ----------------------------------------------------------
+
+/** Minimal subclass that exposes the protected `_getAvailableTabs` for testing. */
+class TestablePicker extends WorkspacePicker {
+	getAvailableTabs(): string[] {
+		return this._getAvailableGroups();
+	}
+}
+
+function makeBrowseAction(providerId: string, group: string | undefined, label = 'browse'): ISessionWorkspaceBrowseAction {
+	return {
+		label,
+		group,
+		icon: Codicon.folder,
+		providerId,
+		run: async () => undefined,
+	};
+}
+
+function createTestablePicker(disposables: DisposableStore, providersService: MockSessionsProvidersService): TestablePicker {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
+	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(ISessionsProvidersService, providersService);
+	instantiationService.stub(IRemoteAgentHostService, {});
+	instantiationService.stub(IQuickInputService, {});
+	instantiationService.stub(IClipboardService, {});
+	instantiationService.stub(IPreferencesService, {});
+	instantiationService.stub(IOutputService, {});
+	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
+	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(IWorkspacesService, {
+		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+		onDidChangeRecentlyOpened: Event.None,
+	});
+	return disposables.add(instantiationService.createInstance(TestablePicker));
+}
+
+suite('WorkspacePicker - Tab discovery', () => {
+
+	const disposables = new DisposableStore();
+	let providersService: MockSessionsProvidersService;
+
+	setup(() => {
+		providersService = new MockSessionsProvidersService();
+		disposables.add(providersService);
+	});
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns Remote group even when no providers contribute groups', () => {
+		providersService.setProviders([createMockProvider('p1')]);
+		const picker = createTestablePicker(disposables, providersService);
+		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('orders well-known groups Local first, then alphabetical', () => {
+		providersService.setProviders([
+			createMockProvider('remote', { browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE)] }),
+			createMockProvider('cloud', { browseActions: [makeBrowseAction('cloud', 'Cloud')] }),
+			createMockProvider('local', { browseActions: [makeBrowseAction('local', SESSION_WORKSPACE_GROUP_LOCAL)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService);
+		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_LOCAL, 'Cloud', SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('deduplicates groups contributed by multiple providers / actions', () => {
+		providersService.setProviders([
+			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_LOCAL)] }),
+			createMockProvider('p2', { browseActions: [makeBrowseAction('p2', SESSION_WORKSPACE_GROUP_LOCAL), makeBrowseAction('p2', SESSION_WORKSPACE_GROUP_LOCAL)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService);
+		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('appends custom group labels after Local', () => {
+		providersService.setProviders([
+			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', 'Custom A'), makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_LOCAL)] }),
+			createMockProvider('p2', { browseActions: [makeBrowseAction('p2', 'Custom B'), makeBrowseAction('p2', SESSION_WORKSPACE_GROUP_REMOTE)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService);
+		const tabs = picker.getAvailableTabs();
+		assert.strictEqual(tabs[0], SESSION_WORKSPACE_GROUP_LOCAL);
+		assert.deepStrictEqual(tabs.slice(1).sort(), ['Custom A', 'Custom B', SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('ignores browse actions without a group', () => {
+		providersService.setProviders([
+			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', undefined), makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_LOCAL)] }),
+		]);
+		const picker = createTestablePicker(disposables, providersService);
+		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE]);
+	});
+
+	test('discovers groups from recent workspaces does not add extra tabs', () => {
+		const provider: ISessionsProvider = {
+			...createMockProvider('p1'),
+			resolveWorkspace: (uri: URI): ISessionWorkspace => ({
+				label: uri.path,
+				icon: Codicon.folder,
+				group: 'Cloud',
+				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				requiresWorkspaceTrust: false,
+			}),
+		};
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: URI.file('/repo'), providerId: 'p1', checked: false }]);
+		providersService.setProviders([provider]);
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+		instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(IUriIdentityService, { extUri });
+		instantiationService.stub(ISessionsProvidersService, providersService);
+		instantiationService.stub(IRemoteAgentHostService, {});
+		instantiationService.stub(IQuickInputService, {});
+		instantiationService.stub(IClipboardService, {});
+		instantiationService.stub(IPreferencesService, {});
+		instantiationService.stub(IOutputService, {});
+		instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+		instantiationService.stub(ICommandService, { executeCommand: async () => { } });
+		instantiationService.stub(IFileDialogService, {});
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+		instantiationService.stub(IWorkspacesService, {
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		});
+		const picker = disposables.add(instantiationService.createInstance(TestablePicker));
+		// Recent workspace group ('Cloud') is not added as a tab — only
+		// browse actions and the always-present Remote group contribute tabs.
+		assert.deepStrictEqual(picker.getAvailableTabs(), [SESSION_WORKSPACE_GROUP_REMOTE]);
 	});
 });

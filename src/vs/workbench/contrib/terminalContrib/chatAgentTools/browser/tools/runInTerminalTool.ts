@@ -1680,9 +1680,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const resultText: string[] = [];
 		if (!didSandboxWrapCommand) {
 			if (didUserEditCommand) {
-				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+				resultText.push(`Note: The user manually edited the command to \`${command}\` (terminal ID=${termId}), and this is the output of running that command instead:\n`);
 			} else if (didToolEditCommand) {
-				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+				// If the tool wrapped the command with `nohup` (POSIX) or `Start-Process`
+				// (Windows) to detach a background process, stdin is no longer connected.
+				// Tell the model so it does not try to drive interactive programs through it.
+				const wasDetachedToBackground = /(^|\s)nohup\s|Start-Process\b/.test(command);
+				const stdinHint = wasDetachedToBackground
+					? ' Note that stdin is closed for detached background processes; do not try to send input via send_to_terminal — re-run with mode="sync" instead if interactive input is required.'
+					: '';
+				resultText.push(`Note: The tool simplified the command to \`${command}\` (terminal ID=${termId}).${stdinHint} This is the output of running that command instead:\n`);
 			}
 			if (isBackgroundExecution && !executionOptions.persistentSession) {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
@@ -2431,13 +2438,14 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	}
 
 	private _createStrategy(commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		const isSyncMode = !this._isBackground;
 		switch (this._toolTerminal.shellIntegrationQuality) {
 			case ShellIntegrationQuality.None:
 				return this._instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
 			case ShellIntegrationQuality.Basic:
 				return this._instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
 			case ShellIntegrationQuality.Rich:
-				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
+				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection, isSyncMode);
 		}
 	}
 

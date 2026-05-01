@@ -179,6 +179,23 @@
         "category": "Markdown"
       },
       {
+        "command": "markdown.reopenAsPreview",
+        "title": "%markdown.reopenAsPreview.title%",
+        "category": "Markdown",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "markdown.reopenAsSource",
+        "title": "%markdown.reopenAsSource.title%",
+        "category": "Markdown",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "markdown.togglePreview",
+        "title": "%markdown.togglePreview.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
@@ -210,8 +227,18 @@
           "group": "navigation"
         },
         {
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "group": "navigation"
+        },
+        {
           "command": "markdown.showSource",
-          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "when": "activeWebviewPanelId == 'markdown.preview'",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
@@ -235,6 +262,16 @@
           "command": "markdown.showPreviewToSide",
           "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsPreview",
+          "when": "(activeEditor == workbench.editors.files.textFileEditor || activeEditor == workbench.editors.textDiffEditor) && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         }
       ],
@@ -313,21 +350,35 @@
         {
           "command": "markdown.findAllFileReferences",
           "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+        },
+        {
+          "command": "markdown.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.reopenAsSource",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.togglePreview",
+          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "markdown.showPreview",
-        "key": "shift+ctrl+v",
-        "mac": "shift+cmd+v",
-        "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
-      },
-      {
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",
         "mac": "cmd+k v",
         "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
+      },
+      {
+        "command": "markdown.togglePreview",
+        "key": "shift+ctrl+v",
+        "mac": "shift+cmd+v",
+        "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
       }
     ],
     "configuration": [
@@ -640,7 +691,7 @@
               "type": "string"
             },
             "default": [],
-            "description": "%markdown.styles.dec%",
+            "markdownDescription": "%markdown.styles.dec%",
             "scope": "resource"
           },
           "markdown.preview.breaks": {

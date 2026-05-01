@@ -10,11 +10,12 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { createBrowserPageLink, DEFAULT_ELEMENT_LABEL, errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const ClickBrowserToolData: IToolData = {
 	id: 'click_element',
-	toolReferenceName: 'clickElement',
+	toolReferenceName: BrowserChatToolReferenceName.ClickElement,
 	displayName: localize('clickBrowserTool.displayName', 'Click Element'),
 	userDescription: localize('clickBrowserTool.userDescription', 'Click an element in a browser page'),
 	modelDescription: 'Click on an element in a browser page.',

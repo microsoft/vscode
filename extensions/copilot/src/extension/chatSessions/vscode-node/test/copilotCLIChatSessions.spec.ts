@@ -14,6 +14,7 @@ import { IGitService, RepoContext } from '../../../../platform/git/common/gitSer
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -24,13 +25,19 @@ import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWork
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
+import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { SessionIdForCLI } from '../../copilotcli/common/utils';
+import { ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
+import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
 import { ICustomSessionTitleService } from '../../copilotcli/common/customSessionTitleService';
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
+import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
+import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
@@ -67,7 +74,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override getSessionItem = vi.fn(async () => undefined);
 	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');
-	override isNewSessionId = vi.fn(() => false);
+	override isNewSessionId = vi.fn((_sessionId: string) => false);
 	override deleteSession = vi.fn(async () => { });
 	override renameSession = vi.fn(async () => { });
 	override getSessionTitle = vi.fn(async () => '');
@@ -309,6 +316,115 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 		await vi.waitFor(() => expect(worktreeService.getWorktreeProperties).toHaveBeenCalled());
 		expect(octoKitService.findPullRequestByHeadBranch).not.toHaveBeenCalled();
 		expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
+	});
+});
+
+describe('CopilotCLIChatSessionParticipant', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('keeps local /remote output visible for new sessions', async () => {
+		const resource = SessionIdForCLI.getResource('new-session');
+		const sessionItemProvider = {
+			refreshSession: vi.fn(async () => { }),
+			dispose: vi.fn(),
+		};
+		const session = {
+			sessionId: 'new-session',
+			workspace: emptyWorkspaceInfo,
+			status: undefined,
+			onDidChangeStatus: Event.None,
+			createdPullRequestUrl: undefined,
+			attachStream: vi.fn(() => ({ dispose: vi.fn() })),
+			handleRequest: vi.fn(async () => { }),
+		} as unknown as ICopilotCLISession;
+		const sessionService = new TestSessionService();
+		sessionService.isNewSessionId.mockImplementation(id => id === 'new-session');
+		const promptResolver = {
+			resolvePrompt: vi.fn(async () => ({ prompt: 'on', attachments: [] })),
+		} as unknown as CopilotCLIPromptResolver;
+		const logService = new class extends mock<ILogService>() {
+			declare readonly _serviceBrand: undefined;
+			override error = vi.fn();
+		}();
+		const participant = new CopilotCLIChatSessionParticipant(
+			sessionItemProvider,
+			promptResolver,
+			undefined,
+			undefined,
+			new TestGitService(),
+			sessionService,
+			new TestWorktreeService(),
+			new class extends mock<ITelemetryService>() {
+				declare readonly _serviceBrand: undefined;
+				override sendMSFTTelemetryEvent = vi.fn();
+			}(),
+			logService,
+			new class extends mock<IChatDelegationSummaryService>() {
+				declare readonly _serviceBrand: undefined;
+			}(),
+			new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
+			new class extends mock<ICopilotCLISDK>() {
+				declare readonly _serviceBrand: undefined;
+				override getAuthInfo = vi.fn(async () => ({ type: 'token' as const, token: 'token', host: 'https://github.com' }));
+			}(),
+			new class extends mock<ICopilotCLIChatSessionInitializer>() {
+				declare readonly _serviceBrand: undefined;
+				override getOrCreateSession = vi.fn(async () => ({
+					session: { object: session, dispose: vi.fn() },
+					isNewSession: true,
+					model: undefined,
+					agent: undefined,
+					trusted: true,
+				}));
+			}(),
+			new class extends mock<ISessionRequestLifecycle>() {
+				declare readonly _serviceBrand: undefined;
+				override startRequest = vi.fn(async () => { });
+				override endRequest = vi.fn(async () => { });
+			}(),
+			new class extends mock<PullRequestDetectionService>() {
+				override onDidDetectPullRequest = Event.None;
+			}() as unknown as PullRequestDetectionService,
+			new class extends mock<ISessionOptionGroupBuilder>() {
+				declare readonly _serviceBrand: undefined;
+				override lockInputStateGroups = vi.fn();
+				override updateBranchInInputState = vi.fn();
+			}(),
+		);
+
+		await participant.createHandler()(
+			{
+				id: 'request-1',
+				command: 'remote',
+				prompt: 'on',
+				sessionResource: resource,
+				references: [],
+				tools: [],
+				toolInvocationToken: undefined,
+			} as unknown as vscode.ChatRequest,
+			{
+				history: [],
+				yieldRequested: false,
+				chatSessionContext: {
+					chatSessionItem: { resource, label: 'New Session' },
+					inputState: { groups: [] },
+				},
+			} as unknown as vscode.ChatContext,
+			{} as vscode.ChatResponseStream,
+			CancellationToken.None,
+		);
+
+		expect(session.handleRequest).toHaveBeenCalledWith(
+			expect.anything(),
+			{ command: 'remote', prompt: 'on' },
+			[],
+			undefined,
+			{ type: 'token', token: 'token', host: 'https://github.com' },
+			CancellationToken.None,
+		);
+		expect(sessionItemProvider.refreshSession).not.toHaveBeenCalled();
 	});
 });
 

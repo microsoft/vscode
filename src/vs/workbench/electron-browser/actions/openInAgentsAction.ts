@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { IWorkspaceContextService, WorkbenchState } from '../../../platform/workspace/common/workspace.js';
 import { ToggleTitleBarConfigAction, TitleBarLeadingActionsGroup } from '../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../common/contributions.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../common/contextkeys.js';
+import { InEditorZenModeContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../common/contextkeys.js';
 import { workbenchConfigurationNodeBase } from '../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { ChatEntitlementContextKeys } from '../../services/chat/common/chatEntitlementService.js';
@@ -49,6 +49,7 @@ const OpenInAgentsVisibility = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${OpenInAgentsEnabledSetting}`, true),
 	IsSessionsWindowContext.toNegated(),
 	IsAuxiliaryWindowContext.toNegated(),
+	InEditorZenModeContext.negate(),
 	// Hide whenever the user has signaled (or policy/workspace trust dictates)
 	// that AI features should not be shown in this window/workspace.
 	ChatEntitlementContextKeys.Setup.hidden.negate(),

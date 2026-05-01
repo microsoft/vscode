@@ -64,8 +64,7 @@ export class ChecksViewModel extends Disposable {
 			// (e.g. after the PR is merged).
 			const ciModel = gitHubService.getPullRequestCI(pullRequestInfo.owner, pullRequestInfo.repo, pullRequestInfo.prNumber, pullRequestInfo.headSha);
 			ciModel.refresh();
-			ciModel.startPolling();
-			reader.store.add({ dispose: () => ciModel.stopPolling() });
+			reader.store.add(ciModel.startPolling());
 
 			return ciModel;
 		});

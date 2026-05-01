@@ -60,7 +60,7 @@ const customEditorsContributionSchema = {
 		},
 		[Fields.priority]: {
 			type: 'string',
-			markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
+			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
 			enum: [
 				CustomEditorPriority.default,
 				CustomEditorPriority.option,

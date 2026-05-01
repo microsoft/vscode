@@ -73,9 +73,15 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			);
 
 			if (this._hasReceivedUserInput()) {
-				this._log('Command timed out, sending SIGINT and retrying');
-				// Send SIGINT (Ctrl+C)
-				await this._instance.sendText('\x03', false);
+				// Use Ctrl+U (kill line) to clear any pending input on the prompt
+				// rather than Ctrl+C, which would kill any command currently running.
+				// Without shell integration we cannot reliably detect whether a
+				// previous command is still executing, and Ctrl+C at an idle prompt
+				// has been observed to produce spurious "Command exited with code
+				// 130" results for the next command. Ctrl+U is a no-op on an idle
+				// prompt.
+				this._log('Sending Ctrl+U to clear any pending input before sending command');
+				await this._instance.sendText('\x15', false);
 				await waitForIdle(this._instance.onData, 100);
 			}
 
