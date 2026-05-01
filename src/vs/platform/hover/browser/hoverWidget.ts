@@ -42,7 +42,6 @@ const enum Constants {
 
 export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _messageListeners = new DisposableStore();
-	private _mouseTracker!: CompositeMouseTracker;
 	private readonly _lockMouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
@@ -60,6 +59,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 	private _maxHeightRatioRelativeToWindow: number = 0.5;
+	private _mouseTracker: CompositeMouseTracker | undefined;
 
 	private get _targetWindow(): Window {
 		return dom.getWindow(this._target.targetElements[0]);
