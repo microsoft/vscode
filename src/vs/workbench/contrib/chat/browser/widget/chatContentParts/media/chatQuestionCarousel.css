@@ -462,6 +462,13 @@
 	}
 }
 
+/* user-select: text for elicitation dialog text areas */
+.interactive-session .chat-question-carousel-container .chat-question-detailed-message,
+.interactive-session .chat-question-carousel-container .chat-question-description {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
 /* carousel-level message (e.g. from MCP elicitation) */
 .interactive-session .chat-question-carousel-container .chat-question-carousel-message {
 	padding: 8px 16px 0;
@@ -470,6 +477,8 @@
 	max-height: min(220px, 25vh);
 	overflow-y: auto;
 	overscroll-behavior: contain;
+	user-select: text;
+	-webkit-user-select: text;
 
 	.rendered-markdown p {
 		margin: 0;

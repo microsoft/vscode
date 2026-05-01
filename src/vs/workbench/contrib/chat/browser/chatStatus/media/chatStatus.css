@@ -106,6 +106,7 @@
 	gap: 10px;
 	margin-top: 10px;
 	margin-bottom: 4px;
+	padding-left: 24px;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content.collapsed > .collapsible-inner {

@@ -441,7 +441,7 @@ suite('AgentService (node dispatcher)', () => {
 			localService.stateManager.setSessionMeta(session.toString(), undefined);
 			calls.length = 0;
 
-			await localService.subscribe(session);
+			await localService.subscribe(session, 'client-1');
 			for (let i = 0; i < 5; i++) {
 				await Promise.resolve();
 			}
@@ -702,7 +702,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Subscribing to the child session should restore it with inner tool calls
 			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), 'tc-sub');
-			const snapshot = await service.subscribe(URI.parse(childSessionUri));
+			const snapshot = await service.subscribe(URI.parse(childSessionUri), 'client-test');
 			const childState = service.stateManager.getSessionState(childSessionUri);
 			assert.ok(snapshot?.state, 'Child session snapshot should exist');
 			assert.ok(childState, 'Child session state should exist');
@@ -748,7 +748,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Subscribe to the child subagent session and verify inner tools
 			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), parentToolCallId);
-			const snapshot = await service.subscribe(URI.parse(childSessionUri));
+			const snapshot = await service.subscribe(URI.parse(childSessionUri), 'client-test');
 			assert.ok(snapshot?.state, 'Child session snapshot should exist');
 			const childState = service.stateManager.getSessionState(childSessionUri);
 			assert.ok(childState, 'Child session state should exist');
@@ -762,7 +762,110 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- session config persistence -------------------------------------
+	// ---- subscriber refcount + idle eviction ----------------------------
+
+	suite('subscriber refcount eviction', () => {
+
+		test('an idle session created in this lifetime is evicted when subscribers drop', async () => {
+			service.registerProvider(copilotAgent);
+			const sessionResource = await service.createSession({ provider: 'copilot' });
+
+			service.addSubscriber(sessionResource, 'client-1');
+			service.unsubscribe(sessionResource, 'client-1');
+
+			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'idle created session should be evicted; next subscribe will rehydrate from the agent');
+		});
+
+		test('a session with an active turn is NOT evicted when its last subscriber drops', async () => {
+			service.registerProvider(copilotAgent);
+			const sessionResource = await service.createSession({ provider: 'copilot' });
+
+			service.addSubscriber(sessionResource, 'client-1');
+			// Simulate an in-flight turn — eviction must skip this session even
+			// when the refcount reaches zero, otherwise we'd drop live state
+			// mid-response.
+			service.dispatchAction(
+				{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+				'client-1', 1,
+			);
+
+			service.unsubscribe(sessionResource, 'client-1');
+
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
+		});
+
+		test('a restored idle session is evicted when its last subscriber drops', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			await service.restoreSession(sessionResource);
+			service.addSubscriber(sessionResource, 'client-1');
+
+			service.unsubscribe(sessionResource, 'client-1');
+
+			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'restored idle session should be evicted');
+		});
+
+		test('multiple subscribers keep a restored session alive until all drop', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			await service.restoreSession(sessionResource);
+			service.addSubscriber(sessionResource, 'client-1');
+			service.addSubscriber(sessionResource, 'client-2');
+
+			service.unsubscribe(sessionResource, 'client-1');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'still subscribed by client-2');
+
+			service.unsubscribe(sessionResource, 'client-2');
+			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'evicted after last subscriber');
+		});
+
+		test('subagent subscriber pins the parent session against eviction', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent' as const, subagentDescription: 'Find files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'ls', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'ran', content: [{ type: ToolResultContentType.Text, text: 'a' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'done', content: [{ type: ToolResultContentType.Text, text: 'ok' }] } },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-3', content: 'Done', toolRequests: [] },
+			];
+			await service.restoreSession(sessionResource);
+			const childUri = URI.parse(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub'));
+			await service.subscribe(childUri, 'client-child');
+
+			service.addSubscriber(sessionResource, 'client-parent');
+
+			// Parent drops — child still subscribed, parent must not be evicted
+			service.unsubscribe(sessionResource, 'client-parent');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'parent must stay while child is subscribed');
+			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'child still present');
+
+			// Child drops — both can now be evicted
+			service.unsubscribe(childUri, 'client-child');
+			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'parent evicted after subagent drops');
+			assert.strictEqual(service.stateManager.getSessionState(childUri.toString()), undefined, 'child also evicted with parent');
+		});
+	});
 
 	suite('session config persistence', () => {
 

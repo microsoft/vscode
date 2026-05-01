@@ -7,6 +7,7 @@ import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -70,6 +71,17 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
+
+	/**
+	 * Authoritative server-side per-resource subscription refcount, keyed by
+	 * resource URI string and valued by the set of subscribed protocol
+	 * client IDs. Populated by {@link subscribe} (or {@link addSubscriber}
+	 * for handshake fast-paths) and drained by {@link unsubscribe}. When a
+	 * resource's set becomes empty, the resource is dropped from the map and
+	 * {@link _maybeEvictIdleSession} is invoked to release any cached state
+	 * for it.
+	 */
+	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
@@ -417,50 +429,125 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-
-		// Check for terminal state
-		const terminalState = this._terminalManager.getTerminalState(resourceStr);
-		if (terminalState) {
-			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
-		}
-
-		let snapshot = this._stateManager.getSnapshot(resourceStr);
-		if (!snapshot) {
-			// Try subagent restore before regular session restore
-			const parsed = parseSubagentSessionUri(resourceStr);
-			if (parsed) {
-				await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
-			} else {
-				await this.restoreSession(resource);
+		// Register the subscriber up front so a concurrent unsubscribe cannot
+		// evict the session state while we are awaiting restore. On any failure
+		// path below we must roll the registration back, otherwise the leaked
+		// refcount would permanently pin (or block eviction of) the resource.
+		this.addSubscriber(resource, clientId);
+		try {
+			// Check for terminal state
+			const terminalState = this._terminalManager.getTerminalState(resourceStr);
+			if (terminalState) {
+				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
-			snapshot = this._stateManager.getSnapshot(resourceStr);
-		}
-		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
-		}
 
-		// Ensure git state has been computed for this session. When the snapshot
-		// already existed (e.g. seeded by list query, or restored earlier), the
-		// restore path that normally calls `_attachGitState` is skipped — so
-		// trigger it lazily here for the first subscriber. `_attachGitState`
-		// is async and updates `_meta.git` once ready, which clients see via
-		// the normal state-update stream.
-		const sessionState = this._stateManager.getSessionState(resourceStr);
-		if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
-			const wd = sessionState.summary?.workingDirectory;
-			this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
-		}
+			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			if (!snapshot) {
+				// Try subagent restore before regular session restore
+				const parsed = parseSubagentSessionUri(resourceStr);
+				if (parsed) {
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+				} else {
+					await this.restoreSession(resource);
+				}
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+			}
+			if (!snapshot) {
+				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
+			}
 
-		return snapshot;
+			// Ensure git state has been computed for this session. When the snapshot
+			// already existed (e.g. seeded by list query, or restored earlier), the
+			// restore path that normally calls `_attachGitState` is skipped — so
+			// trigger it lazily here for the first subscriber. `_attachGitState`
+			// is async and updates `_meta.git` once ready, which clients see via
+			// the normal state-update stream.
+			const sessionState = this._stateManager.getSessionState(resourceStr);
+			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
+				const wd = sessionState.summary?.workingDirectory;
+				this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
+			}
+
+			return snapshot;
+		} catch (err) {
+			this.unsubscribe(resource, clientId);
+			throw err;
+		}
 	}
 
-	unsubscribe(resource: URI): void {
-		this._logService.trace(`[AgentService] unsubscribe: ${resource.toString()}`);
-		// Server-side tracking of per-client subscriptions will be added
-		// in Phase 4 (multi-client). For now this is a no-op.
+	addSubscriber(resource: URI, clientId: string): void {
+		let set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			set = new Set();
+			this._resourceSubscribers.set(resource, set);
+		}
+		set.add(clientId);
+	}
+
+	unsubscribe(resource: URI, clientId: string): void {
+		const set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			return;
+		}
+		set.delete(clientId);
+		if (set.size > 0) {
+			return;
+		}
+		this._resourceSubscribers.delete(resource);
+		this._maybeEvictIdleSession(resource);
+	}
+
+	/**
+	 * If `resource` names an idle session and no client is still subscribed to
+	 * it (or, for a subagent URI, no sibling subagent under the same parent is
+	 * still subscribed), drop its cached state from the state manager. Subagent
+	 * URIs evict the parent session entry; the parent owns the materialized
+	 * turn tree that backs every subagent view. The next subscribe will
+	 * rehydrate the session via {@link restoreSession}.
+	 */
+	private _maybeEvictIdleSession(resource: URI): void {
+		const key = resource.toString();
+		if (this._resourceSubscribers.has(resource)) {
+			return;
+		}
+		const parsed = parseSubagentSessionUri(key);
+		let evictionTarget: string;
+		if (parsed) {
+			evictionTarget = parsed.parentSession;
+			if (this._resourceSubscribers.has(URI.parse(evictionTarget))) {
+				return;
+			}
+			const parentPrefix = parsed.parentSession + '/subagent/';
+			for (const subscribedUri of this._resourceSubscribers.keys()) {
+				if (subscribedUri.toString().startsWith(parentPrefix)) {
+					return;
+				}
+			}
+		} else {
+			evictionTarget = key;
+			const subagentPrefix = key + '/subagent/';
+			for (const subscribedUri of this._resourceSubscribers.keys()) {
+				if (subscribedUri.toString().startsWith(subagentPrefix)) {
+					return;
+				}
+			}
+		}
+		const targetState = this._stateManager.getSessionState(evictionTarget);
+		if (!targetState || targetState.activeTurn !== undefined) {
+			return;
+		}
+		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTarget} (triggered by unsubscribe of ${key})`);
+		// Also evict any sibling subagent entries cached under the parent: their
+		// authoritative state is the parent's turn tree, and dropping the parent
+		// would leave them orphaned.
+		const subagentPrefix = evictionTarget + '/subagent/';
+		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
+			this._stateManager.removeSession(cachedKey);
+		}
+		this._stateManager.removeSession(evictionTarget);
 	}
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
