@@ -17,7 +17,7 @@ import {
 	GitHubAuthRequiredError,
 	GitHubRateLimitError,
 	IGitHubRepoRef,
-	fetchAndExtractGitHubTarball,
+	fetchAndExtractGitHubRepo,
 	parseGitHubCloneUrl,
 	resolveGitHubRefToSha,
 } from './githubTarballFetcher.js';
@@ -28,7 +28,7 @@ const BROWSER_CACHE_STORAGE_KEY = 'chat.plugins.browserCache.v1';
 /**
  * Per-target metadata persisted via {@link IStorageService}. Keyed by the
  * `targetDir.toString()` of the cloned repository so we can answer
- * `revParse('HEAD')` and detect "is the cached tarball still current?" on
+ * `revParse('HEAD')` and detect "is the cached snapshot still current?" on
  * `pull()` without an extra GitHub round-trip.
  */
 interface IBrowserPluginCacheEntry {
@@ -45,10 +45,11 @@ type IStoredBrowserPluginCache = Record<string, IBrowserPluginCacheEntry>;
  * Browser implementation of {@link IPluginGitService}.
  *
  * Real `git` is not available in the browser, so plugin contents are
- * fetched as tarballs from the GitHub REST API
- * (`/repos/{owner}/{repo}/tarball/{sha}`), gunzipped via the platform's
- * `DecompressionStream`, and extracted file-by-file into the workbench's
- * virtual file system at `targetDir`.
+ * fetched a file at a time from the GitHub REST API: the recursive Git
+ * Trees endpoint produces the listing, and `raw.githubusercontent.com`
+ * serves each blob's bytes. Both endpoints support CORS, unlike the
+ * `/tarball/` endpoint which 302-redirects to `codeload.github.com`
+ * and fails the browser preflight check.
  *
  * Only HTTPS GitHub clone URLs are supported. Other git hosts cannot be
  * reached without a real git binary; for those, callers should use the
@@ -80,7 +81,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const cancel = token ?? CancellationToken.None;
 		const cloneWithToken = async (authToken: string | undefined): Promise<void> => {
 			const sha = await resolveGitHubRefToSha(this._requestService, repo, ref, authToken, cancel);
-			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, sha, targetDir, authToken, cancel);
+			await fetchAndExtractGitHubRepo(this._requestService, this._fileService, this._logService, repo, sha, targetDir, authToken, cancel);
 			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.repo, ref, sha, fetchedAt: Date.now() });
 		};
 
@@ -133,7 +134,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			if (newSha === entry.sha) {
 				return false;
 			}
-			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, newSha, repoDir, authToken, cancel);
+			await fetchAndExtractGitHubRepo(this._requestService, this._fileService, this._logService, repo, newSha, repoDir, authToken, cancel);
 			this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
 			return true;
 		} catch (err) {
@@ -166,7 +167,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		}
 
 		try {
-			await fetchAndExtractGitHubTarball(this._requestService, this._fileService, this._logService, repo, requestedSha, repoDir, authToken, cancel);
+			await fetchAndExtractGitHubRepo(this._requestService, this._fileService, this._logService, repo, requestedSha, repoDir, authToken, cancel);
 			this._setCacheEntry(repoDir, {
 				...entry,
 				ref: isFullSha ? entry.ref : requestedRef,
@@ -184,21 +185,21 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		if (!entry) {
 			throw new Error(`Cannot resolve ref: no cached metadata for ${repoDir.toString()}`);
 		}
-		// Tarball-cached plugins only know one SHA per directory (the one
+		// Tree-cached plugins only know one SHA per directory (the one
 		// we materialised). Reject queries for unrelated SHAs so callers
 		// notice when they expected a real `git rev-parse` and got a
 		// cache hit instead.
 		const trimmed = ref.trim();
 		const isFullSha = /^[0-9a-f]{40}$/i.test(trimmed);
 		if (isFullSha && trimmed.toLowerCase() !== entry.sha.toLowerCase()) {
-			throw new Error(`Cannot resolve ref '${ref}' in tarball-cached plugin: only HEAD/${entry.sha} is materialised`);
+			throw new Error(`Cannot resolve ref '${ref}' in tree-cached plugin: only HEAD/${entry.sha} is materialised`);
 		}
 		return entry.sha;
 	}
 
 	async fetch(_repoDir: URI, _token?: CancellationToken): Promise<void> {
 		// No-op: there is no local git database to update. `pull()` re-fetches
-		// the tarball directly when needed.
+		// the tree directly when needed.
 	}
 
 	async fetchRepository(_repoDir: URI, _token?: CancellationToken): Promise<void> {

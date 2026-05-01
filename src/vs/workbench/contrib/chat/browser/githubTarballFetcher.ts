@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../../base/common/async.js';
+import { VSBuffer, streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { VSBuffer, streamToBuffer } from '../../../../base/common/buffer.js';
 import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -159,26 +160,31 @@ function readHeader(headers: Record<string, string | string[] | undefined>, name
 }
 
 /**
- * Fetches a GitHub repository tarball at the given SHA and extracts its
- * contents into {@link targetDir} via {@link IFileService}.
+ * Fetches the file tree of a GitHub repository at the given SHA and writes
+ * each blob into {@link targetDir} via {@link IFileService}.
+ *
+ * Browser fetch cannot follow GitHub's tarball endpoint because that URL
+ * 302-redirects to `codeload.github.com`, which does not return CORS
+ * headers and therefore fails the browser preflight check. To stay in
+ * pure-browser-friendly territory we use two endpoints that *do* support
+ * CORS:
+ *
+ *  - `GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1` returns a
+ *    flat listing of every blob/tree/submodule entry.
+ *  - `GET https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}`
+ *    returns the raw bytes of an individual blob (and accepts the same
+ *    `Authorization: Bearer` header for private repos).
  *
  * Extraction is staged to a sibling directory and atomically swapped into
- * place on success. If anything fails (network, gunzip, malformed tar,
- * cancellation), the staging directory is cleaned up and the original
- * `targetDir` is left untouched.
+ * place on success. If anything fails (network, parse, cancellation), the
+ * staging directory is cleaned up and the original `targetDir` is left
+ * untouched.
  *
- * All entries are extracted relative to the repository root: GitHub wraps
- * every file in a top-level `{repo}-{shortSha}/` directory which is
- * stripped here so callers see a clean tree.
- *
- * Note on auth + redirects: GitHub's tarball endpoint 302s to a signed
- * `codeload.github.com` URL whose authorization is encoded in the URL
- * itself, so the `Authorization` header being stripped on the cross-origin
- * redirect (browser fetch behaviour per spec) does not break private-repo
- * downloads. We deliberately do not pass `followRedirects` since it is
- * silently ignored by the browser request implementation.
+ * Symlinks (`mode === '120000'`) and submodules (`type === 'commit'`) are
+ * skipped — neither is representable in the workbench virtual file system
+ * and the previous tarball-based implementation already ignored them.
  */
-export async function fetchAndExtractGitHubTarball(
+export async function fetchAndExtractGitHubRepo(
 	requestService: IRequestService,
 	fileService: IFileService,
 	logService: ILogService,
@@ -188,52 +194,75 @@ export async function fetchAndExtractGitHubTarball(
 	authToken: string | undefined,
 	token: CancellationToken,
 ): Promise<void> {
-	const url = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/tarball/${encodeURIComponent(sha)}`;
-	const headers: Record<string, string> = {
-		'Accept': 'application/vnd.github+json',
-		'X-GitHub-Api-Version': '2022-11-28',
-	};
-	if (authToken) {
-		headers['Authorization'] = `Bearer ${authToken}`;
-	}
-
-	logService.trace(`[GitHubTarballFetcher] GET ${url}`);
-	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.tarball' }, token);
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	const status = ctx.res.statusCode ?? 0;
-	if (status === 403 && isRateLimited(ctx.res.headers)) {
-		throw new GitHubRateLimitError(`GitHub rate limit hit downloading tarball for ${repo.owner}/${repo.repo}@${sha}`, retryAfterFromHeaders(ctx.res.headers));
-	}
-	if (status === 401 || status === 403) {
-		throw new GitHubAuthRequiredError(`GitHub returned ${status} downloading tarball for ${repo.owner}/${repo.repo}@${sha}`);
-	}
-	if (!isSuccess(ctx)) {
-		throw new Error(`GitHub returned ${status} downloading tarball for ${repo.owner}/${repo.repo}@${sha}`);
-	}
-
-	const gzipped = await streamToBuffer(ctx.stream);
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-
-	const tar = await gunzip(gzipped.buffer);
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
+	const tree = await fetchGitHubTree(requestService, repo, sha, authToken, token);
+	if (tree.truncated) {
+		// GitHub caps the recursive tree response at ~100K entries / ~7MB.
+		// Plugin repos are tiny in practice; if we ever blow this limit the
+		// install will silently miss files, so make it loud.
+		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.repo}@${sha} is truncated; some files will be missing from the install`);
 	}
 
 	// Stage the extraction in a sibling directory and swap into place on
-	// success. If anything throws (cancellation, malformed tar, FS write
+	// success. If anything throws (cancellation, network error, FS write
 	// error), the staging directory is cleaned up and the existing
 	// targetDir contents -- if any -- are left untouched. This avoids a
 	// failure mode where an aborted update wipes the target and leaves the
 	// persisted SHA cache pointing at a now-empty directory.
 	const stagingDir = joinPath(dirname(targetDir), `.staging-${generateUuid()}`);
 	try {
-		await extractTarToFileService(tar, stagingDir, fileService, logService, token);
+		await fileService.createFolder(stagingDir);
+		const blobsToFetch: { entry: IGitHubTreeEntry; dest: URI }[] = [];
+		const createdDirs = new Set<string>([stagingDir.toString()]);
+
+		for (const entry of tree.tree) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (entry.type === 'commit') {
+				logService.trace(`[GitHubRepoFetcher] Skipping submodule entry ${entry.path}`);
+				continue;
+			}
+			if (entry.mode === '120000') {
+				logService.trace(`[GitHubRepoFetcher] Skipping symlink entry ${entry.path}`);
+				continue;
+			}
+			const dest = safeJoinUnderTarget(stagingDir, entry.path);
+			if (!dest) {
+				logService.warn(`[GitHubRepoFetcher] Skipping unsafe tree entry path: ${entry.path}`);
+				continue;
+			}
+			if (entry.type === 'tree') {
+				if (!createdDirs.has(dest.toString())) {
+					await fileService.createFolder(dest);
+					createdDirs.add(dest.toString());
+				}
+				continue;
+			}
+			if (entry.type !== 'blob') {
+				logService.trace(`[GitHubRepoFetcher] Skipping tree entry with unsupported type '${entry.type}': ${entry.path}`);
+				continue;
+			}
+			// Pre-create the parent directory now (cheap, in-memory) so the
+			// parallel blob writes don't race on `createFolder`.
+			const parent = dirname(dest);
+			if (parent.toString() !== dest.toString() && !createdDirs.has(parent.toString())) {
+				await fileService.createFolder(parent);
+				createdDirs.add(parent.toString());
+			}
+			blobsToFetch.push({ entry, dest });
+		}
+
+		const limiter = new Limiter<void>(MAX_PARALLEL_BLOB_FETCHES);
+		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const content = await fetchRawBlob(requestService, repo, sha, entry.path, authToken, token);
+			await fileService.writeFile(dest, content);
+		})));
+
 		// move() with overwrite=true atomically (from the consumer's POV)
-		// replaces the target with the freshly-extracted tree, dropping any
+		// replaces the target with the freshly-fetched tree, dropping any
 		// files removed upstream.
 		await fileService.move(stagingDir, targetDir, true);
 	} catch (err) {
@@ -242,141 +271,114 @@ export async function fetchAndExtractGitHubTarball(
 				await fileService.del(stagingDir, { recursive: true });
 			}
 		} catch (cleanupErr) {
-			logService.warn(`[GitHubTarballFetcher] Failed to clean up staging dir ${stagingDir.toString()}:`, cleanupErr);
+			logService.warn(`[GitHubRepoFetcher] Failed to clean up staging dir ${stagingDir.toString()}:`, cleanupErr);
 		}
 		throw err;
 	}
 }
 
-/**
- * Decompress a gzip stream using the platform-provided
- * `DecompressionStream`. Available natively in browsers and in Node 20+.
- *
- * Implemented via a one-shot `ReadableStream` that enqueues the buffer
- * directly so the call type-checks under stricter DOM types -- both
- * `BodyInit` and `BlobPart` reject `Uint8Array<ArrayBufferLike>`. We
- * normalise the input to `Uint8Array<ArrayBuffer>` via `.slice()` so the
- * stream's element type matches the writable side of
- * `DecompressionStream` (which requires `Uint8Array<ArrayBuffer>`).
- */
-async function gunzip(input: Uint8Array): Promise<Uint8Array> {
-	const safeInput = input.slice();
-	const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
-		start(controller) {
-			controller.enqueue(safeInput);
-			controller.close();
-		},
-	});
-	const inflated = source.pipeThrough(new DecompressionStream('gzip'));
-	const out = await new Response(inflated).arrayBuffer();
-	return new Uint8Array(out);
+/** Maximum number of blob downloads to issue in parallel. */
+const MAX_PARALLEL_BLOB_FETCHES = 10;
+
+/** A single entry in a GitHub git-trees API response. */
+interface IGitHubTreeEntry {
+	readonly path: string;
+	/**
+	 * File mode as a string of octal digits. The values we care about are
+	 * `'120000'` (symlink, skipped) and the various blob/tree modes.
+	 */
+	readonly mode: string;
+	/** `'blob'` for files, `'tree'` for directories, `'commit'` for submodules. */
+	readonly type: 'blob' | 'tree' | 'commit';
+	readonly sha: string;
+	readonly size?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Minimal TAR parser (USTAR + GNU long-name extension)
-// ---------------------------------------------------------------------------
-
-const BLOCK_SIZE = 512;
-
-/**
- * Decode a numeric field from a tar header.
- *
- * Tar fields are either:
- *  - Classic POSIX: NUL/space-terminated, optionally space-leading, octal
- *    ASCII digits (e.g. `   01234\0`).
- *  - GNU base-256: when the high bit (0x80) of byte 0 is set, the
- *    remaining bytes hold a big-endian binary integer. Used for sizes
- *    that don't fit in 11 octal digits (>8 GiB) and for negative mtimes.
- *    GitHub source tarballs almost never use this in practice, but the
- *    parser must handle it without silently mis-aligning subsequent
- *    blocks.
- *
- * @returns the decoded non-negative integer, or `undefined` for an
- * unparseable / empty / negative-base-256 field. Callers treat
- * `undefined` as a fatal parser error since silently substituting `0`
- * would mis-align padding for the next entry.
- */
-function readNumericField(view: Uint8Array, offset: number, length: number): number | undefined {
-	if (length <= 0) {
-		return undefined;
-	}
-	const first = view[offset];
-	// GNU base-256 binary encoding (high bit set on byte 0).
-	if ((first & 0x80) !== 0) {
-		// Negative numbers (high bit 1, second-highest 1) are not used for
-		// any field we read (size, mode, mtime); reject them so we don't
-		// produce bogus block offsets.
-		if ((first & 0x40) !== 0) {
-			return undefined;
-		}
-		let value = first & 0x3f;
-		for (let i = 1; i < length; i++) {
-			value = (value * 256) + view[offset + i];
-			if (!Number.isSafeInteger(value)) {
-				return undefined;
-			}
-		}
-		return value;
-	}
-	// Classic octal: skip leading spaces, accumulate octal digits, stop at
-	// space / NUL / non-octal-digit. Empty / all-whitespace fields are 0.
-	let value = 0;
-	let sawDigit = false;
-	for (let i = offset; i < offset + length; i++) {
-		const ch = view[i];
-		if (ch === 0x20) { // space
-			if (sawDigit) {
-				break;
-			}
-			continue; // leading whitespace
-		}
-		if (ch === 0) {
-			break;
-		}
-		if (ch < 0x30 || ch > 0x37) {
-			return undefined;
-		}
-		value = (value << 3) | (ch - 0x30);
-		sawDigit = true;
-	}
-	return value;
+/** Response shape from `GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1`. */
+interface IGitHubTreeResponse {
+	readonly sha: string;
+	readonly tree: readonly IGitHubTreeEntry[];
+	readonly truncated: boolean;
 }
 
-/** Read a NUL-terminated ASCII string out of a fixed-width header field. */
-function readAsciiField(view: Uint8Array, offset: number, length: number): string {
-	let end = offset;
-	const limit = offset + length;
-	while (end < limit && view[end] !== 0) {
-		end++;
+async function fetchGitHubTree(
+	requestService: IRequestService,
+	repo: IGitHubRepoRef,
+	sha: string,
+	authToken: string | undefined,
+	token: CancellationToken,
+): Promise<IGitHubTreeResponse> {
+	const url = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/git/trees/${encodeURIComponent(sha)}?recursive=1`;
+	const headers: Record<string, string> = {
+		'Accept': 'application/vnd.github+json',
+		'X-GitHub-Api-Version': '2022-11-28',
+	};
+	if (authToken) {
+		headers['Authorization'] = `Bearer ${authToken}`;
 	}
-	let s = '';
-	for (let i = offset; i < end; i++) {
-		s += String.fromCharCode(view[i]);
+
+	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.tree' }, token);
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
 	}
-	return s;
+	const status = ctx.res.statusCode ?? 0;
+	if (status === 403 && isRateLimited(ctx.res.headers)) {
+		throw new GitHubRateLimitError(`GitHub rate limit hit fetching tree for ${repo.owner}/${repo.repo}@${sha}`, retryAfterFromHeaders(ctx.res.headers));
+	}
+	if (status === 401 || status === 403) {
+		throw new GitHubAuthRequiredError(`GitHub returned ${status} fetching tree for ${repo.owner}/${repo.repo}@${sha}`);
+	}
+	if (status === 404) {
+		throw new Error(`GitHub repository or commit not found: ${repo.owner}/${repo.repo}@${sha}`);
+	}
+	if (!isSuccess(ctx)) {
+		throw new Error(`GitHub returned ${status}${isClientError(ctx) ? ' (client error)' : ''} fetching tree for ${repo.owner}/${repo.repo}@${sha}`);
+	}
+	const body = await asJson<IGitHubTreeResponse>(ctx);
+	if (!body || !Array.isArray(body.tree)) {
+		throw new Error(`GitHub tree response for ${repo.owner}/${repo.repo}@${sha} missing 'tree' array`);
+	}
+	return body;
+}
+
+async function fetchRawBlob(
+	requestService: IRequestService,
+	repo: IGitHubRepoRef,
+	sha: string,
+	path: string,
+	authToken: string | undefined,
+	token: CancellationToken,
+): Promise<VSBuffer> {
+	// raw.githubusercontent.com returns blob content directly with CORS
+	// support. Fetching by SHA (rather than branch) keeps the result
+	// deterministic if the upstream branch advances between the tree
+	// listing and the blob downloads.
+	const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+	const url = `https://raw.githubusercontent.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/${encodeURIComponent(sha)}/${encodedPath}`;
+	const headers: Record<string, string> = {};
+	if (authToken) {
+		headers['Authorization'] = `Bearer ${authToken}`;
+	}
+
+	const ctx = await requestService.request({ type: 'GET', url, headers, callSite: 'pluginGit.blob' }, token);
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	const status = ctx.res.statusCode ?? 0;
+	if (status === 403 && isRateLimited(ctx.res.headers)) {
+		throw new GitHubRateLimitError(`GitHub rate limit hit fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`, retryAfterFromHeaders(ctx.res.headers));
+	}
+	if (status === 401 || status === 403) {
+		throw new GitHubAuthRequiredError(`GitHub returned ${status} fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`);
+	}
+	if (!isSuccess(ctx)) {
+		throw new Error(`GitHub returned ${status} fetching blob '${path}' for ${repo.owner}/${repo.repo}@${sha}`);
+	}
+	return await streamToBuffer(ctx.stream);
 }
 
 /**
- * Strip the leading GitHub-archive directory component from an entry path
- * (e.g. `vscode-abcdef0/src/foo.ts` → `src/foo.ts`). Returns `undefined`
- * when the entry is the wrapper directory itself, has no inner path, or
- * is an absolute path (which GitHub never emits but which we reject
- * defensively rather than silently rebasing under `targetDir`).
- */
-function stripArchiveRoot(path: string): string | undefined {
-	if (path.startsWith('/')) {
-		return undefined;
-	}
-	const idx = path.indexOf('/');
-	if (idx <= 0) {
-		return undefined;
-	}
-	const rest = path.substring(idx + 1);
-	return rest.length > 0 ? rest : undefined;
-}
-
-/**
- * Sanitize a tar entry path to safe segments under {@link targetDir}.
+ * Sanitize a tree entry path to safe segments under {@link targetDir}.
  *
  * Rejects:
  *  - NUL bytes anywhere in the input
@@ -419,123 +421,4 @@ function safeJoinUnderTarget(targetDir: URI, inner: string): URI | undefined {
 		return undefined;
 	}
 	return dest;
-}
-
-/**
- * Stream a parsed TAR archive into the file service rooted at {@link targetDir}.
- *
- * Supports regular files (typeflag '0' / NUL), directories ('5'), and the
- * GNU `LongLink` extension ('L'). PAX extended headers ('x', 'g') are
- * skipped — the GitHub tarball does not produce them for normal source
- * archives. Other unsupported entry types, including symlinks and
- * hardlinks, are skipped (with a debug log) since the virtual file
- * service has no concept of them.
- */
-async function extractTarToFileService(
-	tar: Uint8Array,
-	targetDir: URI,
-	fileService: IFileService,
-	logService: ILogService,
-	token: CancellationToken,
-): Promise<void> {
-	await fileService.createFolder(targetDir);
-
-	let offset = 0;
-	let pendingLongName: string | undefined;
-	const createdDirs = new Set<string>([targetDir.toString()]);
-
-	while (offset + BLOCK_SIZE <= tar.length) {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-
-		// All-zero block signals end of archive (two such blocks in a row,
-		// but a single one is a sufficient stop signal in practice).
-		if (isZeroBlock(tar, offset)) {
-			break;
-		}
-
-		const fromLongLink = pendingLongName !== undefined;
-		const name = pendingLongName ?? readAsciiField(tar, offset, 100);
-		const size = readNumericField(tar, offset + 124, 12);
-		if (size === undefined) {
-			throw new Error('Corrupt tar archive: invalid size field');
-		}
-		const typeFlag = String.fromCharCode(tar[offset + 156] || 0x30);
-		const prefix = readAsciiField(tar, offset + 345, 155);
-		pendingLongName = undefined;
-
-		// USTAR: when prefix is non-empty, the full path is unconditionally
-		// `${prefix}/${name}` per spec. GNU LongLink entries encode the
-		// full path in the payload and should ignore the (often empty)
-		// header prefix field.
-		const fullName = (prefix && !fromLongLink) ? `${prefix}/${name}` : name;
-		const dataStart = offset + BLOCK_SIZE;
-		const dataEnd = dataStart + size;
-		const padded = Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE;
-
-		if (dataEnd > tar.length) {
-			throw new Error('Corrupt tar archive: entry extends past end of stream');
-		}
-
-		if (typeFlag === 'L') {
-			// GNU long-name: payload is the NUL-terminated path of the
-			// next entry. Capture it and continue to that entry.
-			pendingLongName = readAsciiField(tar, dataStart, size);
-			offset = dataStart + padded;
-			continue;
-		}
-
-		if (typeFlag === 'x' || typeFlag === 'g') {
-			// PAX extended header — skip; GitHub source tarballs don't use
-			// it for regular files.
-			offset = dataStart + padded;
-			continue;
-		}
-
-		const inner = stripArchiveRoot(fullName);
-		if (!inner) {
-			offset = dataStart + padded;
-			continue;
-		}
-
-		const dest = safeJoinUnderTarget(targetDir, inner);
-		if (!dest) {
-			logService.warn(`[GitHubTarballFetcher] Skipping unsafe tar entry path: ${fullName}`);
-			offset = dataStart + padded;
-			continue;
-		}
-
-		if (typeFlag === '5') {
-			// Directory entry
-			if (!createdDirs.has(dest.toString())) {
-				await fileService.createFolder(dest);
-				createdDirs.add(dest.toString());
-			}
-		} else if (typeFlag === '0' || typeFlag === '\u0000') {
-			// Regular file. Ensure parent directory exists, then write.
-			const parent = dirname(dest);
-			if (parent.toString() !== dest.toString() && !createdDirs.has(parent.toString())) {
-				await fileService.createFolder(parent);
-				createdDirs.add(parent.toString());
-			}
-			const content = VSBuffer.wrap(tar.subarray(dataStart, dataEnd));
-			await fileService.writeFile(dest, content);
-		} else {
-			// Symlinks ('2'), hardlinks ('1'), devices, FIFOs, etc. —
-			// not representable in the virtual file system.
-			logService.trace(`[GitHubTarballFetcher] Skipping tar entry with unsupported type '${typeFlag}': ${fullName}`);
-		}
-
-		offset = dataStart + padded;
-	}
-}
-
-function isZeroBlock(view: Uint8Array, offset: number): boolean {
-	for (let i = 0; i < BLOCK_SIZE; i++) {
-		if (view[offset + i] !== 0) {
-			return false;
-		}
-	}
-	return true;
 }

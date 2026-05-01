@@ -84,13 +84,12 @@ suite('BrowserPluginGitCommandService', () => {
 			);
 		});
 
-		test('downloads tarball, extracts files, and persists SHA metadata', async () => {
-			const tarball = await makeGzippedTar({
-				'pkg-deadbeef/README.md': 'hello\n',
-				'pkg-deadbeef/src/index.js': 'console.log(1);',
-			});
+		test('downloads tree + blobs and persists SHA metadata', async () => {
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'deadbeef' }));
-			requestStub.queue('GET', /\/tarball\/deadbeef$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'deadbeef', {
+				'README.md': 'hello\n',
+				'src/index.js': 'console.log(1);',
+			});
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -138,10 +137,9 @@ suite('BrowserPluginGitCommandService', () => {
 				stubAuthenticationService({ createdAccessToken: 'repo-token', state }),
 			);
 
-			const tarball = await makeGzippedTar({ 'pkg-sha1/private.txt': 'secret' });
 			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'sha1', { 'private.txt': 'secret' });
 
 			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
 
@@ -159,14 +157,14 @@ suite('BrowserPluginGitCommandService', () => {
 				stubAuthenticationService({ sessions: [createAuthenticationSession('signed-in-token')] }),
 			);
 
-			const tarball = await makeGzippedTar({ 'pkg-sha1/auth.txt': 'authed' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'sha1', { 'auth.txt': 'authed' });
 
 			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
 
 			assert.strictEqual(requestStub.requests[0].headers?.Authorization, 'Bearer signed-in-token');
 			assert.strictEqual(requestStub.requests[1].headers?.Authorization, 'Bearer signed-in-token');
+			assert.strictEqual(requestStub.requests[2].headers?.Authorization, 'Bearer signed-in-token');
 		});
 
 		test('falls back to anonymous when the signed-in GitHub session is rejected', async () => {
@@ -179,10 +177,9 @@ suite('BrowserPluginGitCommandService', () => {
 				stubAuthenticationService({ sessions: [createAuthenticationSession('sso-blocked-token')], state }),
 			);
 
-			const tarball = await makeGzippedTar({ 'pkg-sha1/public.txt': 'public' });
 			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'sha1', { 'public.txt': 'public' });
 
 			await service.cloneRepository('https://github.com/octocat/Public.git', targetDir, 'main');
 
@@ -196,14 +193,13 @@ suite('BrowserPluginGitCommandService', () => {
 
 		test('failed extraction leaves the previous targetDir intact', async () => {
 			// First install: succeeds.
-			const tarball = await makeGzippedTar({ 'pkg-sha1/keep.txt': 'preserved' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'sha1', { 'keep.txt': 'preserved' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
-			// Second install: corrupted tarball -> gunzip / parse throws.
+			// Second install: tree fetch returns 500 -> aborts before touching the staged dir.
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			requestStub.queue('GET', /\/tarball\/sha2$/, bytesResponse(200, new Uint8Array([0xff, 0xff, 0xff, 0xff])));
+			requestStub.queue('GET', /\/git\/trees\/sha2/, plainResponse(500, VSBuffer.fromString('boom')));
 
 			await assert.rejects(() => service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'));
 
@@ -213,24 +209,24 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'sha1');
 		});
 
-		test('extracts archives that exercise GNU LongLink and USTAR prefix', async () => {
-			const longSegment = 'a'.repeat(120); // > 100 bytes -> forces LongLink path
-			const longLinkPath = `pkg-sha1/${longSegment}/file.txt`;
-			const prefixPath: readonly [string, string, string] = ['pkg-sha1', 'short'.repeat(29), 'name.txt'];
-
-			const tarball = await makeGzippedTarWithSpecial([
-				{ type: 'longLink', longLink: longLinkPath, content: 'long' },
-				{ type: 'prefixSplit', prefixSplit: prefixPath, content: 'pfx' },
-			]);
+		test('skips symlink and submodule entries', async () => {
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
+				sha: 'sha1',
+				truncated: false,
+				tree: [
+					{ path: 'README.md', mode: '100644', type: 'blob', sha: 'b1', size: 3 },
+					{ path: 'link.txt', mode: '120000', type: 'blob', sha: 'b2', size: 8 },
+					{ path: 'subrepo', mode: '160000', type: 'commit', sha: 'b3' },
+				],
+			}));
+			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/README\.md$/, bytesResponse(200, new TextEncoder().encode('hi\n')));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
-			const longFile = await fileService.readFile(URI.joinPath(targetDir, longSegment, 'file.txt'));
-			assert.strictEqual(longFile.value.toString(), 'long');
-			const prefixFile = await fileService.readFile(URI.joinPath(targetDir, prefixPath[1], prefixPath[2]));
-			assert.strictEqual(prefixFile.value.toString(), 'pfx');
+			assert.strictEqual((await fileService.readFile(URI.joinPath(targetDir, 'README.md'))).value.toString(), 'hi\n');
+			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'link.txt')), false);
+			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'subrepo')), false);
 		});
 	});
 
@@ -238,9 +234,8 @@ suite('BrowserPluginGitCommandService', () => {
 
 	suite('pull', () => {
 		test('returns false when upstream SHA is unchanged', async () => {
-			const tarball = await makeGzippedTar({ 'pkg-sha1/a.txt': 'a' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'sha1', { 'a.txt': 'a' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
@@ -248,15 +243,13 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(await service.pull(targetDir), false);
 		});
 
-		test('re-downloads tarball and returns true when SHA moves', async () => {
-			const oldTar = await makeGzippedTar({ 'pkg-sha1/a.txt': 'old' });
-			const newTar = await makeGzippedTar({ 'pkg-sha2/a.txt': 'new' });
+		test('re-downloads tree and returns true when SHA moves', async () => {
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, oldTar));
+			queueRepoFetch(requestStub, 'sha1', { 'a.txt': 'old' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			requestStub.queue('GET', /\/tarball\/sha2$/, bytesResponse(200, newTar));
+			queueRepoFetch(requestStub, 'sha2', { 'a.txt': 'new' });
 
 			assert.strictEqual(await service.pull(targetDir), true);
 			const a = await fileService.readFile(URI.joinPath(targetDir, 'a.txt'));
@@ -269,17 +262,15 @@ suite('BrowserPluginGitCommandService', () => {
 		});
 
 		test('clears stale files from a prior extraction', async () => {
-			const oldTar = await makeGzippedTar({
-				'pkg-sha1/keep.txt': 'k1',
-				'pkg-sha1/removed.txt': 'will be deleted',
-			});
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, oldTar));
+			queueRepoFetch(requestStub, 'sha1', {
+				'keep.txt': 'k1',
+				'removed.txt': 'will be deleted',
+			});
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
-			const newTar = await makeGzippedTar({ 'pkg-sha2/keep.txt': 'k2' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			requestStub.queue('GET', /\/tarball\/sha2$/, bytesResponse(200, newTar));
+			queueRepoFetch(requestStub, 'sha2', { 'keep.txt': 'k2' });
 			assert.strictEqual(await service.pull(targetDir), true);
 
 			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'removed.txt')), false);
@@ -287,13 +278,17 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(keep.value.toString(), 'k2');
 		});
 
-		test('rejects path-traversal entries in the archive', async () => {
-			const tarball = await makeGzippedTar({
-				'pkg-sha1/safe.txt': 'safe',
-				'pkg-sha1/../escaped.txt': 'evil',
-			});
+		test('rejects path-traversal entries in the tree', async () => {
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
+				sha: 'sha1',
+				truncated: false,
+				tree: [
+					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b1', size: 4 },
+					{ path: '../escaped.txt', mode: '100644', type: 'blob', sha: 'b2', size: 4 },
+				],
+			}));
+			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/safe\.txt$/, bytesResponse(200, new TextEncoder().encode('safe')));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -306,12 +301,16 @@ suite('BrowserPluginGitCommandService', () => {
 		});
 
 		test('rejects backslash-traversal entries (Windows path separator)', async () => {
-			const tarball = await makeGzippedTar({
-				'pkg-sha1/safe.txt': 'safe',
-				'pkg-sha1/..\\..\\escaped.txt': 'evil',
-			});
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
+				sha: 'sha1',
+				truncated: false,
+				tree: [
+					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b1', size: 4 },
+					{ path: '..\\..\\escaped.txt', mode: '100644', type: 'blob', sha: 'b2', size: 4 },
+				],
+			}));
+			requestStub.queue('GET', /raw\.githubusercontent\.com\/octocat\/Hello-World\/sha1\/safe\.txt$/, bytesResponse(200, new TextEncoder().encode('safe')));
 
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
@@ -327,9 +326,8 @@ suite('BrowserPluginGitCommandService', () => {
 
 	suite('checkout', () => {
 		test('no-ops when the requested SHA matches the cached SHA', async () => {
-			const tarball = await makeGzippedTar({ 'pkg-sha1/a.txt': 'a' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'aabbccddeeff00112233445566778899aabbccdd' }));
-			requestStub.queue('GET', /\/tarball\/aabbccddeeff00112233445566778899aabbccdd$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'aabbccddeeff00112233445566778899aabbccdd', { 'a.txt': 'a' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
 			// No additional queued responses — checkout to the same SHA must
@@ -338,13 +336,11 @@ suite('BrowserPluginGitCommandService', () => {
 		});
 
 		test('re-extracts when the SHA differs', async () => {
-			const oldTar = await makeGzippedTar({ 'pkg-sha1/a.txt': 'old' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: '1111111111111111111111111111111111111111' }));
-			requestStub.queue('GET', /\/tarball\/1111111111111111111111111111111111111111$/, bytesResponse(200, oldTar));
+			queueRepoFetch(requestStub, '1111111111111111111111111111111111111111', { 'a.txt': 'old' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
-			const newTar = await makeGzippedTar({ 'pkg-sha2/a.txt': 'new' });
-			requestStub.queue('GET', /\/tarball\/2222222222222222222222222222222222222222$/, bytesResponse(200, newTar));
+			queueRepoFetch(requestStub, '2222222222222222222222222222222222222222', { 'a.txt': 'new' });
 
 			await service.checkout(targetDir, '2222222222222222222222222222222222222222', true);
 
@@ -362,9 +358,8 @@ suite('BrowserPluginGitCommandService', () => {
 
 	suite('revParse', () => {
 		test('throws when asked for an unrelated full SHA', async () => {
-			const tarball = await makeGzippedTar({ 'pkg-sha1/a.txt': 'a' });
 			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'aabbccddeeff00112233445566778899aabbccdd' }));
-			requestStub.queue('GET', /\/tarball\/aabbccddeeff00112233445566778899aabbccdd$/, bytesResponse(200, tarball));
+			queueRepoFetch(requestStub, 'aabbccddeeff00112233445566778899aabbccdd', { 'a.txt': 'a' });
 			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
 
 			// Querying the cached SHA still works
@@ -432,127 +427,32 @@ function jsonResponse(statusCode: number, body: unknown): () => IRequestContext 
 }
 
 /**
- * Build a gzipped tar archive containing the given path -> content mapping.
- * Uses the platform's `CompressionStream('gzip')` so the bytes round-trip
- * through the production code's `DecompressionStream`.
+ * Queue stub responses representing a recursive Git Trees fetch followed
+ * by per-blob raw.githubusercontent.com downloads for the given SHA and
+ * file map. The order of `files` does not matter; the request stub picks
+ * the first regex that matches each outgoing URL.
  */
-async function makeGzippedTar(files: Record<string, string>): Promise<Uint8Array> {
-	const tar = buildTar(files).slice();
-	const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
-		start(controller) {
-			controller.enqueue(tar);
-			controller.close();
-		},
-	});
-	const compressed = source.pipeThrough(new CompressionStream('gzip'));
-	const out = await new Response(compressed).arrayBuffer();
-	return new Uint8Array(out);
-}
-
-// Build a minimal USTAR archive matching what the production parser expects.
-function buildTar(files: Record<string, string>): Uint8Array {
-	return buildTarFromEntries(Object.entries(files).map(([path, content]) => ({ path, content, prefix: '' })));
-}
-
-interface ITarEntrySpec {
-	readonly path: string;
-	readonly content: string;
-	readonly prefix: string;
-	readonly typeFlag?: '0' | 'L';
-}
-
-function buildTarFromEntries(entries: readonly ITarEntrySpec[]): Uint8Array {
-	const blocks: Uint8Array[] = [];
-	const enc = new TextEncoder();
-	for (const { path, content, prefix, typeFlag } of entries) {
-		const data = enc.encode(content);
-		const header = new Uint8Array(512);
-		writeAscii(header, 0, path, 100);
-		writeOctal(header, 100, 0o644, 8);
-		writeOctal(header, 108, 0, 8);
-		writeOctal(header, 116, 0, 8);
-		writeOctal(header, 124, data.length, 12);
-		writeOctal(header, 136, 0, 12);
-		for (let i = 148; i < 156; i++) {
-			header[i] = 0x20;
-		}
-		header[156] = (typeFlag ?? '0').charCodeAt(0);
-		writeAscii(header, 257, 'ustar', 6);
-		writeAscii(header, 263, '00', 2);
-		writeAscii(header, 345, prefix, 155);
-		let sum = 0;
-		for (let i = 0; i < 512; i++) {
-			sum += header[i];
-		}
-		writeOctal(header, 148, sum, 7);
-		header[155] = 0x20;
-		blocks.push(header);
-
-		const padded = new Uint8Array(Math.ceil(data.length / 512) * 512);
-		padded.set(data);
-		blocks.push(padded);
-	}
-	blocks.push(new Uint8Array(1024));
-
-	let totalLen = 0;
-	for (const b of blocks) {
-		totalLen += b.length;
-	}
-	const out = new Uint8Array(totalLen);
-	let pos = 0;
-	for (const b of blocks) {
-		out.set(b, pos);
-		pos += b.length;
-	}
-	return out;
-}
-
-interface ILongLinkSpec { readonly type: 'longLink'; readonly longLink: string; readonly content: string }
-interface IPrefixSplitSpec { readonly type: 'prefixSplit'; readonly prefixSplit: readonly [string, string, string]; readonly content: string }
-
-async function makeGzippedTarWithSpecial(specs: readonly (ILongLinkSpec | IPrefixSplitSpec)[]): Promise<Uint8Array> {
-	const entries: ITarEntrySpec[] = [];
-	for (const spec of specs) {
-		if (spec.type === 'longLink') {
-			// GNU LongLink: emit a 'L'-typed entry whose payload is the
-			// long path, immediately followed by a regular entry whose
-			// header `name` is truncated (the parser prefers the longLink
-			// payload). We use a unique placeholder in the truncated name
-			// to make the test's intent explicit.
-			entries.push({ path: '././@LongLink', content: spec.longLink + '\0', prefix: '', typeFlag: 'L' });
-			entries.push({ path: 'truncated-by-longlink', content: spec.content, prefix: '' });
-		} else {
-			// USTAR prefix split: encode the path as `${prefix}/${name}`
-			// in the dedicated header fields. This is the spec-compliant
-			// way to express paths > 100 bytes without GNU extensions.
-			const [prefixDir, midDir, name] = spec.prefixSplit;
-			entries.push({ path: name, content: spec.content, prefix: `${prefixDir}/${midDir}` });
-		}
-	}
-	const tar = buildTarFromEntries(entries).slice();
-	const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
-		start(controller) {
-			controller.enqueue(tar);
-			controller.close();
-		},
-	});
-	const compressed = source.pipeThrough(new CompressionStream('gzip'));
-	const out = await new Response(compressed).arrayBuffer();
-	return new Uint8Array(out);
-}
-
-function writeAscii(view: Uint8Array, offset: number, value: string, max: number): void {
-	for (let i = 0; i < Math.min(value.length, max); i++) {
-		view[offset + i] = value.charCodeAt(i) & 0xff;
+function queueRepoFetch(stub: StubRequestService, sha: string, files: Record<string, string>): void {
+	const tree = Object.entries(files).map(([path, content], i) => ({
+		path,
+		mode: '100644',
+		type: 'blob' as const,
+		sha: `b${i}`,
+		size: content.length,
+	}));
+	stub.queue('GET', new RegExp(`/git/trees/${escapeForRegExp(sha)}\\?recursive=1$`), jsonResponse(200, { sha, tree, truncated: false }));
+	for (const [path, content] of Object.entries(files)) {
+		stub.queue('GET', rawBlobMatcher(sha, path), bytesResponse(200, new TextEncoder().encode(content)));
 	}
 }
 
-function writeOctal(view: Uint8Array, offset: number, value: number, length: number): void {
-	const s = value.toString(8).padStart(length - 1, '0');
-	for (let i = 0; i < length - 1; i++) {
-		view[offset + i] = s.charCodeAt(i);
-	}
-	view[offset + length - 1] = 0;
+function rawBlobMatcher(sha: string, path: string): RegExp {
+	const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+	return new RegExp(`raw\\.githubusercontent\\.com/[^/]+/[^/]+/${escapeForRegExp(sha)}/${escapeForRegExp(encodedPath)}$`);
+}
+
+function escapeForRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 interface IStubAuthenticationServiceOptions {
