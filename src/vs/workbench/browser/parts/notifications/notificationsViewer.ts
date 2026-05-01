@@ -146,7 +146,18 @@ class NotificationMessageRenderer {
 
 		for (const node of message.linkedText.nodes) {
 			if (typeof node === 'string') {
-				messageContainer.appendChild(document.createTextNode(node));
+				// Preserve newlines in the message by rendering each '\n' as a
+				// line break. Note: '\r' and '\r\n' are normalized to '\n' when
+				// the notification message is parsed (see `notifications.ts`).
+				const segments = node.split('\n');
+				for (let i = 0; i < segments.length; i++) {
+					if (i > 0) {
+						messageContainer.appendChild($('br'));
+					}
+					if (segments[i].length > 0) {
+						messageContainer.appendChild(document.createTextNode(segments[i]));
+					}
+				}
 			} else {
 				let title = node.title;
 
