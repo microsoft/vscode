@@ -332,8 +332,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Temporary session that has been sent (first turn dispatched) but not yet
-	 * committed to a real backend session. Shown in the session list until the
-	 * server creates the backend session, at which point it is replaced via
+	 * committed by the backend session list. Shown in the session list until the
+	 * server reports the backend session, at which point it is replaced via
 	 * {@link _onDidReplaceSession}.
 	 */
 	protected _pendingSession: ISession | undefined;
@@ -553,7 +553,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
-		const resource = URI.from({ scheme: resourceScheme, path: `/untitled-${generateUuid()}` });
+		const resource = URI.from({ scheme: resourceScheme, path: `/${generateUuid()}` });
 		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue(this, '');
 		const updatedAt = observableValue(this, new Date());

@@ -5,7 +5,7 @@
 
 import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { BugIndicatingError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -310,6 +310,8 @@ export interface IAgentHostSessionHandlerConfig {
 	 * falling back to the first workspace folder.
 	 */
 	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
+	/** Whether a final-looking chat resource is still a client-side draft. */
+	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -343,8 +345,6 @@ export function getAgentHostBranchNameHint(message: string): string | undefined 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
-	/** Maps UI resource keys to resolved backend session URIs. */
-	private readonly _sessionToBackend = new ResourceMap<URI>();
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
@@ -399,7 +399,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._register(autorun(reader => {
 			const tools = this._clientToolsObs.read(reader);
 			const defs = tools.map(toolDataToDefinition);
-			for (const [, backendSession] of this._sessionToBackend) {
+			for (const [sessionResource] of this._activeSessions) {
+				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
 				if (state?.activeClient?.clientId === this._config.connection.clientId) {
 					this._dispatchAction({
@@ -451,7 +452,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (config.customizations) {
 			this._register(autorun(reader => {
 				const refs = config.customizations!.read(reader);
-				for (const [, backendSession] of this._sessionToBackend) {
+				for (const [sessionResource] of this._activeSessions) {
+					const backendSession = this._resolveSessionUri(sessionResource);
 					const state = this._getSessionState(backendSession.toString());
 					if (state?.activeClient?.clientId === this._config.connection.clientId) {
 						this._dispatchActiveClient(backendSession, refs);
@@ -464,18 +466,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
+		if (sessionResource.path.substring(1).startsWith('untitled-')) {
+			throw new Error(`Agent host chat sessions must be created by the sessions provider: ${sessionResource.toString()}`);
+		}
 
-		// For untitled (new) sessions, defer backend session creation until the
-		// first request arrives so the user-selected model is available.
-		// For existing sessions we resolve immediately to load history.
-		let resolvedSession: URI | undefined;
-		const isUntitled = sessionResource.path.substring(1).startsWith('untitled-');
+		// For new sessions, defer backend session creation until the first request
+		// arrives so the user-selected model is available. The chat resource still
+		// carries the raw session id that will be used when createSession runs.
+		const resolvedSession = this._resolveSessionUri(sessionResource);
+
+		// The point of this is to
+		const isNewSession = this._isNewSessionResource(sessionResource);
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
-		if (!isUntitled) {
-			resolvedSession = this._resolveSessionUri(sessionResource);
-			this._sessionToBackend.set(sessionResource, resolvedSession);
+		if (!isNewSession) {
 			try {
 				const sub = this._ensureSessionSubscription(resolvedSession.toString());
 				// Wait for the subscription to hydrate from the server
@@ -538,32 +543,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionResource,
 			history,
 			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
-				resolvedSession ??= this._sessionToBackend.get(sessionResource);
-				if (!resolvedSession) {
-					throw new BugIndicatingError('Cannot fork session before the initial request');
+				if (!this._getSessionState(resolvedSession.toString())) {
+					throw new Error('Cannot fork session before the initial request');
 				}
 
-				return this._forkSession(sessionResource, resolvedSession!, request, token);
+				return this._forkSession(sessionResource, resolvedSession, request, token);
 			},
 			initialProgress,
 			() => {
 				this._activeSessions.delete(sessionResource);
-				this._sessionToBackend.delete(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
-				if (resolvedSession) {
-					this._releaseSessionSubscription(resolvedSession.toString());
-				}
+				this._releaseSessionSubscription(resolvedSession.toString());
 			},
 			() => {
-				const backend = resolvedSession ?? this._sessionToBackend.get(sessionResource);
-				if (!backend) {
-					// Nothing to cancel. Treat as a successful noop so ChatService
-					// does not install a phantom pending request.
-					return true;
-				}
-				const sessionKey = backend.toString();
+				const sessionKey = resolvedSession.toString();
 				const turnId = this._getSessionState(sessionKey)?.activeTurn?.id;
 				if (!turnId) {
 					// No active turn (likely a race with completion). Noop-success.
@@ -580,7 +575,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 		this._activeSessions.set(sessionResource, session);
 
-		if (resolvedSession) {
+		if (!isNewSession) {
 			// If there are historical turns with file edits, eagerly create
 			// the editing session once the ChatModel is available so that
 			// edit pills render with diff info on session restore.
@@ -598,8 +593,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
 			}
 
-			// For existing (non-untitled) sessions, start watching for server-initiated turns
-			// immediately. For untitled sessions, this is deferred to _createAndSubscribe.
+			// For existing sessions, start watching for server-initiated turns
+			// immediately. For new sessions, this is deferred to _createAndSubscribe.
 			this._watchForServerInitiatedTurns(resolvedSession, sessionResource);
 		}
 
@@ -644,11 +639,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): Promise<IChatAgentResult> {
 		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
 
-		// Resolve or create backend session
-		let resolvedSession = this._sessionToBackend.get(request.sessionResource);
-		if (!resolvedSession) {
-			resolvedSession = await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
-			this._sessionToBackend.set(request.sessionResource, resolvedSession);
+		const resolvedSession = this._resolveSessionUri(request.sessionResource);
+		if (!this._getSessionState(resolvedSession.toString())) {
+			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
 		}
 
 		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
@@ -2071,6 +2064,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
+	 * The session would have been created in the
+	 */
+	private _isNewSessionResource(sessionResource: URI): boolean {
+		return this._config.isNewSession?.(sessionResource)
+			|| this._workingDirectoryResolver.isNewSession?.(sessionResource);
+	}
+
+	/**
 	 * Forks a session at the given request point by creating a new backend
 	 * session with the `fork` parameter. Returns an {@link IChatSessionItem}
 	 * pointing to the newly created session.
@@ -2137,6 +2138,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
 		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
@@ -2162,6 +2164,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
+				session: requestedSession,
 				model,
 				provider: this._config.provider,
 				workingDirectory,
@@ -2176,6 +2179,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
 				if (authenticated) {
 					session = await this._config.connection.createSession({
+						session: requestedSession,
 						model,
 						provider: this._config.provider,
 						workingDirectory,
@@ -2189,6 +2193,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else {
 				throw err;
 			}
+		}
+
+		if (requestedSession && !isEqual(session, requestedSession)) {
+			throw new Error(`Agent host returned unexpected session URI. Expected ${requestedSession.toString()}, got ${session.toString()}`);
 		}
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
@@ -2343,8 +2351,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!requestedDir || requestedDir.scheme !== 'file') {
 			return uri;
 		}
-		const backendSession = this._sessionToBackend.get(sessionResource);
-		const rawResolvedDir = backendSession ? this._getSessionState(backendSession.toString())?.summary.workingDirectory : undefined;
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const rawResolvedDir = this._getSessionState(backendSession.toString())?.summary.workingDirectory;
 		const resolvedDir = typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir;
 		if (!resolvedDir || resolvedDir.scheme !== 'file') {
 			return uri;
@@ -2419,7 +2427,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			session.dispose();
 		}
 		this._activeSessions.clear();
-		this._sessionToBackend.clear();
 		for (const ref of this._sessionSubscriptions.values()) {
 			ref.dispose();
 		}

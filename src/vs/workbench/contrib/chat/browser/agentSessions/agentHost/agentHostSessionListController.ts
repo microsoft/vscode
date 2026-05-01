@@ -8,11 +8,12 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionFileDiff, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ChatSessionStatus, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
 type ICompactSessionFileDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
@@ -76,6 +77,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _items: IChatSessionItem[] = [];
 	/** Cached full summaries per session so partial updates can be applied. */
 	private readonly _cachedSummaries = new Map<string, SessionSummary>();
+	/** Final-looking resources created locally before the backend session exists. */
+	private readonly _pendingNewSessions = new Set<string>();
 	/**
 	 * Once `listSessions()` has succeeded, the in-memory list is kept in
 	 * sync by `notify/sessionAdded`, `notify/sessionRemoved`, and
@@ -102,6 +105,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._register(this._connection.onDidNotification(n => {
 			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
+				this._pendingNewSessions.delete(rawId);
 				this._cachedSummaries.set(rawId, n.summary);
 				const workingDir = typeof n.summary.workingDirectory === 'string' ? URI.parse(n.summary.workingDirectory) : undefined;
 				const item = this._makeItem(rawId, {
@@ -113,10 +117,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					modifiedAt: n.summary.modifiedAt,
 					diffs: n.summary.diffs,
 				});
-				this._items.push(item);
+				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
+				if (existingIndex >= 0) {
+					this._items[existingIndex] = item;
+				} else {
+					this._items.push(item);
+				}
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'notify/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
 				const removedId = AgentSession.id(n.session);
+				this._pendingNewSessions.delete(removedId);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
 				if (idx >= 0) {
 					const [removed] = this._items.splice(idx, 1);
@@ -153,6 +163,26 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return this._items;
 	}
 
+	isNewSession(resource: URI): boolean {
+		return resource.scheme === this._sessionType && this._pendingNewSessions.has(resource.path.substring(1));
+	}
+
+	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const rawId = generateUuid();
+		this._pendingNewSessions.add(rawId);
+		const now = Date.now();
+		const item = this._makeItem(rawId, {
+			title: request.prompt.trim(),
+			status: SessionStatus.InProgress,
+			createdAt: now,
+			modifiedAt: now,
+		});
+		return item;
+	}
+
 	async refresh(_token: CancellationToken): Promise<void> {
 		if (this._cacheValid) {
 			// Cache is kept in sync by notify/sessionAdded,
@@ -167,6 +197,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._cachedSummaries.clear();
 			this._items = filtered.map(s => {
 				const rawId = AgentSession.id(s.session);
+				this._pendingNewSessions.delete(rawId);
 				let status = s.status ?? SessionStatus.Idle;
 				if (s.isRead) {
 					status |= SessionStatus.IsRead;
