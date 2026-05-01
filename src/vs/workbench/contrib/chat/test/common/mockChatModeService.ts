@@ -4,21 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../common/chatModes.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export class MockChatModeService implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
-	public readonly onDidChangeChatModes = Event.None;
-
+	private readonly _onDidChange = new Emitter<void>();
 	private readonly _modesView: IChatModes;
 
 	constructor(
 		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }
 	) {
 		const modes = this._modes;
+		const onDidChange = this._onDidChange.event;
 		this._modesView = {
+			sessionType: localChatSessionType,
+			onDidChange,
 			get builtin() { return modes.builtin; },
 			get custom() { return modes.custom; },
 			findModeById(id: string): IChatMode | undefined {
@@ -27,11 +30,22 @@ export class MockChatModeService implements IChatModeService {
 			findModeByName(name: string): IChatMode | undefined {
 				return modes.builtin.find(mode => mode.name.get() === name) ?? modes.custom.find(mode => mode.name.get() === name);
 			},
+			waitForRefresh(): Promise<void> {
+				return Promise.resolve();
+			},
 		};
 	}
 
-	getModes(): IChatModes {
+	getModes(_sessionType: string): IChatModes {
 		return this._modesView;
 	}
 
+	async awaitModes(_sessionType: string): Promise<IChatModes> {
+		return this._modesView;
+	}
+
+	/** Test helper to fire the change event for the cached modes view. */
+	fireDidChange(): void {
+		this._onDidChange.fire();
+	}
 }
