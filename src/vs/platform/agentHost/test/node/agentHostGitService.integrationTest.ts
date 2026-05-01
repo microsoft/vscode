@@ -269,3 +269,65 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.strictEqual(blob.toString(), 'original\n');
 	});
 });
+
+suite('AgentHostGitService - worktree helpers (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(() => {
+		if (tmpRoot) {
+			rmSync(tmpRoot, { recursive: true, force: true });
+		}
+	});
+
+	function initRepo(): string {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-wt-'));
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		run('commit', '-q', '--allow-empty', '-m', 'initial');
+		return tmpRoot!;
+	}
+
+	(hasGit ? test : test.skip)('branchExists reports true for HEAD branch and false for missing branches', async () => {
+		const dir = initRepo();
+		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'main'), true);
+		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
+	});
+
+	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
+		const dir = initRepo();
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'a.txt'), 'hello');
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), true);
+		cp.execFileSync('git', ['add', 'a.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add a'], { cwd: dir, env, stdio: 'pipe' });
+		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
+	});
+
+	(hasGit ? test : test.skip)('addExistingWorktree attaches a worktree for an existing branch (no -b)', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addExistingWorktree(URI.file(dir), URI.file(wtPath), 'feature');
+			const fs = await import('fs/promises');
+			const stat = await fs.stat(wtPath);
+			assert.ok(stat.isDirectory(), 'worktree directory should exist');
+		} finally {
+			rmSync(wtPath, { recursive: true, force: true });
+		}
+	});
+});

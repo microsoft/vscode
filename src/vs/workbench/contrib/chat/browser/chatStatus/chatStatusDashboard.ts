@@ -8,7 +8,8 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
+import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, toAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -20,13 +21,12 @@ import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import * as languages from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -35,11 +35,12 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -73,11 +74,23 @@ export interface IChatStatusDashboardOptions {
 	disableProviderOptions?: boolean;
 	/** When true, disables the completions snooze button. */
 	disableCompletionsSnooze?: boolean;
+	/** When true, the Quick Settings region is rendered always-expanded without a collapsible header. */
+	disableQuickSettingsCollapsible?: boolean;
+	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
+	disableContributedSectionsCollapsible?: boolean;
+	/**
+	 * When provided, the title header (plan name + manage / CTA actions) is
+	 * rendered into this caller-owned container instead of inline at the top
+	 * of the dashboard. Use this to embed the title header in a host layout
+	 * without reaching into the dashboard's private DOM.
+	 */
+	titleHeaderContainer?: HTMLElement;
 }
 
 export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
+	private static readonly CONTRIBUTED_COLLAPSED_KEY_PREFIX = 'chatStatusDashboard.contributedCollapsed.';
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
@@ -100,7 +113,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -124,24 +137,25 @@ export class ChatStatusDashboard extends DomWidget {
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||
 			!this.options?.disableProviderOptions ||
-			!this.options?.disableCompletionsSnooze ||
-			contributedEntries.length > 0;
+			!this.options?.disableCompletionsSnooze;
 
 		// Title header with plan name, CTA buttons, and manage action
 		let headerAdditionalSpendButton: Button | undefined;
 		if (hasUsageSection) {
 			const planName = getChatPlanName(this.chatEntitlementService.entitlement);
-			const header = this.renderHeader(this.element, this._store, planName, toAction({
+			const headerHost = this.options?.titleHeaderContainer ?? this.element;
+			const header = this.renderHeader(headerHost, this._store, planName, toAction({
 				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Chat"),
-				tooltip: localize('quotaTooltip', "Manage Chat"),
+				label: localize('quotaLabel', "Manage Copilot Settings"),
+				tooltip: localize('quotaTooltip', "Manage Copilot Settings"),
 				class: ThemeIcon.asClassName(Codicon.settings),
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
 			// Add Additional Spend / Upgrade buttons to the header
-			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus;
+			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
 			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
+				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
 				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
 				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
 
@@ -152,7 +166,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
 				headerAdditionalSpendButton.element.classList.add('header-cta-button');
 				headerAdditionalSpendButton.label = initialAdditionalUsageEnabled ? localize('manageAdditionalSpend', "Manage Additional Spend") : localize('configureAdditionalSpend', "Configure Additional Spend");
-				this._store.add(headerAdditionalSpendButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageAdditionalSpendUrl)))));
+				this._store.add(headerAdditionalSpendButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 				if (actionBarElement) {
 					header.insertBefore(headerAdditionalSpendButton.element, actionBarElement);
 				}
@@ -178,8 +192,9 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
-		if (premiumChat?.unlimited) {
-			const includedTitle = premiumChat.usageBasedBilling
+		const hasPremiumUnlimited = !!premiumChat?.unlimited;
+		if (hasPremiumUnlimited) {
+			const includedTitle = premiumChat!.usageBasedBilling
 				? localize('includedTitleTBB', "Monthly Limit")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
@@ -187,9 +202,15 @@ export class ChatStatusDashboard extends DomWidget {
 			includedContainer.appendChild($('div.description', undefined, localize('premiumIncluded', "Included with your organization's plan.")));
 		}
 
-		// Quick Settings — collapsible region
+		// Next Edit Suggestions — collapsible region
 		if (hasQuickSettingsContent) {
-			this.renderQuickSettings(contributedEntries);
+			const hasContentAbove = hasUsageSection || hasVisibleUsageContent || hasPremiumUnlimited;
+			this.renderInlineSuggestionsSection(hasContentAbove);
+		}
+
+		// Contributed sections (e.g. Codebase Semantic Index) — each gets its own collapsible
+		if (contributedEntries.length > 0) {
+			this.renderContributedSections(contributedEntries);
 		}
 
 		// New to Chat / Signed out
@@ -212,7 +233,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			if (chatQuota && !chatQuota.unlimited) {
+			if (chatQuota && !chatQuota.unlimited && !premiumChatQuota?.usageBasedBilling) {
 				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
 			}
 
@@ -226,7 +247,9 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			if (completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0) {
+			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
+				&& (!premiumChatQuota?.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
+			if (showCompletions) {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
 			}
 
@@ -262,53 +285,191 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
-	private renderQuickSettings(contributedEntries: ChatStatusEntry[]): void {
-		const collapsed = this.storageService.getBoolean(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, StorageScope.PROFILE, true);
+	private renderInlineSuggestionsSection(hasContentAbove: boolean): void {
+		const nonCollapsible = !!this.options?.disableQuickSettingsCollapsible;
+		const collapsed = !nonCollapsible && this.storageService.getBoolean(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, StorageScope.PROFILE, true);
 
-		const disclosureHeader = this.element.appendChild($('button.collapsible-header'));
-		disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
+		// Compute status based on effective enablement for the active editor's language
+		const activeLanguageId = this.editorService.activeTextEditorLanguageId;
+		const getStatusText = () => {
+			if (!this.canUseChat()) {
+				return localize('inlineSuggestionsDisabled', "Disabled");
+			}
+			const enabled = activeLanguageId
+				? isCompletionsEnabled(this.configurationService, activeLanguageId)
+				: isCompletionsEnabled(this.configurationService);
+			return enabled
+				? localize('inlineSuggestionsEnabled', "Enabled")
+				: localize('inlineSuggestionsDisabled', "Disabled");
+		};
 
-		const chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		let disclosureHeader: HTMLElement | undefined;
+		let chevron: HTMLElement | undefined;
+		let statusEl: HTMLElement | undefined;
+		if (!nonCollapsible) {
+			disclosureHeader = this.element.appendChild($('button.collapsible-header'));
+			if (!hasContentAbove) {
+				disclosureHeader.classList.add('no-border');
+			}
+			disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
 
-		disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('quickSettingsTab', "Quick Settings")));
+			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
+			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
+
+			statusEl = disclosureHeader.appendChild($('span.collapsible-status', undefined, getStatusText()));
+		}
 
 		const collapsibleContent = this.element.appendChild($('div.collapsible-content'));
 		const collapsibleInner = collapsibleContent.appendChild($('div.collapsible-inner'));
 		if (collapsed) {
 			collapsibleContent.classList.add('collapsed');
+			collapsibleInner.inert = true;
 		}
 
-		const toggle = () => {
-			const isCollapsed = collapsibleContent.classList.toggle('collapsed');
-			disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
-			chevron.className = 'collapsible-chevron';
-			chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-			this.storageService.store(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
-		};
+		if (disclosureHeader && chevron) {
+			const toggle = () => {
+				const isCollapsed = collapsibleContent.classList.toggle('collapsed');
+				collapsibleInner.inert = isCollapsed;
+				disclosureHeader!.setAttribute('aria-expanded', String(!isCollapsed));
+				chevron!.className = 'collapsible-chevron';
+				chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				this.storageService.store(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
+			};
 
-		this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
+			this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
+		}
+
+		// Update status text when completions setting changes
+		if (statusEl) {
+			this._store.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
+					statusEl!.textContent = getStatusText();
+				}
+			}));
+		}
 
 		this.renderInlineSuggestionsContent(collapsibleInner);
+	}
 
-		// Contributions
+	private renderContributedSections(contributedEntries: ChatStatusEntry[]): void {
+		const nonCollapsible = !!this.options?.disableContributedSectionsCollapsible;
 		for (const item of contributedEntries) {
-			collapsibleInner.appendChild($('hr'));
+			const storageKey = ChatStatusDashboard.CONTRIBUTED_COLLAPSED_KEY_PREFIX + item.id;
+			const collapsed = !nonCollapsible && this.storageService.getBoolean(storageKey, StorageScope.PROFILE, true);
 
-			const itemDisposables = this._store.add(new MutableDisposable());
+			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
+			const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
+			const linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
 
-			let rendered = this.renderContributedChatStatusItem(item);
-			itemDisposables.value = rendered.disposables;
-			collapsibleInner.appendChild(rendered.element);
+			const disclosureHeader = this.element.appendChild(
+				nonCollapsible
+					? $('div.collapsible-header.non-collapsible')
+					: $('button.collapsible-header')
+			);
+			let chevron: HTMLElement | undefined;
+			if (!nonCollapsible) {
+				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
+				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
+				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			}
 
+			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
+
+			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
+			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));
+			statusEl.append(...renderLabelWithIcons(item.description));
+			statusEl.title = stripIcons(item.description).trim();
+
+			const collapsibleContent = this.element.appendChild($('div.collapsible-content'));
+			const collapsibleInner = collapsibleContent.appendChild($('div.collapsible-inner'));
+			if (collapsed) {
+				collapsibleContent.classList.add('collapsed');
+				collapsibleInner.inert = true;
+			}
+
+			if (!nonCollapsible) {
+				const toggle = () => {
+					const isCollapsed = collapsibleContent.classList.toggle('collapsed');
+					collapsibleInner.inert = isCollapsed;
+					disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
+					chevron!.className = 'collapsible-chevron';
+					chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+					this.storageService.store(storageKey, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
+				};
+
+				this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
+			}
+
+			// Use a single disposable store for all contributed section content
+			const sectionDisposables = this._store.add(new MutableDisposable());
+			const sectionStore = new DisposableStore();
+			sectionDisposables.value = sectionStore;
+
+			// Description with Learn More (use contributed data, not hardcoded text)
+			let descriptionEl: HTMLElement | undefined;
+			if (headerLink) {
+				descriptionEl = collapsibleInner.appendChild($('div.section-description'));
+				const descText = linkDescription
+					? `${linkDescription} [${localize('learnMore', "Learn More")}](${headerLink})`
+					: `[${localize('learnMore', "Learn More")}](${headerLink})`;
+				this.renderTextPlus(descriptionEl, descText, sectionStore);
+			}
+
+			// Detail content (action links like "Build index", etc.)
+			let detailEl: HTMLElement | undefined;
+			if (item.detail) {
+				detailEl = collapsibleInner.appendChild($('div.section-detail'));
+				this.renderTextPlus(detailEl, item.detail, sectionStore);
+			}
+
+			// Listen for updates to re-render status and detail
 			this._store.add(this.chatStatusItemService.onDidChange(e => {
 				if (e.entry.id === item.id) {
-					const previousElement = rendered.element;
+					// Update status in header (plain text + icons only)
+					statusEl.textContent = '';
+					statusEl.append(...renderLabelWithIcons(e.entry.description));
+					statusEl.title = stripIcons(e.entry.description).trim();
 
-					rendered = this.renderContributedChatStatusItem(e.entry);
-					itemDisposables.value = rendered.disposables;
+					// Re-render detail content
+					const newStore = new DisposableStore();
+					sectionDisposables.value = newStore;
 
-					previousElement.replaceWith(rendered.element);
+					if (detailEl) {
+						if (e.entry.detail) {
+							detailEl.textContent = '';
+							this.renderTextPlus(detailEl, e.entry.detail, newStore);
+						} else {
+							detailEl.remove();
+							detailEl = undefined;
+						}
+					} else if (e.entry.detail) {
+						detailEl = collapsibleInner.appendChild($('div.section-detail'));
+						this.renderTextPlus(detailEl, e.entry.detail, newStore);
+					}
+
+					// Re-render Learn More link if needed
+					const updatedLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
+					const updatedLinkDesc = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
+					if (descriptionEl) {
+						if (updatedLink) {
+							descriptionEl.textContent = '';
+							const descText = updatedLinkDesc
+								? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
+								: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
+							this.renderTextPlus(descriptionEl, descText, newStore);
+						} else {
+							descriptionEl.remove();
+							descriptionEl = undefined;
+						}
+					} else if (updatedLink) {
+						descriptionEl = collapsibleInner.insertBefore($('div.section-description'), detailEl ?? null);
+						const descText = updatedLinkDesc
+							? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
+							: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
+						this.renderTextPlus(descriptionEl, descText, newStore);
+					}
 				}
 			}));
 		}
@@ -390,17 +551,17 @@ export class ChatStatusDashboard extends DomWidget {
 
 					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model")));
 
-					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
-					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
-					toolbar.push([toAction({
-						id: 'workbench.action.selectInlineCompletionsModel',
-						label: currentModel.name,
-						tooltip: localize('selectModel', "Select Model"),
-						class: ThemeIcon.asClassName(Codicon.gear),
-						run: async () => {
-							await this.showModelPicker(provider);
+					const selectOptions = modelInfo.models.map(m => ({ text: m.name }));
+					const selectedIndex = modelInfo.models.findIndex(m => m.id === modelInfo.currentModelId);
+					const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectModel', "Select Model"), optionsAsChildren: true }));
+					const selectContainer = modelContainer.appendChild($('div.model-select-container'));
+					selectBox.render(selectContainer);
+					this._store.add(selectBox.onDidSelect(async e => {
+						const selectedModel = modelInfo.models[e.index];
+						if (selectedModel && selectedModel.id !== modelInfo.currentModelId && provider.setModelId) {
+							await provider.setModelId(selectedModel.id);
 						}
-					})], { icon: false, label: true });
+					}));
 				}
 			}
 		}
@@ -416,16 +577,17 @@ export class ChatStatusDashboard extends DomWidget {
 
 							optionContainer.appendChild($('span.suggest-option-text', undefined, option.label));
 
-							const actionBar = optionContainer.appendChild($('div.suggest-option-action-bar'));
-							const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
-							toolbar.push([toAction({
-								id: `workbench.action.selectProviderOption.${option.id}`,
-								label: currentValue.label,
-								tooltip: localize('selectOption', "Select {0}", option.label),
-								run: async () => {
-									await this.showProviderOptionPicker(provider, option);
+							const selectOptions = option.values.map(v => ({ text: v.label }));
+							const selectedIndex = option.values.findIndex(v => v.id === option.currentValueId);
+							const selectBox = this._store.add(new SelectBox(selectOptions, Math.max(0, selectedIndex), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('selectOption', "Select {0}", option.label), optionsAsChildren: true }));
+							const selectContainer = optionContainer.appendChild($('div.suggest-option-select-container'));
+							selectBox.render(selectContainer);
+							this._store.add(selectBox.onDidSelect(async e => {
+								const selectedValue = option.values[e.index];
+								if (selectedValue && selectedValue.id !== option.currentValueId && provider.setProviderOption) {
+									await provider.setProviderOption(option.id, selectedValue.id);
 								}
-							})], { icon: false, label: true });
+							}));
 						}
 					}
 				}
@@ -465,36 +627,6 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		return header;
-	}
-
-	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
-		const disposables = new DisposableStore();
-
-		const itemElement = $('div.contribution');
-
-		const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
-		const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
-		this.renderHeader(itemElement, disposables, headerLabel, headerLink ? toAction({
-			id: 'workbench.action.openChatStatusItemLink',
-			label: localize('learnMore', "Learn More"),
-			tooltip: localize('learnMore', "Learn More"),
-			class: ThemeIcon.asClassName(Codicon.linkExternal),
-			run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(headerLink))),
-		}) : undefined);
-
-		const itemBody = itemElement.appendChild($('div.body'));
-
-		const description = itemBody.appendChild($('span.description'));
-		this.renderTextPlus(description, item.description, disposables);
-
-		if (item.detail) {
-			const separator = itemBody.appendChild($('span.separator'));
-			separator.textContent = '\u2014';
-			const detail = itemBody.appendChild($('span.detail-item'));
-			this.renderTextPlus(detail, item.detail, disposables);
-		}
-
-		return { element: itemElement, disposables };
 	}
 
 	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
@@ -636,11 +768,20 @@ export class ChatStatusDashboard extends DomWidget {
 		// --- Inline Suggestions
 		{
 			const globalSetting = append(settings, $('div.setting'));
-			this.createInlineSuggestionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "All files"), '*');
+			this.createInlineSuggestionsSetting(globalSetting, localize('settings.codeCompletions.allFiles', "Ghost text suggestions"), '*');
+
+			const overriddenHint = globalSetting.appendChild($('span.setting-overridden'));
+			const updateOverriddenHint = () => {
+				const obj = this.configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
+				const hasOverride = modeId && isObject(obj) && typeof obj[modeId] !== 'undefined' && Boolean(obj[modeId]) !== Boolean(obj['*']);
+				overriddenHint.textContent = hasOverride ? localize('settings.overridden', "(overridden)") : '';
+			};
+			updateOverriddenHint();
 
 			if (modeId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createInlineSuggestionsSetting(languageSetting, localize('settings.codeCompletions.language', "{0}", this.languageService.getLanguageName(modeId) ?? modeId), modeId);
+				const languageName = this.languageService.getLanguageName(modeId) ?? modeId;
+				this.createTriStateLanguageSetting(languageSetting, localize('settings.codeCompletions.language', "Ghost text suggestions for {0}", languageName), modeId, updateOverriddenHint);
 			}
 		}
 
@@ -690,6 +831,102 @@ export class ChatStatusDashboard extends DomWidget {
 
 	private createInlineSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined): void {
 		this.createSetting(container, [defaultChat.completionsEnablementSetting], label, this.getCompletionsSettingAccessor(modeId));
+	}
+
+	private createTriStateLanguageSetting(container: HTMLElement, label: string, modeId: string, onStateChange: () => void): void {
+		const settingId = defaultChat.completionsEnablementSetting;
+
+		const getState = (): boolean | 'mixed' => {
+			const obj = this.configurationService.getValue<Record<string, boolean>>(settingId);
+			if (!isObject(obj) || typeof obj[modeId] === 'undefined') {
+				return 'mixed'; // no override — inherits from *
+			}
+			return Boolean(obj[modeId]);
+		};
+
+		const checkbox = this._store.add(new TriStateCheckbox(label, getState(), { ...defaultCheckboxStyles }));
+		container.appendChild(checkbox.domNode);
+
+		const settingLabel = append(container, $('span.setting-label', undefined, label));
+		this._store.add(Gesture.addTarget(settingLabel));
+
+		const cycleState = () => {
+			const current = checkbox.checked;
+			// Cycle: true → false → mixed → true
+			if (current === true) {
+				checkbox.checked = false;
+			} else if (current === false) {
+				checkbox.checked = 'mixed';
+			} else {
+				checkbox.checked = true;
+			}
+		};
+
+		const writeState = (state: boolean | 'mixed') => {
+			let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
+			if (!isObject(result)) {
+				result = Object.create(null);
+			}
+
+			if (state === 'mixed') {
+				// Remove the language key to inherit from *
+				const { [modeId]: _, ...rest } = result;
+				const inheritedEnablement = typeof rest['*'] === 'boolean' ? (rest['*'] ? 'enabled' : 'disabled') : 'enabled';
+				this.telemetryService.publicLog2<ChatSettingChangedEvent, ChatSettingChangedClassification>('chatStatus.settingChanged', {
+					settingIdentifier: settingId,
+					settingMode: modeId,
+					settingEnablement: inheritedEnablement
+				});
+				this.configurationService.updateValue(settingId, rest);
+			} else {
+				this.telemetryService.publicLog2<ChatSettingChangedEvent, ChatSettingChangedClassification>('chatStatus.settingChanged', {
+					settingIdentifier: settingId,
+					settingMode: modeId,
+					settingEnablement: state ? 'enabled' : 'disabled'
+				});
+				this.configurationService.updateValue(settingId, { ...result, [modeId]: state });
+			}
+			onStateChange();
+		};
+
+		// Track previous state so onChange can apply tri-state cycling
+		let previousState = getState();
+
+		const cycleAndWrite = () => {
+			cycleState();
+			previousState = checkbox.checked;
+			writeState(checkbox.checked);
+		};
+
+		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
+			this._store.add(addDisposableListener(settingLabel, eventType, e => {
+				if (checkbox?.enabled) {
+					EventHelper.stop(e, true);
+					cycleAndWrite();
+					checkbox.focus();
+				}
+			}));
+		});
+
+		this._store.add(checkbox.onChange(() => {
+			// The internal Toggle only cycles true↔false; revert and apply our tri-state cycle
+			checkbox.checked = previousState; // undo internal toggle
+			cycleAndWrite();
+		}));
+
+		this._store.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(settingId)) {
+				checkbox.checked = getState();
+				previousState = checkbox.checked;
+				onStateChange();
+			}
+		}));
+
+		if (!this.canUseChat()) {
+			container.classList.add('disabled');
+			checkbox.disable();
+			checkbox.checked = false;
+		}
 	}
 
 	private getCompletionsSettingAccessor(modeId = '*'): ISettingsAccessor {
@@ -830,65 +1067,5 @@ export class ChatStatusDashboard extends DomWidget {
 		this._store.add(this.inlineCompletionsService.onDidChangeIsSnoozing(() => {
 			updateIntervalTimer();
 		}));
-	}
-
-	private async showQuickPick(
-		items: IQuickPickItem[],
-		placeHolder: string,
-		apply: (selectedId: string) => Promise<void>,
-	): Promise<void> {
-		const selected = await this.quickInputService.pick(items, {
-			placeHolder,
-			canPickMany: false
-		});
-
-		if (selected?.id) {
-			await apply(selected.id);
-		}
-
-		this.hoverService.hideHover(true);
-	}
-
-	private async showModelPicker(provider: languages.InlineCompletionsProvider): Promise<void> {
-		if (!provider.modelInfo || !provider.setModelId) {
-			return;
-		}
-
-		const modelInfo = provider.modelInfo;
-		await this.showQuickPick(
-			modelInfo.models.map(model => ({
-				id: model.id,
-				label: model.name,
-				description: model.id === modelInfo.currentModelId ? localize('currentModel.description', "Currently selected") : undefined,
-				picked: model.id === modelInfo.currentModelId
-			})),
-			localize('selectModelFor', "Select a model for {0}", provider.displayName || 'inline completions'),
-			async (id) => {
-				if (id !== modelInfo.currentModelId) {
-					await provider.setModelId!(id);
-				}
-			},
-		);
-	}
-
-	private async showProviderOptionPicker(provider: languages.InlineCompletionsProvider, option: languages.IInlineCompletionProviderOption): Promise<void> {
-		if (!provider.setProviderOption) {
-			return;
-		}
-
-		await this.showQuickPick(
-			option.values.map(value => ({
-				id: value.id,
-				label: value.label,
-				description: value.id === option.currentValueId ? localize('currentOption.description', "Currently selected") : undefined,
-				picked: value.id === option.currentValueId,
-			})),
-			localize('selectProviderOptionFor', "Select {0}", option.label),
-			async (id) => {
-				if (id !== option.currentValueId) {
-					await provider.setProviderOption!(option.id, id);
-				}
-			},
-		);
 	}
 }

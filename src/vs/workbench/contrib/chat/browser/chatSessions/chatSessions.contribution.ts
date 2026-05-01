@@ -1055,9 +1055,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		let session: IChatSession;
 		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
-		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
+		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
 			const options: ChatSessionOptionsMap = new Map();
-			for (const group of newSessionOptionGroups) {
+			for (const group of newSessionOptionGroups ?? []) {
 				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
 				if (selected) {
 					options.set(group.id, selected);

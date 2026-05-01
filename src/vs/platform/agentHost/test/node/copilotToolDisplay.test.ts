@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolEvents, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -298,41 +298,33 @@ suite('skill events', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const session = URI.parse('agent://copilot/test');
-
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
-		const withPath = synthesizeSkillToolEvents(
-			session,
+		const withPath = synthesizeSkillToolCall(
 			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
 			'evt-123',
 		);
-		const noPath = synthesizeSkillToolEvents(
-			session,
+		const noPath = synthesizeSkillToolCall(
 			{ name: 'plan' },
 			undefined,
 		);
 
 		assert.deepStrictEqual({
 			skillIsHidden: isHiddenTool('skill'),
-			withPathToolCallId: withPath.start.toolCallId,
-			withPathSameIdOnComplete: withPath.start.toolCallId === withPath.complete.toolCallId,
-			withPathToolName: withPath.start.toolName,
-			withPathDisplayName: withPath.start.displayName,
-			withPathInvocation: withPath.start.invocationMessage,
-			withPathPastTense: withPath.complete.result.pastTenseMessage,
-			withPathSuccess: withPath.complete.result.success,
-			noPathToolCallId: noPath.start.toolCallId,
-			noPathInvocation: noPath.start.invocationMessage,
-			noPathPastTense: noPath.complete.result.pastTenseMessage,
+			withPathToolCallId: withPath.toolCallId,
+			withPathToolName: withPath.toolName,
+			withPathDisplayName: withPath.displayName,
+			withPathInvocation: withPath.invocationMessage,
+			withPathPastTense: withPath.pastTenseMessage,
+			noPathToolCallId: noPath.toolCallId,
+			noPathInvocation: noPath.invocationMessage,
+			noPathPastTense: noPath.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
-			withPathSameIdOnComplete: true,
 			withPathToolName: 'skill',
 			withPathDisplayName: 'Read Skill',
 			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
-			withPathSuccess: true,
 			noPathToolCallId: 'synth-skill-2108d652',
 			noPathInvocation: 'Reading skill plan',
 			noPathPastTense: 'Read skill plan',

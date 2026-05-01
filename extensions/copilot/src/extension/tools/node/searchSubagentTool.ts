@@ -23,7 +23,7 @@ import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
-import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
+import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
 
 export interface ISearchSubagentParams {
 
@@ -124,6 +124,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
+			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
 			thoroughness: thoroughnessEnabled ? options.input.thoroughness : undefined,
 		});
 
@@ -251,4 +252,14 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	}
 }
 
+/**
+ * Identical to SearchSubagentTool but registered under the `explore_subagent` name.
+ * Conditionally enabled via package.json `when` clause when the Explore agent is disabled.
+ */
+class ExploreSubagentTool extends (SearchSubagentTool as new (...args: never[]) => SearchSubagentTool) {
+	public static readonly toolName = ToolName.ExploreSubagent;
+	public static readonly nonDeferred = true;
+}
+
 ToolRegistry.registerTool(SearchSubagentTool);
+ToolRegistry.registerTool(ExploreSubagentTool as unknown as ICopilotToolCtor);

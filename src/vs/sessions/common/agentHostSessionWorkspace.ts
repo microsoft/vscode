@@ -23,6 +23,11 @@ export interface IAgentHostSessionWorkspaceOptions {
 	readonly requiresWorkspaceTrust: boolean;
 	readonly description?: string;
 	/**
+	 * Group label used by the workspace picker to bucket the produced
+	 * workspace into a top-level tab (e.g. `"Local"`, `"Remote"`).
+	 */
+	readonly group?: string;
+	/**
 	 * Configured `git.branchProtection` glob patterns. Used to compute
 	 * `baseBranchProtected` on the resulting repository.
 	 */
@@ -49,9 +54,15 @@ export function matchesAnyBranchProtectionPattern(branchName: string, patterns: 
 /**
  * Reads `git.branchProtection` from configuration and normalizes the result
  * into an array of trimmed, non-empty pattern strings.
+ *
+ * The `git.branchProtection` setting is `resource`-scoped, so the value can
+ * differ between workspace folders. Pass the session's working directory (or
+ * project URI as a fallback) as `resource` so we read the setting in the
+ * scope of the folder VS Code actually has loaded rather than the host
+ * window's active workspace.
  */
-export function readBranchProtectionPatterns(configurationService: IConfigurationService): readonly string[] {
-	const raw = configurationService.getValue<unknown>('git.branchProtection') ?? [];
+export function readBranchProtectionPatterns(configurationService: IConfigurationService, resource?: URI): readonly string[] {
+	const raw = configurationService.getValue<unknown>('git.branchProtection', { resource }) ?? [];
 	const list = Array.isArray(raw) ? raw : [raw];
 	return list
 		.map(p => typeof p === 'string' ? p.trim() : '')
@@ -96,6 +107,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			label: options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName,
 			description: options.description,
 			icon: Codicon.repo,
+			group: options.group,
 			repositories: [{ uri: project.uri, workingDirectory: repositoryWorkingDirectory, detail: undefined, ...gitFields }],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		};
@@ -110,6 +122,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 		label: options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName,
 		description: options.description,
 		icon: options.fallbackIcon,
+		group: options.group,
 		repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: undefined, ...gitFields }],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 	};

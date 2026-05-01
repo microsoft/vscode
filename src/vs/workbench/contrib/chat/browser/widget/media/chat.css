@@ -1036,6 +1036,124 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
+/* ----------------------------------------------------------------------------
+	Delightful gradient styling for the chat send (submit) button. The arrow-up
+	action-item is filled at rest with a slowly rotating multi-color conic
+	gradient using the same palette as the working-state border, and emits a
+	quick colorful pulse on click. The gradient is naturally absent while a
+	request is in flight: `ChatSubmitAction.menu` is gated on
+	`whenNoActiveRequest`, so during an active request the arrow-up icon is
+	removed entirely from the toolbar and replaced by the Cancel/Stop action.
+	---------------------------------------------------------------------------- */
+@property --chat-send-button-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes chat-send-button-spin {
+	from {
+		--chat-send-button-anim-angle: 135deg;
+	}
+
+	to {
+		--chat-send-button-anim-angle: 495deg;
+	}
+}
+
+@keyframes chat-send-button-pulse {
+	0% {
+		opacity: 0.7;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(1.3);
+	}
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
+	position: relative;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	transition: background-color 250ms ease, color 250ms ease;
+}
+
+/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+	display: inline-block;
+}
+
+/* Focus indicator drawn on the action-item wrapper so it sits cleanly around
+	the button surface with a small offset. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus-visible {
+	outline: none;
+}
+
+/* Idle: fill the entire action-label with a slowly rotating conic gradient.
+	Colors darkened (60% mixed with input background) for a calm fill, with
+	asymmetric conic stops. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
+	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
+	color: var(--vscode-button-foreground) !important;
+	border-radius: 5px;
+	animation: chat-send-button-spin 8s linear infinite;
+	transition: box-shadow 120ms ease;
+	/* Lift the label above the click pulse `::after` on the action-item parent
+		so the pulse appears to expand from behind the button, not on top of it. */
+	position: relative;
+	z-index: 1;
+}
+
+/* Hover/focus: subtle dark overlay to match standard toolbar button hover
+	feedback. Uses an inset box-shadow so the rotating gradient background is
+	preserved underneath. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
+	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
+	content: '';
+	position: absolute;
+	inset: -2px;
+	border-radius: 7px;
+	background: conic-gradient(from 135deg,
+			var(--vscode-chat-inputWorkingBorderColor1),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor3),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor1));
+	pointer-events: none;
+	animation: chat-send-button-pulse 400ms ease-out forwards;
+	z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up,
+	.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
+		animation: none;
+	}
+}
+
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
 .interactive-input-part:has(.chat-artifacts-widget-container > .chat-artifacts-widget:not([style*="display: none"])) .chat-input-container,
@@ -2118,6 +2236,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-decoration: inherit;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -2172,7 +2291,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label .label-name {
-	text-decoration: line-through;
 	font-style: italic;
 	opacity: 0.8;
 }

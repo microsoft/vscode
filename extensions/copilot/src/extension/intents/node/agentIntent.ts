@@ -114,8 +114,10 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
 	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
+	const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
-	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled;
+	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled;
+	allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled;
 
 	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
@@ -392,7 +394,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@ILogService private readonly logService: ILogService,
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
-		@IOTelService override readonly otelService: IOTelService,
+		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);

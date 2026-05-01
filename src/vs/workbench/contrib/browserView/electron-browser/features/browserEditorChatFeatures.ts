@@ -15,7 +15,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +26,7 @@ import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
@@ -36,12 +35,15 @@ import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribut
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import product from '../../../../../platform/product/common/product.js';
+import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
+import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
-import { canShareBrowserWithAgentContext } from '../tools/browserTools.contribution.js';
+import '../tools/browserTools.contribution.js';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -173,7 +175,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -202,20 +204,10 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			hoverDelegate
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
-		this._shareButton.label = '$(agent)';
+		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
-		}));
-
-		// Show share button only when chat is enabled and browser tools are enabled
-		const updateShareButtonVisibility = () => {
-			this._shareButtonContainer.style.display = contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
-		};
-		updateShareButtonVisibility();
-		const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys))(() => {
-			updateShareButtonVisibility();
 		}));
 	}
 
@@ -226,10 +218,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
-		store.add(model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState(false);
-		}));
-		store.add(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(canShareBrowserWithAgentContext.keys())))(() => {
+		store.add(model.onDidChangeSharingState(() => {
 			this._updateSharingState(false);
 		}));
 	}
@@ -249,24 +238,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(!model.sharedWithAgent);
+		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
 		const model = this.editor.model;
-		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
-		const isShared = sharingEnabled && !!model && model.sharedWithAgent;
+		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
+		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
+		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
-			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
-			: '$(agent)';
-		this._shareButton.setTitle(isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
+			: '$(share-window)';
+
+		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent"));
+			: localize('browser.shareWithAgent', "Share with Agent");
+		this._shareButton.setTitle(title);
+		this._shareButton.element.setAttribute('aria-label', title);
 	}
 
 	private static readonly SHARING_CONTENT_WARNING_DONT_ASK_KEY = 'browserView.agentSharingContentWarning.dontAskAgain';
@@ -640,6 +633,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					}
 				},
 			}
+		},
+		[AgentHostChatToolsEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
 		}
 	}
 });

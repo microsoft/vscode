@@ -354,6 +354,16 @@ export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequ
 	readonly value: URI;
 }
 
+export interface IBrowserViewVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'browserView';
+	readonly value: URI;
+	readonly browserId: string;
+}
+
+export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): entry is IBrowserViewVariableEntry {
+	return entry.kind === 'browserView';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -361,7 +371,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,15 +15,17 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -36,7 +40,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
-import { ILanguageModelToolsService, IToolData, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -234,6 +238,9 @@ suite('AgentHostClientTools', () => {
 
 		function createMockToolsService(disposables: DisposableStore, tools: IToolData[]) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
+			const pendingToolCalls = new Map<string, ChatToolInvocation>();
+			const begunToolCalls: ChatToolInvocation[] = [];
+			const invokedToolCalls: IToolInvocation[] = [];
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
@@ -243,9 +250,30 @@ suite('AgentHostClientTools', () => {
 				registerTool: () => toDisposable(() => { }),
 				getTools: () => tools,
 				getAllToolsIncludingDisabled: () => tools,
-				getTool: () => undefined,
-				invokeTool: async () => ({ content: [] }),
-				beginToolCall: () => undefined,
+				getTool: (id: string) => tools.find(t => t.id === id),
+				invokeTool: async (invocation: IToolInvocation) => {
+					invokedToolCalls.push(invocation);
+					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
+					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
+					toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+					const result: IToolResult = { content: [{ kind: 'text', value: 'done' }] };
+					await toolInvocation?.didExecuteTool(result);
+					return result;
+				},
+				beginToolCall: options => {
+					const toolData = tools.find(t => t.id === options.toolId);
+					if (!toolData) {
+						return undefined;
+					}
+					const invocation = ChatToolInvocation.createStreaming({
+						toolCallId: options.toolCallId,
+						toolId: options.toolId,
+						toolData,
+					});
+					pendingToolCalls.set(options.toolCallId, invocation);
+					begunToolCalls.push(invocation);
+					return invocation;
+				},
 				updateToolStream: async () => { },
 				cancelToolCallsForRequest: () => { },
 				flushToolUpdates: () => { },
@@ -269,7 +297,9 @@ suite('AgentHostClientTools', () => {
 				onDidInvokeTool: Event.None,
 				_serviceBrand: undefined,
 				fireOnDidChangeTools: () => onDidChangeTools.fire(),
-			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void };
+				begunToolCalls,
+				invokedToolCalls,
+			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[] };
 		}
 
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
@@ -287,20 +317,15 @@ suite('AgentHostClientTools', () => {
 
 			override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 				this.dispatchedActions.push(action);
-				if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
-					const entry = this._liveSubscriptions.get(action.session);
-					if (entry) {
-						entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], () => { });
-						entry.emitter.fire(entry.state);
-					}
+				if (isSessionAction(action)) {
+					this.applySessionAction(action);
 				}
-				if (isSessionAction(action) && action.type === 'session/activeClientToolsChanged') {
-					const entry = this._liveSubscriptions.get(action.session);
-					if (entry) {
-						entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], () => { });
-						entry.emitter.fire(entry.state);
-					}
-				}
+			}
+
+			applySessionAction(action: SessionAction): void {
+				const entry = this._ensureLiveSubscription(action.session);
+				entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], () => { });
+				entry.emitter.fire(entry.state);
 			}
 
 			override readonly rootState: IAgentSubscription<RootState> = {
@@ -313,18 +338,9 @@ suite('AgentHostClientTools', () => {
 
 			override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 				const resourceStr = resource.toString();
-				const emitter = disposables.add(new Emitter<T>());
-				const summary: SessionSummary = {
-					resource: resourceStr,
-					provider: 'copilot',
-					title: 'Test',
-					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
-				};
-				const initialState: SessionState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
-				const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState> };
-				this._liveSubscriptions.set(resourceStr, entry);
+				this._ensureLiveSubscription(resourceStr);
+				const entry = this._liveSubscriptions.get(resourceStr)!;
+				const emitter = entry.emitter as unknown as Emitter<T>;
 
 				const self = this;
 				const sub: IAgentSubscription<T> = {
@@ -340,6 +356,26 @@ suite('AgentHostClientTools', () => {
 						this._liveSubscriptions.delete(resourceStr);
 					},
 				};
+			}
+
+			private _ensureLiveSubscription(resourceStr: string): { state: SessionState; emitter: Emitter<SessionState> } {
+				let entry = this._liveSubscriptions.get(resourceStr);
+				if (entry) {
+					return entry;
+				}
+				const emitter = disposables.add(new Emitter<SessionState>());
+				const summary: SessionSummary = {
+					resource: resourceStr,
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+				};
+				const initialState: SessionState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+				entry = { state: initialState, emitter };
+				this._liveSubscriptions.set(resourceStr, entry);
+				return entry;
 			}
 		}
 
@@ -416,6 +452,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 				registerResolver: () => toDisposable(() => { }),
 				resolve: () => undefined,
+				isNewSession: () => false,
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 
@@ -495,7 +532,7 @@ suite('AgentHostClientTools', () => {
 			configValues['chat.agentHost.clientTools'] = ['runTests'];
 			onDidChangeConfig.fire({ affectsConfiguration: (key: string) => key === 'chat.agentHost.clientTools' } as unknown as IConfigurationChangeEvent);
 
-			// Since no session is active (no _sessionToBackend entries),
+			// Since no session is active,
 			// no activeClientToolsChanged should be dispatched.
 			// But the observable should now reflect the new tools.
 			const toolsChangedActions = connection.dispatchedActions.filter(
@@ -514,6 +551,203 @@ suite('AgentHostClientTools', () => {
 			// before reaching the allowlist filter.
 			const def = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(def.name, 'runTests');
+		});
+
+		test('invokes an owned client tool when reconnecting to an active turn', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: backendSession,
+				turnId: 'turn-1',
+				userMessage: { text: 'run the task' },
+			} as SessionAction);
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: connection.clientId,
+			} as SessionAction);
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as SessionAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual(toolsService.invokedToolCalls.map(call => ({
+				callId: call.callId,
+				toolId: call.toolId,
+				parameters: call.parameters,
+				chatStreamToolCallId: call.chatStreamToolCallId,
+			})), [{
+				callId: 'tool-call-1',
+				toolId: 'vscode.runTask',
+				parameters: { task: 'build' },
+				chatStreamToolCallId: 'tool-call-1',
+			}]);
+			assert.ok(connection.dispatchedActions.some(action => isSessionAction(action)
+				&& action.type === ActionType.SessionToolCallComplete
+				&& action.toolCallId === 'tool-call-1'));
+		});
+
+		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: backendSession,
+				turnId: 'turn-1',
+				userMessage: { text: 'run the task' },
+			} as SessionAction);
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: connection.clientId,
+			} as SessionAction);
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as SessionAction);
+
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// activeTurnToProgress creates a generic ChatToolInvocation for
+			// the running client tool which appears in the session's progress
+			// observable. Grab it before _reconnectToActiveTurn replaces it.
+			const snapshotInvocation = (session as unknown as { progressObs: { get(): IChatProgress[] } })
+				.progressObs.get()
+				.find((p): p is ChatToolInvocation => p instanceof ChatToolInvocation && p.toolCallId === 'tool-call-1');
+			assert.ok(snapshotInvocation, 'activeTurnToProgress should have created a snapshot invocation');
+
+			await timeout(0);
+			await timeout(0);
+
+			// The snapshot invocation from activeTurnToProgress should have
+			// been completed (via didExecuteTool) so it does not remain
+			// orphaned in the UI while the replacement from
+			// _beginClientToolInvocation takes over.
+			assert.ok(IChatToolInvocation.isComplete(snapshotInvocation),
+				'the initial snapshot invocation should be completed, not orphaned');
+		});
+
+		test('invokes a client tool inside a subagent session and dispatches completion against the subagent URI', async () => {
+			// Regression: a client-provided tool running inside a subagent
+			// must be invoked locally (the renderer owns the tool
+			// implementation, not the agent host). Before the fix, the
+			// renderer skipped local invocation for subagent tool calls,
+			// leaving the subagent's deferred unresolved. After the fix the
+			// tool is invoked locally and the SessionToolCallComplete is
+			// dispatched against the subagent session URI — the agent then
+			// resolves it back to the parent session that owns the deferred.
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const parentToolCallId = 'tc-parent-task';
+			const subagentBackendSession = buildSubagentSessionUri(backendSession, parentToolCallId);
+
+			// Parent turn with a `task` tool that spawns a subagent.
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: backendSession,
+				turnId: 'turn-1',
+				userMessage: { text: 'do work' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				toolName: 'task',
+				displayName: 'Task',
+				_meta: { toolKind: 'subagent' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: backendSession,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				invocationMessage: 'Spawning subagent',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			// Subagent turn carrying a client-provided tool call (toolClientId
+			// matches the renderer's clientId so the renderer owns the
+			// invocation).
+			connection.applySessionAction({
+				type: ActionType.SessionTurnStarted,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				userMessage: { text: '' },
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallStart,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				toolCallId: 'inner-tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				toolClientId: connection.clientId,
+			});
+			connection.applySessionAction({
+				type: ActionType.SessionToolCallReady,
+				session: subagentBackendSession,
+				turnId: 'sub-turn-1',
+				toolCallId: 'inner-tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+
+			// The inner client tool must have been invoked locally — without
+			// the fix the renderer would skip subagent client-tool setup and
+			// `invokedToolCalls` would be empty for the inner call.
+			const innerInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'inner-tool-call-1');
+			assert.ok(innerInvocation, 'inner client tool inside the subagent should be invoked locally');
+			assert.strictEqual(innerInvocation!.toolId, 'vscode.runTask');
+			assert.deepStrictEqual(innerInvocation!.parameters, { task: 'build' });
+
+			// The completion must be dispatched against the subagent session
+			// URI (the agent will then resolve it to the parent session that
+			// owns the SDK deferred).
+			const completion = connection.dispatchedActions.find(action =>
+				isSessionAction(action)
+				&& action.type === ActionType.SessionToolCallComplete
+				&& action.toolCallId === 'inner-tool-call-1'
+			);
+			assert.ok(completion, 'completion for the inner client tool should be dispatched');
+			assert.strictEqual(
+				isSessionAction(completion!) ? completion.session : undefined,
+				subagentBackendSession,
+				'completion should target the subagent session URI'
+			);
 		});
 	});
 });

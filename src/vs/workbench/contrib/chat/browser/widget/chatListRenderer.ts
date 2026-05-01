@@ -2933,13 +2933,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// Build the inline progress message for the response stream. While
-		// pending, this is "Plan review required" with a spinner. Once the
-		// user has answered, it transitions to the action that was taken
-		// (e.g. "Approved plan", "Started implementation with autopilot"),
-		// and — when the user provided feedback — appends that feedback
-		// inline in the same progress row after a colon, collapsing
-		// whitespace so the transcript reads as a single line.
+		// Build the inline progress message. While pending: "Plan review
+		// required" with a spinner. Once answered: the action that was
+		// taken (e.g. "Approved plan", "Provided feedback"). The actual
+		// feedback text is rendered as a separate markdown block beneath
+		// rather than collapsed onto the progress line.
 		const renderProgress = (): IChatContentPart => {
 			const message = this.getPlanReviewProgressMessage(review);
 			if (!message) {
@@ -2952,12 +2950,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pending → used transition and trigger a re-render.
 			const renderedAsUsed = !!review.isUsed;
 			const isPending = !renderedAsUsed;
-			const feedbackText = renderedAsUsed && !review.data?.rejected ? review.data?.feedback?.trim() : undefined;
-			const fullMessage = feedbackText
-				? localize('chat.planReview.feedbackInline', "{0}: {1}", message, feedbackText.replace(/\s+/g, ' '))
-				: message;
+			const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
+			// Prefer the structured fields from `ChatPlanReviewPart`; fall
+			// back to the combined `feedback` string for older results.
+			let overall = data?.feedbackOverall?.trim();
+			const inlineMd = data?.feedbackInlineMarkdown?.trim();
+			if (!overall && !inlineMd && data?.feedback) {
+				overall = data.feedback.trim();
+			}
 			const content = new MarkdownString(undefined, { supportThemeIcons: true });
-			content.appendText(fullMessage);
+			if (overall) {
+				content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+			} else {
+				content.appendText(message);
+			}
+			if (inlineMd) {
+				content.appendMarkdown('\n\n');
+				content.appendMarkdown(inlineMd);
+			}
 			const progressPart = this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ content },

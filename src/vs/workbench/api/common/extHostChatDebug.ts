@@ -155,6 +155,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
+					cachedTokens: e.cachedTokens,
 					totalTokens: e.totalTokens,
 					durationInMillis: e.durationInMillis,
 				};
@@ -341,6 +342,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				evt.model = dto.model;
 				evt.inputTokens = dto.inputTokens;
 				evt.outputTokens = dto.outputTokens;
+				evt.cachedTokens = dto.cachedTokens;
 				evt.totalTokens = dto.totalTokens;
 				evt.durationInMillis = dto.durationInMillis;
 				return evt;
