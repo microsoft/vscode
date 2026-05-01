@@ -136,16 +136,32 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		for (const provider of this._providers.values()) {
-			const resources = provider.getProtectedResources();
-			if (resources.some(r => r.resource === params.resource)) {
-				const accepted = await provider.authenticate(params.resource, params.token);
-				if (accepted) {
-					return { authenticated: true };
-				}
+		// Multiple providers may share the same protected resource (e.g.
+		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// Fan out to every matching provider in parallel; the request is
+		// considered authenticated if at least one accepts. Provider
+		// failures are isolated — one provider rejecting (e.g. proxy
+		// server bind failure) MUST NOT prevent another provider from
+		// accepting the same token.
+		const matching = [...this._providers.values()].filter(
+			p => p.getProtectedResources().some(r => r.resource === params.resource),
+		);
+		const settled = await Promise.allSettled(
+			matching.map(p => p.authenticate(params.resource, params.token)),
+		);
+		let authenticated = false;
+		for (let i = 0; i < settled.length; i++) {
+			const result = settled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				this._logService.error(
+					result.reason,
+					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
+				);
 			}
 		}
-		return { authenticated: false };
+		return { authenticated };
 	}
 
 	// ---- session management -------------------------------------------------

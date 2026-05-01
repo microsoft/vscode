@@ -36,6 +36,22 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
+/**
+ * Configuration key that controls whether the Claude agent provider is registered
+ * inside the agent host. Read on the workbench side and forwarded to the agent host
+ * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
+ * host process must be restarted for changes to take effect.
+ */
+export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+
+/**
+ * Environment variable that, when set to `'1'`, causes the agent host process to
+ * register the Claude agent provider. Set by the agent host starters when
+ * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
+ * directly by developers as an override.
+ */
+export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
 	readonly socketPath: string;
@@ -145,6 +161,22 @@ export interface AuthenticateResult {
 	/** Whether the token was accepted. */
 	readonly authenticated: boolean;
 }
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for the GitHub Copilot
+ * resource. Shared between every agent provider that consumes a GitHub
+ * Copilot bearer token (e.g. Copilot CLI, Claude) so they advertise an
+ * identical resource identifier to the auth flow — clients dispatch by
+ * `resource`, and divergent metadata would silently route the same
+ * token down separate code paths.
+ */
+export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com',
+	resource_name: 'GitHub Copilot',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['read:user', 'user:email'],
+	required: true,
+};
 
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
