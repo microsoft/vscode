@@ -8,7 +8,7 @@ import { raceCancellationError, raceTimeout } from '../../../../base/common/asyn
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -24,7 +24,7 @@ import { IChatService, IChatSendRequestOptions } from '../../../../workbench/con
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
@@ -1631,19 +1631,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return this._sendFirstChatViaController(session, query, sendOptions);
 		}
 
-		// Open chat widget and set permission level
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
+		const disposable = await this._applySessionModelState(session.resource, session, permissionLevel);
 		const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+		disposable.dispose();
 		if (!chatWidget) {
 			throw new Error('[DefaultCopilotProvider] Failed to open chat widget');
 		}
-
-		if (permissionLevel) {
-			chatWidget.input.setPermissionLevel(permissionLevel);
-		}
-
-		// Load session model with selected options
-		await this._applySessionModelState(session.resource, session);
 
 		// Send request
 		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
@@ -1742,18 +1736,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		// Open chat session and widget with the real URI
 		await this.chatSessionsService.getOrCreateChatSession(realResource, CancellationToken.None);
+		const disposable = await this._applySessionModelState(realResource, session, sendOptions.modeInfo?.permissionLevel);
 		const chatWidget = await this.chatWidgetService.openSession(realResource, ChatViewPaneTarget);
+		disposable.dispose();
 		if (!chatWidget) {
 			throw new Error('[CopilotChatSessionsProvider] Failed to open chat widget');
 		}
-
-		const permissionLevel = sendOptions.modeInfo?.permissionLevel;
-		if (permissionLevel) {
-			chatWidget.input.setPermissionLevel(permissionLevel);
-		}
-
-		// Load session model and apply selected options
-		await this._applySessionModelState(realResource, session);
 
 		// Send request to the real URI — sendRequest skips the
 		// createNewChatSessionItem block since the URI is not untitled.
@@ -1830,10 +1818,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private async _applySessionModelState(
 		resource: URI,
 		session: { selectedModelId?: string; chatMode?: IChatMode; selectedOptions: Map<string, IChatSessionProviderOptionItem> },
-	): Promise<void> {
+		permissionLevel?: ChatPermissionLevel,
+	): Promise<IDisposable> {
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
-			return;
+			return Disposable.None;
 		}
 		const model = modelRef.object;
 		if (session.selectedModelId) {
@@ -1848,7 +1837,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (session.selectedOptions.size > 0) {
 			this.chatSessionsService.updateSessionOptions(resource, session.selectedOptions);
 		}
-		modelRef.dispose();
+		if (permissionLevel) {
+			model.inputModel.setState({ permissionLevel });
+		}
+		return modelRef;
 	}
 
 	/**
@@ -1917,7 +1909,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		// Load session model with selected options
-		await this._applySessionModelState(newChatSession.resource, newChatSession);
+		(await this._applySessionModelState(newChatSession.resource, newChatSession)).dispose();
 
 		// Send request
 		const result = await this.chatService.sendRequest(newChatSession.resource, query, sendOptions);
@@ -2027,6 +2019,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
+		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		const permissionLevel = isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
+		session.setPermissionLevel(permissionLevel);
 		this._currentNewSession = session;
 		return session;
 	}
