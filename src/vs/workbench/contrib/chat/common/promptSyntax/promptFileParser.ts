@@ -499,7 +499,7 @@ export class PromptBody {
 				for (const match of matches) {
 					const fullMatch = match[0];
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + fullMatch.length + 1);
-					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
+					if (markdownLinkRanges.some(mdRange => Range.areIntersecting(mdRange, fullRange))) {
 						continue;
 					}
 					if (isInsideInlineCode(match.index)) {
