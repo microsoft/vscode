@@ -1693,7 +1693,6 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, remoteRequest]);
 
 			firstTokenSource.dispose(true);
-			expect(firstStream.output.join('')).toContain('Response was interrupted.');
 			expect(firstStream.output.join('')).toContain('Echo: First prompt');
 			const output = remoteStream.output.join('');
 			expect(output).not.toContain('Echo: First prompt');

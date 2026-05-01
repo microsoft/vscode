@@ -424,6 +424,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
 	private readonly _missionControlApiClient: MissionControlApiClient;
+	private _cancelPendingCancellationAbort: (() => void) | undefined;
 
 	/** Get or create shared MC state for this SDK session. */
 	private get _mcState(): McSharedState | undefined {
@@ -572,12 +573,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
+			this._cancelPendingCancellationAbort?.();
 			this._sdkSession.abort();
 		}));
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
 
 		try {
 			if ('command' in input && input.command !== 'plan') {
+				this._cancelPendingCancellationAbort?.();
 				await previousRequestPromise;
 				if (!token.isCancellationRequested) {
 					this._stream?.markdown('\n\n');
@@ -668,16 +671,31 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const logStartTime = Date.now();
 		const requestStream = this._stream;
 		let wroteResponseContent = false;
+		let cancelCancellationAbort: (() => void) | undefined;
 		disposables.add(token.onCancellationRequested(() => {
-			if (!wroteResponseContent) {
-				try {
-					requestStream?.markdown(l10n.t('Response was interrupted.'));
-					wroteResponseContent = true;
-				} catch (error) {
-					this.logService.trace(`[CopilotCLISession] Unable to mark interrupted response: ${error instanceof Error ? error.message : String(error)}`);
+			const cancelAbort = () => {
+				clearTimeout(abortHandle);
+				if (this._cancelPendingCancellationAbort === cancelAbort) {
+					this._cancelPendingCancellationAbort = undefined;
 				}
-			}
-			this._sdkSession.abort();
+			};
+			const abortHandle = setTimeout(() => {
+				if (this._cancelPendingCancellationAbort === cancelAbort) {
+					this._cancelPendingCancellationAbort = undefined;
+				}
+				if (!wroteResponseContent) {
+					try {
+						requestStream?.markdown(l10n.t('Response was interrupted.'));
+						wroteResponseContent = true;
+					} catch (error) {
+						this.logService.trace(`[CopilotCLISession] Unable to mark interrupted response: ${error instanceof Error ? error.message : String(error)}`);
+					}
+				}
+				this._sdkSession.abort();
+			}, 250);
+			this._cancelPendingCancellationAbort?.();
+			this._cancelPendingCancellationAbort = cancelAbort;
+			cancelCancellationAbort = cancelAbort;
 		}));
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
 
@@ -1141,6 +1159,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Log the failed conversation
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
 		} finally {
+			cancelCancellationAbort?.();
 			// End the invoke_agent wrapper span
 			const durationSec = (Date.now() - logStartTime) / 1000;
 			invokeAgentSpan.setAttribute('copilot_chat.duration_sec', durationSec);
