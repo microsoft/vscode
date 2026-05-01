@@ -294,8 +294,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[RunSubagentTool.Id] = depthAllowed; // only enable the Run Subagent tool if we are under the max depth limit
 			}
 
-			modeTools[ManageTodoListToolToolId] = false;
-			modeTools['copilot_askQuestions'] = false;
+			// Only further-restrict ManageTodoListTool: do not disable it if it was explicitly enabled via frontmatter.
+			if (modeTools[ManageTodoListToolToolId] !== true) {
+				modeTools[ManageTodoListToolToolId] = false;
+			}
+			// Only further-restrict copilot_askQuestions: do not disable it if it was explicitly enabled via frontmatter.
+			if (modeTools['copilot_askQuestions'] !== true) {
+				modeTools['copilot_askQuestions'] = false;
+			}
 
 			if (maxDepth > 0) {
 				this.logService.debug(`RunSubagentTool: Nested subagents enabling ${modeTools[RunSubagentTool.Id]}: session ${sessionKey}, currentDepth: ${currentDepth}, maxDepth: ${maxDepth}, allowInvocationsFromSubagents: ${allowInvocationsFromSubagents}`);
