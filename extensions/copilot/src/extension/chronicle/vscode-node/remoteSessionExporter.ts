@@ -35,7 +35,7 @@ import { CloudSessionApiClient } from '../node/cloudSessionApiClient';
 import { ISessionSyncStateService, type SessionSyncState } from '../common/sessionSyncStateService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { CloudSessionIdStore } from '../node/cloudSessionIdStore';
-import { reindexCloudSessions, type CloudReindexResult } from '../node/sessionReindexer';
+import { reindexSessions, reindexCloudSessions, type CloudReindexResult } from '../node/sessionReindexer';
 
 // ── Configuration ───────────────────────────────────────────────────────────────
 
@@ -239,6 +239,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		// Register cloud reindex command (called from chronicleIntent after local reindex)
 		this._register(vscode.commands.registerCommand('github.copilot.sessionSync.reindex', (reportProgress: (msg: string) => void, token: vscode.CancellationToken) => this._reindexCloud(reportProgress, token)));
 
+		// Register user-facing reindex command (Command Palette)
+		this._register(vscode.commands.registerCommand('github.copilot.chronicle.reindex', () => this._reindexFromCommandPalette()));
+
 		// Register known auth tokens as dynamic secrets for filtering
 		this._registerAuthSecrets();
 
@@ -333,6 +336,57 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 				vscode.commands.executeCommand('workbench.action.openSettings', 'chat.sessionSync.enabled');
 			}
 		});
+	}
+
+	// ── Reindex (Command Palette) ───────────────────────────────────────────────
+
+	/**
+	 * User-facing reindex command. Runs local reindex with a progress notification,
+	 * then optionally runs cloud reindex if session sync is enabled.
+	 */
+	private async _reindexFromCommandPalette(): Promise<void> {
+		const cts = new vscode.CancellationTokenSource();
+
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.Notification,
+				title: vscode.l10n.t('Reindexing sessions...'),
+				cancellable: true,
+			},
+			async (progress, token) => {
+				// Local reindex
+				const localResult = await reindexSessions(
+					this._sessionStore,
+					this._debugLogService,
+					msg => progress.report({ message: msg }),
+					token,
+				);
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				progress.report({ message: vscode.l10n.t('{0} session(s) processed, {1} skipped', localResult.processed, localResult.skipped) });
+
+				// Cloud reindex (if enabled)
+				const cloudResult = await this._reindexCloud(
+					msg => progress.report({ message: msg }),
+					token,
+				);
+
+				// Show summary
+				const parts: string[] = [
+					vscode.l10n.t('{0} session(s) indexed locally', localResult.processed),
+				];
+				if (cloudResult && cloudResult.created > 0) {
+					parts.push(vscode.l10n.t('{0} synced to cloud', cloudResult.created));
+				}
+
+				vscode.window.showInformationMessage(parts.join(', ') + '.');
+			},
+		);
+
+		cts.dispose();
 	}
 
 	// ── Delete sessions (Command Palette) ───────────────────────────────────────
@@ -616,6 +670,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		);
 
 		// Update sync state with new count
+		this._invalidateLocalSyncedCount();
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
