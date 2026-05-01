@@ -44,24 +44,21 @@ type IStoredBrowserPluginCache = Record<string, IBrowserPluginCacheEntry>;
 /**
  * Browser implementation of {@link IPluginGitService}.
  *
- * Real `git` is not available in the browser, so plugin contents are
- * fetched a file at a time from the GitHub REST API: the recursive Git
- * Trees endpoint produces the listing, and `raw.githubusercontent.com`
- * serves each blob's bytes. Both endpoints support CORS, unlike the
- * `/tarball/` endpoint which 302-redirects to `codeload.github.com`
- * and fails the browser preflight check.
+ * `git` is not available in the browser, so plugin contents are reconstructed
+ * from the GitHub REST API: `/git/trees/{sha}?recursive=1` for the listing and
+ * `/git/blobs/{blob_sha}` for each file's bytes. Both live on `api.github.com`,
+ * which is the only GitHub host that handles CORS with auth headers — the
+ * `/tarball/` endpoint redirects to `codeload.github.com` (no CORS) and
+ * `raw.githubusercontent.com` rejects the OPTIONS preflight forced by
+ * `Authorization: Bearer`.
  *
- * Only HTTPS GitHub clone URLs are supported. Other git hosts cannot be
- * reached without a real git binary; for those, callers should use the
- * desktop application or connect to a remote agent host that supports
- * server-side cloning.
+ * Only HTTPS GitHub clone URLs are supported; everything else throws an
+ * actionable localized error pointing at desktop or a remote agent host.
  *
- * Per-target metadata (resolved SHA, original ref) is persisted via
- * {@link IStorageService} so that:
- *  - `revParse('HEAD')` and similar queries can be answered locally.
- *  - `pull()` only re-downloads when the upstream SHA has actually moved.
- *  - The `nonce` consumed by the agent host plugin manager naturally
- *    matches the SHA, dedupe-ing redundant uploads to the AHP server.
+ * Per-target metadata is persisted via {@link IStorageService} so `revParse`
+ * answers locally, `pull()` skips the re-download when the upstream SHA has
+ * not moved, and the persisted SHA feeds `CustomizationRef.nonce` for AHP
+ * dedupe.
  */
 export class BrowserPluginGitCommandService implements IPluginGitService {
 	declare readonly _serviceBrand: undefined;
@@ -198,8 +195,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	}
 
 	async fetch(_repoDir: URI, _token?: CancellationToken): Promise<void> {
-		// No-op: there is no local git database to update. `pull()` re-fetches
-		// the tree directly when needed.
+		// No-op: there is no local git database. `pull()` re-fetches when needed.
 	}
 
 	async fetchRepository(_repoDir: URI, _token?: CancellationToken): Promise<void> {
@@ -207,10 +203,8 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	}
 
 	async revListCount(_repoDir: URI, _fromRef: string, _toRef: string): Promise<number> {
-		// We do not have commit history available in the browser cache.
-		// Returning 0 means "up to date" to the silent-fetch caller in
-		// `AgentPluginRepositoryService.fetchRepository`, which is the
-		// safe default — `pull()` is the source of truth for updates.
+		// No commit history available in the cache; 0 means "up to date" to
+		// the silent-fetch caller in `AgentPluginRepositoryService.fetchRepository`.
 		return 0;
 	}
 
@@ -235,9 +229,8 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			const wait = err.retryAfterSeconds !== undefined ? ` (retry after ${err.retryAfterSeconds}s)` : '';
 			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.repo}${wait}: ${err.message}`);
 		} else if (err instanceof Error) {
-			// Surface every other failure with full context so that
-			// browser-fetch errors (CORS, DNS, offline, blocked redirects)
-			// don't reach the user as a bare `TypeError: Failed to fetch`.
+			// Surface the URL + cause so opaque `TypeError: Failed to fetch` errors
+			// (CORS, DNS, offline) don't reach the user without context.
 			const cause = err.cause instanceof Error ? ` (cause: ${err.cause.name}: ${err.cause.message})` : '';
 			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.repo}: ${err.message}${cause}`);
 		}
@@ -245,19 +238,9 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 	/**
 	 * Best-effort silent lookup of an existing GitHub session token. Returns
-	 * `undefined` when no session is available; callers fall back to the
-	 * unauthenticated request, which still works for public repositories.
-	 *
-	 * This uses the existing signed-in GitHub account, if any, without forcing
-	 * a new `repo`-scoped session. That matches the other web/session GitHub
-	 * clients and avoids treating an already-authenticated web user as anonymous.
-	 * If that token is rejected, clone falls back to an anonymous request before
-	 * calling {@link _requestGitHubToken} to request stronger scopes.
-	 *
-	 * With multiple matching sessions (e.g. EMU + personal), prefer one that
-	 * advertises `repo` scope but otherwise pick the first; that mirrors the
-	 * broader VS Code authentication UX where account selection is owned by the
-	 * auth provider, not consumers.
+	 * `undefined` when no session is available; callers fall back to anonymous,
+	 * which still works for public repos. Prefers a `repo`-scoped session when
+	 * multiple are present (e.g. EMU + personal).
 	 */
 	private async _lookupGitHubToken(): Promise<string | undefined> {
 		try {
@@ -290,18 +273,13 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	// -- metadata cache (IStorageService) -------------------------------------
 
 	private _cacheKey(targetDir: URI): string {
-		// `getComparisonKey` normalises trailing slashes, percent-encoding
-		// case, and (when ignoreFragment=true) ignores fragments, so
-		// callers passing semantically-equivalent URIs hit the same cache
-		// entry instead of silently missing.
+		// Normalise trailing slashes / percent-encoding case so semantically-equivalent URIs hit the same entry.
 		return getComparisonKey(targetDir, true);
 	}
 
 	private async _pruneStaleEntries(cache: Map<string, IBrowserPluginCacheEntry>, knownDirs: ReadonlyMap<string, URI>): Promise<void> {
-		// Best-effort sweep: drop cache entries whose dir no longer exists
-		// (e.g. another component called `cleanupPluginSource`). Runs in
-		// the background; a brief stale window is acceptable since the
-		// next read for that key would fall through to a clone anyway.
+		// Best-effort background sweep of cache entries whose target dir no
+		// longer exists; the next read for a removed key would re-clone anyway.
 		const removed: string[] = [];
 		await Promise.all(Array.from(knownDirs, async ([key, uri]) => {
 			try {

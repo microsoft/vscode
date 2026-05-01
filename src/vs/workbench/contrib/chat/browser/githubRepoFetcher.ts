@@ -58,12 +58,9 @@ interface IGitHubCommitResponse {
 }
 
 /**
- * Wrap a `requestService.request` call so transport-level errors (the
- * browser fetch API throws an opaque `TypeError: Failed to fetch` for
- * CORS / DNS / connection failures) surface as a message that names the
- * URL we were trying to reach. Without this, the only signal in the
- * console is the generic TypeError; the URL appears in a separate
- * browser-emitted CORS error log that is easy to miss.
+ * Wrap a `requestService.request` call so transport-level errors (browser
+ * `fetch` throws an opaque `TypeError: Failed to fetch` for CORS / DNS /
+ * connection failures) include the URL and call site.
  */
 async function loggedRequest(
 	requestService: IRequestService,
@@ -184,30 +181,17 @@ function readHeader(headers: Record<string, string | string[] | undefined>, name
  * Fetches the file tree of a GitHub repository at the given SHA and writes
  * each blob into {@link targetDir} via {@link IFileService}.
  *
- * Browser fetch cannot follow GitHub's tarball endpoint because that URL
- * 302-redirects to `codeload.github.com`, which does not return CORS
- * headers and therefore fails the browser preflight check.
- * `raw.githubusercontent.com` is similarly unusable: it accepts simple
- * GETs but rejects the OPTIONS preflight that any `Authorization: Bearer`
- * header forces.
+ * Uses two CORS-friendly endpoints on `api.github.com` (the `/tarball/` host
+ * has no CORS, and `raw.githubusercontent.com` rejects the OPTIONS preflight
+ * forced by an `Authorization` header):
  *
- * To stay in pure-browser-friendly territory we use two endpoints on
- * `api.github.com`, which is properly CORS-enabled even with auth:
- *
- *  - `GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1` returns a
- *    flat listing of every blob/tree/submodule entry.
- *  - `GET /repos/{owner}/{repo}/git/blobs/{blob_sha}` returns each blob's
- *    bytes as base64 JSON. The blob SHA comes from the tree response so
- *    we never have to encode the file path into a URL.
+ *  - `GET /repos/{owner}/{repo}/git/trees/{sha}?recursive=1` for the listing.
+ *  - `GET /repos/{owner}/{repo}/git/blobs/{blob_sha}` for each blob (base64).
  *
  * Extraction is staged to a sibling directory and atomically swapped into
- * place on success. If anything fails (network, parse, cancellation), the
- * staging directory is cleaned up and the original `targetDir` is left
- * untouched.
- *
- * Symlinks (`mode === '120000'`) and submodules (`type === 'commit'`) are
- * skipped — neither is representable in the workbench virtual file system
- * and the previous tarball-based implementation already ignored them.
+ * place on success; failures clean up the staging dir and leave `targetDir`
+ * untouched. Symlinks (`mode === '120000'`) and submodules (`type === 'commit'`)
+ * are skipped — neither is representable in the workbench virtual file system.
  */
 export async function fetchAndExtractGitHubRepo(
 	requestService: IRequestService,
@@ -222,17 +206,9 @@ export async function fetchAndExtractGitHubRepo(
 	const tree = await fetchGitHubTree(requestService, repo, sha, authToken, token);
 	if (tree.truncated) {
 		// GitHub caps the recursive tree response at ~100K entries / ~7MB.
-		// Plugin repos are tiny in practice; if we ever blow this limit the
-		// install will silently miss files, so make it loud.
 		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.repo}@${sha} is truncated; some files will be missing from the install`);
 	}
 
-	// Stage the extraction in a sibling directory and swap into place on
-	// success. If anything throws (cancellation, network error, FS write
-	// error), the staging directory is cleaned up and the existing
-	// targetDir contents -- if any -- are left untouched. This avoids a
-	// failure mode where an aborted update wipes the target and leaves the
-	// persisted SHA cache pointing at a now-empty directory.
 	const stagingDir = joinPath(dirname(targetDir), `.staging-${generateUuid()}`);
 	try {
 		await fileService.createFolder(stagingDir);
@@ -267,8 +243,7 @@ export async function fetchAndExtractGitHubRepo(
 				logService.trace(`[GitHubRepoFetcher] Skipping tree entry with unsupported type '${entry.type}': ${entry.path}`);
 				continue;
 			}
-			// Pre-create the parent directory now (cheap, in-memory) so the
-			// parallel blob writes don't race on `createFolder`.
+			// Pre-create the parent directory so parallel blob writes don't race on `createFolder`.
 			const parent = dirname(dest);
 			if (parent.toString() !== dest.toString() && !createdDirs.has(parent.toString())) {
 				await fileService.createFolder(parent);
@@ -286,9 +261,6 @@ export async function fetchAndExtractGitHubRepo(
 			await fileService.writeFile(dest, content);
 		})));
 
-		// move() with overwrite=true atomically (from the consumer's POV)
-		// replaces the target with the freshly-fetched tree, dropping any
-		// files removed upstream.
 		await fileService.move(stagingDir, targetDir, true);
 	} catch (err) {
 		try {
@@ -374,13 +346,9 @@ async function fetchGitHubBlob(
 	authToken: string | undefined,
 	token: CancellationToken,
 ): Promise<VSBuffer> {
-	// Use the Git Blobs API (api.github.com) rather than
-	// raw.githubusercontent.com: the raw host does not respond to CORS
-	// preflight requests, so any browser request that includes an
-	// `Authorization` header is rejected before it ever leaves the user's
-	// machine. The blobs endpoint is on api.github.com which is properly
-	// CORS-enabled, returns base64-encoded content, and accepts the same
-	// auth header for private repos.
+	// Use api.github.com's blobs endpoint rather than raw.githubusercontent.com:
+	// the raw host rejects the OPTIONS preflight that an `Authorization` header
+	// forces. The blob SHA comes from the tree response.
 	const url = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/git/blobs/${encodeURIComponent(entry.sha)}`;
 	const headers: Record<string, string> = {
 		'Accept': 'application/vnd.github+json',
@@ -422,24 +390,12 @@ interface IGitHubBlobResponse {
 }
 
 /**
- * Sanitize a tree entry path to safe segments under {@link targetDir}.
+ * Sanitize a tree entry path to safe segments under {@link targetDir}. Rejects
+ * NUL bytes, absolute paths, `.`/`..` segments, and segments containing a
+ * backslash (which Windows path APIs would treat as a separator). The result
+ * is double-checked with `isEqualOrParent` as defence in depth.
  *
- * Rejects:
- *  - NUL bytes anywhere in the input
- *  - absolute paths (leading `/`)
- *  - `.` or `..` segments after splitting on `/`
- *  - any segment containing a backslash (which the workbench POSIX-style
- *    `joinPath` treats as a literal character, but Windows path APIs --
- *    e.g. on a Windows AHP server materialising files via the
- *    `agent-client:` provider -- treat as a separator and would escape
- *    `targetDir`)
- *
- * Then joins the surviving segments under `targetDir` and double-checks
- * the result with `isEqualOrParent` as defence in depth against any
- * platform-specific normalisation we missed.
- *
- * @returns the resolved URI, or `undefined` for paths that should be
- * skipped.
+ * @returns the resolved URI, or `undefined` for paths that should be skipped.
  */
 function safeJoinUnderTarget(targetDir: URI, inner: string): URI | undefined {
 	if (inner.includes('\0') || inner.startsWith('/') || inner.startsWith('\\')) {
