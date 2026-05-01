@@ -18,7 +18,7 @@ import { IRequestService } from '../../../../../platform/request/common/request.
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
-import { parseGitHubCloneUrl } from '../../browser/githubTarballFetcher.js';
+import { parseGitHubCloneUrl } from '../../browser/githubRepoFetcher.js';
 
 suite('BrowserPluginGitCommandService', () => {
 

@@ -20,7 +20,7 @@ import {
 	fetchAndExtractGitHubRepo,
 	parseGitHubCloneUrl,
 	resolveGitHubRefToSha,
-} from './githubTarballFetcher.js';
+} from './githubRepoFetcher.js';
 
 /** Storage key for the per-target metadata index used by this service. */
 const BROWSER_CACHE_STORAGE_KEY = 'chat.plugins.browserCache.v1';
