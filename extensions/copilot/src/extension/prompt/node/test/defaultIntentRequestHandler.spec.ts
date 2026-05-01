@@ -223,6 +223,22 @@ suite('defaultIntentRequestHandler', () => {
 		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(false);
 	});
 
+	test('Phase 3 guard: keeps request-time toolSearch capability false when the endpoint explicitly disables it', async () => {
+		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
+		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = false;
+		const handler = makeHandler();
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
+		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(false);
+	});
+
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
 		fetcher.resolvedModel = 'gpt-4o-resolved';
 		const handler = makeHandler();

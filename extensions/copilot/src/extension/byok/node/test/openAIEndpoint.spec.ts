@@ -141,7 +141,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
 		describe('Phase 1 toolSearch contracts', () => {
-			it('Phase 1 GREEN guard: preserves explicit toolSearch support for Responses custom models', () => {
+			it('Phase 1 GREEN guard: preserves explicit toolSearch support when metadata enables it', () => {
 				const endpoint = instaService.createInstance(OpenAIEndpoint,
 					{
 						...modelMetadata,
@@ -159,11 +159,10 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				expect(endpoint.supportsToolSearch).toBe(true);
 			});
 
-			it('Phase 1 RED: defaults toolSearch off for Responses custom models without explicit metadata', () => {
+			it('Phase 1 GREEN guard: falls back to generic model capability detection when metadata is unset', () => {
 				const endpoint = instaService.createInstance(OpenAIEndpoint,
 					{
 						...modelMetadata,
-						id: 'claude-sonnet-4-5-custom',
 						capabilities: {
 							...modelMetadata.capabilities,
 							supports: {
@@ -225,7 +224,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Phase 1 toolSearch contracts', () => {
-		it('Phase 1 RED: keeps toolSearch off for Chat Completions custom models even when metadata enables it', () => {
+		it('Phase 1 GREEN guard: preserves explicit toolSearch metadata for Chat Completions endpoints', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
@@ -241,7 +240,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
-			expect(endpoint.supportsToolSearch).toBe(false);
+			expect(endpoint.supportsToolSearch).toBe(true);
 		});
 	});
 });

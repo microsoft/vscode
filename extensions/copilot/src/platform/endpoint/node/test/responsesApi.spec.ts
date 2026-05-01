@@ -8,10 +8,12 @@ import type { OpenAI } from 'openai';
 import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
@@ -63,6 +65,22 @@ const createRequestOptions = (messages: Raw.ChatMessage[], useWebSocket: boolean
 	finishedCb: undefined,
 	location: undefined as any,
 	useWebSocket,
+});
+
+const createFunctionTool = (name: string, description: string, parameters: Record<string, unknown>) => ({
+	type: 'function' as const,
+	function: {
+		name,
+		description,
+		parameters,
+	},
+});
+
+const createToolSearchEndpoint = (supportsToolSearch: boolean): IChatEndpoint => ({
+	...testEndpoint,
+	family: 'gpt-5.4',
+	model: 'gpt-5.4',
+	supportsToolSearch,
 });
 
 const createStatefulMarkerMessage = (modelId: string, marker: string): Raw.ChatMessage => ({
@@ -306,7 +324,7 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
-	it('Phase 1 GREEN guard: keeps tool_search as a generic Responses function tool', () => {
+	it('Phase 1 GREEN guard: filters generic tool_search unless the endpoint explicitly supports client tool search', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -320,25 +338,142 @@ describe('createResponsesRequestBody', () => {
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
 			...createRequestOptions([], false),
+			location: ChatLocation.Agent,
 			requestOptions: {
-				tools: [{
-					type: 'function',
-					function: {
-						name: 'tool_search',
-						description: 'Search tools',
-						parameters,
-					},
-				}],
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { type: 'object', properties: {}, required: [] }),
+					createFunctionTool('tool_search', 'Search tools', parameters),
+				],
 			} as any,
-		}, testEndpoint.model, testEndpoint));
+		}, createToolSearchEndpoint(false).model, createToolSearchEndpoint(false)));
 
 		expect(body.tools).toEqual([{
-			name: 'tool_search',
-			description: 'Search tools',
-			parameters,
+			name: 'read_file',
+			description: 'Read a file',
+			parameters: {
+				type: 'object',
+				properties: {},
+				required: [],
+			},
 			strict: false,
 			type: 'function',
 		}]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('adds client tool_search only when the endpoint explicitly supports tool search', () => {
+		const services = createPlatformServices();
+		services.define(IToolDeferralService, {
+			_serviceBrand: undefined,
+			isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search',
+		});
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = createToolSearchEndpoint(true);
+		const parameters = {
+			type: 'object',
+			properties: {
+				query: { type: 'string' },
+			},
+			required: ['query'],
+		};
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
+			...createRequestOptions([], false),
+			location: ChatLocation.Agent,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { type: 'object', properties: {}, required: [] }),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { type: 'object', properties: {}, required: [] }),
+					createFunctionTool('tool_search', 'Search tools', parameters),
+				],
+			} as any,
+		}, endpoint.model, endpoint));
+
+		expect(body.tools).toEqual([
+			{
+				type: 'tool_search',
+				execution: 'client',
+				description: 'Search for relevant tools by describing what you need. Returns tool definitions for tools matching your query.',
+				parameters: {
+					type: 'object',
+					properties: {
+						query: {
+							type: 'string',
+							description: 'Natural language description of what tool capability you are looking for.',
+						},
+					},
+					required: ['query'],
+				},
+			},
+			{
+				name: 'read_file',
+				description: 'Read a file',
+				parameters: {
+					type: 'object',
+					properties: {},
+					required: [],
+				},
+				strict: false,
+				type: 'function',
+			},
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not add client tool_search when the endpoint explicitly disables tool search', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = createToolSearchEndpoint(false);
+		const parameters = {
+			type: 'object',
+			properties: {
+				query: { type: 'string' },
+			},
+			required: ['query'],
+		};
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, {
+			...createRequestOptions([], false),
+			location: ChatLocation.Agent,
+			requestOptions: {
+				tools: [
+					createFunctionTool('read_file', 'Read a file', { type: 'object', properties: {}, required: [] }),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { type: 'object', properties: {}, required: [] }),
+					createFunctionTool('tool_search', 'Search tools', parameters),
+				],
+			} as any,
+		}, endpoint.model, endpoint));
+
+		expect(body.tools).toEqual([
+			{
+				name: 'read_file',
+				description: 'Read a file',
+				parameters: {
+					type: 'object',
+					properties: {},
+					required: [],
+				},
+				strict: false,
+				type: 'function',
+			},
+			{
+				name: 'some_mcp_tool',
+				description: 'An MCP tool',
+				parameters: {
+					type: 'object',
+					properties: {},
+					required: [],
+				},
+				strict: false,
+				type: 'function',
+			},
+		]);
 
 		accessor.dispose();
 		services.dispose();
