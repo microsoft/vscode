@@ -1257,3 +1257,81 @@ describe('summarizedAtRoundId and stateful marker interaction', () => {
 		services.dispose();
 	});
 });
+
+describe('stream output item boundaries', () => {
+	it('inserts a blank line between text emitted from different output items', async () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const stream = createFakeStreamResponse<OpenAI.Responses.ResponseStreamEvent>([
+			{
+				type: 'response.output_item.added',
+				output_index: 0,
+				item: {
+					id: 'msg-commentary',
+					type: 'message',
+					role: 'assistant',
+					status: 'in_progress',
+					content: [],
+				},
+			},
+			{
+				type: 'response.output_text.delta',
+				item_id: 'msg-commentary',
+				output_index: 0,
+				content_index: 0,
+				delta: 'commentary',
+			},
+			{
+				type: 'response.output_item.added',
+				output_index: 1,
+				item: {
+					id: 'msg-final-answer',
+					type: 'message',
+					role: 'assistant',
+					status: 'in_progress',
+					content: [],
+				},
+			},
+			{
+				type: 'response.output_text.delta',
+				item_id: 'msg-final-answer',
+				output_index: 1,
+				content_index: 0,
+				delta: 'final answer',
+			},
+			{
+				type: 'response.completed',
+				response: {
+					id: 'resp-1',
+					object: 'response',
+					created_at: 0,
+					status: 'completed',
+					model: testEndpoint.model,
+					output: [],
+				},
+			},
+		]);
+
+		const textChunks: string[] = [];
+		await instantiationService.invokeFunction(async servicesAccessor => {
+			for await (const chunk of processResponseFromChatEndpoint(
+				servicesAccessor,
+				stream,
+				testEndpoint,
+				createRequestOptions([], true),
+				new TelemetryData(ChatLocation.Panel),
+			)) {
+				if (typeof chunk === 'string') {
+					textChunks.push(chunk);
+				}
+			}
+		});
+
+		expect(textChunks.join('')).toBe('commentary\n\nfinal answer');
+
+		accessor.dispose();
+		services.dispose();
+	});
+});
