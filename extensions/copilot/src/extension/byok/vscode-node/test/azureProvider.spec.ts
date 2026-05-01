@@ -5,25 +5,97 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
+import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import type { IBYOKStorageService } from '../byokStorageService';
+import { CustomOAIBYOKModelProvider } from '../customOAIProvider';
 import { resolveAzureUrl } from '../azureProvider';
 
 describe('AzureBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
+	let accessor: ITestingServicesAccessor;
 
 	beforeEach(() => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 
 		// Add IBlockedExtensionService which is required by CopilotLanguageModelWrapper
 		testingServiceCollection.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
 	});
 
 	afterEach(() => {
 		disposables.clear();
 		vi.restoreAllMocks();
 	});
+
+	function createStorageService(overrides?: Partial<IBYOKStorageService>): IBYOKStorageService {
+		return {
+			getAPIKey: vi.fn().mockResolvedValue(undefined),
+			storeAPIKey: vi.fn().mockResolvedValue(undefined),
+			deleteAPIKey: vi.fn().mockResolvedValue(undefined),
+			getStoredModelConfigs: vi.fn().mockResolvedValue({}),
+			saveModelConfig: vi.fn().mockResolvedValue(undefined),
+			removeModelConfig: vi.fn().mockResolvedValue(undefined),
+			...overrides,
+		};
+	}
+
+	function createExtensionContext() {
+		return {
+			globalState: {
+				get: vi.fn().mockReturnValue(true),
+				update: vi.fn().mockResolvedValue(undefined),
+			},
+		} as any;
+	}
+
+	function createProvider() {
+		return new CustomOAIBYOKModelProvider(
+			createStorageService(),
+			accessor.get(ILogService),
+			accessor.get(IFetcherService),
+			accessor.get(IInstantiationService),
+			accessor.get(IConfigurationService),
+			accessor.get(IExperimentationService),
+			createExtensionContext(),
+		);
+	}
+
+	function createCustomModel(url: string, toolSearch?: boolean) {
+		return {
+			id: 'custom-model',
+			name: 'Custom Model',
+			family: 'openai',
+			version: '1.0',
+			maxInputTokens: 4096,
+			maxOutputTokens: 2048,
+			capabilities: {
+				toolCalling: false,
+				imageInput: false,
+			},
+			url,
+			configuration: {
+				apiKey: 'test-api-key',
+				models: [{
+					id: 'custom-model',
+					name: 'Custom Model',
+					url,
+					maxInputTokens: 4096,
+					maxOutputTokens: 2048,
+					toolCalling: false,
+					vision: false,
+					...(toolSearch === undefined ? {} : { toolSearch }),
+				}],
+			},
+		} as any;
+	}
 
 	describe('resolveAzureUrl', () => {
 		it('should handle Azure AI Foundry (models.ai.azure.com) URLs', () => {
@@ -65,6 +137,36 @@ describe('AzureBYOKModelProvider', () => {
 		it('should throw error for unrecognized Azure URL', () => {
 			const url = 'https://unknown.example.com';
 			expect(() => resolveAzureUrl('gpt-4', url)).toThrow('Unrecognized Azure deployment URL');
+		});
+	});
+
+	describe('CustomOAIBYOKModelProvider toolSearch mapping', () => {
+		it('enables toolSearch for Responses custom models when explicitly configured', async () => {
+			const provider = createProvider();
+			const endpoint = await (provider as any).createOpenAIEndPoint(createCustomModel('https://example.test/v1/responses', true));
+
+			expect(endpoint.supportsToolSearch).toBe(true);
+		});
+
+		it('keeps toolSearch disabled for Responses custom models when explicitly false', async () => {
+			const provider = createProvider();
+			const endpoint = await (provider as any).createOpenAIEndPoint(createCustomModel('https://example.test/v1/responses', false));
+
+			expect(endpoint.supportsToolSearch).toBe(false);
+		});
+
+		it('defaults toolSearch to false for Responses custom models when it is unset', async () => {
+			const provider = createProvider();
+			const endpoint = await (provider as any).createOpenAIEndPoint(createCustomModel('https://example.test/v1/responses'));
+
+			expect(endpoint.supportsToolSearch).toBe(false);
+		});
+
+		it('does not enable toolSearch for non-Responses custom models even when explicitly configured', async () => {
+			const provider = createProvider();
+			const endpoint = await (provider as any).createOpenAIEndPoint(createCustomModel('https://example.test/v1/chat/completions', true));
+
+			expect(endpoint.supportsToolSearch).toBe(false);
 		});
 	});
 

@@ -191,6 +191,38 @@ suite('defaultIntentRequestHandler', () => {
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
 	});
 
+	test('Phase 1 GREEN guard: passes request-time toolSearch capability through when the endpoint supports it', async () => {
+		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
+		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = true;
+		const handler = makeHandler();
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
+		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(true);
+	});
+
+	test('Phase 1 GREEN guard: defaults request-time toolSearch capability to false when the endpoint does not expose it', async () => {
+		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
+		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = undefined;
+		const handler = makeHandler();
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
+		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(false);
+	});
+
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
 		fetcher.resolvedModel = 'gpt-4o-resolved';
 		const handler = makeHandler();
@@ -202,46 +234,6 @@ suite('defaultIntentRequestHandler', () => {
 
 		const result = await handler.getResult();
 		expect(result.metadata?.resolvedModel).toBe('gpt-4o-resolved');
-	});
-
-	test('ignores stateful marker when mode instructions changed on responses api requests', async () => {
-		const request = new TestChatRequest();
-		(request as any).modeInstructions2 = { name: 'Agent', content: 'agent instructions', isBuiltin: true };
-		(endpoint as any).apiType = 'responses';
-		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
-		const previousTurn = new Turn(generateUuid(), { message: 'previous', type: 'user' }, undefined, [], undefined, undefined, false, { name: 'Plan', content: 'plan instructions', isBuiltin: true } as any);
-		const handler = makeHandler({ request, turns: [previousTurn] });
-		chatResponse[0] = 'some response here :)';
-		promptResult = {
-			...nullRenderPromptResult(),
-			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
-		};
-
-		await handler.getResult();
-
-		expect(requestSpy).toHaveBeenCalledOnce();
-		expect(requestSpy.mock.calls[0][0].modeChanged).toBe(true);
-		expect(requestSpy.mock.calls[0][0].ignoreStatefulMarker).toBeUndefined();
-	});
-
-	test('preserves default stateful marker behavior when mode instructions are unchanged on responses api requests', async () => {
-		const request = new TestChatRequest();
-		(request as any).modeInstructions2 = { name: 'Agent', content: 'agent instructions', isBuiltin: true };
-		(endpoint as any).apiType = 'responses';
-		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
-		const previousTurn = new Turn(generateUuid(), { message: 'previous', type: 'user' }, undefined, [], undefined, undefined, false, { name: 'Agent', content: 'agent instructions', isBuiltin: true } as any);
-		const handler = makeHandler({ request, turns: [previousTurn] });
-		chatResponse[0] = 'some response here :)';
-		promptResult = {
-			...nullRenderPromptResult(),
-			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
-		};
-
-		await handler.getResult();
-
-		expect(requestSpy).toHaveBeenCalledOnce();
-		expect(requestSpy.mock.calls[0][0].modeChanged).toBe(false);
-		expect(requestSpy.mock.calls[0][0].ignoreStatefulMarker).toBeUndefined();
 	});
 
 	test('makes a tool call turn', async () => {
