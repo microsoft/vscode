@@ -57,7 +57,7 @@ export function resolveCommonProperties(
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.product'] = product || 'desktop';
 
-	// __GDPR__COMMON__ "gitVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "tscode.version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// test-workbench_change start
 	if (gitVersion) {
 		result['tscode.version'] = gitVersion;
