@@ -489,7 +489,7 @@ export class PromptBody {
 					const beforeFragment = fragmentIndex >= 0 ? linkTarget.substring(0, fragmentIndex) : linkTarget;
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 					if (beforeFragment.length > 0) {
-						fileReferences.push({ content: linkTarget, range, isMarkdownLink: true });
+						fileReferences.push({ content: beforeFragment, range, isMarkdownLink: true });
 					}
 				}
 				// Match #file:<filePath> and #tool:<toolName>
