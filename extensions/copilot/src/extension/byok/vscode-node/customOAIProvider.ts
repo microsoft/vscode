@@ -157,7 +157,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 
-	protected getToolSearchSupport(modelConfiguration: CustomOAIModelConfig | undefined, usesResponsesApi: boolean): boolean {
+	protected getToolSearchSupport(_modelConfiguration: CustomOAIModelConfig | undefined, _usesResponsesApi: boolean): boolean {
 		return false;
 	}
 

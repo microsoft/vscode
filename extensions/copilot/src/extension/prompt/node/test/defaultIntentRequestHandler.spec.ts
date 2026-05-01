@@ -138,6 +138,17 @@ suite('defaultIntentRequestHandler', () => {
 		sessionId = generateUuid();
 		sessionResource = Uri.parse(`test://session/${this.sessionId}`);
 		hasHooksEnabled = false;
+		modeInstructions2?: ChatRequest['modeInstructions2'];
+	}
+
+	function createModeInstructions(name: string, content = `${name} instructions`): NonNullable<ChatRequest['modeInstructions2']> {
+		return {
+			name,
+			content,
+			isBuiltin: true,
+			uri: Uri.parse(`test://mode/${name}`),
+			metadata: { version: 1, profile: name },
+		};
 	}
 
 	const responseStream = new ChatResponseStreamImpl(p => response.push(p), () => { }, undefined, undefined, undefined, () => Promise.resolve(undefined));
@@ -237,6 +248,45 @@ suite('defaultIntentRequestHandler', () => {
 
 		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
 		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(false);
+	});
+
+	test('keeps Responses API modeChanged false when mode instructions are unchanged', async () => {
+		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
+		(endpoint as { apiType?: string }).apiType = 'responses';
+		const request = new TestChatRequest();
+		const previousModeInstructions = createModeInstructions('ask');
+		request.modeInstructions2 = { ...previousModeInstructions, metadata: { ...previousModeInstructions.metadata } };
+		const previousTurn = new Turn(generateUuid(), { message: request.prompt, type: 'user' }, undefined, [], undefined, undefined, false, previousModeInstructions);
+		const handler = makeHandler({ request, turns: [previousTurn] });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
+		expect(fetchOneSpy.mock.calls[0][0].modeChanged).toBe(false);
+	});
+
+	test('propagates Responses API modeChanged when mode instructions changed from the previous turn', async () => {
+		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
+		(endpoint as { apiType?: string }).apiType = 'responses';
+		const request = new TestChatRequest();
+		request.modeInstructions2 = createModeInstructions('plan');
+		const previousTurn = new Turn(generateUuid(), { message: request.prompt, type: 'user' }, undefined, [], undefined, undefined, false, createModeInstructions('ask'));
+		const handler = makeHandler({ request, turns: [previousTurn] });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(fetchOneSpy).toHaveBeenCalledTimes(1);
+		expect(fetchOneSpy.mock.calls[0][0].modeChanged).toBe(true);
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
