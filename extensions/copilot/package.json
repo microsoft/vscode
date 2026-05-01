@@ -4722,10 +4722,7 @@
 					"github.copilot.chat.cli.remote.enabled": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "%github.copilot.config.cli.remote.enabled%",
-						"tags": [
-							"advanced"
-						]
+						"markdownDescription": "%github.copilot.config.cli.remote.enabled%"
 					},
 					"github.copilot.chat.searchSubagent.enabled": {
 						"type": "boolean",
