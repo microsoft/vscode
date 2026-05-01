@@ -7,7 +7,7 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
@@ -658,7 +658,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => service.messages('gh-tok', baseRequest),
-				(err: Error) => err.message.includes('CAPI request failed: 429'),
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === 429
+					&& err.message.includes('CAPI request failed: 429'),
 			);
 		});
 
@@ -670,7 +672,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => service.messages('gh-tok', baseRequest),
-				(err: Error) => err.message.includes('CAPI request failed: 500'),
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === 500
+					&& err.message.includes('CAPI request failed: 500'),
 			);
 		});
 	});
@@ -776,7 +780,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
-				(err: Error) => err.message === 'overloaded',
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === COPILOT_API_ERROR_STATUS_STREAMING
+					&& err.message === 'overloaded',
 			);
 		});
 
@@ -790,7 +796,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
-				(err: Error) => err.message === 'Unknown streaming error',
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === COPILOT_API_ERROR_STATUS_STREAMING
+					&& err.message === 'Unknown streaming error',
 			);
 		});
 
@@ -802,7 +810,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
-				(err: Error) => err.message.includes('CAPI request failed: 529'),
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === 529
+					&& err.message.includes('CAPI request failed: 529'),
 			);
 		});
 
@@ -1037,6 +1047,274 @@ suite('CopilotApiService', () => {
 
 	// #endregion
 
+	// #region CopilotApiError contract
+
+	suite('CopilotApiError contract', () => {
+
+		async function captureCopilotApiError(promise: Promise<unknown>): Promise<CopilotApiError> {
+			try {
+				await promise;
+			} catch (err) {
+				assert.ok(err instanceof CopilotApiError, `expected CopilotApiError, got: ${err instanceof Error ? err.message : String(err)}`);
+				return err;
+			}
+			assert.fail('expected to throw CopilotApiError');
+		}
+
+		test('non-2xx with conforming Anthropic envelope: passthrough verbatim', async () => {
+			const upstreamEnvelope: Anthropic.ErrorResponse = {
+				type: 'error',
+				error: { type: 'rate_limit_error', message: 'You are sending requests too fast.' },
+				request_id: 'req_abc',
+			};
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response(JSON.stringify(upstreamEnvelope), { status: 429, statusText: 'Too Many Requests' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.messages('gh-tok', baseRequest));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{ status: 429, envelope: upstreamEnvelope },
+			);
+		});
+
+		test('non-2xx with non-Anthropic JSON body: synthesizes api_error envelope', async () => {
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response('{"error":"rate_limited"}', { status: 429, statusText: 'Too Many Requests' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.messages('gh-tok', baseRequest));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{
+					status: 429,
+					envelope: {
+						type: 'error',
+						error: { type: 'api_error', message: '{"error":"rate_limited"}' },
+						request_id: null,
+					},
+				},
+			);
+		});
+
+		test('non-2xx with plain-text body: synthesizes api_error envelope using body', async () => {
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response('internal server error', { status: 500, statusText: 'Internal Server Error' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.messages('gh-tok', baseRequest));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{
+					status: 500,
+					envelope: {
+						type: 'error',
+						error: { type: 'api_error', message: 'internal server error' },
+						request_id: null,
+					},
+				},
+			);
+		});
+
+		test('non-2xx with empty body: synthesizes api_error envelope using status text', async () => {
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response('', { status: 502, statusText: 'Bad Gateway' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.messages('gh-tok', baseRequest));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{
+					status: 502,
+					envelope: {
+						type: 'error',
+						error: { type: 'api_error', message: '502 Bad Gateway' },
+						request_id: null,
+					},
+				},
+			);
+		});
+
+		test('SSE error frame with full envelope: passthrough type and message', async () => {
+			const service = streamService([
+				sseLines(
+					'event: error',
+					'data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"request_id":"req_42"}',
+				),
+			]);
+
+			const err = await captureCopilotApiError(
+				collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
+			);
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{
+					status: COPILOT_API_ERROR_STATUS_STREAMING,
+					envelope: {
+						type: 'error',
+						error: { type: 'overloaded_error', message: 'Overloaded' },
+						request_id: 'req_42',
+					},
+				},
+			);
+		});
+
+		test('SSE error frame missing type: defaults to api_error', async () => {
+			const service = streamService([
+				sseLines(
+					'event: error',
+					'data: {"type":"error","error":{"message":"oh no"}}',
+				),
+			]);
+
+			const err = await captureCopilotApiError(
+				collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
+			);
+			assert.deepStrictEqual(err.envelope, {
+				type: 'error',
+				error: { type: 'api_error', message: 'oh no' },
+				request_id: null,
+			});
+		});
+
+		test('SSE error frame missing message: defaults to "Unknown streaming error"', async () => {
+			const service = streamService([
+				sseLines(
+					'event: error',
+					'data: {"type":"error","error":{"type":"api_error"}}',
+				),
+			]);
+
+			const err = await captureCopilotApiError(
+				collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
+			);
+			assert.deepStrictEqual(err.envelope, {
+				type: 'error',
+				error: { type: 'api_error', message: 'Unknown streaming error' },
+				request_id: null,
+			});
+		});
+
+		test('SSE error frame with conforming envelope is preserved verbatim (extra fields propagate)', async () => {
+			// The Phase 2 proxy must be able to re-emit the original error frame
+			// with full fidelity — any extra fields the upstream emits should
+			// survive the round-trip through CopilotApiError.envelope.
+			const service = streamService([
+				sseLines(
+					'event: error',
+					'data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded","request_id":"req_xyz"}}',
+				),
+			]);
+
+			const err = await captureCopilotApiError(
+				collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
+			);
+			assert.deepStrictEqual(err.envelope, {
+				type: 'error',
+				error: { type: 'overloaded_error', message: 'Overloaded', request_id: 'req_xyz' },
+			});
+		});
+
+		test('SSE error frame with unstructured-string error: uses the string as message', async () => {
+			const service = streamService([
+				sseLines(
+					'event: error',
+					'data: {"type":"error","error":"rate_limited"}',
+				),
+			]);
+
+			const err = await captureCopilotApiError(
+				collect(service.messages('gh-tok', { ...baseRequest, stream: true as const })),
+			);
+			assert.deepStrictEqual(err.envelope, {
+				type: 'error',
+				error: { type: 'api_error', message: 'rate_limited' },
+				request_id: null,
+			});
+		});
+
+		test('models() non-2xx throws typed error with synthesized envelope', async () => {
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response('upstream down', { status: 503, statusText: 'Service Unavailable' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.models('gh-tok'));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{
+					status: 503,
+					envelope: {
+						type: 'error',
+						error: { type: 'api_error', message: 'upstream down' },
+						request_id: null,
+					},
+				},
+			);
+			assert.ok(err.message.includes('CAPI models request failed: 503'));
+		});
+
+		test('models() non-2xx with conforming Anthropic envelope: passthrough verbatim', async () => {
+			const upstreamEnvelope: Anthropic.ErrorResponse = {
+				type: 'error',
+				error: { type: 'authentication_error', message: 'Invalid token.' },
+				request_id: 'req_def',
+			};
+			const { fetch: fetchFn } = routingFetch(
+				() => new Response(JSON.stringify(upstreamEnvelope), { status: 401, statusText: 'Unauthorized' }),
+			);
+			const service = createService(fetchFn);
+
+			const err = await captureCopilotApiError(service.models('gh-tok'));
+			assert.deepStrictEqual(
+				{ status: err.status, envelope: err.envelope },
+				{ status: 401, envelope: upstreamEnvelope },
+			);
+		});
+
+		test('error message never embeds auth tokens', async () => {
+			const service = createService(async (input) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					return tokenResponse({ token: 'super-secret-copilot-token-xyz' });
+				}
+				return new Response('rate limited', { status: 429, statusText: 'Too Many Requests' });
+			});
+
+			const err = await captureCopilotApiError(service.messages('super-secret-gh-token-xyz', baseRequest));
+			const serialized = JSON.stringify({ message: err.message, envelope: err.envelope });
+			assert.ok(!serialized.includes('super-secret-copilot-token-xyz'));
+			assert.ok(!serialized.includes('super-secret-gh-token-xyz'));
+		});
+
+		test('401 still invalidates the cached token (regression)', async () => {
+			let mintCount = 0;
+			let next401 = true;
+			const service = createService(async (input) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					mintCount++;
+					return tokenResponse();
+				}
+				if (next401) {
+					next401 = false;
+					return new Response('unauthorized', { status: 401, statusText: 'Unauthorized' });
+				}
+				return anthropicResponse([{ type: 'text', text: 'ok' }]);
+			});
+
+			await captureCopilotApiError(service.messages('gh-tok', baseRequest));
+			await service.messages('gh-tok', baseRequest);
+			assert.strictEqual(mintCount, 2);
+		});
+	});
+
+	// #endregion
+
 	// #region Cancellation
 
 	suite('Cancellation', () => {
@@ -1230,7 +1508,9 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(
 				() => service.models('gh-tok'),
-				(err: Error) => err.message.includes('CAPI models request failed: 403'),
+				(err: unknown) => err instanceof CopilotApiError
+					&& err.status === 403
+					&& err.message.includes('CAPI models request failed: 403'),
 			);
 		});
 

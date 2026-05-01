@@ -354,11 +354,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Browse actions -------
 
-	test('has one browse action for local folders', () => {
+	test('has no browse actions', () => {
 		const provider = createProvider(disposables, agentHost);
 
-		assert.strictEqual(provider.browseActions.length, 1);
-		assert.strictEqual(provider.browseActions[0].providerId, provider.id);
+		assert.strictEqual(provider.browseActions.length, 0);
 	});
 
 	// ---- Session listing via notifications -------

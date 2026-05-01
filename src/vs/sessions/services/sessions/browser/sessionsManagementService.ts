@@ -129,7 +129,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			this.setActiveSession(to);
 			this._onDidChangeSessions.fire({
 				added: [],
-				removed: [from],
+				removed: from.sessionId === to.sessionId ? [] : [from],
 				changed: [to],
 			});
 		}

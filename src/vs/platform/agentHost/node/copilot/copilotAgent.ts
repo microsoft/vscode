@@ -769,7 +769,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		const entry = this._sessions.get(AgentSession.id(session));
+		const sessionId = AgentSession.id(parseSubagentSessionUri(session.toString())?.parentSession || session);
+		const entry = this._sessions.get(sessionId);
 		entry?.handleClientToolCallComplete(toolCallId, result);
 	}
 

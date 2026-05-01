@@ -10,7 +10,6 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -144,7 +143,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			// and the response footer details — they otherwise both call
 			// `resolveEndpoint` (which hits the cached endpoint list, then
 			// re-filters), which is wasted work and risks divergence.
-			const endpoint = await this._resolveEndpointForRequest(modelId.toEndpointModelId());
+			const endpoint = await this.claudeModels.resolveEndpoint(modelId.toEndpointModelId(), undefined);
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
 			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
@@ -201,19 +200,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	}
 
 	/**
-	 * Resolves a Claude model id to its endpoint. Wraps `resolveEndpoint` in a
-	 * try/catch so transient failures degrade gracefully (return `undefined`)
-	 * instead of breaking the response or session-load path.
-	 */
-	private async _resolveEndpointForRequest(modelId: string): Promise<IChatEndpoint | undefined> {
-		try {
-			return await this.claudeModels.resolveEndpoint(modelId, undefined);
-		} catch {
-			return undefined;
-		}
-	}
-
-	/**
 	 * Resolves the display string for each unique non-synthetic model id observed in the
 	 * session's assistant messages. Returns `undefined` (not an empty map) when no model
 	 * ids are present, when the caller has cancelled, or when no ids resolve to known
@@ -240,7 +226,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			if (token.isCancellationRequested) {
 				return;
 			}
-			const endpoint = await this._resolveEndpointForRequest(modelId);
+			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
 			if (endpoint) {
 				detailsByModelId.set(modelId, formatClaudeModelDetails(endpoint));
 			}

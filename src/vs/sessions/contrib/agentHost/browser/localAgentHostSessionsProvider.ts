@@ -14,7 +14,6 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -42,13 +41,13 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	readonly supportsLocalWorkspaces = true;
 
 	private readonly _localLabel = localize('localAgentHostSessionTypeLocation', "Local");
 	private readonly _localDescription = new MarkdownString(this._localLabel);
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -60,14 +59,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
-		this.browseActions = [{
-			label: localize('folders', "Folders"),
-			description: this.label,
-			group: SESSION_WORKSPACE_GROUP_LOCAL,
-			icon: Codicon.folderOpened,
-			providerId: this.id,
-			run: () => this._browseForFolder(),
-		}];
+		this.browseActions = [];
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
@@ -160,24 +152,5 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,
 		};
-	}
-
-	// -- Browse --------------------------------------------------------------
-
-	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
-		try {
-			const selected = await this._fileDialogService.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				title: localize('selectLocalFolder', "Select Folder"),
-			});
-			if (selected?.[0]) {
-				return this.resolveWorkspace(selected[0]);
-			}
-		} catch {
-			// dialog was cancelled or failed
-		}
-		return undefined;
 	}
 }
