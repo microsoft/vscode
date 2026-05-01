@@ -491,6 +491,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
 
+		// Handle `<app> --open-chat-session`
+		this.handleOpenChatSession(openConfig, usedWindows);
+
 		return usedWindows;
 	}
 
@@ -532,6 +535,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
 		}
+	}
+
+	private handleOpenChatSession(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		const sessionUri = openConfig.cli['open-chat-session'];
+		if (!sessionUri || usedWindows.length === 0) {
+			return;
+		}
+
+		const window = usedWindows[0];
+		window.sendWhenReady('vscode:openChatSession', CancellationToken.None, sessionUri);
+		window.focus();
 	}
 
 	private async doOpen(
@@ -1557,6 +1571,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
+			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
+			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,

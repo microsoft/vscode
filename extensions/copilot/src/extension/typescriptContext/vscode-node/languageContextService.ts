@@ -14,13 +14,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Queue } from '../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import * as protocol from '../common/serverProtocol';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemResultBuilder, ContextItemSummary, ResolvedRunnableResult, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 
 const currentTokenBudget: number = 8 * 1024;
 
@@ -1397,6 +1397,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 				}
 				contextItemResult.updateResponse(body, token);
 				this.telemetrySender.sendRequestTelemetry(document, position, context, contextItemResult, timeTaken, { before: cacheState, after: this.runnableResultManager.getCacheState() }, undefined);
+				// eslint-disable-next-line local/code-no-unused-expressions
 				isDebugging && forDebugging?.length;
 				this._onCachePopulated.fire({ document, position, source: context.source, items: resolved, summary: contextItemResult });
 			} else if (protocol.ComputeContextResponse.isError(response)) {
@@ -1524,6 +1525,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 				document, position, context, contextItemResult, Date.now() - startTime,
 				{ before: cacheState, after: cacheState }, cacheRequest
 			);
+			// eslint-disable-next-line local/code-no-unused-expressions
 			isDebugging && forDebugging?.length;
 			this._onContextComputed.fire({
 				document, position, source: context.source, items: itemsToYield, summary: contextItemResult
@@ -1975,7 +1977,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 			}
 
 			// Register with chat always.
-			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions]));
+			this.registrations.add(this.languageContextProviderService.registerContextProvider(provider, [ProviderTarget.Completions, ProviderTarget.NES]));
 			this.telemetrySender.sendInlineCompletionProviderTelemetry(KnownSources.completion, true);
 			logService.info('Registered TypeScript context provider with Copilot inline completions.');
 		} catch (error) {

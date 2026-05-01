@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPRReviewThread, IGitHubPullRequest, IGitHubPullRequestMergeability } from '../../common/types.js';
-import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
+import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
+import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
@@ -19,17 +19,21 @@ const DEFAULT_POLL_INTERVAL_MS = 60_000;
  */
 export class GitHubPullRequestModel extends Disposable {
 
+	private _pullRequestEtag: string | undefined = undefined;
 	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>(this, undefined);
 	readonly pullRequest: IObservable<IGitHubPullRequest | undefined> = this._pullRequest;
+
+	private _reviewsEtag: string | undefined = undefined;
+	private readonly _reviews = observableValue<readonly IGitHubPullRequestReview[] | undefined>(this, undefined);
+	readonly reviews: IObservable<readonly IGitHubPullRequestReview[] | undefined> = this._reviews;
 
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
-	private readonly _reviewThreads = observableValue<readonly IGitHubPRReviewThread[]>(this, []);
-	readonly reviewThreads: IObservable<readonly IGitHubPRReviewThread[]> = this._reviewThreads;
+	private _refreshPromise: Promise<void> | undefined = undefined;
 
+	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
-	private _disposed = false;
 
 	constructor(
 		readonly owner: string,
@@ -44,79 +48,90 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	/**
-	 * Refresh all PR data: pull request info, mergeability, and review threads.
+	 * Refresh all PR data: pull request info, and mergeability.
 	 */
-	async refresh(): Promise<void> {
-		await this._refresh();
-	}
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh()
+				.finally(() => {
+					this._refreshPromise = undefined;
+				});
+		}
 
-	/**
-	 * Post a reply to an existing review thread and refresh threads.
-	 */
-	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
-		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo);
-		await this._refresh();
-		return comment;
+		return this._refreshPromise;
 	}
 
 	/**
 	 * Post a top-level issue comment on the PR.
 	 */
 	async postIssueComment(body: string): Promise<IGitHubPRComment> {
-		const comment = await this._fetcher.postIssueComment(this.owner, this.repo, this.prNumber, body);
-		await this._refresh();
-		return comment;
-	}
-
-	/**
-	 * Resolve a review thread and refresh the thread list.
-	 */
-	async resolveThread(threadId: string): Promise<void> {
-		await this._fetcher.resolveThread(this.owner, this.repo, threadId);
-		await this._refresh();
+		return this._fetcher.postIssueComment(this.owner, this.repo, this.prNumber, body);
 	}
 
 	/**
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
-	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.cancel();
-		this._pollScheduler.schedule(intervalMs);
-	}
+	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
+		if (this._pollingClientCount++ === 0) {
+			this._pollScheduler.schedule(intervalMs);
+		}
 
-	/**
-	 * Stop periodic polling.
-	 */
-	stopPolling(): void {
-		this._pollScheduler.cancel();
+		return toDisposable(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			if (--this._pollingClientCount === 0) {
+				this._pollScheduler.cancel();
+			}
+		});
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
-
-		// Re-schedule for next poll cycle
-		// as RunOnceScheduler is one-shot
-		if (!this._disposed) {
+		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
+		if (!this._store.isDisposed && this._pollingClientCount > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
 	private async _refresh(): Promise<void> {
 		try {
-			const data = await this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber);
+			const [pr, reviews] = await Promise.all([
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._reviewsEtag),
+			]);
 
 			transaction(tx => {
-				this._pullRequest.set(data.pullRequest, tx);
-				this._mergeability.set(data.mergeability, tx);
-				this._reviewThreads.set(data.reviewThreads, tx);
+				if (pr.statusCode === 200 && pr.data) {
+					this._pullRequestEtag = pr.etag;
+					this._pullRequest.set(pr.data, tx);
+				}
+
+				if (reviews.statusCode === 200 && reviews.data) {
+					this._reviewsEtag = reviews.etag;
+					this._reviews.set(reviews.data, tx);
+				}
+
+				// Recompute mergeability if either the pull request or reviews changed. Both
+				// are needed to compute mergeability, so we wait until both requests complete
+				// before updating.
+				if (pr.statusCode === 200 || reviews.statusCode === 200) {
+					const prData = pr.data ?? this._pullRequest.get();
+					const reviewsData = reviews.data ?? this._reviews.get();
+
+					if (prData && reviewsData) {
+						const mergeability = computeMergeability(prData, reviewsData);
+						this._mergeability.set(mergeability, tx);
+					}
+				}
 			});
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh PR snapshot for #${this.prNumber}:`, err);
+			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
 		}
 	}
 
 	override dispose(): void {
-		this._disposed = true;
 		super.dispose();
 	}
 }

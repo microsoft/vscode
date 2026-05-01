@@ -59,19 +59,23 @@ export const IChatSessionWorktreeService = createServiceIdentifier<IChatSessionW
 
 export interface IChatSessionWorktreeService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Triggered when cached worktree changes for a session are invalidated and should be refreshed.
+	 *
+	 * This event does not guarantee that the underlying set of changes was updated directly; callers
+	 * should re-query {@link getWorktreeChanges} when it fires.
+	 */
+	onDidChangeWorktreeChanges: vscode.Event<{ sessionId: string }>;
 
 	createWorktree(repositoryPath: vscode.Uri, stream?: vscode.ChatResponseStream, baseBranch?: string, branchName?: string): Promise<ChatSessionWorktreeProperties | undefined>;
 
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
 
 	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
 	getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined>;
 
 	applyWorktreeChanges(sessionId: string): Promise<void>;
-
-	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
 
 	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined>;
 

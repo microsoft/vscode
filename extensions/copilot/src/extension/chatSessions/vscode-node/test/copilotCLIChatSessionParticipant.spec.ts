@@ -47,7 +47,7 @@ import { getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo'
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { type CopilotCLIModelInfo, type ICopilotCLIModels, type ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
-import { CopilotCLISession, CopilotCLISessionInput } from '../../copilotcli/node/copilotcliSession';
+import { CopilotCLISession, CopilotCLISessionInput, ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIMCPHandler } from '../../copilotcli/node/mcpHandler';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from '../../copilotcli/node/test/testHelpers';
@@ -248,11 +248,17 @@ function createChatContext(sessionId: string, isUntitled: boolean, ...requests: 
 	} as vscode.ChatContext;
 }
 
+async function waitForScheduledUntitledSwap(): Promise<void> {
+	await new Promise(resolve => setTimeout(resolve, 125));
+}
+
 class TestCopilotCLISession extends CopilotCLISession {
 	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
 	public static statusOverride?: vscode.ChatSessionStatus;
+	public static lastResponseModelId: string | undefined;
 	override get status(): vscode.ChatSessionStatus | undefined {
 		return TestCopilotCLISession.statusOverride;
 	}
@@ -262,6 +268,13 @@ class TestCopilotCLISession extends CopilotCLISession {
 			return TestCopilotCLISession.handleRequestHook(request, input);
 		}
 		return TestCopilotCLISession.nextHandleRequestResult ?? Promise.resolve();
+	}
+	override setPermissionLevel(level: string | undefined): void {
+		this.permissionLevel = level;
+		super.setPermissionLevel(level);
+	}
+	override getLastResponseModelId(): string | undefined {
+		return TestCopilotCLISession.lastResponseModelId;
 	}
 }
 
@@ -312,6 +325,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		TestCopilotCLISession.nextHandleRequestResult = undefined;
 		TestCopilotCLISession.handleRequestHook = undefined;
 		TestCopilotCLISession.statusOverride = undefined;
+		TestCopilotCLISession.lastResponseModelId = undefined;
 		// By default, simulate VS Code core opening the delegated session and
 		// re-invoking handleRequest with the copilotcli:// resource. This matches
 		// the production flow where executeCommand opens the session.
@@ -405,6 +419,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			override notifySessionOptionsChange = vi.fn((_resource: vscode.Uri, _updates: ReadonlyArray<{ optionId: string; value: string | vscode.ChatSessionProviderOptionItem }>): void => {
 				// tracked by vi.fn
 			});
+			override trackActiveSession = vi.fn();
+			override untrackActiveSession = vi.fn();
 		}();
 		folderRepositoryManager = new CopilotCLIFolderRepositoryManager(
 			worktree,
@@ -414,7 +430,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			workspaceService,
 			logService,
 			tools,
-			fileSystem
+			fileSystem,
+			new MockChatSessionMetadataStore()
 		);
 
 		instantiationService = accessor.get(IInstantiationService);
@@ -465,6 +482,71 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests.length).toBe(1);
 		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], model: { model: 'base' }, authInfo, token });
+	});
+
+	it('uses permissionLevel from initial session options', async () => {
+		const request = new TestChatRequest('Say hi');
+		const context = createChatContext('temp-new', true, request);
+		(context.chatSessionContext as { initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }> }).initialSessionOptions = [{ optionId: 'permissionLevel', value: 'autopilot' }];
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		await participant.createHandler()(request, context, stream, token);
+
+		expect(cliSessions.length).toBe(1);
+		expect(cliSessions[0].permissionLevel).toBe('autopilot');
+	});
+
+	it('applies live permissionLevel option changes to an active session', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const activeSession = {
+			sessionId: 'sdk-session',
+			setPermissionLevel: vi.fn(),
+		} as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('untitled-session', activeSession.sessionId);
+		provider.trackActiveSession('untitled-session', activeSession);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/untitled-session'), [
+			{ optionId: 'permissionLevel', value: 'autopilot' }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(activeSession.setPermissionLevel).toHaveBeenCalledWith('autopilot');
+	});
+
+	it('scopes live permissionLevel changes to the targeted session', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const sessionA = { sessionId: 'sdk-a', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		const sessionB = { sessionId: 'sdk-b', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('resource-a', sessionA.sessionId);
+		itemProvider.untitledSessionIdMapping.set('resource-b', sessionB.sessionId);
+		provider.trackActiveSession('resource-a', sessionA);
+		provider.trackActiveSession('resource-b', sessionB);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/resource-b'), [
+			{ optionId: 'permissionLevel', value: 'autopilot' }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(sessionB.setPermissionLevel).toHaveBeenCalledWith('autopilot');
+		expect(sessionA.setPermissionLevel).not.toHaveBeenCalled();
+	});
+
+	it('clears permissionLevel on an active session when option value is undefined', async () => {
+		const provider = Object.create(CopilotCLIChatSessionContentProvider.prototype) as CopilotCLIChatSessionContentProvider;
+		(provider as unknown as { sessionItemProvider: CopilotCLIChatSessionItemProvider }).sessionItemProvider = itemProvider;
+		(provider as unknown as { _activeSessionsById: Map<string, ICopilotCLISession> })._activeSessionsById = new Map<string, ICopilotCLISession>();
+		const activeSession = { sessionId: 'sdk-session', setPermissionLevel: vi.fn() } as unknown as ICopilotCLISession;
+		itemProvider.untitledSessionIdMapping.set('untitled-session', activeSession.sessionId);
+		provider.trackActiveSession('untitled-session', activeSession);
+
+		await provider.provideHandleOptionsChange(Uri.parse('copilotcli:/untitled-session'), [
+			{ optionId: 'permissionLevel', value: undefined }
+		], disposables.add(new CancellationTokenSource()).token);
+
+		expect(activeSession.setPermissionLevel).toHaveBeenCalledWith(undefined);
 	});
 
 	it('uses worktree workingDirectory when isolation is enabled for a new untitled session', async () => {
@@ -745,6 +827,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 		resolveSteeringRequest3();
 		await fourthPromise;
+		await waitForScheduledUntitledSwap();
 
 		expect(itemProvider.swap).toHaveBeenCalledTimes(1);
 	});
@@ -967,6 +1050,66 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions[0].requests[0].input).toEqual({ prompt: 'my prompt' });
 	});
 
+	it('returns live response details from the model reported by assistant usage', async () => {
+		const sessionId = 'existing-live-model';
+		const sdkSession = new MockCliSdkSession(sessionId, new Date());
+		manager.sessions.set(sessionId, sdkSession);
+		models.getModels = vi.fn(async () => [
+			{ id: 'base', name: 'Base', maxContextWindowTokens: 128000, supportsVision: false },
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext(sessionId, false, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({ details: 'Claude Opus 4.7 • 4x' });
+	});
+
+	it('does not return live response details when model details are disabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIModelDetailsEnabled, false);
+		const sessionId = 'existing-live-model-disabled';
+		const sdkSession = new MockCliSdkSession(sessionId, new Date());
+		manager.sessions.set(sessionId, sdkSession);
+		models.getModels = vi.fn(async () => [
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext(sessionId, false, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({});
+		expect(models.getModels).not.toHaveBeenCalled();
+	});
+
+	it('returns live response details before swapping an untitled session', async () => {
+		(itemProvider.isNewSession as ReturnType<typeof vi.fn>).mockImplementation((sessionId: string) => sessionId.startsWith('untitled:'));
+		models.getModels = vi.fn(async () => [
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext('untitled:live-model', true, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({ details: 'Claude Opus 4.7 • 4x' });
+		expect(itemProvider.swap).not.toHaveBeenCalled();
+
+		await waitForScheduledUntitledSwap();
+
+		expect(itemProvider.swap).toHaveBeenCalledTimes(1);
+	});
+
 	it('handles existing session with rejectedConfirmationData (proceeds normally)', async () => {
 		// With the new flow, rejectedConfirmationData is no longer used for uncommitted changes.
 		const sessionId = 'existing-confirm-reject';
@@ -1062,6 +1205,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const token = disposables.add(new CancellationTokenSource()).token;
 
 		await participant.createHandler()(request, context, stream, token);
+		await waitForScheduledUntitledSwap();
 
 		// Should swap with request.prompt as label
 		expect(itemProvider.swap).toHaveBeenCalled();
@@ -2149,6 +2293,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 			// Mapping should have existed during the request
 			expect(mappingExistedDuringRequest).toBe(true);
+			await waitForScheduledUntitledSwap();
 			// After the request completes and the session is swapped, the mapping should be cleaned up
 			expect(itemProvider.sdkToUntitledUriMapping.has(capturedSdkSessionId!)).toBe(false);
 		});

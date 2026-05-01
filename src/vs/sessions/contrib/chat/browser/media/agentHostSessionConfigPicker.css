@@ -12,3 +12,7 @@
 .sessions-chat-agent-host-config:empty {
 	display: none;
 }
+
+.sessions-chat-agent-host-config a.action-label {
+	touch-action: manipulation;
+}

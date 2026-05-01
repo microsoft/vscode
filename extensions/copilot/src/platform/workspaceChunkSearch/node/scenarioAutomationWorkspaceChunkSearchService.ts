@@ -201,6 +201,10 @@ export class ScenarioAutomationWorkspaceChunkSearchService implements IWorkspace
 		// noop
 	}
 
+	async *getDiagnosticsDump(): AsyncIterable<string> {
+		yield 'Scenario automation mode — no diagnostics available.';
+	}
+
 	dispose(): void {
 		// noop
 	}

@@ -454,6 +454,12 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
+	 * Maximum width for the action list. When set, items wider than this are
+	 * truncated rather than expanding the popup.
+	 */
+	readonly maxWidth?: number;
+
+	/**
 	 * Optional handler for markdown links activated in item descriptions or hovers.
 	 * When unset, links open via the opener service with command links allowed.
 	 */
@@ -475,8 +481,6 @@ export interface IActionListOptions {
 	 * in the description area (aligned to the right).
 	 */
 	readonly showGroupTitleOnFirstItem?: boolean;
-
-
 
 	/**
 	 * When true and filtering is enabled, focuses the filter input when the list opens.
@@ -888,6 +892,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._focusCheckedOrFirst();
 	}
 
+	clearFocus(): void {
+		this._list.setFocus([]);
+	}
+
 	getFocusedElement(): IActionListItem<T> | undefined {
 		const focused = this._list.getFocus();
 		if (focused.length > 0) {
@@ -1010,11 +1018,14 @@ export class ActionListWidget<T> extends Disposable {
 	computeMaxWidth(minWidth: number): number {
 		const visibleCount = this._list.length;
 		const effectiveMinWidth = Math.max(minWidth, this._options?.minWidth ?? 0);
+		const rawMaxWidthCap = this._options?.maxWidth ?? Number.POSITIVE_INFINITY;
+		const maxWidthCap = Math.max(rawMaxWidthCap, effectiveMinWidth);
+		const clamp = (w: number) => Math.min(Math.max(w, effectiveMinWidth), maxWidthCap);
 		let maxWidth = effectiveMinWidth;
 
 		const totalItemCount = this._allMenuItems.length;
 		if (totalItemCount >= 50) {
-			return Math.max(380, effectiveMinWidth);
+			return clamp(380);
 		}
 
 		if (totalItemCount > visibleCount) {
@@ -1044,7 +1055,7 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 
-			maxWidth = Math.max(...itemWidths, effectiveMinWidth);
+			maxWidth = clamp(Math.max(...itemWidths));
 
 			// Restore visible items
 			this._list.splice(0, allItems.length, visibleItems);
@@ -1062,7 +1073,7 @@ export class ActionListWidget<T> extends Disposable {
 				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
 			}
 		}
-		return Math.max(...itemWidths, effectiveMinWidth);
+		return clamp(Math.max(...itemWidths));
 	}
 
 	focusPrevious() {
@@ -1289,7 +1300,9 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
-		this._submenuDisposables.clear();
+		// Navigated to an item with no hover/submenu — fully tear down any
+		// previous submenu so a blank panel doesn't linger.
+		this._hideSubmenu();
 	}
 
 	private _showSubmenuForItem(item: IActionListItem<T>): void {
@@ -1366,14 +1379,19 @@ export class ActionListWidget<T> extends Disposable {
 				}
 				for (let ci = 0; ci < group.actions.length; ci++) {
 					const child = group.actions[ci];
+					const extendedChild = child as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+					const icon = extendedChild.icon
+						?? ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id);
+					const hoverContent = extendedChild.hoverContent;
 					submenuItems.push({
 						item: child,
 						kind: ActionListItemKind.Action,
 						label: child.label,
 						description: child.tooltip || undefined,
-						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
+						group: { title: '', icon },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: hoverContent } : {},
+						onRemove: extendedChild.onRemove,
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {
@@ -1383,6 +1401,7 @@ export class ActionListWidget<T> extends Disposable {
 			// Also include non-SubmenuAction items directly
 			for (const action of element.submenuActions!) {
 				if (!(action instanceof SubmenuAction)) {
+					const extendedAction = action as IAction & { onRemove?: () => void };
 					submenuItems.push({
 						item: action,
 						kind: ActionListItemKind.Action,
@@ -1391,6 +1410,7 @@ export class ActionListWidget<T> extends Disposable {
 						group: { title: '' },
 						hideIcon: false,
 						hover: {},
+						onRemove: extendedAction.onRemove,
 					});
 				}
 			}
@@ -1419,6 +1439,12 @@ export class ActionListWidget<T> extends Disposable {
 			));
 			this._submenuContainer.appendChild(submenuWidget.domNode);
 			this._currentSubmenuWidget = submenuWidget;
+
+			// The submenu widget's constructor focuses its first item by
+			// default; clear that until the user actually navigates into
+			// the submenu (via ArrowRight) so it doesn't render as if
+			// selected while the parent list still has focus.
+			submenuWidget.clearFocus();
 
 			totalHeight = submenuWidget.computeListHeight();
 			submenuWidget.layout(totalHeight);
@@ -1470,10 +1496,14 @@ export class ActionListWidget<T> extends Disposable {
 		const hoverHeaderHeight = hoverHeader ? hoverHeader.offsetHeight : 0;
 		const totalPanelHeight = totalHeight + hoverHeaderHeight;
 		const viewportHeight = targetWindow.innerHeight;
-		let top = anchorRect.top - parentRect.top - 4;
+		const anchorHeight = anchorRect.height;
+		let top = anchorRect.top - parentRect.top + (anchorHeight - totalPanelHeight) / 2;
 		const panelBottom = parentRect.top + top + totalPanelHeight;
 		if (panelBottom > viewportHeight) {
 			top -= (panelBottom - viewportHeight + 8);
+		}
+		if (parentRect.top + top < 0) {
+			top = -parentRect.top;
 		}
 		this._submenuContainer.style.top = `${top}px`;
 	}
@@ -1710,7 +1740,6 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
-		const padding = 10;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1718,8 +1747,9 @@ export class ActionList<T> extends Disposable {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
-			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - padding;
-			const spaceAbove = anchorTopInViewport - padding;
+			const bottomGap = 30;
+			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - bottomGap;
+			const spaceAbove = anchorTopInViewport;
 
 			// Lock the direction on first layout based on whether the full
 			// unconstrained list fits below. Once decided, the dropdown stays
@@ -1730,6 +1760,7 @@ export class ActionList<T> extends Disposable {
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
 		} else {
+			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
 			const widgetTop = this.domNode.getBoundingClientRect().top;
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
@@ -1749,7 +1780,8 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this.computeHeight();
 		this._widget.layout(listHeight);
 
-		this._cachedMaxWidth = this._widget.computeMaxWidth(minWidth);
+		const computedWidth = this._widget.computeMaxWidth(minWidth);
+		this._cachedMaxWidth = computedWidth;
 		this._widget.layout(listHeight, this._cachedMaxWidth);
 
 		return this._cachedMaxWidth;

@@ -74,7 +74,10 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					name: agent.name,
 					description: agent.description,
 					storage: agent.source.storage,
-					enabled: !disabledUris.has(agent.uri),
+					enabled: agent.enabled,
+					extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
+					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
+					userInvocable: agent.visibility.userInvocable
 				});
 				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
 					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
@@ -104,6 +107,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					enabled: true,
 					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
 					badgeTooltip: uiTooltip,
+					extensionId: skill.extension?.identifier.value,
+					pluginUri: skill.pluginUri,
+					userInvocable: skill.userInvocable
 				});
 			}
 			if (disabledUris.size > 0) {
@@ -121,6 +127,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							enabled: false,
 							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
 							badgeTooltip: uiTooltip,
+							extensionId: file.extension?.identifier.value,
+							pluginUri: file.pluginUri,
+							userInvocable: false
 						});
 					}
 				}
@@ -138,6 +147,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					description: command.description,
 					storage: command.storage,
 					enabled: !disabledUris.has(command.uri),
+					extensionId: command.extension?.identifier.value,
+					pluginUri: command.pluginUri,
+					userInvocable: command.userInvocable
 				});
 				if (command.extension) {
 					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
@@ -166,13 +178,16 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				name: f.name || getFriendlyName(basename(f.uri)),
 				storage: f.storage,
 				enabled: !disabledUris.has(f.uri),
+				extensionId: f.extension?.identifier.value,
+				pluginUri: f.pluginUri,
+				userInvocable: undefined
 			});
 		}
 
 		// Agent-embedded hooks (not in sessions window).
 		const agents = !this.workspaceService.isSessionsWindow ? await this.promptsService.getCustomAgents(CancellationToken.None) : [];
 		for (const agent of agents) {
-			if (!agent.hooks) {
+			if (!agent.hooks || !agent.enabled) {
 				continue;
 			}
 			for (const hookType of Object.values(HookType)) {
@@ -193,6 +208,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 						storage: agent.source.storage,
 						groupKey: 'agents',
 						enabled: !disabledUris.has(agent.uri),
+						extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
+						pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
+						userInvocable: undefined
 					});
 				}
 			}
@@ -219,10 +237,13 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				storage,
 				groupKey: 'agent-instructions',
 				enabled: !disabledUris.has(file.uri),
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined
 			});
 		}
 
-		for (const { uri, pattern, name, description, storage } of instructionFiles) {
+		for (const { uri, pattern, name, description, storage, extension, pluginUri } of instructionFiles) {
 			if (agentInstructionUris.has(uri)) {
 				continue;
 			}
@@ -246,6 +267,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					storage,
 					groupKey: 'context-instructions',
 					enabled: !disabledUris.has(uri),
+					extensionId: extension?.identifier.value,
+					pluginUri,
+					userInvocable: undefined
 				});
 			} else {
 				items.push({
@@ -256,6 +280,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					storage,
 					groupKey: 'on-demand-instructions',
 					enabled: !disabledUris.has(uri),
+					extensionId: extension?.identifier.value,
+					pluginUri,
+					userInvocable: undefined
 				});
 			}
 		}

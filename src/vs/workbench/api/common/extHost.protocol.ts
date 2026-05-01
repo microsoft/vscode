@@ -1444,6 +1444,7 @@ export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly durationInMillis?: number;
 }
@@ -1513,12 +1514,14 @@ export interface IChatDebugEventModelTurnContentDto {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSectionDto[];
 }
@@ -1701,6 +1704,7 @@ export interface ICustomAgentDto extends IChatResourceDto {
 	readonly model?: readonly string[];
 	readonly userInvocable: boolean;
 	readonly disableModelInvocation: boolean;
+	readonly enabled: boolean;
 }
 
 export interface IInstructionDto extends IChatResourceDto {
@@ -1719,6 +1723,9 @@ export interface ISlashCommandDto extends IChatResourceDto {
 export interface IHookDto {
 	readonly uri: UriComponents;
 	readonly sessionTypes?: readonly string[];
+	readonly source: IChatResourceSourceDto;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 }
 
 export interface IPluginDto {
@@ -1738,7 +1745,10 @@ export interface IChatSessionCustomizationItemDto {
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 	readonly badgeTooltip?: string;
+	readonly userInvocable?: boolean;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -3636,7 +3646,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string | { label: string; link: string };
+	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
 };
@@ -3644,6 +3654,33 @@ export type ChatStatusItemDto = {
 export interface MainThreadChatStatusShape {
 	$setEntry(id: string, entry: ChatStatusItemDto): void;
 	$disposeEntry(id: string): void;
+}
+
+export const enum ChatInputNotificationSeverityDto {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
+}
+
+export type ChatInputNotificationActionDto = {
+	label: string;
+	commandId: string;
+	commandArgs?: unknown[];
+};
+
+export type ChatInputNotificationDto = {
+	id: string;
+	severity: ChatInputNotificationSeverityDto;
+	message: string;
+	description: string | undefined;
+	actions: ChatInputNotificationActionDto[];
+	dismissible: boolean;
+	autoDismissOnMessage: boolean;
+};
+
+export interface MainThreadChatInputNotificationShape {
+	$setNotification(notification: ChatInputNotificationDto): void;
+	$disposeNotification(id: string): void;
 }
 
 export type IChatSessionHistoryItemDto = {
@@ -3888,6 +3925,7 @@ export const MainContext = {
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
+	MainThreadChatInputNotification: createProxyIdentifier<MainThreadChatInputNotificationShape>('MainThreadChatInputNotification'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),

@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../../../contrib/copilotChatSessions/browser/permissionPicker.js';
@@ -13,26 +14,8 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
-/**
- * The well-known session-config property name for tool auto-approval. The
- * Agent Host Protocol's session-config schema is intentionally generic — only
- * this property *name* (and the enum values below) is a convention shared
- * across implementations that want to opt into VS Code's unified
- * permission-picker UI. Agents that don't advertise this exact shape fall
- * back to the generic per-property picker.
- */
-export const AUTO_APPROVE_PROPERTY = 'autoApprove';
-
-/**
- * The set of enum values the unified permission picker understands for the
- * `autoApprove` property. Mirrors `ChatPermissionLevel` in
- * `vs/workbench/contrib/chat/common/constants.ts`.
- *
- * `autopilot` is optional (an agent may choose not to advertise it).
- * `default` is required as the baseline level.
- */
-const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'autoApprove', 'autopilot']);
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
+const REQUIRED_MODE_VALUE = 'interactive';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -107,7 +90,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return;
 		}
-		provider.setSessionConfigValue(session.sessionId, AUTO_APPROVE_PROPERTY, level)
+		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}
 
@@ -121,7 +104,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return ChatPermissionLevel.Default;
 		}
-		const value = provider.getSessionConfig(session.sessionId)?.values[AUTO_APPROVE_PROPERTY];
+		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
 	}
 
@@ -135,7 +118,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return false;
 		}
-		const schema = provider.getSessionConfig(session.sessionId)?.schema.properties[AUTO_APPROVE_PROPERTY];
+		const schema = provider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		return !!schema && isWellKnownAutoApproveSchema(schema);
 	}
 
@@ -155,3 +138,23 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 	}
 }
+
+/**
+ * Returns `true` when a `mode` session-config property uses the shape the
+ * dedicated agent-host mode picker expects: a string enum that contains
+ * at least `interactive`.
+ *
+ * Callers use this to decide whether to render the dedicated mode picker
+ * (with mode-specific icons and behavior) or fall back to the generic
+ * per-property picker.
+ */
+export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_MODE_VALUE)) {
+		return false;
+	}
+	return true;
+}
+

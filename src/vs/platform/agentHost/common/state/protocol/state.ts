@@ -331,6 +331,14 @@ export interface SessionState {
 	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
 	 */
 	customizations?: SessionCustomization[];
+	/**
+	 * Additional provider-specific metadata for this session.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `git` key may provide extra git metadata about the session's
+	 * workingDirectory.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -376,6 +384,8 @@ export interface SessionSummary {
 	title: string;
 	/** Current session status */
 	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
 	/** Creation timestamp */
 	createdAt: number;
 	/** Last modification timestamp */
@@ -585,11 +595,20 @@ export interface SessionInputTextQuestion extends SessionInputQuestionBase {
 /** Numeric question within a session input request. */
 export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
-	/** Minimum value */
+	/**
+	 * Minimum value
+	 * @format float
+	 */
 	min?: number;
-	/** Maximum value */
+	/**
+	 * Maximum value
+	 * @format float
+	 */
 	max?: number;
-	/** Default numeric value */
+	/**
+	 * Default numeric value
+	 * @format float
+	 */
 	defaultValue?: number;
 }
 
@@ -646,7 +665,7 @@ export interface SessionInputRequest {
 	/** Stable request identifier */
 	id: string;
 	/** Display message for the request as a whole */
-	message: string;
+	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
 	url?: URI;
 	/** Ordered questions to ask the user */
@@ -680,6 +699,7 @@ export interface SessionInputTextAnswerValue {
 
 export interface SessionInputNumberAnswerValue {
 	kind: SessionInputAnswerValueKind.Number;
+	/** @format float */
 	value: number;
 }
 
@@ -825,8 +845,8 @@ export interface UserMessage {
 export interface MessageAttachment {
 	/** Attachment type */
 	type: AttachmentType;
-	/** File/directory path */
-	path: string;
+	/** File/directory URI */
+	uri: URI;
 	/** Display name */
 	displayName?: string;
 }
@@ -1444,9 +1464,6 @@ export const enum CustomizationStatus {
 /**
  * A customization active in a session.
  *
- * Entries without a `clientId` are server-provided; entries with a `clientId`
- * originate from that client.
- *
  * @category Customization Types
  */
 export interface SessionCustomization {
@@ -1454,6 +1471,11 @@ export interface SessionCustomization {
 	customization: CustomizationRef;
 	/** Whether this customization is currently enabled */
 	enabled: boolean;
+	/**
+	 * The `clientId` of the client that contributed this customization.
+	 * Absent for host-provided customizations.
+	 */
+	clientId?: string;
 	/** Server-reported loading status */
 	status?: CustomizationStatus;
 	/**

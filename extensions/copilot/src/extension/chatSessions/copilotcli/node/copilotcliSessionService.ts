@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { internal, LocalSession, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { AutoModeSessionManager as SDKAutoModeSessionManager, AutoModeSessionResult, internal, LocalSession, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
@@ -49,9 +49,199 @@ import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
 import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from './mcpHandler';
+import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
+const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
+
+type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
+type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
+type AutoModeResolveResult = Awaited<ReturnType<SDKAutoModeSessionManager['resolve']>>;
+type AutoModeListener = Parameters<SDKAutoModeSessionManager['subscribe']>[0];
+
+class AutoModeSessionManagerCompat {
+
+	private current: AutoModeSessionResult | undefined;
+	private previousConcreteModel: string | undefined;
+	private inflight: Promise<AutoModeResolveResult> | undefined;
+	private readonly listeners = new Set<AutoModeListener>();
+
+	constructor(private readonly sdkPackage: Pick<SDKPackage, 'AutoModeUnavailableError' | 'AutoModeUnsupportedError' | 'acquireAutoModeSession' | 'isAutoModel' | 'refreshAutoModeSession'>) { }
+
+	recordPreviousConcreteModel(modelId: string | undefined): void {
+		if (modelId && !this.sdkPackage.isAutoModel(modelId)) {
+			this.previousConcreteModel = modelId;
+		}
+	}
+
+	getLastResolved(): string | undefined {
+		return this.current?.selectedModel;
+	}
+
+	getDiscountPercent(): number | undefined {
+		const discountedCosts = this.current?.discountedCosts;
+		if (!discountedCosts) {
+			return undefined;
+		}
+
+		const selectedModelDiscount = this.current?.selectedModel ? discountedCosts[this.current.selectedModel] : undefined;
+		if (selectedModelDiscount !== undefined) {
+			return Math.round(selectedModelDiscount * 100);
+		}
+
+		const allDiscounts = Object.values(discountedCosts);
+		if (allDiscounts.length === 0) {
+			return undefined;
+		}
+
+		return Math.round((allDiscounts.reduce((sum, discount) => sum + discount, 0) / allDiscounts.length) * 100);
+	}
+
+	getPreviousConcreteModel(): string | undefined {
+		return this.previousConcreteModel;
+	}
+
+	subscribe(listener: AutoModeListener): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
+
+	async resolve(args: AutoModeResolveArgs): Promise<AutoModeResolveResult> {
+		if (this.isFresh() && this.current) {
+			const current = this.current;
+			this.applySessionToken(args.settings, current.sessionToken);
+			return { modelId: current.selectedModel, sessionToken: current.sessionToken };
+		}
+
+		if (this.inflight) {
+			const resolved = await this.inflight;
+			if (resolved) {
+				this.applySessionToken(args.settings, resolved.sessionToken);
+			}
+
+			return resolved;
+		}
+
+		this.inflight = this.doResolve(args).finally(() => {
+			this.inflight = undefined;
+		});
+
+		return this.inflight;
+	}
+
+	clear(settings?: AutoModeResolveArgs['settings']): void {
+		this.current = undefined;
+		if (settings) {
+			this.clearSessionToken(settings);
+		}
+		this.notify();
+	}
+
+	handleModelChange(prevModel: string | undefined, nextModel: string, settings?: AutoModeResolveArgs['settings']): void {
+		if (this.sdkPackage.isAutoModel(nextModel) && !this.sdkPackage.isAutoModel(prevModel)) {
+			this.recordPreviousConcreteModel(prevModel);
+		} else if (!this.sdkPackage.isAutoModel(nextModel) && this.sdkPackage.isAutoModel(prevModel)) {
+			this.clear(settings);
+		}
+	}
+
+	private notify(): void {
+		const resolvedModel = this.current?.selectedModel;
+		const discountPercent = this.getDiscountPercent();
+		for (const listener of this.listeners) {
+			try {
+				listener(resolvedModel, discountPercent);
+			} catch {
+				// Ignore listener failures to mirror the SDK manager behavior.
+			}
+		}
+	}
+
+	private async doResolve(args: AutoModeResolveArgs): Promise<AutoModeResolveResult> {
+		const { logger, settings } = args;
+
+		if (this.current) {
+			try {
+				const refreshed = await this.sdkPackage.refreshAutoModeSession({ ...args, existingToken: this.current.sessionToken });
+				this.current = refreshed;
+				this.applySessionToken(settings, refreshed.sessionToken);
+				this.notify();
+				return { modelId: refreshed.selectedModel, sessionToken: refreshed.sessionToken };
+			} catch (error) {
+				if (this.isUnauthorizedError(error)) {
+					logger.debug('Auto-mode refresh unauthorized; acquiring a new session');
+				} else if (error instanceof this.sdkPackage.AutoModeUnsupportedError) {
+					logger.debug(`Auto-mode refresh unsupported: ${error.message}`);
+					this.current = undefined;
+					this.notify();
+					return undefined;
+				} else if (error instanceof this.sdkPackage.AutoModeUnavailableError) {
+					logger.debug(`Auto-mode unavailable during refresh: ${error.message}`);
+					this.current = undefined;
+					this.notify();
+					return undefined;
+				} else {
+					logger.debug(`Auto-mode refresh failed; reusing last token until expiry: ${this.formatError(error)}`);
+					this.applySessionToken(settings, this.current.sessionToken);
+					return { modelId: this.current.selectedModel, sessionToken: this.current.sessionToken };
+				}
+			}
+		}
+
+		try {
+			const acquired = await this.sdkPackage.acquireAutoModeSession(args);
+			this.current = acquired;
+			this.applySessionToken(settings, acquired.sessionToken);
+			this.notify();
+			logger.debug(`Auto-mode session acquired: selected_model=${acquired.selectedModel}${acquired.expiresAt ? ` expires_at=${acquired.expiresAt}` : ''}`);
+			return { modelId: acquired.selectedModel, sessionToken: acquired.sessionToken };
+		} catch (error) {
+			if (error instanceof this.sdkPackage.AutoModeUnsupportedError) {
+				logger.debug(`Auto-mode unsupported: ${error.message}`);
+				return undefined;
+			}
+
+			if (error instanceof this.sdkPackage.AutoModeUnavailableError) {
+				logger.debug(`Auto-mode unavailable: ${error.message}`);
+				return undefined;
+			}
+
+			logger.debug(`Auto-mode acquire failed: ${this.formatError(error)}`);
+			return undefined;
+		}
+	}
+
+	private isFresh(): boolean {
+		return this.current ? (this.current.expiresAt ? this.current.expiresAt * 1000 - Date.now() > AUTO_MODE_REFRESH_LEAD_TIME_MS : true) : false;
+	}
+
+	private isUnauthorizedError(error: unknown): error is { kind: 'unauthorized' } {
+		return typeof error === 'object' && error !== null && 'kind' in error && error.kind === 'unauthorized';
+	}
+
+	private applySessionToken(settings: AutoModeResolveArgs['settings'], sessionToken: string): void {
+		if (!settings) {
+			return;
+		}
+
+		settings.api ??= {};
+		settings.api.copilot ??= {};
+		settings.api.copilot.capiSessionToken = sessionToken;
+	}
+
+	private clearSessionToken(settings: AutoModeResolveArgs['settings']): void {
+		if (settings?.api?.copilot) {
+			delete settings.api.copilot.capiSessionToken;
+		}
+	}
+
+	private formatError(error: unknown): string {
+		return error instanceof Error ? error.message : String(error);
+	}
+}
 
 export interface ICopilotCLISessionItem {
 	readonly id: string;
@@ -70,7 +260,7 @@ export type ISessionOptions = {
 	mcpServerMappings?: McpServerMappings;
 	additionalWorkspaces?: IWorkspaceInfo[];
 	sessionParentId?: string;
-}
+};
 export type IGetSessionOptions = ISessionOptions & { sessionId: string };
 export type ICreateSessionOptions = ISessionOptions & { sessionId?: string };
 
@@ -111,8 +301,6 @@ export interface ICopilotCLISessionService {
 
 export const ICopilotCLISessionService = createServiceIdentifier<ICopilotCLISessionService>('ICopilotCLISessionService');
 
-const SESSION_SHUTDOWN_TIMEOUT_MS = 300 * 1000;
-
 export class CopilotCLISessionService extends Disposable implements ICopilotCLISessionService {
 	declare _serviceBrand: undefined;
 
@@ -133,7 +321,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	public readonly onDidCreateSession = this._onDidCreateSession.event;
 
 	private readonly _onDidCloseSession = this._register(new Emitter<string>());
-	private readonly sessionTerminators = new DisposableMap<string, IDisposable>();
 
 	private sessionMutexForGetSession = new Map<string, Mutex>();
 
@@ -181,7 +368,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this.monitorSessionFiles();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
-				const { internal, createLocalFeatureFlagService, AutoModeSessionManager } = await this.getSDKPackage();
+				const sdkPackage = await this.getSDKPackage();
+				const { internal, createLocalFeatureFlagService } = sdkPackage;
 				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
 				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
 				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
@@ -213,7 +401,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				return new internal.LocalSessionManager({
 					featureFlagService: createLocalFeatureFlagService(),
 					telemetryService: new internal.NoopTelemetryService(),
-					autoModeManager: new AutoModeSessionManager(),
+					autoModeManager: this.createAutoModeManager(sdkPackage),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
@@ -224,9 +412,23 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionTracker = this.instantiationService.createInstance(CopilotCLISessionWorkspaceTracker);
 	}
 
-	private async getSDKPackage() {
-		const { internal, LocalSession, createLocalFeatureFlagService, AutoModeSessionManager } = await this.copilotCLISDK.getPackage();
-		return { internal, LocalSession, createLocalFeatureFlagService, AutoModeSessionManager };
+	private async getSDKPackage(): Promise<SDKPackage> {
+		return this.copilotCLISDK.getPackage();
+	}
+
+	private createAutoModeManager(sdkPackage: SDKPackage): SDKAutoModeSessionManager {
+		if (typeof sdkPackage.AutoModeSessionManager === 'function') {
+			try {
+				return new sdkPackage.AutoModeSessionManager();
+			} catch (error) {
+				if (!(error instanceof TypeError)) {
+					throw error;
+				}
+			}
+		}
+
+		this.logService.warn('Failed to construct SDK AutoModeSessionManager, using compatibility fallback.');
+		return new AutoModeSessionManagerCompat(sdkPackage) as unknown as SDKAutoModeSessionManager;
 	}
 
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined {
@@ -376,10 +578,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	 * Precedence:
 	 *   1. Explicit renamed title — active wrapper title, SDK `name`, or legacy custom title.
 	 *   2. Cached derived label in `_sessionLabels` (from a previous history scan).
-	 *   3. Pending prompt for in-flight new sessions.
-	 *   4. Clean metadata `summary` (rejected if it looks truncated).
-	 *   5. First user message from session history (cached on success).
-	 *   6. Raw metadata `summary` as a display-only last resort (not cached).
+	 *   3. Clean metadata `summary` (rejected if it looks truncated).
+	 *   4. First user message from session history (cached on success).
+	 *   5. Raw metadata `summary` as a display-only last resort (not cached).
+	 *
+	 * Pending prompts are intentionally excluded here for established sessions.
+	 * They are only used for brand-new sessions that have not been persisted yet
+	 * via the wrapper-only fallback in `_getAllSessions()` / `constructSessionItemFromWrappedSession()`.
 	 */
 	private async getSessionTitleImpl(sessionId: string, metadata: LocalSessionMetadata | undefined, token: CancellationToken): Promise<string> {
 		const explicitTitle =
@@ -393,11 +598,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const cached = this._sessionLabels.get(sessionId);
 		if (cached) {
 			return cached;
-		}
-
-		const pendingLabel = labelFromPrompt(this._sessionWrappers.get(sessionId)?.object.pendingPrompt ?? '');
-		if (pendingLabel) {
-			return pendingLabel;
 		}
 
 		const summarizedTitle = labelFromPrompt(metadata?.summary ?? '');
@@ -557,13 +757,17 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			// to the debug panel.
 			this._installBridgeIfNeeded();
 
-
+			const promises: Promise<unknown>[] = [];
 			if (wasNewSession) {
-				const stagedTitle = await this.customSessionTitleService.getCustomSessionTitle(sdkSession.sessionId);
-				if (stagedTitle) {
-					await sdkSession.updateSessionSummary(stagedTitle);
-				}
+				promises.push(this.customSessionTitleService.getCustomSessionTitle(sdkSession.sessionId).then(stagedTitle => {
+					if (stagedTitle) {
+						sdkSession.updateSessionSummary(stagedTitle);
+					}
+				}));
 			}
+			promises.push(sessionManager.loadDeferredRepoHooks(sdkSession));
+			await Promise.all(promises);
+
 			if (sessionOptions.copilotUrl) {
 				sdkSession.setAuthInfo({
 					type: 'hmac',
@@ -690,6 +894,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 		const allOptions: SessionOptions = {
 			clientName: 'vscode',
+			integrationId: INTEGRATION_ID
 		};
 
 		const workingDirectory = getWorkingDirectory(options.workspace);
@@ -769,7 +974,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
-
+				await sessionManager.loadDeferredRepoHooks(sdkSession);
 				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 				session.object.add(mcpGateway);
 				return session;
@@ -834,7 +1039,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
 				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
 			}
 		}
 
@@ -855,8 +1060,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return mapping;
 		};
 
-		const lastResponseDetails = await this.getModelDetailsString(modelId);
-		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, lastResponseDetails);
+		const modelDetailsById = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled)
+			? await this.getModelDetailsById()
+			: undefined;
+		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, modelDetailsById);
 
 		if (legacyMappings.length > 0) {
 			void this._chatSessionMetadataStore.updateRequestDetails(sessionId, legacyMappings).catch(error => {
@@ -871,7 +1078,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
 		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
 		for (const agent of agents) {
-			if (!isEnabledForCopilotCLI(agent)) {
+			if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
 				continue;
 			}
 			const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
@@ -905,16 +1112,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsString(modelId: string | undefined): Promise<string | undefined> {
-		if (!modelId) {
-			return undefined;
-		}
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const modelInfo = models.find(m => m.id === modelId);
-		return modelInfo ? formatModelDetails(modelInfo) : undefined;
+		const detailsById = new Map<string, string>();
+		for (const model of models) {
+			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+		}
+		return detailsById;
 	}
 
 
@@ -1030,6 +1237,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
+		sdkSession.setPermissionsRequired(true);
 		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
@@ -1065,27 +1273,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				});
 				this._onDidCloseSession.fire(sdkSession.sessionId);
 			})();
-		}));
-
-		// We have no way of tracking Chat Editor life cycle.
-		// Hence when we're done with a request, lets dispose the chat session (say 60s after).
-		// If in the mean time we get another request, we'll clear the timeout.
-		// When vscode shuts the sessions will be disposed anyway.
-		// This code is to avoid leaving these sessions alive forever in memory.
-		session.add(session.onDidChangeStatus(e => {
-			// If we're waiting for a permission, then do not start the timeout.
-			if (session.permissionRequested) {
-				this.sessionTerminators.deleteAndDispose(session.sessionId);
-			} else if (session.status === undefined || session.status === ChatSessionStatus.Completed || session.status === ChatSessionStatus.Failed) {
-				// We're done with this session, start timeout to dispose it
-				this.sessionTerminators.set(session.sessionId, disposableTimeout(() => {
-					session.dispose();
-					this.sessionTerminators.deleteAndDispose(session.sessionId);
-				}, SESSION_SHUTDOWN_TIMEOUT_MS));
-			} else {
-				// Session is busy.
-				this.sessionTerminators.deleteAndDispose(session.sessionId);
-			}
 		}));
 
 		const refCountedSession = new RefCountedSession(session);

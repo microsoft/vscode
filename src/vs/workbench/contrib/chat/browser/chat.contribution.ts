@@ -8,7 +8,8 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import { AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -16,10 +17,11 @@ import { registerEditorFeature } from '../../../../editor/common/editorFeatures.
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
@@ -36,7 +38,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceSettingsLabel, McpCollisionBehavior, mcpDiscoverySection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/participants/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import '../common/widget/chatColors.js';
@@ -46,7 +48,7 @@ import { ChatModeService, IChatMode, IChatModeService } from '../common/chatMode
 import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -114,7 +116,7 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatViewId, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
 import './attachments/chatAttachmentModel.js';
-import './widget/input/chatStatusWidget.js';
+import './widget/input/chatInputNotificationService.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
@@ -134,6 +136,7 @@ import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
+import './aiCustomization/aiCustomizationItemsModel.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
@@ -185,6 +188,11 @@ import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionIt
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
+
+CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
+	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
+});
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -386,6 +394,15 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.SymbolToolsCacheStable]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.symbolTools.cacheStable', "When enabled, the rename and list-code-usages tools are always registered with a static description (no per-language list). Stabilizes the tools-array bytes across requests so prompt caches survive language-extension activations mid-turn. Tool behavior is unchanged: unsupported languages still produce an error at invocation time."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
+		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
@@ -469,6 +486,31 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			}
+		},
+		[ChatConfiguration.SessionSyncEnabled]: {
+			default: false,
+			markdownDescription: nls.localize('chat.sessionSync.enabled', "Enable session sync to GitHub.com. When enabled, Copilot session data is synced to your GitHub account for cross-device access and richer insights. Requires local session tracking to also be enabled."),
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			policy: {
+				name: 'CopilotSessionSync',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.119',
+				value: (policyData) => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.sessionSync.enabled.policy',
+						value: nls.localize('chat.sessionSync.enabled.policy', "Enable session sync to GitHub.com for cross-device Copilot session history. When disabled by organization policy, session data is kept local only."),
+					}
+				},
+			}
+		},
+		[ChatConfiguration.SessionSyncExcludeRepositories]: {
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			markdownDescription: nls.localize('chat.sessionSync.excludeRepositories', "Repository patterns to exclude from session sync. Use exact `owner/repo` names or glob patterns like `my-org/*`. Sessions from matching repositories will only be stored locally."),
+			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
 			default: {
@@ -644,8 +686,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled, this overrides {0} to be off.", '`#chat.persistentProgress.enabled#`'),
+			default: product.quality !== 'stable',
+			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled and reduced motion is not enabled, this overrides {0} to be off. Has no effect when reduced motion is enabled.", '`#chat.persistentProgress.enabled#`'),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'string',
@@ -736,6 +778,19 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
+		[mcpServerCollisionBehaviorSection]: {
+			type: 'string',
+			description: nls.localize('chat.mcp.collisionBehavior', "Controls behavior when multiple MCP servers are discovered with the same name. 'disable' disables lower-priority duplicates. 'suffix' appends numeric suffixes to disambiguate."),
+			enum: [
+				McpCollisionBehavior.Disable,
+				McpCollisionBehavior.Suffix,
+			],
+			enumDescriptions: [
+				nls.localize('chat.mcp.collisionBehavior.disable', "Disable lower-priority servers with duplicate names."),
+				nls.localize('chat.mcp.collisionBehavior.suffix', "Append numeric suffixes to servers with duplicate names."),
+			],
+			default: McpCollisionBehavior.Disable,
+		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
 			description: nls.localize('chat.mcp.serverSampling', "Configures which models are exposed to MCP servers for sampling (making model requests in the background). This setting can be edited in a graphical way under the `{0}` command.", 'MCP: ' + nls.localize('mcp.list', 'List Servers')),
@@ -745,7 +800,7 @@ configurationRegistry.registerConfiguration({
 				properties: {
 					allowedDuringChat: {
 						type: 'boolean',
-						description: nls.localize('chat.mcp.serverSampling.allowedDuringChat', "Whether this server is make sampling requests during its tool calls in a chat session."),
+						description: nls.localize('chat.mcp.serverSampling.allowedDuringChat', "Whether this server is allowed to make sampling requests during its tool calls in a chat session."),
 						default: true,
 					},
 					allowedOutsideChat: {
@@ -930,6 +985,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
+		[AgentHostClaudeAgentEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the Claude agent provider is registered inside the agent host. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to this setting to take effect."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
 		[AgentHostIpcLoggingSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
@@ -941,7 +1003,12 @@ configurationRegistry.registerConfiguration({
 			type: 'array',
 			items: { type: 'string' },
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
-			default: ['runTask', 'getTaskOutput', 'problems', 'runTests'],
+			default: [
+				'runTask', 'getTaskOutput', 'problems', 'runTests',
+				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
+				// out of these, only the tools that are actually registered/enabled are seen by the agent.
+				...browserChatToolReferenceNames,
+			],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
@@ -1500,15 +1567,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.SignInTitleBarEnabled]: {
-			type: 'boolean',
-			description: nls.localize('chat.signInTitleBar', "Controls whether to show a sign-in button in the title bar for users who are not signed in."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.RestoreLastPanelSession]: {
 			type: 'boolean',
 			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
@@ -1970,8 +2028,10 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._store.add(this._modeActionDisposables);
 
+		const chatModes = this.chatModeService.getModes(SessionType.Local);
+		const { builtin, custom } = chatModes;
+
 		// Register actions for existing custom modes (avoiding name collisions)
-		const { builtin, custom } = this.chatModeService.getModes();
 		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 		for (const mode of custom) {
 			if (currentModeIds.has(mode.id)) {
@@ -1980,8 +2040,8 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Listen for custom mode changes by tracking snapshots
-		this._register(this.chatModeService.onDidChangeChatModes(() => {
-			const { builtin, custom } = this.chatModeService.getModes();
+		this._register(chatModes.onDidChange(() => {
+			const { builtin, custom } = chatModes;
 			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 
 			// Remove modes that no longer exist and those replaced by modes later in the list with same name

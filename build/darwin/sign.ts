@@ -25,6 +25,8 @@ function getEntitlementsForFile(filePath: string): string {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
 	} else if (filePath.includes(' Helper (Plugin).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+	} else if (filePath.includes(' Helper.app')) {
+		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-entitlements.plist');
 	}
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
 }

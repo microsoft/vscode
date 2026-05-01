@@ -52,9 +52,6 @@
 	max-height: min(720px, 75vh);
 }
 
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body {
-	max-height: min(600px, 65vh);
-}
 /* ---------- Title bar ---------- */
 .interactive-session .chat-plan-review-container .chat-plan-review-title {
 	display: flex;
@@ -101,16 +98,11 @@
 	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
-/* Icon-only square buttons (restore, chevron). Exactly 22x22 with no padding,
- * matching `.monaco-button.chat-question-collapse-toggle`. */
+/* Icon-only square buttons (restore, chevron, edit). Exactly 22x22 with no
+ * padding, matching `.monaco-button.chat-question-collapse-toggle`. */
 .interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-icon-button {
 	width: 22px;
 	padding: 0;
-}
-
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-edit {
-	font-size: var(--vscode-chat-font-size-body-s);
-	color: var(--vscode-foreground) !important;
 }
 
 /* Inline slot in the title bar. The action buttons (Approve + Reject) get
@@ -129,15 +121,44 @@
 	display: flex;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button {
+/* Action button row sizing — shared between the inline (collapsed) action
+ * slot in the title bar and the footer. Keep these two rule sets together so
+ * any tweaks stay in sync. */
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button {
 	width: auto;
 	min-width: auto;
 	padding: 0 10px;
 	height: 22px;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown {
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
 	width: auto;
+	height: 22px;
+	align-items: center;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button {
+	height: 22px;
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
+}
+
+/* The default-colors separator has `padding: 4px 0` plus 1px top/bottom
+ * borders; with content-box sizing it would visually overflow the 22px
+ * dropdown wrapper and make the chevron half look taller than the primary
+ * button. Force border-box and a fixed height so it matches. */
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button-dropdown-separator,
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	box-sizing: border-box;
+	height: 22px;
+	padding: 3px 0;
 }
 
 /* ---------- Scrollable markdown body ----------
@@ -146,17 +167,19 @@
  * to clip and display its scrollbar against. DomScrollableElement sets the
  * inner element's `overflow: hidden` inline, so we don't set overflow here. */
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message-scrollable.chat-plan-review-body-scrollable {
-	flex: 1;
+	flex: 1 1 auto;
 	min-height: 0;
 }
 
+/* The inner element must fill the wrapper exactly — `DomScrollableElement`
+ * measures `clientHeight` against it, so a taller layout height would break
+ * scrollbar geometry once the feedback section claims part of the widget. */
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body {
-	flex: 1;
-	min-height: 0;
-	max-height: min(300px, 40vh);
 	padding: 6px 12px;
 	background: transparent;
 	border-bottom: none;
+	height: 100%;
+	box-sizing: border-box;
 }
 
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown p:first-child {
@@ -177,7 +200,17 @@
 	flex-shrink: 0;
 }
 
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 0;
+}
+
 .interactive-session .chat-plan-review-container .chat-plan-review-feedback-label {
+	flex: 1;
+	min-width: 0;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 }
@@ -209,6 +242,112 @@
 	color: var(--vscode-input-placeholderForeground);
 }
 
+/* ---------- Inline comments list (anchored feedback captured from editor) ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-comments-list-scrollable {
+	margin-bottom: 2px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comments-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 100px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row {
+	display: flex;
+	align-items: stretch;
+	min-width: 0;
+	border: 1px solid transparent;
+	border-radius: 4px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-reveal {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 3px 6px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-size: var(--vscode-chat-font-size-body-s);
+	text-align: left;
+	cursor: pointer;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-reveal:focus {
+	outline: none;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:hover .chat-plan-review-comment-remove,
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:focus-within .chat-plan-review-comment-remove,
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove:focus {
+	opacity: 1;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-line {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-text {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ---------- Feedback header actions (Back, Clear All) ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-feedback-close,
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-feedback-clear-all,
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-review-button:not(.chat-plan-review-title-icon-button) {
+	width: auto;
+	min-width: auto;
+	padding: 0 8px;
+	height: 22px;
+}
+
 /* ---------- Footer buttons ---------- */
 .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer {
 	justify-content: flex-start;
@@ -221,17 +360,6 @@
 	display: flex;
 	column-gap: 6px;
 	align-items: center;
-}
-
-.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button {
-	width: auto;
-	min-width: auto;
-	padding: 0 10px;
-	height: 22px;
-}
-
-.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
-	width: auto;
 }
 
 /* ---------- Hidden helper ---------- */

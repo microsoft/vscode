@@ -50,6 +50,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/**
+ * Returns whether the given session type represents a workspace-backed
+ * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
+ * repository — regardless of whether the agent runs locally or remotely.
+ * TODO: Somehow make this contributable so we don't have to hardcode session types here.
+ */
+export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
+	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
+}
+
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
@@ -78,10 +88,22 @@ export interface ISessionRepository {
 	readonly workingDirectory: URI | undefined;
 	/** Provider-chosen display detail (e.g., branch name, host name). */
 	readonly detail: string | undefined;
+	/** Current branch name. */
+	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
-	readonly baseBranchProtected: boolean | undefined;
+	readonly baseBranchProtected?: boolean;
+	/** Whether the repository has a github.com remote. */
+	readonly hasGitHubRemote?: boolean;
+	/** Upstream tracking branch name (e.g. `origin/feature`). */
+	readonly upstreamBranchName?: string;
+	/** Number of commits the upstream branch is ahead of the local branch. */
+	readonly incomingChanges?: number;
+	/** Number of commits the local branch is ahead of the upstream branch. */
+	readonly outgoingChanges?: number;
+	/** Number of files with uncommitted changes. */
+	readonly uncommittedChanges?: number;
 }
 
 /**
@@ -92,7 +114,12 @@ export interface ISessionWorkspace {
 	readonly label: string;
 	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
 	readonly description?: string;
-	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	/**
+	 * Optional group label for categorizing this workspace in pickers. The
+	 * workspace picker uses this to bucket entries into top-level tabs
+	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * label — the picker just renders whatever values are present.
+	 */
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
@@ -208,6 +235,13 @@ export interface ISession {
 	readonly mainChat: IChat;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Optional key used to deduplicate sessions across providers. When
+	 * multiple sessions share the same key, only one is kept by
+	 * {@link ISessionsManagementService.getSessions}. Local providers are
+	 * preferred over remote ones.
+	 */
+	readonly deduplicationKey?: string;
 }
 
 /**
@@ -234,9 +268,28 @@ export interface ISessionCapabilities {
 	readonly supportsMultipleChats: boolean;
 }
 
+/**
+ * Well-known workspace group labels used by the workspace picker to bucket
+ * recents and browse actions into top-level tabs. Providers contribute one
+ * of these (or any custom string) on each `ISessionWorkspace` and
+ * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
+ * of contributed values.
+ */
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
+	/** Optional description shown alongside the label in the workspace picker. */
+	readonly description?: string;
+	/**
+	 * Optional group label used by the workspace picker to bucket browse
+	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * Providers contribute the label — the picker dynamically renders tabs
+	 * for whichever values are present and filters items accordingly.
+	 */
+	readonly group?: string;
 	/** Icon for the browse action. */
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */

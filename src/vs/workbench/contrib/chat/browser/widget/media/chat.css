@@ -862,6 +862,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 	transition: box-shadow 350ms ease;
+	/* Duration of the working/progress border comet animation. Set
+		dynamically by `ChatInputPart#layout` to keep the comet's linear
+		travel speed roughly constant regardless of input width — wider
+		inputs would otherwise feel sluggish at a fixed duration. */
+	--chat-input-anim-duration: 4s;
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -907,9 +912,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
 	position: absolute;
-	/* Sit fully inside the container so the parent's `overflow: hidden`
-		doesn't clip the beam. */
-	inset: 0;
+	inset: -1px;
 	/* Inherit so the ring matches whatever corner radius the container is
 		currently using (large by default, small in compact mode). */
 	border-radius: inherit;
@@ -919,12 +922,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		travels around the perimeter like a comet. Stops are mostly transparent
 		so the rest of the border stays invisible. */
 	background: conic-gradient(from var(--chat-input-anim-angle),
-		transparent 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
-		var(--vscode-chat-inputWorkingBorderColor1) 30deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
-		transparent 90deg,
-		transparent 360deg);
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
+			var(--vscode-chat-inputWorkingBorderColor1) 30deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -944,15 +947,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-container::after {
 	content: '';
 	position: absolute;
-	inset: 0;
+	inset: -1px;
 	border-radius: inherit;
 	padding: 2px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
-		transparent 0deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
-		transparent 90deg,
-		transparent 360deg);
+			transparent 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -969,17 +972,41 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
-	border-color: transparent;
+	/* Keep a faint, persistent ring around the input while the comet
+		animates around it. This preserves a visible boundary for the
+		input throughout the animation (including the dim portion of the
+		perimeter behind the comet) and improves contrast for users who
+		rely on a visible focus/container outline for accessibility. */
+	border-color: var(--vscode-input-border, transparent);
+	overflow: visible;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor,
+.monaco-workbench .interactive-session .chat-input-container.working .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::before {
 	opacity: 1;
-	animation: chat-input-working-border-spin 4s linear infinite;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::after {
 	opacity: 1;
-	animation: chat-input-working-border-spin 4s linear infinite;
+	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+}
+
+/* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`
+	to force a restart of the comet animations so a new
+	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
+	animation-duration at start time when sourced from a custom property). */
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::before,
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::after {
+	animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1007,6 +1034,124 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	order: 2;
+}
+
+/* ----------------------------------------------------------------------------
+	Delightful gradient styling for the chat send (submit) button. The arrow-up
+	action-item is filled at rest with a slowly rotating multi-color conic
+	gradient using the same palette as the working-state border, and emits a
+	quick colorful pulse on click. The gradient is naturally absent while a
+	request is in flight: `ChatSubmitAction.menu` is gated on
+	`whenNoActiveRequest`, so during an active request the arrow-up icon is
+	removed entirely from the toolbar and replaced by the Cancel/Stop action.
+	---------------------------------------------------------------------------- */
+@property --chat-send-button-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes chat-send-button-spin {
+	from {
+		--chat-send-button-anim-angle: 135deg;
+	}
+
+	to {
+		--chat-send-button-anim-angle: 495deg;
+	}
+}
+
+@keyframes chat-send-button-pulse {
+	0% {
+		opacity: 0.7;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(1.3);
+	}
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
+	position: relative;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	transition: background-color 250ms ease, color 250ms ease;
+}
+
+/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+	display: inline-block;
+}
+
+/* Focus indicator drawn on the action-item wrapper so it sits cleanly around
+	the button surface with a small offset. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 5px;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus-visible {
+	outline: none;
+}
+
+/* Idle: fill the entire action-label with a slowly rotating conic gradient.
+	Colors darkened (60% mixed with input background) for a calm fill, with
+	asymmetric conic stops. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
+	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
+	color: var(--vscode-button-foreground) !important;
+	border-radius: 5px;
+	animation: chat-send-button-spin 8s linear infinite;
+	transition: box-shadow 120ms ease;
+	/* Lift the label above the click pulse `::after` on the action-item parent
+		so the pulse appears to expand from behind the button, not on top of it. */
+	position: relative;
+	z-index: 1;
+}
+
+/* Hover/focus: subtle dark overlay to match standard toolbar button hover
+	feedback. Uses an inset box-shadow so the rotating gradient background is
+	preserved underneath. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
+	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
+	content: '';
+	position: absolute;
+	inset: -2px;
+	border-radius: 7px;
+	background: conic-gradient(from 135deg,
+			var(--vscode-chat-inputWorkingBorderColor1),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor3),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor1));
+	pointer-events: none;
+	animation: chat-send-button-pulse 400ms ease-out forwards;
+	z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up,
+	.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
+		animation: none;
+	}
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
@@ -1476,6 +1621,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 0 0 4px;
 }
 
+/* Enable container query units for placeholder truncation. Scoped to
+	non-compact inputs (panel chat) because applying `container-type` in
+	compact contexts (inline chat, quick chat) interferes with Monaco's
+	view-line layout and causes the placeholder decoration to render
+	with zero width. */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container {
+	container-type: inline-size;
+}
+
 .interactive-session .interactive-input-part.compact .chat-editor-container {
 	/* No scrollbar */
 	padding-right: 4px;
@@ -1483,6 +1637,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
+}
+
+/* Truncate the chat input placeholder with an ellipsis in narrow views
+	instead of letting it overflow off the right edge of the input.
+	The placeholder is rendered as a Monaco contentText decoration with
+	class prefix "ced-chat-session-detail" inside the view-line spans;
+	style the decoration element directly so we don't pay :has() cost
+	across every view-line on each typed character. Scoped to non-compact
+	inputs because the inline-block + container query sizing breaks the
+	placeholder rendering in compact contexts (inline chat, quick chat). */
+.interactive-session .interactive-input-part:not(.compact) .chat-editor-container .monaco-editor [class^="ced-chat-session-detail"] {
+	display: inline-block;
+	max-width: 100%;
+	/* fallback for environments without container query units */
+	max-width: 100cqi;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {
@@ -2062,6 +2236,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-decoration: inherit;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -2116,7 +2291,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label .label-name {
-	text-decoration: line-through;
 	font-style: italic;
 	opacity: 0.8;
 }

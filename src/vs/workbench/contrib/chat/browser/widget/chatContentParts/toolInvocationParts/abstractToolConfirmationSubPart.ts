@@ -195,6 +195,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		return buttons;
 	}
 
+
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];
 	}

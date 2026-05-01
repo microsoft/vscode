@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { writeFileSync, unlinkSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -13,8 +15,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual } from '../../node/copilot/copilotPluginConverters.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 
 suite('copilotPluginConverters', () => {
 
@@ -184,6 +186,111 @@ suite('copilotPluginConverters', () => {
 		test('handles empty input', () => {
 			const result = toSdkSkillDirectories([]);
 			assert.deepStrictEqual(result, []);
+		});
+	});
+
+	// ---- toSdkHooks -------------------------------------------------------
+
+	suite('toSdkHooks', () => {
+
+		function makeHookGroup(type: string, command: string): IParsedHookGroup {
+			return {
+				type,
+				commands: [{ command }],
+				uri: URI.file('/plugin/hooks.json'),
+				originalId: type,
+			};
+		}
+
+		/**
+		 * Writes a temp JS script that outputs JSON to stdout and returns
+		 * a `node <path>` command. Works on both bash (/bin/sh -c) and
+		 * cmd.exe without any shell-quoting issues.
+		 * The script is written alongside the compiled test file which is
+		 * guaranteed to exist, be writable, and have no spaces in CI.
+		 */
+		function echoJsonCmd(value: object): { command: string; cleanup: () => void } {
+			const json = JSON.stringify(value);
+			// fileURLToPath(new URL('.', import.meta.url)) is the Node ESM equivalent
+			// of __dirname and works on Node 12+, unlike import.meta.dirname (Node 21.2+).
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-${Date.now()}.js`;
+			writeFileSync(filePath, `process.stdout.write(${JSON.stringify(json)});\n`);
+			// Do NOT quote the path: cmd.exe /c "node path" strips the outer quotes,
+			// leaving "node path" without inner quoting which cmd.exe handles cleanly.
+			const command = `node ${filePath}`;
+			return { command, cleanup: () => { try { unlinkSync(filePath); } catch { /* ignore */ } } };
+		}
+
+		test('onPostToolUse returns parsed JSON output as hook result', async () => {
+			const expectedOutput = { additionalContext: 'Before presenting the plan, run review-plan skill' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('onPostToolUse returns undefined when output is non-JSON', async () => {
+			// Use a script file so there are no cmd.exe quoting issues on Windows.
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-nonjson-${Date.now()}.js`;
+			writeFileSync(filePath, `process.stdout.write('not-json');\n`);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				assert.strictEqual(result, undefined);
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
+		});
+
+		test('onPostToolUse returns undefined when command fails', async () => {
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-fail-${Date.now()}.js`;
+			writeFileSync(filePath, `process.exit(1);\n`);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
+				const hooks = toSdkHooks([hookGroup]);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				assert.strictEqual(result, undefined);
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
+		});
+
+		test('onPostToolUse returns undefined when no commands', async () => {
+			const hooks = toSdkHooks([]);
+			assert.strictEqual(hooks.onPostToolUse, undefined);
+		});
+
+		test('onPostToolUse calls editTrackingHooks and returns command output', async () => {
+			const expectedOutput = { additionalContext: 'context from hook' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				let trackingInput: unknown;
+				const editTrackingHooks = {
+					onPreToolUse: async () => { },
+					onPostToolUse: async (input: unknown) => { trackingInput = input; },
+				};
+				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' };
+				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+				assert.deepStrictEqual(trackingInput, callInput);
+			} finally {
+				cleanup();
+			}
 		});
 	});
 

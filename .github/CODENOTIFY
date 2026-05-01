@@ -1,6 +1,5 @@
 # Base Utilities
 src/vs/base/common/oauth.ts @TylerLeonhardt
-src/vs/base/common/uri.ts @jrieken
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/parts/quickinput/** @TylerLeonhardt
 
@@ -18,13 +17,6 @@ src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
 src/vs/platform/terminal/electron-main/** @anthonykim1
 src/vs/platform/terminal/node/** @anthonykim1
-src/vs/platform/actions/common/menuService.ts @jrieken
-src/vs/platform/instantiation/** @jrieken
-
-# Editor Core
-src/vs/editor/contrib/snippet/** @jrieken
-src/vs/editor/contrib/suggest/** @jrieken
-src/vs/editor/contrib/format/** @jrieken
 
 # Electron Main
 src/vs/code/** @deepak1556
@@ -46,6 +38,9 @@ src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonha
 src/vs/workbench/contrib/scm/** @lszomoru
 src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
 src/vs/workbench/contrib/preferences/** @rzhao271
+
+# Sessions Contributions
+src/vs/sessions/contrib/browserView/** @kycutler @jruales
 
 # Build
 build/azure-pipelines/** @lszomoru
@@ -73,10 +68,7 @@ extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
 extensions/git-base/** @lszomoru
 extensions/github/** @lszomoru
-
-# Chat Editing, Inline Chat
-src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
-src/vs/workbench/contrib/inlineChat/** @jrieken
+extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
 test/sanity/** @dmitrivMS

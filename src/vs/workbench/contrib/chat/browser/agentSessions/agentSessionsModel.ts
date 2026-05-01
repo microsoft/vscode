@@ -546,19 +546,20 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private readonly _resolvedResources = new ResourceSet();
 
 	observeSession(resource: URI): IObservable<IAgentSession | undefined> {
+		// Trigger resolve if not yet resolved for this resource (or if
+		// the guard was cleared after a provider refresh). This is
+		// separated from the observable cache so that re-calls after a
+		// refresh re-trigger the resolve RPC even though the observable
+		// already exists.
+		if (!this._resolvedResources.has(resource)) {
+			this._resolvedResources.add(resource);
+			const sessionType = getChatSessionType(resource);
+			this.chatSessionsService.resolveChatSessionItem(sessionType, resource, CancellationToken.None)
+				.catch(error => this.logger.logIfTrace(`observeSession: resolve failed for ${resource.toString()}: ${error instanceof Error ? error.message : String(error)}`));
+		}
+
 		let observable = this._sessionObservables.get(resource);
 		if (!observable) {
-			// Lazily trigger a resolve for this resource so consumers reading
-			// lazy properties (e.g. `changes`) get fresh data without needing
-			// to wait for a tree row to scroll into view. The chat sessions
-			// service deduplicates in-flight resolves by resource.
-			if (!this._resolvedResources.has(resource)) {
-				this._resolvedResources.add(resource);
-				const sessionType = getChatSessionType(resource);
-				this.chatSessionsService.resolveChatSessionItem(sessionType, resource, CancellationToken.None)
-					.catch(error => this.logger.logIfTrace(`observeSession: resolve failed for ${resource.toString()}: ${error instanceof Error ? error.message : String(error)}`));
-			}
-
 			this._changedSignal ??= observableSignalFromEvent('agentSessionsChanged', this.onDidChangeSessions);
 			const signal = this._changedSignal;
 			observable = derived(reader => {
@@ -610,6 +611,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
 		if (options.refreshProvider) {
 			await this.chatSessionsService.refreshChatSessionItems([provider], token);
+
+			// Clear the resolve-once guard for sessions belonging to this
+			// provider and re-trigger resolve for any that were previously
+			// observed. This is necessary because the refresh returns items
+			// with lazy properties (e.g. changes: undefined) that need a
+			// fresh resolve RPC. Re-calling observeSession() for resources
+			// already in _sessionObservables is cheap (the observable is
+			// cached) and only fires the RPC side-effect.
+			for (const resource of [...this._resolvedResources]) {
+				if (getChatSessionType(resource) === provider) {
+					this._resolvedResources.delete(resource);
+					if (this._sessionObservables.has(resource)) {
+						this.observeSession(resource);
+					}
+				}
+			}
 		}
 
 		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();

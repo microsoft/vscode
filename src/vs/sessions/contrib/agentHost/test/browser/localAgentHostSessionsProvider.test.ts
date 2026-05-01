@@ -14,12 +14,13 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { SessionAction, TerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import type { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, type ActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -47,7 +48,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { action: SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
@@ -93,11 +94,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(action: SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 
-	override dispatch(action: SessionAction | TerminalAction): void {
+	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
@@ -195,6 +196,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
@@ -352,11 +354,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Browse actions -------
 
-	test('has one browse action for local folders', () => {
+	test('has no browse actions', () => {
 		const provider = createProvider(disposables, agentHost);
 
-		assert.strictEqual(provider.browseActions.length, 1);
-		assert.strictEqual(provider.browseActions[0].providerId, provider.id);
+		assert.strictEqual(provider.browseActions.length, 0);
 	});
 
 	// ---- Session listing via notifications -------
@@ -945,6 +946,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionRemoved(agentHost, 'seed-2');
 
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr), 1);
+	}));
+
+	test('session-state subscription auto-releases after the idle window', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('idle-1', { summary: 'Idle Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Idle Session');
+		assert.ok(session);
+
+		const sessionUriStr = AgentSession.uri('copilotcli', 'idle-1').toString();
+
+		// Initial access subscribes.
+		provider.getSessionConfig(session!.sessionId);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 1);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
+
+		// Repeated access within the idle window does not re-subscribe.
+		await timeout(20_000);
+		provider.getSessionConfig(session!.sessionId);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 1, 'still one wire subscribe');
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0, 'no unsubscribe yet (timer reset)');
+
+		// Idle past the 30 s window — wire unsubscribe fires.
+		await timeout(31_000);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr), 1, 'wire unsubscribe after idle window');
+
+		// Re-access after release re-subscribes.
+		provider.getSessionConfig(session!.sessionId);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 2, 'fresh subscribe after release');
 	}));
 
 	// ---- replaceSessionConfig -------

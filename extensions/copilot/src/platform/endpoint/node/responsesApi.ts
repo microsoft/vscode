@@ -32,6 +32,7 @@ import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
 	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
@@ -56,6 +57,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
 	const ignoreStatefulMarker = !!options.ignoreStatefulMarker || !!options.useWebSocket;
+	const modeChanged = !!options.modeChanged;
 
 	// Tool search: when enabled, split tools into non-deferred (included in the request) and deferred
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
@@ -64,7 +66,8 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolSearchEnabled = isResponsesApiToolSearchEnabled(endpoint, configService, expService);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
-	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
+	const toolSearchInRequest = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && toolSearchInRequest;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 
 	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;
@@ -119,10 +122,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolsMap = options.requestOptions?.tools
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
+	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, toolsMap),
+		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
+			toolsMap,
+			shouldLoadToolFromToolSearch,
+			modeChanged,
+		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
 		// Only a subset of completion post options are supported, and some
@@ -288,7 +296,14 @@ function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICr
 	return wsManager.getStatefulMarker(options.conversationId);
 }
 
-function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, toolsMap?: Map<string, OpenAiFunctionTool>): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+interface RawMessagesToResponseAPIOptions {
+	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
+	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
+	readonly modeChanged?: boolean;
+}
+
+function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -308,6 +323,11 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			previousResponseId = statefulMarkerAndIndex.statefulMarker;
 			markerIndex = statefulMarkerAndIndex.index;
 		}
+	}
+
+	if (modeChanged) {
+		previousResponseId = undefined;
+		markerIndex = undefined;
 	}
 
 	if (markerIndex !== undefined) {
@@ -381,7 +401,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
 							.map(c => c.text)
 							.join('');
-						const loadedTools = toolsMap ? buildToolSearchOutputTools(resultText, toolsMap) : [];
+						const loadedTools = toolsMap ? buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch) : [];
 						for (const t of loadedTools) {
 							toolSearchLoadedTools.add(t.name);
 						}
@@ -429,13 +449,13 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
  * Converts a JSON array of tool names (from ToolSearchTool) into full tool definitions
  * for the tool_search_output. Falls back to an empty array on parse failure.
  */
-function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, OpenAiFunctionTool>): ToolSearchLoadedTool[] {
+function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, OpenAiFunctionTool>, shouldLoadToolFromToolSearch: ((name: string) => boolean) | undefined): ToolSearchLoadedTool[] {
 	let toolNames: unknown;
 	try { toolNames = JSON.parse(resultText); } catch { return []; }
 	if (!Array.isArray(toolNames)) { return []; }
 
 	return toolNames
-		.filter((name): name is string => typeof name === 'string' && name !== CUSTOM_TOOL_SEARCH_NAME && toolsMap.has(name))
+		.filter((name): name is string => typeof name === 'string' && name !== CUSTOM_TOOL_SEARCH_NAME && toolsMap.has(name) && shouldLoadToolFromToolSearch?.(name) === true)
 		.map(name => {
 			const tool = toolsMap.get(name)!;
 			return {
@@ -797,10 +817,14 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
 		const { serverExperiments } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, compactionThreshold);
+		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`SSE: ${ev.data}`);
-				const completion = processor.push({ type: ev.type, ...JSON.parse(ev.data) }, finishCallback);
+				const parsedData = JSON.parse(ev.data);
+				const responseStreamEvent: OpenAI.Responses.ResponseStreamEvent = { type: ev.type, ...parsedData };
+				dumper.logEvent(responseStreamEvent);
+				const completion = processor.push(responseStreamEvent, finishCallback);
 				if (completion) {
 					sendCompletionOutputTelemetry(telemetryService, logService, completion, telemetryData);
 					feed.emitOne(completion);
@@ -826,6 +850,12 @@ export function sendCompletionOutputTelemetry(telemetryService: ITelemetryServic
 			promptTokens: completion.usage.prompt_tokens,
 			completionTokens: completion.usage.completion_tokens,
 			totalTokens: completion.usage.total_tokens,
+			...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+			...(completion.usage.completion_tokens_details && {
+				reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+				acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+				rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+			}),
 		});
 	}
 	sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -841,6 +871,8 @@ export class OpenAIResponsesProcessor {
 	private sawCompactionMessage = false;
 	private latestCompactionOutputIndex: number | undefined;
 	private latestCompactionItem: OpenAIContextManagementResponse | undefined;
+	/** Tracks the output_index of the last text delta to detect output item boundaries */
+	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
 
@@ -915,6 +947,12 @@ export class OpenAIResponsesProcessor {
 				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
+				// When text arrives from a new output item, emit a paragraph
+				// separator so that e.g. commentary and final text don't fuse.
+				if (this.lastTextDeltaOutputIndex !== undefined && capiChunk.output_index !== this.lastTextDeltaOutputIndex) {
+					onProgress({ text: '\n\n' });
+				}
+				this.lastTextDeltaOutputIndex = capiChunk.output_index;
 				const haystack = new Lazy(() => new TextEncoder().encode(capiChunk.delta));
 				return onProgress({
 					text: capiChunk.delta,

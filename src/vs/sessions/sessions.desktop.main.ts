@@ -94,11 +94,20 @@ import '../workbench/services/browserView/electron-browser/playwrightWorkbenchSe
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
 
-import { registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ILocalGitService } from '../platform/git/common/localGitService.js';
+import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { registerSharedProcessRemoteService } from '../platform/ipc/electron-browser/services.js';
+import { IPluginGitService } from '../workbench/contrib/chat/common/plugins/pluginGitService.js';
+import { NativePluginGitCommandService } from '../workbench/contrib/chat/electron-browser/pluginGitCommandService.js';
 import { IUserDataInitializationService, UserDataInitializationService } from '../workbench/services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
+
+// Override the browser PluginGitCommandService with the native one that always
+// runs git locally via the shared process.
+registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
+registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 
 //#endregion
@@ -194,6 +203,8 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './services/vscode/electron-browser/themeImporterService.js';
+
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
@@ -206,6 +217,8 @@ import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 // Local Agent Host
 import './contrib/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSkillButtons.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

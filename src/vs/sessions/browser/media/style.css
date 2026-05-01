@@ -13,13 +13,13 @@
 	background-color: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background {
+.agent-sessions-workbench.shell-gradient-background {
 	position: relative;
 	isolation: isolate;
 	background: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.agent-sessions-workbench.shell-gradient-background::before {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -29,7 +29,7 @@
 }
 
 @supports (background: color-mix(in srgb, black 0%, white)) {
-	.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -41,7 +41,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -53,7 +53,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs-dark.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
 		background: linear-gradient(
 			to bottom right,
 			var(--vscode-agents-background) 0%,
@@ -64,8 +64,8 @@
 	}
 }
 
-.monaco-workbench.hc-black.agent-sessions-workbench.experimental-shell-gradient-background::before,
-.monaco-workbench.hc-light.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.monaco-workbench.hc-black.agent-sessions-workbench.shell-gradient-background::before,
+.monaco-workbench.hc-light.agent-sessions-workbench.shell-gradient-background::before {
 	display: none;
 }
 
@@ -105,7 +105,7 @@
 	bottom: auto;
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
+.agent-sessions-workbench.shell-gradient-background > .monaco-grid-view {
 	position: relative;
 	z-index: 1;
 	background: transparent;
@@ -125,14 +125,14 @@
  *   Panel:          bottom=18, left=16, right=16
  */
 
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .sessions-titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .composite.title,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .sidebar-footer {
+.agent-sessions-workbench.shell-gradient-background .part.titlebar,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .sessions-titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .composite.title,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .sidebar-footer {
 	background: transparent !important;
 }
 
@@ -150,8 +150,8 @@
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
-	background: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
@@ -267,6 +267,31 @@
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
+}
+
+/* Allow tabs to shrink in narrow viewports so the close button stays reachable.
+ * The default `sizing-fit` rule sets `min-width: fit-content; flex-shrink: 0;`
+ * which prevents the tab from shrinking below its label width and pushes the
+ * close button out of view. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
+	min-width: 0 !important;
+	flex-shrink: 1 !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+/* Keep the close button reserved within the tab so it remains accessible when
+ * the tab shrinks. Without this the action sits in an `overflow: hidden`
+ * container that only reveals on hover, which combined with the smaller tab
+ * makes the close target hard to hit. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab > .tab-actions {
+	flex: 0 0 auto;
+	overflow: visible;
 }
 
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
@@ -429,11 +454,19 @@
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
-/* While the developer-joy animated border is active, suppress the static
-	border so it doesn't visually conflict with the spinning gradient ring. */
-.agent-sessions-workbench .interactive-session .chat-input-container.working,
+/* While the developer-joy animated border is active, keep a faint
+	persistent ring so the input still has a visible boundary throughout
+	the comet animation (improves visuals + accessibility). The spinning
+	gradient ring overlays this. When focused, the regular focus border
+	is blended/dimmed during the animation to avoid competing visually. */
+.agent-sessions-workbench .interactive-session .chat-input-container.working:not(.focused) {
+	border-color: var(--vscode-agentsChatInput-border) !important;
+}
+
+/* Dim the focus border while the comet is animating so the bright focus
+	ring doesn't visually fight with the spinning gradient. */
 .agent-sessions-workbench .interactive-session .chat-input-container.working.focused {
-	border-color: transparent !important;
+	border-color: color-mix(in srgb, var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) 40%, transparent) !important;
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
@@ -468,6 +501,10 @@
 .agent-sessions-workbench .action-widget .action-widget-action-bar,
 .agent-sessions-workbench .action-widget .action-list-filter {
 	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .action-list-filter-row {
+	padding-right: 0;
 }
 
 .agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
@@ -646,4 +683,251 @@
 /* Badge */
 .agent-sessions-workbench .badge > .badge-content {
 	border-radius: 4px !important;
+}
+
+/* Phone-layout rules for parts, sashes, max-width constraints, and grid
+	background live in mobileChatShell.css — do not duplicate them here. */
+
+/*
+ * Phone layout (< 640px) styles. Currently the only mobile form factor
+ * supported by the sessions workbench; tablet/larger viewports fall back
+ * to the desktop layout.
+ */
+
+/* ---- Phone Layout: Overscroll Containment ---- */
+
+/* Prevent body rubber-band on iOS and Chrome pull-to-refresh on Android */
+.agent-sessions-workbench.phone-layout .monaco-scrollable-element > .scrollable-element {
+	overscroll-behavior: contain;
+}
+
+.agent-sessions-workbench.phone-layout .interactive-session {
+	overscroll-behavior: contain;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-list {
+	overscroll-behavior: contain;
+}
+
+/* ---- Phone Layout: Touch Target Sizing ---- */
+
+/* Ensure interactive elements meet 44px minimum touch target.
+	Excludes:
+	- Quick pick toolbars: 44x44 icons crowd the small popup header.
+	- Chat input toolbars: a dense row of picker buttons (Local, Auto,
+	agent, model, tools, send...). Enforcing 44px makes items 50px tall
+	and shows a huge hover/active background next to smaller adjacent
+	labels, making the bar feel unbalanced. */
+.agent-sessions-workbench.phone-layout .action-item > .action-label {
+	min-height: 44px;
+	min-width: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .action-item > .action-label,
+.agent-sessions-workbench.phone-layout .chat-input-toolbars .action-item > .action-label {
+	min-height: 0;
+	min-width: 0;
+}
+
+/* Touch action for tap responsiveness */
+.agent-sessions-workbench.phone-layout .action-item,
+.agent-sessions-workbench.phone-layout button {
+	touch-action: manipulation;
+}
+
+/* Disable text selection callout on interactive elements */
+.agent-sessions-workbench.phone-layout .action-item,
+.agent-sessions-workbench.phone-layout .monaco-toolbar,
+.agent-sessions-workbench.phone-layout .sidebar-footer {
+	-webkit-touch-callout: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* Titlebar safe-area inset lives in mobileChatShell.css */
+
+/* ---- Phone Layout: Mobile Quick Picks ---- */
+
+/* On phone, expand quick picks to use the viewport with safe-area gutters
+	rather than the desktop-default narrow popup near the trigger. Position
+	is left untouched so the picker stays anchored where the user invoked
+	it (avoids feeling modal/jumpy). */
+.agent-sessions-workbench.phone-layout .quick-input-widget {
+	left: 8px !important;
+	right: 8px !important;
+	width: auto !important;
+	max-width: none !important;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree {
+	max-height: 50vh;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree .monaco-list-row {
+	min-height: 44px;
+}
+
+/* ---- Phone Layout: Mobile Dialogs ---- */
+
+/* Make dialogs near-full-width with larger buttons on phone */
+.agent-sessions-workbench.phone-layout .monaco-dialog-box {
+	width: calc(100% - 32px);
+	max-width: calc(100% - 32px);
+}
+
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row .monaco-button {
+	min-height: 44px;
+	font-size: 16px;
+}
+
+/* ---- Phone Layout: Mobile Notifications ---- */
+
+/* Full-width notification toasts at top of screen */
+.agent-sessions-workbench.phone-layout .notifications-toasts {
+	left: 8px !important;
+	right: 8px !important;
+	bottom: auto !important;
+	top: calc(env(safe-area-inset-top) + 48px) !important;
+	width: auto !important;
+}
+
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast {
+	width: 100%;
+	max-width: 100%;
+}
+
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast .notification-toast-container {
+	border-radius: 12px;
+}
+
+/* ---- Phone Layout: Hover Cards ---- */
+
+/* Disable delayed hover cards on touch devices — they never trigger */
+.agent-sessions-workbench.phone-layout .monaco-hover {
+	display: none;
+}
+
+/* Exception: keep hovers that are explicitly triggered (e.g., info buttons) */
+.agent-sessions-workbench.phone-layout .monaco-hover.visible-on-mobile {
+	display: block;
+}
+
+/* ---- Phone Layout: Mobile Editor Modal ---- */
+
+/* Full-screen editor modal on phone — no margins, covers entire viewport */
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-part {
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: 0 !important;
+	margin: 0 !important;
+	animation: editor-slide-up 250ms ease-out;
+}
+
+@keyframes editor-slide-up {
+	from {
+		transform: translateY(30%);
+		opacity: 0.5;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+/* Make the modal backdrop fully cover the screen on phone */
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-block {
+	background: rgba(0, 0, 0, 0.7);
+}
+
+/* Safe area padding for editor titlebar on phone */
+.agent-sessions-workbench.phone-layout .monaco-modal-editor-part .title {
+	padding-top: env(safe-area-inset-top);
+}
+
+/* ---- Phone Layout: Input Auto-Zoom Prevention ---- */
+
+/* iOS Safari zooms in on input focus when font-size < 16px.
+	Force minimum 16px on all input elements on phone. */
+.agent-sessions-workbench.phone-layout input,
+.agent-sessions-workbench.phone-layout textarea,
+.agent-sessions-workbench.phone-layout .monaco-inputbox input,
+.agent-sessions-workbench.phone-layout .chat-input-container textarea {
+	font-size: 16px;
+}
+
+/* ---- Phone Layout: Native Scroll Preservation ---- */
+
+/* Ensure chat content uses momentum scrolling on phone.
+	The -webkit-overflow-scrolling property is needed for older iOS. */
+.agent-sessions-workbench.phone-layout .interactive-session .monaco-scrollable-element {
+	-webkit-overflow-scrolling: touch;
+}
+
+/* ---- Phone Layout: Bottom Sheet Panel ---- */
+
+/* Panel slides up from bottom as a sheet on phone */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.panel) {
+	position: absolute !important;
+	bottom: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	height: 60vh !important;
+	z-index: 200;
+	animation: panel-slide-up 250ms ease-out;
+	border-radius: 16px 16px 0 0;
+	overflow: hidden;
+}
+
+@keyframes panel-slide-up {
+	from {
+		transform: translateY(100%);
+		opacity: 0.5;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+/* Panel drag handle visual indicator */
+.agent-sessions-workbench.phone-layout .part.panel::before {
+	content: '';
+	display: block;
+	width: 36px;
+	height: 5px;
+	background: var(--vscode-foreground);
+	opacity: 0.3;
+	border-radius: 3px;
+	margin: 8px auto 4px auto;
+}
+
+/* ---- Phone Layout: Auxiliary Bar Overlay ---- */
+
+/* Auxiliary bar slides in from the right as a full-height overlay on phone */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.auxiliarybar) {
+	position: absolute !important;
+	top: 0 !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: 85vw !important;
+	max-width: 400px;
+	z-index: 200;
+	animation: auxbar-slide-in 250ms ease-out;
+}
+
+@keyframes auxbar-slide-in {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
 }

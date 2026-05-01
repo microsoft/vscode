@@ -9,30 +9,51 @@ import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentToolReadyEvent } from '../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { platformSessionSchema } from '../common/agentHostSchema.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
 	ResponsePartKind,
 	ToolCallConfirmationReason,
-	parseSubagentSessionUri,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
 
 /**
  * Event fields needed for auto-approval decisions.
- * Matches the subset of {@link IAgentToolReadyEvent} used by the
+ * Matches the subset of {@link IAgentToolPendingConfirmationSignal} used by the
  * approval pipeline.
  */
 export interface IToolApprovalEvent {
 	readonly toolCallId: string;
 	readonly session: URI;
-	readonly permissionKind?: IAgentToolReadyEvent['permissionKind'];
+	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
 }
+
+/** Standard per-tool confirmation options presented to the user. */
+const ALLOW_SESSION_OPTION_ID = 'allow-session';
+const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
+	{ id: ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
+	{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
+	{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
+];
+
+/** Default write-path glob rules applied to auto-approved edits. */
+const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
+	'**/*': true,
+	'**/.vscode/*.json': false,
+	'**/.git/**': false,
+	'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+	'**/*.lock': false,
+	'**/*-lock.{yaml,json}': false,
+};
 
 /**
  * Single entry point for all tool-call approval logic in the agent host.
@@ -56,32 +77,15 @@ export interface IToolApprovalEvent {
  */
 export class SessionPermissionManager extends Disposable {
 
-	static readonly PERMISSIONS_CONFIG_KEY = 'permissions';
-	static readonly ALLOW_SESSION_OPTION_ID = 'allow-session';
-
-	private static readonly _CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
-		{ id: SessionPermissionManager.ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
-		{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
-		{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
-	];
 
 	// ---- Edit auto-approve patterns -----------------------------------------
-
-	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
-		'**/*': true,
-		'**/.vscode/*.json': false,
-		'**/.git/**': false,
-		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
-		'**/*.lock': false,
-		'**/*-lock.{yaml,json}': false,
-	};
 
 	private readonly _commandAutoApprover: CommandAutoApprover;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _logService: ILogService,
+		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
@@ -112,7 +116,8 @@ export class SessionPermissionManager extends Disposable {
 	 * 5. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): ToolCallConfirmationReason | undefined {
-		const { autoApproveLevel, workDir } = this._getInheritedConfig(sessionKey);
+		const autoApproveLevel = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove);
+		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
 		// 1. Session-level auto-approve
 		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
@@ -162,32 +167,34 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `SessionToolCallReady` action from an agent `tool_ready`
-	 * event. When the tool needs user confirmation (`confirmationTitle` is
-	 * set), the standard confirmation options are included in the action so
-	 * clients can render them directly.
+	 * Constructs a `SessionToolCallReady` action from an agent
+	 * `pending_confirmation` signal. When the tool needs user confirmation
+	 * (the protocol state carries `confirmationTitle`), the standard
+	 * confirmation options are baked in so clients can render them directly.
 	 */
-	createToolReadyAction(e: IAgentToolReadyEvent, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
-		if (e.confirmationTitle) {
+	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
+		const state = e.state;
+		if (state.confirmationTitle) {
 			return {
 				type: ActionType.SessionToolCallReady,
 				session: sessionKey,
 				turnId,
-				toolCallId: e.toolCallId,
-				invocationMessage: e.invocationMessage,
-				toolInput: e.toolInput,
-				confirmationTitle: e.confirmationTitle,
-				edits: e.edits,
-				options: SessionPermissionManager._CONFIRMATION_OPTIONS.slice(),
+				toolCallId: state.toolCallId,
+				invocationMessage: state.invocationMessage,
+				toolInput: state.toolInput,
+				confirmationTitle: state.confirmationTitle,
+				edits: state.edits,
+				editable: state.editable,
+				options: CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
 			type: ActionType.SessionToolCallReady,
 			session: sessionKey,
 			turnId,
-			toolCallId: e.toolCallId,
-			invocationMessage: e.invocationMessage,
-			toolInput: e.toolInput,
+			toolCallId: state.toolCallId,
+			invocationMessage: state.invocationMessage,
+			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		};
 	}
@@ -200,7 +207,7 @@ export class SessionPermissionManager extends Disposable {
 	 * permission allow list so future calls are auto-approved.
 	 */
 	handleToolCallConfirmed(sessionKey: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
-		if (selectedOptionId === SessionPermissionManager.ALLOW_SESSION_OPTION_ID) {
+		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
 			const toolName = this._getToolNameForToolCall(sessionKey, toolCallId);
 			if (toolName) {
 				this._addToolToSessionPermissions(sessionKey, toolName);
@@ -209,16 +216,6 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	// ---- Internal helpers ---------------------------------------------------
-
-	private _getInheritedConfig(sessionKey: ProtocolURI): { autoApproveLevel: unknown | undefined; workDir: string | undefined } {
-		const sessionState = this._stateManager.getSessionState(sessionKey);
-		const parentInfo = parseSubagentSessionUri(sessionKey);
-		const parentState = parentInfo ? this._stateManager.getSessionState(parentInfo.parentSession) : undefined;
-		return {
-			autoApproveLevel: sessionState?.config?.values?.autoApprove ?? parentState?.config?.values?.autoApprove,
-			workDir: sessionState?.summary.workingDirectory ?? parentState?.summary.workingDirectory,
-		};
-	}
 
 	private _isPathInWorkingDirectory(filePath: string, workDir: string | undefined): boolean {
 		if (!workDir) {
@@ -229,9 +226,8 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	private _isEditAutoApproved(filePath: string): boolean {
-		const patterns = SessionPermissionManager._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
 		let approved = true;
-		for (const [pattern, isApproved] of Object.entries(patterns)) {
+		for (const [pattern, isApproved] of Object.entries(DEFAULT_EDIT_AUTO_APPROVE_PATTERNS)) {
 			if (isApproved !== approved && globMatch(pattern, filePath)) {
 				approved = isApproved;
 			}
@@ -244,27 +240,15 @@ export class SessionPermissionManager extends Disposable {
 		if (!toolName) {
 			return false;
 		}
-		const allowed = this._getPermissions(sessionKey).allow.includes(toolName);
+		// `getEffectiveValue` walks session → parent → host, so sessions
+		// that haven't materialized their own `permissions` yet transparently
+		// inherit from the host-level allow/deny lists.
+		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions);
+		const allowed = permissions?.allow.includes(toolName) ?? false;
 		if (allowed) {
-			this._logService.trace(`[SessionPermissionManager] Auto-approving "${toolName}" via session permissions`);
+			this._logService.trace(`[SessionPermissionManager] Auto-approving "${toolName}" via permissions`);
 		}
 		return allowed;
-	}
-
-	private _getPermissions(sessionKey: ProtocolURI): { allow: string[]; deny: string[] } {
-		const sessionState = this._stateManager.getSessionState(sessionKey);
-		const parentInfo = parseSubagentSessionUri(sessionKey);
-		const parentState = parentInfo ? this._stateManager.getSessionState(parentInfo.parentSession) : undefined;
-		const raw = sessionState?.config?.values?.[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]
-			?? parentState?.config?.values?.[SessionPermissionManager.PERMISSIONS_CONFIG_KEY];
-		if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-			const obj = raw as Record<string, unknown>;
-			return {
-				allow: Array.isArray(obj.allow) ? obj.allow.filter((v): v is string => typeof v === 'string') : [],
-				deny: Array.isArray(obj.deny) ? obj.deny.filter((v): v is string => typeof v === 'string') : [],
-			};
-		}
-		return { allow: [], deny: [] };
 	}
 
 	private _getToolNameForToolCall(sessionKey: ProtocolURI, toolCallId: string): string | undefined {
@@ -282,16 +266,15 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	private _addToolToSessionPermissions(sessionKey: ProtocolURI, toolName: string): void {
-		const permissions = this._getPermissions(sessionKey);
+		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions)
+			?? { allow: [], deny: [] };
 		if (permissions.allow.includes(toolName)) {
 			return;
 		}
-		permissions.allow.push(toolName);
-		this._stateManager.dispatchServerAction({
-			type: ActionType.SessionConfigChanged,
-			session: sessionKey,
-			config: {
-				[SessionPermissionManager.PERMISSIONS_CONFIG_KEY]: permissions,
+		this._configService.updateSessionConfig(sessionKey, {
+			[SessionConfigKey.Permissions]: {
+				allow: [...permissions.allow, toolName],
+				deny: [...permissions.deny],
 			},
 		});
 		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to session permissions for ${sessionKey}`);

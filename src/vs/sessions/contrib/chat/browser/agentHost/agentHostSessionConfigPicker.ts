@@ -5,6 +5,7 @@
 
 import '../media/agentHostSessionConfigPicker.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -23,7 +24,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentHostSessionConfigBranchNameHintKey } from '../../../../../platform/agentHost/common/agentService.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -34,13 +34,15 @@ import { ActiveSessionProviderIdContext } from '../../../../common/contextkeys.j
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
+import { AgentHostModePicker } from './agentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate, AUTO_APPROVE_PROPERTY, isWellKnownAutoApproveSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
-const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
-const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host');
+const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
+const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -109,10 +111,13 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
-		disposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			onOpen();
-		}));
+		disposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(trigger, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				onOpen();
+			}));
+		}
 		disposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
@@ -149,7 +154,7 @@ function applyAutoApproveFiltering(
 	property: string,
 	configurationService: IConfigurationService,
 ): { readonly items: readonly IConfigPickerItem[]; readonly policyRestricted: boolean } {
-	if (property !== AUTO_APPROVE_PROPERTY) {
+	if (property !== SessionConfigKey.AutoApprove) {
 		return { items, policyRestricted: false };
 	}
 	const isAutopilotEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
@@ -213,7 +218,7 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
  * Applies warning/info CSS classes to a trigger element for auto-approve levels.
  */
 function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
-	if (property === AUTO_APPROVE_PROPERTY) {
+	if (property === SessionConfigKey.AutoApprove) {
 		trigger.classList.toggle('warning', value === 'autopilot');
 		trigger.classList.toggle('info', value === 'autoApprove');
 	}
@@ -291,7 +296,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
 
 		for (const [property, schema] of Object.entries(resolvedConfig.schema.properties)) {
-			if (property === AgentHostSessionConfigBranchNameHintKey) {
+			if (property === SessionConfigKey.BranchNameHint) {
 				continue;
 			}
 			// Only render pickers for properties we know how to present. Today
@@ -311,7 +316,14 @@ class AgentHostSessionConfigPicker extends Disposable {
 			// `Menus.NewSessionControl`) handles it — skip it here to avoid
 			// double-rendering. Non-conforming schemas still fall through to
 			// the generic per-property picker below.
-			if (property === AUTO_APPROVE_PROPERTY && isWellKnownAutoApproveSchema(schema)) {
+			if (property === SessionConfigKey.AutoApprove && isWellKnownAutoApproveSchema(schema)) {
+				continue;
+			}
+			// When the mode property uses the well-known schema, the dedicated
+			// {@link AgentHostModePicker} (registered separately for
+			// `Menus.NewSessionConfig`) handles it. Non-conforming schemas
+			// still fall through to the generic per-property picker below.
+			if (property === SessionConfigKey.Mode && isWellKnownModeSchema(schema)) {
 				continue;
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
@@ -349,7 +361,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
-		const isAutoApproveProperty = property === AUTO_APPROVE_PROPERTY;
+		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
@@ -461,6 +473,16 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostSessionConfigPicker)),
 		));
 		this._register(actionViewItemService.register(
+			Menus.NewSessionConfig,
+			NEW_SESSION_MODE_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInput,
+			RUNNING_SESSION_MODE_PICKER_ID,
+			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+		));
+		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_APPROVE_PICKER_ID,
 			() => this._createNewSessionPermissionPicker(),
@@ -529,6 +551,29 @@ registerAction2(class extends Action2 {
 });
 
 
+// ---- New session mode picker (NewSessionConfig) ----
+
+const NEW_SESSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionModePicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_MODE_PICKER_ID,
+			title: localize2('agentHostNewSessionModePicker', "Agent Mode"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+
 // ---- Running session config picker (ChatInputSecondary) ----
 
 const RUNNING_SESSION_CONFIG_PICKER_ID = 'sessions.agentHost.runningSessionConfigPicker';
@@ -543,6 +588,32 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+
+// ---- Running session mode picker (ChatInput, beside the model picker) ----
+
+const RUNNING_SESSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionModePicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_MODE_PICKER_ID,
+			title: localize2('agentHostRunningSessionModePicker', "Agent Mode"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				// `OpenModelPickerAction` (the "Auto" model picker) is at order 3
+				// in the same menu — sit just before it so the mode pill renders
+				// to the left of "Pick Model".
+				order: 2,
 				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
