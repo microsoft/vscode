@@ -2679,6 +2679,12 @@
 				"enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
 			},
 			{
+				"command": "github.copilot.sessionSync.deleteSessions",
+				"title": "%github.copilot.command.sessionSync.deleteSessions%",
+				"category": "Chat",
+				"enablement": "github.copilot.sessionSearch.enabled && config.chat.sessionSync.enabled"
+			},
+			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
 				"category": "Copilot"

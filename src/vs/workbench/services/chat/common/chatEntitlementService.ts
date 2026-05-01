@@ -625,6 +625,7 @@ export interface IQuotaSnapshot {
 	readonly unlimited: boolean;
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
+	readonly entitlement?: number;
 }
 
 interface IQuotas {
@@ -798,11 +799,13 @@ export class ChatEntitlementRequests extends Disposable {
 				if (!rawQuotaSnapshot) {
 					continue;
 				}
+				const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
 				const quotaSnapshot: IQuotaSnapshot = {
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					unlimited: rawQuotaSnapshot.unlimited,
 					usageBasedBilling: rawQuotaSnapshot.token_based_billing,
 					resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
+					entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
 				};
 
 				switch (quotaType) {

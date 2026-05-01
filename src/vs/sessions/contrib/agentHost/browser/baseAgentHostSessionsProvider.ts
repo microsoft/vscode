@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../base/common/async.js';
+import { raceTimeout, disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -358,9 +358,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * window). The underlying wire subscription is reference-counted by
 	 * {@link IAgentConnection.getSubscription}, so when the session handler is
 	 * also subscribed (i.e. chat content is loaded) no extra wire subscribe is
-	 * issued. Keyed by session ID.
+	 * issued. Each entry is released after
+	 * {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS} of no calls into the keep-alive
+	 * helper, so the server-side refcount can drop and any idle restored session
+	 * state can be evicted on the agent host. Keyed by session ID.
 	 */
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+
+	/**
+	 * Idle-release timers paired with {@link _sessionStateSubscriptions}. Each
+	 * call to {@link _keepSessionStateAlive} resets the timer for `sessionId`;
+	 * when the timer fires, the subscription is disposed and the wire
+	 * `unsubscribe` flows through {@link IAgentConnection.getSubscription}'s
+	 * refcount to the agent host.
+	 */
+	private readonly _sessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 
 	protected _cacheInitialized = false;
 
@@ -499,8 +511,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (cached.resource.toString() === resource.toString()) {
 				// Opening a session: subscribe to its AHP state so that
 				// `_meta` (e.g. lazy git state computed by the agent host)
-				// flows into the cached adapter.
-				this._ensureSessionStateSubscription(cached.sessionId);
+				// flows into the cached adapter. The keep-alive helper resets
+				// an idle timer so the subscription is dropped once the session
+				// is no longer being touched, allowing the agent host to evict
+				// idle restored state.
+				this._keepSessionStateAlive(cached.sessionId);
 				return cached;
 			}
 		}
@@ -616,12 +631,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// New-session config wins (during pre-creation flow). Otherwise lazily
 		// subscribe to the session's state so the running picker can seed its
 		// schema/values from the AHP `SessionState.config` snapshot for sessions
-		// that weren't created in this window.
+		// that weren't created in this window. Each query bumps the idle timer
+		// so the subscription stays alive while the picker (or any other UI
+		// surface) is repeatedly reading the running config.
 		const newSessionConfig = this._newSessionConfigs.get(sessionId);
 		if (newSessionConfig) {
 			return newSessionConfig;
 		}
-		this._ensureSessionStateSubscription(sessionId);
+		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
@@ -1075,6 +1092,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Lazy session-state subscription seeding -----------------------------
 
 	/**
+	 * Idle window before a lazily-created session-state subscription is
+	 * released. Each call to {@link _keepSessionStateAlive} resets the timer.
+	 * Long enough to absorb the open→config-picker churn while a session view
+	 * is active; short enough that closed sessions release within a minute or
+	 * so, allowing the agent host to evict their cached restored state.
+	 */
+	private static readonly SESSION_STATE_SUBSCRIPTION_IDLE_MS = 30_000;
+
+	/**
+	 * Bump the idle-release timer for `sessionId` and lazily create the
+	 * underlying subscription if needed. Called from query paths
+	 * ({@link getSessionByResource}, {@link getSessionConfig}) that depend on
+	 * `_runningSessionConfigs` / `_meta` being in sync but cannot themselves
+	 * own a subscription handle.
+	 */
+	private _keepSessionStateAlive(sessionId: string): void {
+		this._ensureSessionStateSubscription(sessionId);
+		if (!this._sessionStateSubscriptions.has(sessionId)) {
+			return;
+		}
+		this._sessionStateIdleTimers.set(
+			sessionId,
+			disposableTimeout(
+				() => {
+					this._sessionStateIdleTimers.deleteAndDispose(sessionId);
+					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+				},
+				BaseAgentHostSessionsProvider.SESSION_STATE_SUBSCRIPTION_IDLE_MS,
+			),
+		);
+	}
+
+	/**
 	 * Lazily acquire a session-state subscription for `sessionId` so that
 	 * `_runningSessionConfigs` is seeded from the AHP `SessionState.config`
 	 * snapshot. Safe to call repeatedly — no-op once a subscription exists.
@@ -1318,6 +1368,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(cached.sessionId);
+			this._sessionStateIdleTimers.deleteAndDispose(cached.sessionId);
 			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
 		}
