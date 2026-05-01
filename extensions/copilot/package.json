@@ -4721,11 +4721,10 @@
 					},
 					"github.copilot.chat.cli.remote.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.remote.enabled%",
 						"tags": [
-							"advanced",
-							"experimental"
+							"advanced"
 						]
 					},
 					"github.copilot.chat.searchSubagent.enabled": {
