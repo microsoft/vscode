@@ -372,7 +372,7 @@ export interface ICopilotCLISession extends IDisposable {
 	readonly workspace: IWorkspaceInfo;
 	readonly additionalWorkspaces: IWorkspaceInfo[];
 	readonly pendingPrompt: string | undefined;
-	attachStream(stream: vscode.ChatResponseStream, options?: { markPreviousResponseInterrupted?: boolean }): IDisposable;
+	attachStream(stream: vscode.ChatResponseStream): IDisposable;
 	setPermissionLevel(level: string | undefined): void;
 	handleRequest(
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
@@ -467,10 +467,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
 	}
 
-	attachStream(stream: vscode.ChatResponseStream, options?: { markPreviousResponseInterrupted?: boolean }): IDisposable {
-		if (options?.markPreviousResponseInterrupted && this._stream && this._status === ChatSessionStatus.InProgress) {
-			this._stream.markdown(l10n.t('Previous response was interrupted.'));
-		}
+	attachStream(stream: vscode.ChatResponseStream): IDisposable {
 		this._stream = stream;
 		return toDisposable(() => {
 			if (this._stream === stream) {
@@ -670,7 +667,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		const requestStream = this._stream;
+		let wroteResponseContent = false;
 		disposables.add(token.onCancellationRequested(() => {
+			if (!wroteResponseContent) {
+				try {
+					requestStream?.markdown(l10n.t('Response was interrupted.'));
+					wroteResponseContent = true;
+				} catch (error) {
+					this.logService.trace(`[CopilotCLISession] Unable to mark interrupted response: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
 			this._sdkSession.abort();
 		}));
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
@@ -927,6 +933,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
+					wroteResponseContent = true;
 					requestStream?.markdown(event.data.deltaContent);
 				}
 			})));
@@ -938,6 +945,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}
 			})));
@@ -951,6 +959,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const responsePart = processToolExecutionStart(event, pendingToolInvocations, getWorkingDirectory(this.workspace));
 					if (responsePart instanceof ChatResponseThinkingProgressPart) {
 						flushPendingInvocationMessages();
+						wroteResponseContent = true;
 						requestStream?.push(responsePart);
 						requestStream?.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
 					} else if (responsePart instanceof ChatResponseMarkdownPart) {
@@ -962,6 +971,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							toolCallWaitingForPermissions.push([responsePart, event.data as ToolCall]);
 						} else {
 							flushPendingInvocationMessages();
+							wroteResponseContent = true;
 							requestStream?.push(responsePart);
 						}
 					}
@@ -997,6 +1007,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (responsePart instanceof ChatToolInvocationPart) {
 						responsePart.enablePartialUpdate = true;
 					}
+					wroteResponseContent = true;
 					requestStream?.push(responsePart);
 				}
 

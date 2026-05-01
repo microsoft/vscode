@@ -26,10 +26,6 @@ function isReasoningEffortFeatureEnabled(configurationService: IConfigurationSer
 	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 }
 
-function shouldMarkPreviousResponseInterrupted(request: vscode.ChatRequest, session: ICopilotCLISession): boolean {
-	return !!request.command && request.command !== 'plan' && session.status === vscode.ChatSessionStatus.InProgress;
-}
-
 export interface SessionInitOptions {
 	isolation?: IsolationMode;
 	branch?: string;
@@ -131,7 +127,7 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 		this.logService.info(`Using Copilot CLI session: ${session.object.sessionId} (isNewSession: ${isNewSession}, isolationEnabled: ${isIsolationEnabled(workspaceInfo)}, workingDirectory: ${workingDirectory}, worktreePath: ${worktreeProperties?.worktreePath})`);
 
 		disposables.add(session);
-		disposables.add(session.object.attachStream(stream, { markPreviousResponseInterrupted: shouldMarkPreviousResponseInterrupted(request, session.object) }));
+		disposables.add(session.object.attachStream(stream));
 		session.object.setPermissionLevel(request.permissionLevel);
 
 		return { session, isNewSession, model, agent, trusted };

@@ -13,7 +13,7 @@ import { IRequestLogger } from '../../../../../platform/requestLogger/common/req
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
-import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../../util/vs/base/common/path';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -1670,16 +1670,18 @@ describe('CopilotCLISession', () => {
 			const session = await createSession();
 			const firstStream = new MockChatResponseStream();
 			session.attachStream(firstStream);
+			const firstTokenSource = new CancellationTokenSource();
 
 			const firstRequest = session.handleRequest(
 				{ id: 'req-1', toolInvocationToken: undefined as never },
-				{ prompt: 'First prompt' }, [], undefined, authInfo, CancellationToken.None
+				{ prompt: 'First prompt' }, [], undefined, authInfo, firstTokenSource.token
 			);
 			await new Promise(resolve => setTimeout(resolve, 10));
 			expect(session.status).toBe(ChatSessionStatus.InProgress);
 
 			const remoteStream = new MockChatResponseStream();
-			session.attachStream(remoteStream, { markPreviousResponseInterrupted: true });
+			firstTokenSource.cancel();
+			session.attachStream(remoteStream);
 			const remoteRequest = session.handleRequest(
 				{ id: 'req-2', toolInvocationToken: undefined as never },
 				{ command: 'remote', prompt: '' }, [], undefined, authInfo, CancellationToken.None
@@ -1690,7 +1692,8 @@ describe('CopilotCLISession', () => {
 			resolveFirstSend();
 			await Promise.all([firstRequest, remoteRequest]);
 
-			expect(firstStream.output.join('')).toContain('Previous response was interrupted.');
+			firstTokenSource.dispose(true);
+			expect(firstStream.output.join('')).toContain('Response was interrupted.');
 			expect(firstStream.output.join('')).toContain('Echo: First prompt');
 			const output = remoteStream.output.join('');
 			expect(output).not.toContain('Echo: First prompt');
