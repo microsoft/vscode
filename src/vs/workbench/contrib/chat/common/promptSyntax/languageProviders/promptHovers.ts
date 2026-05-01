@@ -207,7 +207,7 @@ export class PromptHoverProvider implements HoverProvider {
 		const lines: string[] = [];
 		const value = agentAttribute.value;
 		if (value.type === 'scalar' && value.range.containsPosition(position)) {
-			const agent = this.chatModeService.findModeByName(value.value);
+			const agent = this.chatModeService.getModes().findModeByName(value.value);
 			if (agent) {
 				const description = agent.description.get() || (isBuiltinChatMode(agent) ? localize('promptHeader.prompt.agent.builtInDesc', 'Built-in agent') : localize('promptHeader.prompt.agent.customDesc', 'Custom agent'));
 				lines.push(`\`${agent.name.get()}\`: ${description}`);

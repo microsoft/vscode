@@ -101,14 +101,14 @@ suite('ChatModeService', () => {
 	});
 
 	test('should find builtin modes by id', () => {
-		const agentMode = chatModeService.findModeById(ChatModeKind.Agent);
+		const agentMode = chatModeService.getModes().findModeById(ChatModeKind.Agent);
 		assert.ok(agentMode);
 		assert.strictEqual(agentMode.id, ChatMode.Agent.id);
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
 	});
 
 	test('should return undefined for non-existent mode', () => {
-		const mode = chatModeService.findModeById('non-existent-mode');
+		const mode = chatModeService.getModes().findModeById('non-existent-mode');
 		assert.strictEqual(mode, undefined);
 	});
 
@@ -190,7 +190,7 @@ suite('ChatModeService', () => {
 		// Wait for the service to refresh
 		await timeout(0);
 
-		const foundMode = chatModeService.findModeById(customMode.uri.toString());
+		const foundMode = chatModeService.getModes().findModeById(customMode.uri.toString());
 		assert.ok(foundMode);
 		assert.strictEqual(foundMode.id, customMode.uri.toString());
 		assert.strictEqual(foundMode.name.get(), customMode.name);

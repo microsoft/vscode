@@ -1271,9 +1271,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modeInfo = lastItem.model.request?.modeInfo;
 		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeInstructions?.name) {
-			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
+			responseMode = this.chatModeService.getModes().findModeByName(modeInfo.modeInstructions.name);
 		} else if (modeInfo?.modeId) {
-			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
+			responseMode = this.chatModeService.getModes().findModeById(modeInfo.modeId);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -1325,7 +1325,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
-		const toMode = handoff.agent ? this.chatModeService.findModeByName(handoff.agent) : undefined;
+		const toMode = handoff.agent ? this.chatModeService.getModes().findModeByName(handoff.agent) : undefined;
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
 			fromAgent: getModeNameForTelemetry(currentMode),
 			toAgent: agentId || (toMode ? getModeNameForTelemetry(toMode) : ''),
@@ -2868,7 +2868,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Find the mode object to get its kind
-		const agent = this.chatModeService.findModeByName(agentName);
+		const agent = this.chatModeService.getModes().findModeByName(agentName);
 		if (!agent) {
 			return false;
 		}
