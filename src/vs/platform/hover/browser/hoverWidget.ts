@@ -676,6 +676,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
+	private _suppressNextMouseOut: boolean = false;
 	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
@@ -703,6 +704,7 @@ class CompositeMouseTracker extends Widget {
 
 	private _onTargetMouseOver(): void {
 		this._isMouseIn = true;
+		this._suppressNextMouseOut = false;
 		this._mouseTimer.clear();
 	}
 
@@ -714,18 +716,19 @@ class CompositeMouseTracker extends Widget {
 	}
 
 	private _fireIfMouseOutside(): void {
-		if (!this._isMouseIn) {
+		if (!this._isMouseIn && !this._suppressNextMouseOut) {
 			this._onMouseOut.fire();
 		}
 	}
 
 	/**
-	 * Cancels any pending mouseout timer. Call this when tracked elements are
-	 * being resized or repositioned to avoid spurious dismissals caused by
-	 * the element shrinking away from the cursor.
+	 * Suppresses the next pending mouseout dismissal. Call this when tracked
+	 * elements are being resized or repositioned to avoid spurious dismissals
+	 * caused by the element shrinking away from the cursor. The suppression
+	 * is cleared when the mouse next enters a tracked element.
 	 */
 	suppressPendingMouseOut(): void {
-		this._mouseTimer.clear();
+		this._suppressNextMouseOut = true;
 	}
 
 	/**
