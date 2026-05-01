@@ -2226,6 +2226,9 @@ registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Del
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
 registerSingleton(IWorkspacePluginSettingsService, WorkspacePluginSettingsService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);
+// Default `IPluginGitService` registration for web. Overridden in
+// `electron-browser/chat.contribution.ts` for desktop. The decision matrix
+// is documented on the `IPluginGitService` interface itself.
 registerSingleton(IPluginGitService, BrowserPluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
