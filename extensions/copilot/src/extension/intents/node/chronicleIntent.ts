@@ -472,11 +472,11 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search.
 Always JOIN sessions with turns to get session content — do not rely on sessions.summary alone.`
 			: `Available tables (SQLite syntax — local):
-- **sessions**: id, cwd (workspace folder path), repository, branch, summary, host_type, agent_name, agent_description, created_at, updated_at. NOTE: agent_name and agent_description may be empty for older sessions. summary may contain raw JSON — prefer JOINing with turns.user_message for text search.
+- **sessions**: id, cwd (workspace folder path), repository, branch, summary, host_type (always 'vscode' locally), agent_name (who created the session, e.g. 'GitHub Copilot Chat', 'copilotcli', 'claude'), agent_description, created_at, updated_at. NOTE: agent_name and agent_description may be empty for older sessions. summary is human-readable plain text (up to 100 chars) — may be empty for older sessions.
 - **turns**: session_id, turn_index, user_message, assistant_response (first ~1000 characters of the assistant reply, with an ellipsis if truncated — not the full response; may be empty for older sessions), timestamp. The richest source of what actually happened — always JOIN sessions with turns for meaningful results.
 - **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used. May be empty for older sessions.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made. May be empty for older sessions.
-- **search_index**: FTS5 table. Use \`WHERE search_index MATCH 'query'\`
+- **search_index**: FTS5 virtual table indexing turns.user_message and turns.assistant_response. Use \`WHERE search_index MATCH 'query'\` for full-text search across conversation content.
 
 Use \`datetime('now', '-1 day')\` for date math.
 Join sessions with turns/files/refs using session_id for complete analysis.`;
