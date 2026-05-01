@@ -262,6 +262,38 @@ suite('AICustomizationItemsModel', () => {
 			}]);
 		});
 
+		test('preserves builtin grouping when only groupKey is set (no storage/extensionId/pluginUri)', async () => {
+			// Repro of "Agents app built-in shown as User": the Agents app
+			// customization provider declares its built-in agents only via
+			// `groupKey: BUILTIN_STORAGE` — without `storage`, `extensionId`,
+			// `pluginUri`, or a workspace-anchored URI. The URI-sniffing
+			// fallback in the normalizer must preserve groupKey/isBuiltin so
+			// the list widget renders them under "Built-in" instead of "User".
+			providerA_items = [{
+				uri: URI.parse('agent-app://builtin/coder.agent.md'),
+				type: PromptsType.agent,
+				name: 'Coder',
+				groupKey: BUILTIN_STORAGE,
+				enabled: true,
+				extensionId: undefined,
+				pluginUri: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(item => ({
+				name: item.name,
+				groupKey: item.groupKey,
+				isBuiltin: item.isBuiltin,
+			})), [{
+				name: 'Coder',
+				groupKey: BUILTIN_STORAGE,
+				isBuiltin: true,
+			}]);
+		});
+
 		test('plugin count includes provider-supplied plugin items', async () => {
 			providerA_items = [
 				{

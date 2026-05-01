@@ -282,7 +282,7 @@ export class AICustomizationItemNormalizer {
 			}
 			return { storage: PromptsStorage.extension, extensionId, groupKey, isBuiltin };
 		}
-		return { storage: PromptsStorage.user };
+		return { storage: PromptsStorage.user, groupKey, isBuiltin };
 	}
 
 }
