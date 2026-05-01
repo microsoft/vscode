@@ -10,6 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { RUN_SUBAGENT_MAX_NESTING_DEPTH, RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
+import { ManageTodoListToolToolId } from '../../../../common/tools/builtinTools/manageTodoListTool.js';
+import { IToolData, IToolSet, IToolAndToolSetEnablementMap } from '../../../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService } from '../../../../common/chatService/chatService.js';
@@ -968,6 +970,144 @@ suite('RunSubagentTool', () => {
 			// Both should have runSubagent enabled since depth resets after each invoke
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
 			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], true);
+		});
+	});
+
+	suite('tool filtering for subagents', () => {
+		let callIdCounter = 0;
+
+		/**
+		 * Builds a RunSubagentTool whose toToolAndToolSetEnablementMap returns an entry for
+		 * every tool name in `agentTools`, all enabled. The captured IChatAgentRequest lets
+		 * us inspect the userSelectedTools that reach invokeAgent.
+		 */
+		function createToolWithAgentTools(agentTools: string[], capturedRequests: IChatAgentRequest[]) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+
+			// Override toToolAndToolSetEnablementMap to simulate frontmatter tool resolution.
+			mockToolsService.toToolAndToolSetEnablementMap = (names: readonly string[]): IToolAndToolSetEnablementMap => {
+				const map = new Map<IToolData | IToolSet, boolean>();
+				for (const name of names) {
+					// Produce a minimal IToolData stub whose id matches the canonical tool id.
+					// 'todo' resolves to ManageTodoListToolToolId; use name directly for others.
+					const id = name === 'todo' ? ManageTodoListToolToolId : name;
+					map.set({ id } as IToolData, true);
+				}
+				return map;
+			};
+
+			const configService = new TestConfigurationService({
+				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: false,
+			});
+
+			const agentDef: ICustomAgent = {
+				uri: URI.parse('file:///test/agent.md'),
+				name: 'TestAgent',
+				description: 'test',
+				tools: agentTools,
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+
+			const promptsService = new MockPromptsService();
+			promptsService.setCustomModes([agentDef]);
+
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, request: IChatAgentRequest): Promise<IChatAgentResult> {
+					capturedRequests.push(request);
+					return {};
+				},
+			};
+
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [{ id: 'req-1' }],
+						acceptResponseProgress: () => { },
+					} as unknown as IChatModel;
+				},
+			};
+
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+
+			return testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				configService,
+				promptsService,
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+		}
+
+		function createInvocationForAgent(sessionUri: URI, agentName: string): IToolInvocation {
+			return {
+				callId: `call-${++callIdCounter}`,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'do something', description: 'test', agentName },
+				context: { sessionResource: sessionUri },
+				userSelectedTools: { runSubagent: true },
+			} as IToolInvocation;
+		}
+
+		const countTokens = async () => 0;
+		const noProgress: ToolProgress = { report() { } };
+
+		test('manage_todo_list is disabled by default when not in agent frontmatter', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createToolWithAgentTools([], capturedRequests);
+			const sessionUri = URI.parse('test://session/todo-default');
+
+			await tool.invoke(createInvocationForAgent(sessionUri, 'TestAgent'), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedTools?.[ManageTodoListToolToolId], false);
+		});
+
+		test('manage_todo_list is enabled when explicitly listed in agent frontmatter', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createToolWithAgentTools(['todo'], capturedRequests);
+			const sessionUri = URI.parse('test://session/todo-enabled');
+
+			await tool.invoke(createInvocationForAgent(sessionUri, 'TestAgent'), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedTools?.[ManageTodoListToolToolId], true);
+		});
+
+		test('copilot_askQuestions is disabled by default when not in agent frontmatter', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createToolWithAgentTools([], capturedRequests);
+			const sessionUri = URI.parse('test://session/askquestions-default');
+
+			await tool.invoke(createInvocationForAgent(sessionUri, 'TestAgent'), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedTools?.['copilot_askQuestions'], false);
+		});
+
+		test('copilot_askQuestions is enabled when explicitly listed in agent frontmatter', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createToolWithAgentTools(['copilot_askQuestions'], capturedRequests);
+			const sessionUri = URI.parse('test://session/askquestions-enabled');
+
+			await tool.invoke(createInvocationForAgent(sessionUri, 'TestAgent'), countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedTools?.['copilot_askQuestions'], true);
 		});
 	});
 });
