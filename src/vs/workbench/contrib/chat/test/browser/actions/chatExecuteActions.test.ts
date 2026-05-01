@@ -162,12 +162,12 @@ suite('ExecuteHandoffAction', () => {
 		handOffs: observableValue('handOffs', testHandoffs),
 	});
 
-	function createMockWidget(currentMode: IChatMode, chamModes: IChatModes): { widget: Partial<IChatWidget>; executeHandoffCalls: IHandOff[] } {
+	function createMockWidget(currentMode: IChatMode, chatModes: IChatModes): { widget: Partial<IChatWidget>; executeHandoffCalls: IHandOff[] } {
 		const executeHandoffCalls: IHandOff[] = [];
 		const widget: Partial<IChatWidget> = {
 			input: {
 				currentModeObs: constObservable(currentMode),
-				currentChatModesObs: constObservable(chamModes),
+				currentChatModesObs: constObservable(chatModes),
 			} as IChatWidget['input'],
 			executeHandoff: async (handoff: IHandOff) => {
 				executeHandoffCalls.push(handoff);
