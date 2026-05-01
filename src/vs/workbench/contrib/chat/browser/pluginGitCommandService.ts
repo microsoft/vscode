@@ -84,10 +84,22 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.repo, ref, sha, fetchedAt: Date.now() });
 		};
 
+		const initialAuthToken = await this._lookupGitHubToken();
 		try {
-			await cloneWithToken(await this._lookupGitHubToken());
+			await cloneWithToken(initialAuthToken);
 		} catch (err) {
 			if (err instanceof GitHubAuthRequiredError && !cancel.isCancellationRequested) {
+				if (initialAuthToken) {
+					try {
+						await cloneWithToken(undefined);
+						return;
+					} catch (anonymousErr) {
+						this._maybeLogTransientError(anonymousErr, repo);
+						if (!(anonymousErr instanceof GitHubAuthRequiredError)) {
+							throw anonymousErr;
+						}
+					}
+				}
 				try {
 					await cloneWithToken(await this._requestGitHubToken(repo));
 					return;
@@ -232,8 +244,8 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	 * This uses the existing signed-in GitHub account, if any, without forcing
 	 * a new `repo`-scoped session. That matches the other web/session GitHub
 	 * clients and avoids treating an already-authenticated web user as anonymous.
-	 * User-initiated clone failures can then call {@link _requestGitHubToken}
-	 * to request stronger scopes and retry once.
+	 * If that token is rejected, clone falls back to an anonymous request before
+	 * calling {@link _requestGitHubToken} to request stronger scopes.
 	 *
 	 * With multiple matching sessions (e.g. EMU + personal), prefer one that
 	 * advertises `repo` scope but otherwise pick the first; that mirrors the

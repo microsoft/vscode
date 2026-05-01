@@ -169,6 +169,31 @@ suite('BrowserPluginGitCommandService', () => {
 			assert.strictEqual(requestStub.requests[1].headers?.Authorization, 'Bearer signed-in-token');
 		});
 
+		test('falls back to anonymous when the signed-in GitHub session is rejected', async () => {
+			const state = { createSessionCalls: 0 };
+			service = new BrowserPluginGitCommandService(
+				fileService,
+				new NullLogService(),
+				requestStub as unknown as IRequestService,
+				storage,
+				stubAuthenticationService({ sessions: [createAuthenticationSession('sso-blocked-token')], state }),
+			);
+
+			const tarball = await makeGzippedTar({ 'pkg-sha1/public.txt': 'public' });
+			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+
+			await service.cloneRepository('https://github.com/octocat/Public.git', targetDir, 'main');
+
+			const file = await fileService.readFile(URI.joinPath(targetDir, 'public.txt'));
+			assert.strictEqual(file.value.toString(), 'public');
+			assert.strictEqual(requestStub.requests[0].headers?.Authorization, 'Bearer sso-blocked-token');
+			assert.strictEqual(requestStub.requests[1].headers?.Authorization, undefined);
+			assert.strictEqual(requestStub.requests[2].headers?.Authorization, undefined);
+			assert.strictEqual(state.createSessionCalls, 0);
+		});
+
 		test('failed extraction leaves the previous targetDir intact', async () => {
 			// First install: succeeds.
 			const tarball = await makeGzippedTar({ 'pkg-sha1/keep.txt': 'preserved' });
