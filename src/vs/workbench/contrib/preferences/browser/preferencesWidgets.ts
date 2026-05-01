@@ -92,7 +92,8 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
-			'tabindex': '0'
+			'tabindex': '0',
+			'aria-label': localize('settingsScopeDropDownAriaLabel', "Settings Scope")
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this.anchorElementHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.anchorElement, ''));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
