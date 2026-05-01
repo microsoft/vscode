@@ -12,7 +12,9 @@ import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/r
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -44,6 +46,8 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 	) {
 		super(
@@ -58,6 +62,8 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			menuService,
 			contextKeyService,
 			instantiationService,
+			fileDialogService,
+			quickInputService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

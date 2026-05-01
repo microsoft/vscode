@@ -36,6 +36,22 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
+/**
+ * Configuration key that controls whether the Claude agent provider is registered
+ * inside the agent host. Read on the workbench side and forwarded to the agent host
+ * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
+ * host process must be restarted for changes to take effect.
+ */
+export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+
+/**
+ * Environment variable that, when set to `'1'`, causes the agent host process to
+ * register the Claude agent provider. Set by the agent host starters when
+ * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
+ * directly by developers as an override.
+ */
+export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
 	readonly socketPath: string;
@@ -82,6 +98,8 @@ export interface IAgentSessionMetadata {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
 	readonly status?: SessionStatus;
+	/** Human-readable description of what the session is currently doing. */
+	readonly activity?: string;
 	readonly model?: ModelSelection;
 	readonly workingDirectory?: URI;
 	readonly customizationDirectory?: URI;
@@ -143,6 +161,22 @@ export interface AuthenticateResult {
 	/** Whether the token was accepted. */
 	readonly authenticated: boolean;
 }
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for the GitHub Copilot
+ * resource. Shared between every agent provider that consumes a GitHub
+ * Copilot bearer token (e.g. Copilot CLI, Claude) so they advertise an
+ * identical resource identifier to the auth flow — clients dispatch by
+ * `resource`, and divergent metadata would silently route the same
+ * token down separate code paths.
+ */
+export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com',
+	resource_name: 'GitHub Copilot',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['read:user', 'user:email'],
+	required: true,
+};
 
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
@@ -268,6 +302,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * If set, the tool call belongs to the subagent rooted at this
+	 * parent tool call. Used by the host to route the resulting
+	 * `SessionToolCallReady` to the subagent session — otherwise the
+	 * action would land on the parent session, where there is no
+	 * matching `SessionToolCallStart`.
+	 */
+	readonly parentToolCallId?: string;
 }
 
 /**
@@ -533,12 +575,28 @@ export interface IAgentService {
 	/**
 	 * Subscribe to state at the given URI. Returns a snapshot of the current
 	 * state and the serverSeq at snapshot time. Subsequent actions for this
-	 * resource arrive via {@link onDidAction}.
+	 * resource arrive via {@link onDidAction}. Registers `clientId` against
+	 * the resource so the server-side refcount knows who is watching, so the
+	 * caller does not need to invoke {@link addSubscriber} separately. Pair
+	 * with {@link unsubscribe} when the subscription is released.
 	 */
-	subscribe(resource: URI): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string): Promise<IStateSnapshot>;
 
-	/** Unsubscribe from state updates for the given URI. */
-	unsubscribe(resource: URI): void;
+	/**
+	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
+	 * for `resource`; when the last subscriber is removed, idle session state
+	 * for `resource` may be evicted from the server.
+	 */
+	unsubscribe(resource: URI, clientId: string): void;
+
+	/**
+	 * Register `clientId` against `resource` without going through
+	 * {@link subscribe}. Only needed by callers that hand out snapshots
+	 * synchronously (e.g. the JSON-RPC handshake serving `initialSubscriptions`
+	 * out of the in-memory state cache); regular subscribers should call
+	 * {@link subscribe} instead. Counterpart cleanup is {@link unsubscribe}.
+	 */
+	addSubscriber(resource: URI, clientId: string): void;
 
 	/**
 	 * Fires when the server applies an action to subscribable state.

@@ -613,6 +613,7 @@ export namespace ConfigKey {
 		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
+		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
 		export const CLIAIGenerateBranchNames = defineSetting<boolean>('chat.cli.aiGenerateBranchNames.enabled', ConfigType.Simple, true);
@@ -623,7 +624,7 @@ export namespace ConfigKey {
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
 		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, true);
 		export const CLIThinkingEffortEnabled = defineSetting<boolean>('chat.cli.thinkingEffort.enabled', ConfigType.Simple, true);
-		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, false);
+		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, true);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
@@ -637,7 +638,7 @@ export namespace ConfigKey {
 		export const ProjectLabelsInline = defineAndMigrateExpSetting<boolean>('chat.advanced.projectLabels.inline', 'chat.projectLabels.inline', false);
 		export const WorkspaceMaxLocalIndexSize = defineAndMigrateExpSetting<number>('chat.advanced.workspace.maxLocalIndexSize', 'chat.workspace.maxLocalIndexSize', 100_000);
 		export const WorkspaceEnableCodeSearch = defineAndMigrateExpSetting<boolean>('chat.advanced.workspace.enableCodeSearch', 'chat.workspace.enableCodeSearch', true);
-		export const WorkspaceMaxDiffSizeBeforeUsingExternalIngest = defineAndMigrateExpSetting<number>('chat.advanced.workspace.maxDiffSizeBeforeUsingExternalIngest', 'chat.workspace.maxDiffSizeBeforeUsingExternalIngest', 100);
+		export const WorkspaceEnableCodeSearchExternalIngest = defineSetting<boolean>('chat.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.config.chat.advanced.workspace.codeSearchExternalIngest.enabled' });
 		export const WorkspacePreferredEmbeddingsModel = defineAndMigrateExpSetting<string>('chat.advanced.workspace.preferredEmbeddingsModel', 'chat.workspace.preferredEmbeddingsModel', '');
 		export const NotebookAlternativeDocumentFormat = defineAndMigrateExpSetting<AlternativeNotebookFormat>('chat.advanced.notebook.alternativeFormat', 'chat.notebook.alternativeFormat', AlternativeNotebookFormat.xml);
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
@@ -647,7 +648,6 @@ export namespace ConfigKey {
 
 		export const InstantApplyShortModelName = defineAndMigrateExpSetting<string>('chat.advanced.instantApply.shortContextModelName', 'chat.instantApply.shortContextModelName', CHAT_MODEL.SHORT_INSTANT_APPLY);
 		export const InstantApplyShortContextLimit = defineAndMigrateExpSetting<number>('chat.advanced.instantApply.shortContextLimit', 'chat.instantApply.shortContextLimit', 8000);
-		export const AgentHistorySummarizationInline = defineAndMigrateExpSetting<boolean>('chat.advanced.agentHistorySummarizationInline', 'chat.agentHistorySummarizationInline', true);
 		export const PromptFileContext = defineAndMigrateExpSetting<boolean>('chat.advanced.promptFileContextProvider.enabled', 'chat.promptFileContextProvider.enabled', true);
 		export const DefaultToolsGrouped = defineAndMigrateExpSetting<boolean>('chat.advanced.tools.defaultToolsGrouped', 'chat.tools.defaultToolsGrouped', false);
 		export const Gpt5AlternativePatch = defineAndMigrateExpSetting<boolean>('chat.advanced.gpt5AlternativePatch', 'chat.gpt5AlternativePatch', false);
@@ -888,16 +888,10 @@ export namespace ConfigKey {
 		export const RetryNetworkErrors = defineSetting<boolean>('chat.advanced.enableRetryNetworkErrors', ConfigType.ExperimentBased, true);
 		export const RetryServerErrorStatusCodes = defineSetting<string>('chat.advanced.retryServerErrorStatusCodes', ConfigType.ExperimentBased, '500,502');
 		export const FallbackNodeFetchOnNetworkProcessCrash = defineSetting<boolean>('chat.advanced.enableFallbackNodeFetchOnNetworkProcessCrash', ConfigType.ExperimentBased, true);
-		export const WorkspaceEnableCodeSearchExternalIngest = defineTeamInternalSetting<boolean>('chat.advanced.workspace.codeSearchExternalIngest.enabled', ConfigType.ExperimentBased, false);
 		export const ChatRequestPowerSaveBlocker = defineTeamInternalSetting<boolean>('chat.advanced.chatRequestPowerSaveBlocker', ConfigType.ExperimentBased, true);
 		/** Enable WebSocket transport for Responses API requests. When enabled, uses a persistent WebSocket connection per conversation instead of individual HTTP requests. */
 		export const ResponsesApiWebSocketEnabled = defineTeamInternalSetting<boolean>('chat.advanced.responsesApi.webSocket.enabled', ConfigType.ExperimentBased, true);
 		export const DebugSimulateWebSocketResponse = defineTeamInternalSetting<string>('chat.advanced.debug.simulateWebSocketResponse', ConfigType.Simple, '');
-
-		/** Enable cloud sync of session data to cloud. */
-		export const SessionSearchCloudSyncEnabled = defineTeamInternalSetting<boolean>('chat.advanced.sessionSearch.cloudSync.enabled', ConfigType.Simple, false, vBoolean());
-		/** Repository patterns to exclude from cloud sync (exact owner/repo or glob patterns like my-org/*). */
-		export const SessionSearchCloudSyncExcludeRepositories = defineTeamInternalSetting<string[]>('chat.advanced.sessionSearch.cloudSync.excludeRepositories', ConfigType.Simple, []);
 	}
 
 	/**

@@ -2438,13 +2438,14 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	}
 
 	private _createStrategy(commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		const isSyncMode = !this._isBackground;
 		switch (this._toolTerminal.shellIntegrationQuality) {
 			case ShellIntegrationQuality.None:
 				return this._instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
 			case ShellIntegrationQuality.Basic:
 				return this._instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
 			case ShellIntegrationQuality.Rich:
-				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
+				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection, isSyncMode);
 		}
 	}
 

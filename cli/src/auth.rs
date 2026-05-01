@@ -187,6 +187,9 @@ pub struct Auth {
 	storage: Arc<std::sync::Mutex<Option<StorageWithLastRead>>>,
 	/// Prefix for keyring entries, derived from the namespace.
 	keyring_prefix: String,
+	/// When set, restricts authentication to only this provider.
+	/// The user will not be prompted to choose a provider.
+	forced_provider: Option<AuthProvider>,
 }
 
 trait StorageImplementation: Send + Sync {
@@ -423,7 +426,14 @@ impl Auth {
 			file_storage_path: paths.root().join(filename),
 			storage: Arc::new(std::sync::Mutex::new(None)),
 			keyring_prefix,
+			forced_provider: None,
 		}
+	}
+
+	/// Restricts this `Auth` instance to only allow the given provider.
+	/// When set, the user will not be prompted to choose a provider.
+	pub fn set_provider(&mut self, provider: AuthProvider) {
+		self.forced_provider = Some(provider);
 	}
 
 	fn with_storage<T, F>(&self, op: F) -> T
@@ -731,6 +741,10 @@ impl Auth {
 	}
 
 	async fn prompt_for_provider(&self) -> Result<AuthProvider, AnyError> {
+		if let Some(provider) = self.forced_provider {
+			return Ok(provider);
+		}
+
 		if !*IS_INTERACTIVE_CLI {
 			info!(
 				self.log,

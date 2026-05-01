@@ -18,12 +18,12 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { signalToLegacyView, type LegacyMockEvent } from './mockAgent.js';
+import { buildSubagentSessionUri, ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { ActionType, type IDeltaAction } from '../../common/state/sessionActions.js';
+
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -500,6 +500,74 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('onClientToolCallComplete', () => {
+
+		/**
+		 * Injects a stub session into the agent's `_sessions` map so we can
+		 * observe how `onClientToolCallComplete` resolves URIs to session
+		 * entries without standing up a full Copilot SDK session.
+		 */
+		function installStubSession(agent: CopilotAgent, sessionId: string): { calls: { toolCallId: string; result: ToolCallResult }[] } {
+			const calls: { toolCallId: string; result: ToolCallResult }[] = [];
+			const stub = {
+				handleClientToolCallComplete(toolCallId: string, result: ToolCallResult) {
+					calls.push({ toolCallId, result });
+				},
+				dispose() { },
+			};
+			const sessions = (agent as unknown as { _sessions: Map<string, unknown> })._sessions;
+			sessions.set(sessionId, stub);
+			return { calls };
+		}
+
+		test('routes a top-level session URI to its session entry', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-top');
+				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
+
+				const result: ToolCallResult = { success: true, pastTenseMessage: 'did it' };
+				agent.onClientToolCallComplete(sessionUri, 'tc-top', result);
+
+				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-top', result }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('routes a subagent session URI to its parent session entry', async () => {
+			// Regression: client-tool completions for tools running inside a
+			// subagent are dispatched against the subagent session URI by
+			// the renderer. The agent must resolve that to the parent
+			// session entry — only the parent owns the SDK session and the
+			// pending deferred for the tool call.
+			const agent = createTestAgent(disposables);
+			try {
+				const parentUri = AgentSession.uri('copilotcli', 'session-parent');
+				const { calls } = installStubSession(agent, AgentSession.id(parentUri));
+
+				const subagentUri = URI.parse(buildSubagentSessionUri(parentUri.toString(), 'tc-parent'));
+				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent tool done' };
+				agent.onClientToolCallComplete(subagentUri, 'tc-inner', result);
+
+				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('is a no-op when no session entry exists for the resolved id', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
+				// No stub installed — the call should be silently ignored.
+				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	suite('worktree announcement', () => {
 		// Drives a real session through worktree creation (calling the
 		// agent's _resolveSessionWorkingDirectory via a test seam so we don't
@@ -567,24 +635,37 @@ suite('CopilotAgent', () => {
 				//    delta carrying the announcement before delegating to the
 				//    SDK. The session is responsible for emitting the
 				//    announcement after resetting partId tracking.
-				const events: LegacyMockEvent[] = [];
+				const signals: AgentSignal[] = [];
 				disposables.add(agent.onDidSessionProgress(s => {
-					const v = signalToLegacyView(s);
-					if (v) { events.push(v); }
+					signals.push(s);
 				}));
 
 				await agent.sendMessage(session, 'hello');
 				assert.strictEqual(sendCalls, 1, 'underlying SDK send must still be called');
 
-				const deltas = events.filter((e): e is LegacyMockEvent & { type: 'delta' } => e.type === 'delta');
-				assert.strictEqual(deltas.length, 1, 'exactly one delta should be emitted for the worktree announcement');
-				const announcement = deltas[0];
-				assert.ok(announcement.content.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcement.content}'`);
+				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
+					s.kind === 'action' && (
+						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.SessionDelta
+					)
+				);
+				assert.strictEqual(markdownSignals.length, 1, 'exactly one markdown announcement signal should be emitted for the worktree announcement');
+				const announcement = markdownSignals[0];
+				const announcementContent = announcement.action.type === ActionType.SessionResponsePart
+					? (announcement.action.part as MarkdownResponsePart).content
+					: (announcement.action as IDeltaAction).content;
+				assert.ok(announcementContent.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcementContent}'`);
 
 				// 3. Live path is one-shot: a second sendMessage must not re-emit.
-				events.length = 0;
+				signals.length = 0;
 				await agent.sendMessage(session, 'follow-up');
-				assert.strictEqual(events.filter(e => e.type === 'delta').length, 0, 'announcement must not be re-emitted on subsequent sends');
+				const reemittedMarkdown = signals.filter(s =>
+					s.kind === 'action' && (
+						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.SessionDelta
+					)
+				);
+				assert.strictEqual(reemittedMarkdown.length, 0, 'announcement must not be re-emitted on subsequent sends');
 
 				// 4. Restore path: getSessionMessages must prepend the
 				//    announcement to the first turn's first markdown part,
@@ -630,13 +711,18 @@ suite('CopilotAgent', () => {
 				await agent.resolveWorktreeForTest({ workingDirectory: repositoryRoot }, sessionId);
 				assert.deepStrictEqual(gitService.addedWorktrees, [], 'addWorktree must not be called without worktree isolation');
 
-				const events: LegacyMockEvent[] = [];
+				const signals: AgentSignal[] = [];
 				disposables.add(agent.onDidSessionProgress(s => {
-					const v = signalToLegacyView(s);
-					if (v) { events.push(v); }
+					signals.push(s);
 				}));
 				await agent.sendMessage(session, 'hello');
-				assert.deepStrictEqual(events.filter(e => e.type === 'delta'), [], 'no announcement should be emitted live');
+				const markdownSignals = signals.filter(s =>
+					s.kind === 'action' && (
+						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.SessionDelta
+					)
+				);
+				assert.deepStrictEqual(markdownSignals, [], 'no announcement should be emitted live');
 
 				const restored = await agent.getSessionMessages(session);
 				const md = restored[0]?.responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);

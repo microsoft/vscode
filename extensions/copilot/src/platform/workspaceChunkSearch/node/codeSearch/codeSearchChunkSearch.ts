@@ -435,7 +435,7 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	public isExternalIngestEnabled(): boolean | 'force' {
-		return this._configService.getExperimentBasedConfig<boolean>(ConfigKey.TeamInternal.WorkspaceEnableCodeSearchExternalIngest, this._experimentationService);
+		return this._configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest, this._experimentationService);
 	}
 
 	public getRemoteIndexState(): CodeSearchRemoteIndexState {
@@ -492,6 +492,53 @@ export class CodeSearchChunkSearch extends Disposable {
 			repos,
 			externalIngestState,
 		};
+	}
+
+	public async *getDiagnosticsDump(): AsyncIterable<string> {
+		await this._initializePromise;
+
+		yield '# Codebase Index Diagnostics\n\n';
+
+		// Repos
+		const resolvedRepos = Array.from(this._codeSearchRepos.values(), entry => entry.repo)
+			.filter(repo => repo.status !== CodeSearchRepoStatus.NotResolvable);
+
+		const diffCounts = this._workspaceDiffTracker.hasValue
+			? this._workspaceDiffTracker.value.getRepoDiffCounts()
+			: undefined;
+
+		yield '## Repos\n\n';
+		if (!resolvedRepos.length) {
+			yield 'No repos tracked.\n\n';
+		} else {
+			for (const repo of resolvedRepos) {
+				const diffInfo = diffCounts?.get(repo.repoInfo.rootUri);
+				yield `- **${repo.repoInfo.rootUri.fsPath}**\n`;
+				yield `  - Status: ${repo.status}\n`;
+				yield `  - Diff state: ${diffInfo?.state ?? 'Unknown'}\n`;
+				yield `  - Diff file count: ${diffInfo?.diffFileCount ?? 0}\n`;
+			}
+			yield '\n';
+		}
+
+		// External ingest
+		yield '## External Ingest\n\n';
+		if (this.isExternalIngestEnabled() && this._externalIngestIndex.hasValue) {
+			const index = this._externalIngestIndex.value;
+			const state = index.getState();
+			const diagnostics = index.getDiagnostics();
+			yield `Status: ${state.status}\n`;
+			yield `File count: ${diagnostics.fileCount}\n\n`;
+			if (diagnostics.fileCount > 0) {
+				yield '### Files\n\n';
+				for (const file of diagnostics.files) {
+					yield `- ${file.fsPath}\n`;
+				}
+				yield '\n';
+			}
+		} else {
+			yield 'External ingest is not enabled or not initialized.\n\n';
+		}
 	}
 
 

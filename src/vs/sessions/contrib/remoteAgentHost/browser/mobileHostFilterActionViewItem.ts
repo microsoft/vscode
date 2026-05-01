@@ -39,7 +39,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(action, filterService, contextMenuService, hoverService);
+		super(action, 'titlebar', filterService, contextMenuService, hoverService);
 	}
 
 	/**
@@ -52,7 +52,7 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		return true;
 	}
 
-	protected override _showMenu(_e: MouseEvent | KeyboardEvent): void {
+	protected override _showMenu(_e: Event): void {
 		if (!this.element) {
 			return;
 		}

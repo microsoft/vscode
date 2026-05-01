@@ -13,6 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -71,6 +72,14 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
+
+		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
+		// The Claude agent is opt-in: enabled when either the workbench setting is on
+		// or the env var is already set on the parent process (developer override).
+		if (this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId)
+			|| process.env[AgentHostEnableClaudeEnvVar] === '1') {
+			env[AgentHostEnableClaudeEnvVar] = '1';
+		}
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {
