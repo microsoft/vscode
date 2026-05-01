@@ -4493,16 +4493,6 @@
 							"experimental"
 						]
 					},
-					"github.copilot.chat.agentHistorySummarizationInline": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.useResponsesApiTruncation": {
 						"type": "boolean",
 						"default": false,
