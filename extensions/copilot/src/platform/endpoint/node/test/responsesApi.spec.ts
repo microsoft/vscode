@@ -324,7 +324,7 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
-	it('Phase 1 GREEN guard: filters generic tool_search unless the endpoint explicitly supports client tool search', () => {
+	it('filters generic tool_search unless the endpoint explicitly supports client tool search', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);

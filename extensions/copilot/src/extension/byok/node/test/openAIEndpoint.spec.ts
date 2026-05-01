@@ -141,7 +141,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
 		describe('Phase 1 toolSearch contracts', () => {
-			it('Phase 1 GREEN guard: preserves explicit toolSearch support when metadata enables it', () => {
+			it('preserves explicit toolSearch support when metadata enables it', () => {
 				const endpoint = instaService.createInstance(OpenAIEndpoint,
 					{
 						...modelMetadata,
@@ -159,7 +159,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				expect(endpoint.supportsToolSearch).toBe(true);
 			});
 
-			it('Phase 1 GREEN guard: falls back to generic model capability detection when metadata is unset', () => {
+			it('falls back to generic model capability detection when metadata is unset', () => {
 				const endpoint = instaService.createInstance(OpenAIEndpoint,
 					{
 						...modelMetadata,
@@ -224,7 +224,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Phase 1 toolSearch contracts', () => {
-		it('Phase 1 GREEN guard: preserves explicit toolSearch metadata for Chat Completions endpoints', () => {
+		it('preserves explicit toolSearch metadata for Chat Completions endpoints', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,

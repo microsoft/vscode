@@ -202,7 +202,7 @@ suite('defaultIntentRequestHandler', () => {
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
 	});
 
-	test('Phase 1 GREEN guard: passes request-time toolSearch capability through when the endpoint supports it', async () => {
+	test('passes request-time toolSearch capability through when the endpoint supports it', async () => {
 		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
 		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = true;
 		const handler = makeHandler();
@@ -218,7 +218,7 @@ suite('defaultIntentRequestHandler', () => {
 		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(true);
 	});
 
-	test('Phase 1 GREEN guard: defaults request-time toolSearch capability to false when the endpoint does not expose it', async () => {
+	test('defaults request-time toolSearch capability to false when the endpoint does not expose it', async () => {
 		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
 		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = undefined;
 		const handler = makeHandler();
@@ -234,7 +234,7 @@ suite('defaultIntentRequestHandler', () => {
 		expect(fetchOneSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(false);
 	});
 
-	test('Phase 3 guard: keeps request-time toolSearch capability false when the endpoint explicitly disables it', async () => {
+	test('keeps request-time toolSearch capability false when the endpoint explicitly disables it', async () => {
 		const fetchOneSpy = vi.spyOn(fetcher, 'fetchOne');
 		(endpoint as { supportsToolSearch?: boolean }).supportsToolSearch = false;
 		const handler = makeHandler();
