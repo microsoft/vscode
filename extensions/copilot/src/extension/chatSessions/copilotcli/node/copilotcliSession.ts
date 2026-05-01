@@ -322,7 +322,7 @@ async function renderRemoteControlQrCode(data: string): Promise<string> {
 	return QRCode.toDataURL(data, {
 		errorCorrectionLevel: 'M',
 		margin: 4,
-		scale: 8,
+		scale: 5,
 		color: {
 			dark: '#000000',
 			light: '#ffffff',
@@ -1457,8 +1457,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	private async _showRemoteControlEnabled(frontendUrl: string): Promise<void> {
 		const banner = new MarkdownString();
-		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}** ${l10n.t('Scan with GitHub Mobile, or open this session from any device. Use /remote off to disable it.')}\n\n`);
-		banner.appendMarkdown(`${l10n.t('Scan with GitHub Mobile:')}\n\n`);
+		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}** ${l10n.t('Scan with GitHub Mobile or use the button below. Use /remote off to disable it.')}\n\n`);
 		try {
 			const qrDataUrl = await renderRemoteControlQrCode(frontendUrl);
 			banner.appendMarkdown(`![${l10n.t('QR code to open this remote session in GitHub Mobile')}](${qrDataUrl})`);
