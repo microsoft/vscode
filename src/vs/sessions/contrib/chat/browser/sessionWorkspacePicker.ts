@@ -18,7 +18,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { TabbedActionListWidget } from '../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -90,6 +90,8 @@ export interface IWorkspacePickerItem {
 	readonly run?: () => void;
 }
 
+type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+
 /**
  * A unified workspace picker that shows workspaces from all registered session
  * providers in a single dropdown.
@@ -154,7 +156,6 @@ export class WorkspacePicker extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
-		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
@@ -681,13 +682,12 @@ export class WorkspacePicker extends Disposable {
 						this._showRemoteHostOptionsDelayed(provider);
 					},
 				});
-				const extended = action as IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
+				const extended = action as IWorkspacePickerAction;
 				extended.icon = isTunnel ? Codicon.cloud : Codicon.remote;
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
-				if (!isTunnel && provider.remoteAddress) {
-					const address = provider.remoteAddress;
+				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
-						await this.remoteAgentHostService.removeRemoteAgentHost(address);
+						await provider.disconnect?.();
 					};
 				}
 				manageActions.push(action);
@@ -709,12 +709,14 @@ export class WorkspacePicker extends Disposable {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
 			for (const action of manageActions) {
-				const icon = (action as IAction & { icon?: ThemeIcon }).icon;
+				const extended = action as IWorkspacePickerAction;
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: action.label,
-					group: { title: '', icon: icon ?? Codicon.settingsGear },
+					description: extended.onRemove ? action.tooltip || undefined : undefined,
+					group: { title: '', icon: extended.icon ?? Codicon.settingsGear },
 					item: { run: () => action.run(), commandId: action.id },
+					onRemove: extended.onRemove,
 				});
 			}
 		}

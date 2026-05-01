@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -65,7 +65,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	}
 
 	const quickInputService = accessor.get(IQuickInputService);
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const clipboardService = accessor.get(IClipboardService);
 	const preferencesService = accessor.get(IPreferencesService);
 	const outputService = accessor.get(IOutputService);
@@ -121,10 +120,10 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	switch (result.id) {
 		case 'reconnect':
-			remoteAgentHostService.reconnect(address);
+			await provider.connect?.();
 			break;
 		case 'remove':
-			await remoteAgentHostService.removeRemoteAgentHost(address);
+			await provider.disconnect?.();
 			break;
 		case 'copy':
 			await clipboardService.writeText(address);
@@ -140,4 +139,3 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	}
 	return undefined;
 }
-

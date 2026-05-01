@@ -261,6 +261,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (!cached) {
 			return Promise.resolve();
 		}
+		if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(tunnelId)) {
+			this._logService.info(`[TunnelAgentHost] Skipping background connect for user-disconnected tunnel ${address}`);
+			return Promise.resolve();
+		}
 
 		// A new attempt is starting — cancel any scheduled reconnect timer;
 		// success/failure of this attempt will drive the next decision.
@@ -292,6 +296,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					hostConnectionCount: 0,
 				};
 				await this._tunnelService.connect(tunnelInfo, cached.authProvider);
+				if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(cached.tunnelId)) {
+					this._logService.info(`[TunnelAgentHost] Disconnecting background connection for user-disconnected tunnel ${address}`);
+					await this._tunnelService.disconnect(address);
+					this._connectSessions.delete(address);
+					return;
+				}
+				if (options.userInitiated) {
+					this._tunnelService.clearAutoConnectSuppression(cached.tunnelId);
+				}
 				this._finishConnectAttempt(address, { success: true, attemptNumber, attemptStart, session, isReconnect });
 			} catch (err) {
 				this._logService.warn(`[TunnelAgentHost] Connect to ${cached.name} failed:`, err);
@@ -347,6 +360,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private async _disconnectTunnel(address: string): Promise<void> {
 		this._cancelReconnect(address);
 		this._resetReconnectState(address);
+		this._tunnelService.suppressAutoConnect(address.slice(TUNNEL_ADDRESS_PREFIX.length));
 		// Mark as explicitly disconnected so `_handleConnectionChanges` does
 		// not treat the impending Connected→(removed) transition as a
 		// reconnect-worthy drop.
@@ -803,6 +817,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				for (const tunnel of onlineTunnels) {
 					if (tunnel.hostConnectionCount > 0) {
 						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+						if (this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
+							continue;
+						}
 						const alreadyConnected = this._remoteAgentHostService.connections.some(
 							c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
 						);

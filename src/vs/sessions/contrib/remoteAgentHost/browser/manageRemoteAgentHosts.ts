@@ -12,7 +12,7 @@ import { Action2, IMenuService, MenuItemAction, registerAction2 } from '../../..
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { Menus } from '../../../browser/menus.js';
@@ -48,7 +48,6 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const menuService = accessor.get(IMenuService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
@@ -74,9 +73,7 @@ registerAction2(class extends Action2 {
 					description: status !== undefined ? getStatusLabel(status) : undefined,
 					detail: p.remoteAddress,
 				};
-				if (!isTunnel) {
-					(item as IRemoteHostQuickPickItem & { buttons?: IQuickInputButton[] }).buttons = [removeButton];
-				}
+				(item as IRemoteHostQuickPickItem & { buttons?: IQuickInputButton[] }).buttons = [removeButton];
 				return item;
 			});
 
@@ -144,11 +141,8 @@ registerAction2(class extends Action2 {
 
 			store.add(picker.onDidTriggerItemButton(async e => {
 				if (e.item.kind === 'remote' && e.button === removeButton) {
-					const address = e.item.provider.remoteAddress;
-					if (address) {
-						await remoteAgentHostService.removeRemoteAgentHost(address);
-						// onDidChangeProviders will refresh
-					}
+					await e.item.provider.disconnect?.();
+					// onDidChangeProviders will refresh
 				}
 			}));
 
