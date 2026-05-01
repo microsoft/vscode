@@ -339,7 +339,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	async getSessionAgent(sessionId: string): Promise<string | undefined> {
 		const details = await this.getRequestDetails(sessionId);
-		return findLast(details, d => !!d.agentId)?.agentId ?? this.copilotCLIAgents.getSessionAgent(sessionId);
+		return findLast(details, d => !!d.modeInstructions?.uri)?.modeInstructions?.uri ?? findLast(details, d => !!d.agentId)?.agentId ?? this.copilotCLIAgents.getSessionAgent(sessionId);
 	}
 
 	private async writeRequestDetails(sessionId: string, details: RequestDetails[]): Promise<void> {

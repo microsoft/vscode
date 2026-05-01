@@ -1474,7 +1474,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					vscodeRequestId: request.id,
 					copilotRequestId: sdkRequestId,
 					toolIdEditMap: resolvedToolIdEditMap,
-					agentId: this._agentName,
 				}]).catch(error => {
 					this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store for request ${request.id}`, error);
 				});

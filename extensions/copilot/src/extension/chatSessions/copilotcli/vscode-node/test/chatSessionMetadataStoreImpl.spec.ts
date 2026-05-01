@@ -17,6 +17,7 @@ import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
 import { NullCopilotCLIAgents } from '../../../copilotcli/node/test/testHelpers';
 import { ChatSessionMetadataStore } from '../chatSessionMetadataStoreImpl';
+import { StoredModeInstructions } from '../../../common/chatSessionMetadataStore';
 
 // Hoisted holder lets each test point the JSONL helper at its own mock path.
 const jsonlPathHolder = vi.hoisted(() => {
@@ -1120,12 +1121,12 @@ describe('ChatSessionMetadataStore', () => {
 			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
 			const store = await createStore();
 
-			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', toolIdEditMap: {}, agentId: 'agent-a' }]);
+			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', toolIdEditMap: {}, modeInstructions: { uri: 'uri-1' } as unknown as StoredModeInstructions }]);
 			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-2', toolIdEditMap: {} }]);
-			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-3', toolIdEditMap: {}, agentId: 'agent-b' }]);
+			await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-3', toolIdEditMap: {}, modeInstructions: { uri: 'uri-2' } as unknown as StoredModeInstructions }]);
 
 			const agent = await store.getSessionAgent('session-1');
-			expect(agent).toBe('agent-b');
+			expect(agent).toBe('uri-2');
 			store.dispose();
 		});
 

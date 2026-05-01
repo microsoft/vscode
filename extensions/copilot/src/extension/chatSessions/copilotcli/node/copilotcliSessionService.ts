@@ -993,55 +993,28 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private async getChatHistoryImpl({ sessionId, workspace }: { sessionId: string; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<{ history: (ChatRequestTurn2 | ChatResponseTurn2)[]; events: readonly SessionEvent[] }> {
-		const requestDetailsPromise = this._chatSessionMetadataStore.getRequestDetails(sessionId);
-		const agentIdPromise = this._chatSessionMetadataStore.getSessionAgent(sessionId);
-		const sessionManager = await raceCancellation(this.getSessionManager(), token);
-
-		if (!sessionManager || token.isCancellationRequested) {
-			requestDetailsPromise.catch(error => {/** */ });
-			agentIdPromise.catch(error => {/** */ });
+		const [{ events, modelId }, agentId, storedDetails] = await Promise.all([
+			this.getSessionEventsAndModelId(sessionId, token),
+			this._chatSessionMetadataStore.getSessionAgent(sessionId),
+			this._chatSessionMetadataStore.getRequestDetails(sessionId)
+		]);
+		if (events.length === 0) {
 			return { history: [], events: [] };
 		}
 
-		let events: readonly SessionEvent[] = [];
-		let modelId: string | undefined = undefined;
-
-		// Try to shutdown session as soon as possible.
-		const existingSession = this._sessionWrappers.get(sessionId)?.object?.sdkSession;
-		if (existingSession) {
-			modelId = await existingSession.getSelectedModel();
-			events = existingSession.getEvents();
-		} else {
-			let shutdown = Promise.resolve();
-			try {
-				const session = await sessionManager.getSession({ sessionId }, false);
-				if (!session) {
-					return { history: [], events: [] };
-				}
-				modelId = await session.getSelectedModel();
-				events = session.getEvents();
-				shutdown = sessionManager.closeSession(sessionId).catch(error => {
-					this.logService.error(`[CopilotCLISession] Failed to close session ${sessionId} after fetching chat history: ${error}`);
-				});
-			} finally {
-				await shutdown;
-			}
-		}
-
-		const [agentId, storedDetails] = await Promise.all([agentIdPromise, requestDetailsPromise]);
-
+		const lastResponseDetailsPromise = this.getModelDetailsString(modelId);
 		// Build lookup from copilotRequestId → RequestDetails for the callback
 		const customAgentLookup = await this.createCustomAgentLookup();
 		const legacyMappings: RequestDetails[] = [];
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
 		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId, customAgentLookup) : undefined;
 
-		for (const d of storedDetails) {
+		await Promise.all(storedDetails.map(async d => {
 			if (d.copilotRequestId) {
 				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
 				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions });
 			}
-		}
+		}));
 
 		const getVSCodeRequestId = (sdkRequestId: string) => {
 			const stored = detailsByCopilotId.get(sdkRequestId);
@@ -1060,7 +1033,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return mapping;
 		};
 
-		const lastResponseDetails = await this.getModelDetailsString(modelId);
+		const lastResponseDetails = await lastResponseDetailsPromise;
 		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, lastResponseDetails);
 
 		if (legacyMappings.length > 0) {
@@ -1072,6 +1045,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return { history, events };
 	}
 
+	private async getSessionEventsAndModelId(sessionId: string, token: CancellationToken): Promise<{ events: readonly SessionEvent[]; modelId: string | undefined }> {
+		let events: readonly SessionEvent[] = [];
+		let modelId: string | undefined = undefined;
+		const existingSession = this._sessionWrappers.get(sessionId)?.object?.sdkSession;
+		if (existingSession) {
+			modelId = await existingSession.getSelectedModel();
+			events = existingSession.getEvents();
+		} else {
+			let shutdown = Promise.resolve();
+			const sessionManager = await raceCancellation(this.getSessionManager(), token);
+			if (!sessionManager || token.isCancellationRequested) {
+				return { events: [], modelId: undefined };
+			}
+			try {
+				const session = await sessionManager.getSession({ sessionId }, false);
+				if (!session) {
+					return { events: [], modelId: undefined };
+				}
+				modelId = await session.getSelectedModel();
+				events = session.getEvents();
+				shutdown = sessionManager.closeSession(sessionId).catch(error => {
+					this.logService.error(`[CopilotCLISession] Failed to close session ${sessionId} after fetching chat history: ${error}`);
+				});
+			} finally {
+				await shutdown;
+			}
+		}
+		return { events, modelId };
+	}
 	private async createCustomAgentLookup(): Promise<Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>> {
 		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
 		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();

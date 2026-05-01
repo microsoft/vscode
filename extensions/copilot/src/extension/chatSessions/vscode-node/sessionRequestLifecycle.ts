@@ -87,7 +87,7 @@ export class SessionRequestLifecycle extends Disposable implements ISessionReque
 			metadata: request.modeInstructions2.metadata,
 			isBuiltin: request.modeInstructions2.isBuiltin,
 		} : undefined;
-		this.metadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agentName ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
+		this.metadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
 		const requests = this.pendingRequestBySession.get(sessionId) ?? new Set<vscode.ChatRequest>();
 		requests.add(request);

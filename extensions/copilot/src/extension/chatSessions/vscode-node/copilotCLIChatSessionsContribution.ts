@@ -742,12 +742,11 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 		// Fire-and-forget: detect PR when the user opens a session
 		void this.sessionItemProvider.detectPullRequestOnSessionOpen(copilotcliSessionId);
-
-		const folderRepo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
+		const folderRepoPromise = this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
 		const [history, title, folderInfo, worktreeProperties] = await Promise.all([
-			this.getSessionHistory(copilotcliSessionId, folderRepo, token),
+			folderRepoPromise.then(folderRepo => this.getSessionHistory(copilotcliSessionId, folderRepo, token)),
 			this.customSessionTitleService.getCustomSessionTitle(copilotcliSessionId),
-			this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token),
+			folderRepoPromise,
 			this.copilotCLIWorktreeManagerService.getWorktreeProperties(copilotcliSessionId)
 		]);
 
@@ -1507,7 +1506,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			activeSession = session.object;
 			this.contentProvider.trackActiveSession(sessionId, activeSession);
 			const modeInstructions = this.createModeInstructions(request);
-			this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
+			this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
 			// Lock the repo option with more accurate information.
 			// Previously we just updated it with details of the folder.
@@ -2047,7 +2046,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
 		const session = await this.sessionService.createSession({ workspace: workspaceInfo, agent, model: model?.model, reasoningEffort: model?.reasoningEffort, mcpServerMappings }, token);
 		const modeInstructions = this.createModeInstructions(request);
-		this.chatSessionMetadataStore.updateRequestDetails(session.object.sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
+		this.chatSessionMetadataStore.updateRequestDetails(session.object.sessionId, [{ vscodeRequestId: request.id, modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 		if (summary) {
 			const summaryRef = await this.chatDelegationSummaryService.trackSummaryUsage(session.object.sessionId, summary);
 			if (summaryRef) {

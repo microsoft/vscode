@@ -177,7 +177,6 @@ describe('SessionRequestLifecycle', () => {
 				'session-1',
 				[{
 					vscodeRequestId: 'req-1',
-					agentId: 'test-agent',
 					modeInstructions: expect.objectContaining({ name: 'test', content: 'instructions' }),
 				}]
 			);
@@ -191,7 +190,6 @@ describe('SessionRequestLifecycle', () => {
 				'session-1',
 				[{
 					vscodeRequestId: 'req-1',
-					agentId: 'test-agent',
 					modeInstructions: undefined,
 				}]
 			);
