@@ -674,7 +674,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
-				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1267,7 +1266,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Step 4: Create Mission Control session
 			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-			this.logService.info('[CopilotCLISession] Creating MC session');
+			this.logService.trace('[CopilotCLISession] Creating MC session');
 
 			let mcData: McSessionCreateResult;
 			try {
@@ -1301,7 +1300,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
 			};
 			mcStateBySessionId.set(this.sessionId, sharedState);
-			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+			this.logService.trace(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
 
 			// Step 6: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1351,7 +1350,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					replayed++;
 				}
 			}
-			this.logService.info(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
+			this.logService.trace(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
 
 			await this._flushMcEvents();
 
@@ -1401,7 +1400,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Step 8: Construct and display the frontend URL
 			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
 			sharedState.mcFrontendUrl = frontendUrl;
-			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
+			this.logService.trace(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
 			// Render a persistent inline info banner using the proposed
 			// `stream.info()` API (blue background + blue info icon, matches
