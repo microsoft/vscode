@@ -97,6 +97,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+	private readonly quotaCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
@@ -669,13 +670,15 @@ export class ChatStatusDashboard extends DomWidget {
 			resetValue.textContent = resetLabel;
 		}
 
+		const quotaPercentage = $('div.quota-percentage', undefined,
+			quotaValue,
+			quotaValueSuffix
+		);
+
 		container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-title', undefined, label),
 			$('div.quota-details', undefined,
-				$('div.quota-percentage', undefined,
-					quotaValue,
-					quotaValueSuffix
-				),
+				quotaPercentage,
 				resetValue
 			),
 			$('div.quota-bar', undefined,
@@ -683,7 +686,36 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
+		let currentQuota: IQuotaSnapshot | string = quota;
+
+		const showPercentage = () => {
+			if (typeof currentQuota === 'string') {
+				quotaValue.textContent = currentQuota;
+				quotaValueSuffix.textContent = '';
+			} else {
+				const usedPercentage = Math.max(0, 100 - currentQuota.percentRemaining);
+				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
+				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+			}
+		};
+
+		const showCredits = () => {
+			if (typeof currentQuota !== 'string' && currentQuota.entitlement !== undefined) {
+				const total = currentQuota.entitlement;
+				const used = Math.round(total * (100 - currentQuota.percentRemaining) / 100);
+				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
+				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
+				quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+			}
+		};
+
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => showCredits()));
+		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => showPercentage()));
+
 		const update = (quota: IQuotaSnapshot | string) => {
+			currentQuota = quota;
+
 			let usedPercentage: number;
 			if (typeof quota === 'string') {
 				usedPercentage = 0;
@@ -691,14 +723,7 @@ export class ChatStatusDashboard extends DomWidget {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
 			}
 
-			if (typeof quota === 'string') {
-				quotaValue.textContent = quota;
-				quotaValueSuffix.textContent = '';
-			} else {
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
-				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
-			}
-
+			showPercentage();
 			quotaBit.style.width = `${usedPercentage}%`;
 		};
 

@@ -10,6 +10,7 @@ export interface IQuotaSnapshotData {
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
+	readonly entitlement?: string;
 }
 
 export interface ILegacyQuotaSnapshotData {
