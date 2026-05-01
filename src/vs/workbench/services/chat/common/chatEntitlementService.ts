@@ -300,7 +300,7 @@ function logChatEntitlements(state: IChatEntitlementContextState, configurationS
 }
 
 type ChatOverageConfigurationClassification = {
-	owner: 'bpasero';
+	owner: 'pwang347';
 	comment: 'Tracks when a user enables or disables overage / additional spend.';
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether additional spend is now enabled or disabled.' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
@@ -311,7 +311,7 @@ type ChatOverageConfigurationEvent = {
 };
 
 type ChatOverageActiveClassification = {
-	owner: 'bpasero';
+	owner: 'pwang347';
 	comment: 'Tracks when a user enters the overage budget (included quota exhausted while overage is enabled).';
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
 	additionalUsageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of overage interactions used so far.' };
