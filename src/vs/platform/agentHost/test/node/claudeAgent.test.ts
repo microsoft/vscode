@@ -64,7 +64,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 /** Build a {@link CCAModel} with sensible defaults; override per test. */
 function makeModel(overrides: Partial<CCAModel> & { readonly id: string; readonly name: string; readonly vendor: string }): CCAModel {
 	return {
-		billing: { is_premium: false, multiplier: 1, restricted_to: [] } as unknown as CCAModel['billing'],
+		billing: { is_premium: false, multiplier: 1, restricted_to: [] },
 		capabilities: {
 			family: 'test',
 			limits: { max_context_window_tokens: 200_000, max_output_tokens: 8192, max_prompt_tokens: 200_000 },
