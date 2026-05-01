@@ -418,10 +418,6 @@ function plainResponse(statusCode: number, body: VSBuffer = VSBuffer.alloc(0), h
 	});
 }
 
-function bytesResponse(statusCode: number, body: Uint8Array, headers: Record<string, string> = {}): () => IRequestContext {
-	return plainResponse(statusCode, VSBuffer.wrap(body), headers);
-}
-
 function jsonResponse(statusCode: number, body: unknown): () => IRequestContext {
 	return plainResponse(statusCode, VSBuffer.fromString(JSON.stringify(body)));
 }
