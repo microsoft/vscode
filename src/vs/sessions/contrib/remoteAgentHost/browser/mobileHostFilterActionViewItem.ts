@@ -14,19 +14,24 @@ import { DisposableStore, MutableDisposable } from '../../../../base/common/life
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IAgentHostFilterService } from '../common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
-import './media/hostPickerDropdown.css';
+import './media/hostPickerSheet.css';
+
+const $ = dom.$;
 
 /**
  * Mobile variant of {@link HostFilterActionViewItem}.
  *
- * Overrides the host picker to show a dropdown panel anchored below the
- * trigger element instead of the desktop context menu.
+ * On phone-sized layouts the host picker is rendered as a bottom sheet
+ * that slides up from the bottom of the viewport. The sheet is always
+ * tappable (even when no hosts are known) and always exposes a
+ * "Re-discover hosts" action so the user can retry discovery without
+ * leaving the home screen.
  */
 export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 
-	private readonly _dropdown = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _sheet = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		action: IAction,
@@ -37,131 +42,254 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		super(action, filterService, contextMenuService, hoverService);
 	}
 
+	/**
+	 * Always interactive on mobile — even with zero hosts the sheet
+	 * shows an empty state and the always-visible "Re-discover hosts"
+	 * action. This is the primary entry point for retrying discovery
+	 * when no hosts have been found yet.
+	 */
+	protected override _isInteractive(): boolean {
+		return true;
+	}
+
 	protected override _showMenu(_e: MouseEvent | KeyboardEvent): void {
 		if (!this.element) {
 			return;
 		}
 
-		const hosts = this._filterService.hosts;
-		if (hosts.length <= 1) {
-			return;
-		}
-
-		this._showDropdown();
+		this._showSheet();
 	}
 
-	private _showDropdown(): void {
-		this._dropdown.clear();
+	private _showSheet(): void {
+		this._sheet.clear();
 
 		const disposables = new DisposableStore();
-		this._dropdown.value = disposables;
+		this._sheet.value = disposables;
 
 		const targetWindow = dom.getWindow(this.element);
 		const targetDocument = targetWindow.document;
-		const hosts = this._filterService.hosts;
-		const selectedId = this._filterService.selectedProviderId;
 
-		// Append inside the workbench container so CSS theme variables are inherited.
-		// The workbench element sets all --vscode-* custom properties; rendering
-		// outside it (e.g. on document.body) leaves them undefined.
+		// Append inside the workbench container so CSS theme variables are
+		// inherited. The workbench element sets all --vscode-* custom
+		// properties; rendering outside it leaves them undefined.
 		const workbenchContainer = dom.findParentWithClass(this.element!, 'monaco-workbench')
 			?? targetDocument.body;
 
-		// --- Backdrop (transparent, dismiss on tap) ---
-		const backdrop = targetDocument.createElement('div');
-		backdrop.className = 'host-picker-dropdown-backdrop';
-		disposables.add(dom.addDisposableListener(backdrop, dom.EventType.CLICK, () => dismiss()));
-		disposables.add(Gesture.addTarget(backdrop));
-		disposables.add(dom.addDisposableListener(backdrop, TouchEventType.Tap, () => dismiss()));
+		// --- Overlay shell ----------------------------------------------------
+		const overlay = dom.append(workbenchContainer, $('div.host-picker-sheet-overlay'));
+		const backdrop = dom.append(overlay, $('div.host-picker-sheet-backdrop'));
+		const sheet = dom.append(overlay, $('div.host-picker-sheet'));
+		sheet.setAttribute('role', 'dialog');
+		sheet.setAttribute('aria-modal', 'true');
+		sheet.setAttribute('aria-label', localize('agentHostFilter.sheet.aria', "Hosts"));
 
-		// --- Dropdown panel anchored below trigger ---
-		const panel = targetDocument.createElement('div');
-		panel.className = 'host-picker-dropdown';
-		panel.setAttribute('role', 'menu');
-		panel.setAttribute('aria-label', localize('agentHostFilter.dropdown.aria', "Select Agent Host"));
-
-		// Prevent taps on the panel from dismissing
-		disposables.add(dom.addDisposableListener(panel, dom.EventType.CLICK, e => e.stopPropagation()));
-		disposables.add(Gesture.addTarget(panel));
-		disposables.add(dom.addDisposableListener(panel, TouchEventType.Tap, e => dom.EventHelper.stop(e, true)));
-
-		// Position below the trigger element, centered horizontally
-		const triggerRect = this.element!.getBoundingClientRect();
-		const gap = 4;
-		panel.style.top = `${triggerRect.bottom + gap}px`;
-		panel.style.left = '50%';
-		panel.style.transform = 'translateX(-50%)';
-		panel.style.minWidth = `${Math.max(triggerRect.width, 200)}px`;
-
-		let firstItem: HTMLElement | undefined;
-		for (const host of hosts) {
-			const item = targetDocument.createElement('button');
-			item.className = 'host-picker-dropdown-item';
-			item.setAttribute('role', 'menuitemradio');
-			item.setAttribute('aria-checked', String(selectedId === host.providerId));
-			if (selectedId === host.providerId) {
-				item.classList.add('selected');
+		let dismissing = false;
+		const finish = () => {
+			if (dismissing) {
+				return;
 			}
-
-			const iconSpan = targetDocument.createElement('span');
-			iconSpan.className = 'host-picker-dropdown-item-icon';
-			iconSpan.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
-			item.appendChild(iconSpan);
-
-			const labelSpan = targetDocument.createElement('span');
-			labelSpan.className = 'host-picker-dropdown-item-label';
-			labelSpan.textContent = host.label;
-			item.appendChild(labelSpan);
-
-			if (selectedId === host.providerId) {
-				const checkSpan = targetDocument.createElement('span');
-				checkSpan.className = 'host-picker-dropdown-item-check';
-				checkSpan.append(...renderLabelWithIcons(`$(${Codicon.check.id})`));
-				item.appendChild(checkSpan);
-			}
-
-			disposables.add(Gesture.addTarget(item));
-			const selectHost = () => {
-				this._filterService.setSelectedProviderId(host.providerId);
-				dismiss();
+			dismissing = true;
+			sheet.classList.add('closing');
+			backdrop.classList.add('closing');
+			const close = () => {
+				if (this._sheet.value === disposables) {
+					this._sheet.clear();
+				}
 			};
-			disposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, selectHost));
-			disposables.add(dom.addDisposableListener(item, TouchEventType.Tap, selectHost));
+			sheet.addEventListener('animationend', close, { once: true });
+			const fallback = setTimeout(close, 220);
+			disposables.add({ dispose: () => clearTimeout(fallback) });
+		};
 
-			panel.appendChild(item);
-			firstItem ??= item;
+		disposables.add({ dispose: () => overlay.remove() });
+
+		// --- Header (drag-handle + title + close) ----------------------------
+		dom.append(sheet, $('div.host-picker-sheet-handle'));
+		const header = dom.append(sheet, $('div.host-picker-sheet-header'));
+		dom.append(header, $('div.host-picker-sheet-title')).textContent = localize('agentHostFilter.sheet.title', "Hosts");
+		const closeBtn = dom.append(header, $('button.host-picker-sheet-close', { type: 'button' })) as HTMLButtonElement;
+		closeBtn.setAttribute('aria-label', localize('agentHostFilter.sheet.close', "Close"));
+		dom.append(closeBtn, $('span.codicon.codicon-close'));
+		disposables.add(Gesture.addTarget(closeBtn));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(closeBtn, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				finish();
+			}));
 		}
 
-		backdrop.appendChild(panel);
-		workbenchContainer.appendChild(backdrop);
-		disposables.add({ dispose: () => backdrop.remove() });
+		// --- Subtitle --------------------------------------------------------
+		dom.append(sheet, $('div.host-picker-sheet-subtitle')).textContent =
+			localize('agentHostFilter.sheet.subtitle',
+				"Sessions are scoped to a host. Switching hosts shows that machine's sessions and runs new sessions there.");
 
-		// Dismiss on Escape
+		// --- Body (host list or empty state) --------------------------------
+		const body = dom.append(sheet, $('div.host-picker-sheet-body'));
+		// Sub-store for the host list rows so we can rebuild the list
+		// in-place when discovery surfaces new hosts without leaking the
+		// original rows' gesture/click listeners.
+		const bodyDisposables = disposables.add(new DisposableStore());
+		// Mutable focus targets: populated as rows are rendered so that the
+		// initial focus pass can pick the most relevant element without
+		// querying the DOM by selector.
+		const focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement; rediscover?: HTMLButtonElement } = {};
+		const renderBody = () => {
+			bodyDisposables.clear();
+			dom.clearNode(body);
+			focusRefs.firstHost = undefined;
+			focusRefs.firstCheckedHost = undefined;
+			this._renderHostList(bodyDisposables, body, finish, focusRefs);
+		};
+		renderBody();
+		disposables.add(this._filterService.onDidChange(renderBody));
+		// Also re-render when discovery starts/stops so the empty-state copy
+		// transitions between "Searching..." and "No hosts found yet." in
+		// response to the always-visible re-discover footer action.
+		disposables.add(this._filterService.onDidChangeDiscovering(renderBody));
+
+		// --- Footer (always-visible re-discover action) ---------------------
+		const footer = dom.append(sheet, $('div.host-picker-sheet-footer'));
+		focusRefs.rediscover = this._renderRediscoverAction(disposables, footer);
+
+		// Block taps on the sheet body itself from dismissing.
+		disposables.add(dom.addDisposableListener(sheet, dom.EventType.CLICK, e => e.stopPropagation()));
+		disposables.add(Gesture.addTarget(sheet));
+		disposables.add(dom.addDisposableListener(sheet, TouchEventType.Tap, e => dom.EventHelper.stop(e, true)));
+
+		// --- Dismissal: backdrop tap + Escape -------------------------------
+		disposables.add(Gesture.addTarget(backdrop));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			disposables.add(dom.addDisposableListener(backdrop, eventType, e => {
+				dom.EventHelper.stop(e, true);
+				finish();
+			}));
+		}
 		disposables.add(dom.addDisposableListener(targetDocument, dom.EventType.KEY_DOWN, e => {
 			if (new StandardKeyboardEvent(e).equals(KeyCode.Escape)) {
 				dom.EventHelper.stop(e, true);
-				dismiss();
+				finish();
 			}
 		}));
 
-		// Focus first item
-		firstItem?.focus();
+		// Focus the currently selected host when the sheet opens.
+		focusRefs.firstCheckedHost?.focus();
+	}
 
-		let isDismissing = false;
-		const dismiss = () => {
-			if (isDismissing) {
+	private _renderHostList(disposables: DisposableStore, body: HTMLElement, finish: () => void, focusRefs: { firstHost?: HTMLButtonElement; firstCheckedHost?: HTMLButtonElement }): void {
+		const hosts = this._filterService.hosts;
+		const selectedId = this._filterService.selectedProviderId;
+
+		if (hosts.length === 0) {
+			const empty = dom.append(body, $('div.host-picker-sheet-empty'));
+			empty.textContent = this._filterService.isDiscovering
+				? localize('agentHostFilter.sheet.searching', "Searching for hosts…")
+				: localize('agentHostFilter.sheet.empty', "No hosts found yet.");
+			return;
+		}
+
+		dom.append(body, $('div.host-picker-sheet-section-title')).textContent =
+			localize('agentHostFilter.sheet.available', "Available");
+
+		for (const host of hosts) {
+			const row = this._renderHostItem(disposables, body, host, selectedId === host.providerId, finish);
+			focusRefs.firstHost ??= row;
+			if (selectedId === host.providerId) {
+				focusRefs.firstCheckedHost ??= row;
+			}
+		}
+	}
+
+	private _renderHostItem(disposables: DisposableStore, body: HTMLElement, host: IAgentHostFilterEntry, checked: boolean, finish: () => void): HTMLButtonElement {
+		const row = dom.append(body, $('button.host-picker-sheet-item', { type: 'button' })) as HTMLButtonElement;
+		row.setAttribute('role', 'menuitemradio');
+		row.setAttribute('aria-checked', String(checked));
+		if (checked) {
+			row.classList.add('checked');
+		}
+
+		// Icon + small status dot in the bottom-right.
+		const iconWrap = dom.append(row, $('span.host-picker-sheet-item-icon'));
+		iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
+		const status = dom.append(iconWrap, $('span.host-picker-sheet-item-status'));
+		switch (host.status) {
+			case AgentHostFilterConnectionStatus.Connected:
+				status.classList.add('connected');
+				break;
+			case AgentHostFilterConnectionStatus.Connecting:
+				status.classList.add('connecting');
+				break;
+		}
+
+		// Name + status sub-line.
+		const text = dom.append(row, $('span.host-picker-sheet-item-text'));
+		dom.append(text, $('span.host-picker-sheet-item-name')).textContent = host.label;
+		dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+
+		if (checked) {
+			const check = dom.append(row, $('span.host-picker-sheet-item-check'));
+			check.append(...renderLabelWithIcons(`$(${Codicon.check.id})`));
+		}
+
+		const select = (e?: Event) => {
+			if (e) {
+				dom.EventHelper.stop(e, true);
+			}
+			this._filterService.setSelectedProviderId(host.providerId);
+			finish();
+		};
+
+		disposables.add(Gesture.addTarget(row));
+		disposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, e => select(e)));
+		disposables.add(dom.addDisposableListener(row, TouchEventType.Tap, e => select(e)));
+		return row;
+	}
+
+	private _statusLabel(status: AgentHostFilterConnectionStatus): string {
+		switch (status) {
+			case AgentHostFilterConnectionStatus.Connected:
+				return localize('agentHostFilter.sheet.status.connected', "Connected");
+			case AgentHostFilterConnectionStatus.Connecting:
+				return localize('agentHostFilter.sheet.status.connecting', "Connecting…");
+			case AgentHostFilterConnectionStatus.Disconnected:
+			default:
+				return localize('agentHostFilter.sheet.status.disconnected', "Disconnected");
+		}
+	}
+
+	private _renderRediscoverAction(disposables: DisposableStore, footer: HTMLElement): HTMLButtonElement {
+		const action = dom.append(footer, $('button.host-picker-sheet-action', { type: 'button' })) as HTMLButtonElement;
+		action.setAttribute('role', 'menuitem');
+		action.setAttribute('aria-label', localize('agentHostFilter.sheet.rediscover.aria', "Re-discover hosts"));
+
+		const iconSpan = dom.append(action, $('span.host-picker-sheet-action-icon'));
+		iconSpan.append(...renderLabelWithIcons(`$(${Codicon.refresh.id})`));
+
+		const labelSpan = dom.append(action, $('span'));
+
+		const update = () => {
+			const discovering = this._filterService.isDiscovering;
+			action.classList.toggle('discovering', discovering);
+			action.setAttribute('aria-disabled', String(discovering));
+			labelSpan.textContent = discovering
+				? localize('agentHostFilter.sheet.rediscovering', "Searching…")
+				: localize('agentHostFilter.sheet.rediscover', "Re-discover hosts");
+		};
+		update();
+		disposables.add(this._filterService.onDidChangeDiscovering(update));
+
+		const trigger = (e?: Event) => {
+			if (e) {
+				dom.EventHelper.stop(e, true);
+			}
+			if (this._filterService.isDiscovering) {
 				return;
 			}
-			isDismissing = true;
-			panel.classList.add('dismissing');
-			const onEnd = () => {
-				if (this._dropdown.value === disposables) {
-					this._dropdown.clear();
-				}
-			};
-			panel.addEventListener('animationend', onEnd, { once: true });
-			const dismissTimeout = setTimeout(onEnd, 200);
-			disposables.add({ dispose: () => clearTimeout(dismissTimeout) });
+			this._filterService.rediscover();
 		};
+
+		disposables.add(Gesture.addTarget(action));
+		disposables.add(dom.addDisposableListener(action, dom.EventType.CLICK, e => trigger(e)));
+		disposables.add(dom.addDisposableListener(action, TouchEventType.Tap, e => trigger(e)));
+		return action;
 	}
 }

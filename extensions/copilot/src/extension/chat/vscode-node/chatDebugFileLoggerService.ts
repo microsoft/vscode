@@ -915,6 +915,8 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				const model = asString(span.attributes[GenAiAttr.REQUEST_MODEL])
 					?? asString(span.attributes[GenAiAttr.RESPONSE_MODEL])
 					?? 'unknown';
+				const debugName = asString(span.attributes[CopilotChatAttr.DEBUG_NAME])
+					?? asString(span.attributes[GenAiAttr.AGENT_NAME]);
 				return {
 					ts: span.startTime,
 					dur: duration,
@@ -926,14 +928,21 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 					status: isError ? 'error' : 'ok',
 					attrs: {
 						model,
+						...(debugName ? { debugName } : {}),
 						...(span.attributes[GenAiAttr.USAGE_INPUT_TOKENS] !== undefined
 							? { inputTokens: asNumber(span.attributes[GenAiAttr.USAGE_INPUT_TOKENS]) }
 							: {}),
 						...(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS] !== undefined
 							? { outputTokens: asNumber(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS]) }
 							: {}),
+						...(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS] !== undefined
+							? { cachedTokens: asNumber(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]) }
+							: {}),
 						...(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN] !== undefined
 							? { ttft: asNumber(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN]) }
+							: {}),
+						...(span.attributes[GenAiAttr.RESPONSE_ID] !== undefined
+							? { responseId: asString(span.attributes[GenAiAttr.RESPONSE_ID]) }
 							: {}),
 						...(span.attributes[CopilotChatAttr.USER_REQUEST] !== undefined
 							? { userRequest: String(span.attributes[CopilotChatAttr.USER_REQUEST]) }
@@ -949,6 +958,9 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 							: {}),
 						...(span.attributes[GenAiAttr.REQUEST_TOP_P] !== undefined
 							? { topP: asNumber(span.attributes[GenAiAttr.REQUEST_TOP_P]) }
+							: {}),
+						...(span.attributes[CopilotChatAttr.REQUEST_OPTIONS] !== undefined
+							? { requestOptions: String(span.attributes[CopilotChatAttr.REQUEST_OPTIONS]) }
 							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},
@@ -1003,7 +1015,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			}
 
 			case GenAiOperationName.EXECUTE_HOOK: {
-				const hookType = asString(span.attributes['copilot_chat.hook_type']) ?? span.name;
+				const hookType = asString(span.attributes[CopilotChatAttr.HOOK_TYPE]) ?? span.name;
 				return {
 					ts: span.startTime,
 					dur: duration,
@@ -1017,14 +1029,14 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 						...(span.attributes['copilot_chat.hook_command'] !== undefined
 							? { command: truncate(String(span.attributes['copilot_chat.hook_command']), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_input'] !== undefined
-							? { input: truncate(String(span.attributes['copilot_chat.hook_input']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_INPUT] !== undefined
+							? { input: truncate(String(span.attributes[CopilotChatAttr.HOOK_INPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_output'] !== undefined
-							? { output: truncate(String(span.attributes['copilot_chat.hook_output']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_OUTPUT] !== undefined
+							? { output: truncate(String(span.attributes[CopilotChatAttr.HOOK_OUTPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_result_kind'] !== undefined
-							? { resultKind: String(span.attributes['copilot_chat.hook_result_kind']) }
+						...(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND] !== undefined
+							? { resultKind: String(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND]) }
 							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},

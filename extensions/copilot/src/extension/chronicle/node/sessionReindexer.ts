@@ -13,6 +13,7 @@ import {
 	MAX_USER_MESSAGE_LENGTH,
 	extractAssistantResponse,
 	extractFilePath,
+	extractPlainTextFromContent,
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
 	extractRepoFromMcpTool,
@@ -261,7 +262,7 @@ function processAssistantResponse(
 
 	// Use first user message as summary if not yet set
 	if (!buffer.session?.summary && state.pendingUserMessage) {
-		const summary = truncateForStore(state.pendingUserMessage, MAX_SUMMARY_LENGTH);
+		const summary = truncateForStore(extractPlainTextFromContent(state.pendingUserMessage), MAX_SUMMARY_LENGTH);
 		if (!buffer.session) {
 			buffer.session = { id: sessionId, host_type: 'vscode' };
 		}

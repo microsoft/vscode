@@ -414,7 +414,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	private async getSubAgentByName(name: string): Promise<ICustomAgent | undefined> {
 		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
-		return agents.find(agent => agent.name === name);
+		return agents.find(agent => agent.name === name && agent.enabled);
 	}
 
 	/**

@@ -1390,4 +1390,125 @@ describe('buildChatHistory', () => {
 	});
 
 	// #endregion
+
+	// #region Response Details (model footer)
+
+	describe('response details via getModelDetails', () => {
+		// Returns the raw model id back so we can spot-check exactly which id the
+		// builder fed into the lookup for each response turn.
+		const echoLookup = (id: string) => `details:${id}`;
+
+		it('omits details when no lookup is provided (regression)', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4-5-20251101'),
+			]);
+
+			const result = buildChatHistory(s);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({});
+		});
+
+		it('attaches details from the assistant model id to the response turn', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4-5-20251101'),
+			]);
+
+			const result = buildChatHistory(s, echoLookup);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+		});
+
+		it('omits details when the lookup returns undefined', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'unknown-model-id'),
+			]);
+
+			const result = buildChatHistory(s, () => undefined);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({});
+		});
+
+		it('attributes per-response model details across model switches', () => {
+			const s = session([
+				userMsg('First'),
+				assistantMsg([{ type: 'text', text: 'A1' }], 'claude-sonnet-4-20250514'),
+				userMsg('Second'),
+				assistantMsg([{ type: 'text', text: 'A2' }], 'claude-opus-4-5-20251101'),
+			]);
+
+			const result = buildChatHistory(s, echoLookup);
+
+			const firstResponse = result[1] as vscode.ChatResponseTurn2;
+			const secondResponse = result[3] as vscode.ChatResponseTurn2;
+			expect(firstResponse.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
+			expect(secondResponse.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+		});
+
+		it('uses the last non-synthetic assistant model in a multi-message response group', () => {
+			const s = session([
+				userMsg('Run'),
+				assistantMsg([{ type: 'tool_use', id: 't1', name: 'bash', input: {} }], 'claude-sonnet-4-20250514'),
+				toolResult('t1', 'done'),
+				// Final assistant message uses a different model — that's the one we attribute.
+				assistantMsg([{ type: 'text', text: 'OK' }], 'claude-opus-4-5-20251101'),
+			]);
+
+			const result = buildChatHistory(s, echoLookup);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'details:claude-opus-4-5-20251101' });
+		});
+
+		it('does not bleed model ids across response groups when lookup is undefined for one', () => {
+			const s = session([
+				userMsg('First'),
+				assistantMsg([{ type: 'text', text: 'A1' }], 'claude-sonnet-4-20250514'),
+				userMsg('Second'),
+				assistantMsg([{ type: 'text', text: 'A2' }], 'unknown-model-id'),
+			]);
+
+			const result = buildChatHistory(s, id => id === 'claude-sonnet-4-20250514' ? 'Sonnet' : undefined);
+
+			const firstResponse = result[1] as vscode.ChatResponseTurn2;
+			const secondResponse = result[3] as vscode.ChatResponseTurn2;
+			expect(firstResponse.result).toEqual({ details: 'Sonnet' });
+			expect(secondResponse.result).toEqual({});
+		});
+
+		it('ignores synthetic assistant messages when picking the response model id', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Real reply' }], 'claude-sonnet-4-20250514'),
+				// A trailing synthetic message (e.g. cancellation marker) must not
+				// override the real model id we just observed.
+				assistantMsg([{ type: 'text', text: 'No response requested.' }], SYNTHETIC_MODEL_ID),
+			]);
+
+			const result = buildChatHistory(s, echoLookup);
+
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
+		});
+
+		it('attaches details to slash-command response turns', () => {
+			const s = session([
+				userMsg('<command-name>/compact</command-name><command-message>compact</command-message>'),
+				assistantMsg([{ type: 'text', text: 'Compacted.' }], 'claude-sonnet-4-20250514'),
+			]);
+
+			const result = buildChatHistory(s, echoLookup);
+
+			// [request, response]
+			const responseTurn = result[1] as vscode.ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'details:claude-sonnet-4-20250514' });
+		});
+	});
+
+	// #endregion
 });

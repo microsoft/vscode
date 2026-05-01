@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -45,8 +45,24 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly _onDidChangeDiscovering = this._register(new Emitter<void>());
+	readonly onDidChangeDiscovering: Event<void> = this._onDidChangeDiscovering.event;
+
 	private _selectedProviderId: string | undefined;
 	private _hosts: readonly IAgentHostFilterEntry[] = [];
+
+	/**
+	 * Discovery handlers contributed by host providers (e.g. dev tunnels).
+	 * {@link rediscover} fans out to every handler and waits for them to
+	 * settle.
+	 */
+	private readonly _discoveryHandlers = new Set<() => Promise<void>>();
+	/**
+	 * Number of in-flight {@link rediscover} calls. {@link isDiscovering}
+	 * is `true` while this is non-zero. Tracked as a counter so concurrent
+	 * calls don't race a flag back to `false`.
+	 */
+	private _discoveringCount = 0;
 
 	/**
 	 * Subscriptions to the `connectionStatus` observable of every currently
@@ -74,6 +90,35 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 
 	get hosts(): readonly IAgentHostFilterEntry[] {
 		return this._hosts;
+	}
+
+	get isDiscovering(): boolean {
+		return this._discoveringCount > 0;
+	}
+
+	async rediscover(): Promise<void> {
+		if (this._discoveryHandlers.size === 0) {
+			return;
+		}
+		this._discoveringCount++;
+		if (this._discoveringCount === 1) {
+			this._onDidChangeDiscovering.fire();
+		}
+		try {
+			await Promise.allSettled(
+				[...this._discoveryHandlers].map(h => h().catch(() => { /* swallowed */ }))
+			);
+		} finally {
+			this._discoveringCount--;
+			if (this._discoveringCount === 0) {
+				this._onDidChangeDiscovering.fire();
+			}
+		}
+	}
+
+	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable {
+		this._discoveryHandlers.add(handler);
+		return toDisposable(() => this._discoveryHandlers.delete(handler));
 	}
 
 	setSelectedProviderId(providerId: string): void {

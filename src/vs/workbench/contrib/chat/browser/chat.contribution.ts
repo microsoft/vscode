@@ -187,6 +187,7 @@ import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionIt
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -969,7 +970,12 @@ configurationRegistry.registerConfiguration({
 			type: 'array',
 			items: { type: 'string' },
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
-			default: ['runTask', 'getTaskOutput', 'problems', 'runTests'],
+			default: [
+				'runTask', 'getTaskOutput', 'problems', 'runTests',
+				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
+				// out of these, only the tools that are actually registered/enabled are seen by the agent.
+				...browserChatToolReferenceNames,
+			],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
@@ -1522,15 +1528,6 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.GrowthNotificationEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.growthNotification', "Controls whether to show a growth notification in the agent sessions view to encourage new users to try Copilot."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		[ChatConfiguration.SignInTitleBarEnabled]: {
-			type: 'boolean',
-			description: nls.localize('chat.signInTitleBar', "Controls whether to show a sign-in button in the title bar for users who are not signed in."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {

@@ -41,6 +41,7 @@ import { resolveCustomizationRefs } from '../../../../workbench/contrib/chat/bro
 import { IAgentHostFileSystemService } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -423,6 +424,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			return undefined;
 		};
+		const isNewSession = (sessionResource: URI): boolean => {
+			const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+			return provider?.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
+		};
 
 		// Chat session contribution
 		agentStore.add(this._chatSessionsService.registerChatSessionContribution({
@@ -435,6 +440,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
 			},
 		}));
 
@@ -483,6 +489,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, loggedConnection, resources),
 			customizations,
 		}));
