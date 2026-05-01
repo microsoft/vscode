@@ -229,23 +229,25 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	 * `undefined` when no session is available; callers fall back to the
 	 * unauthenticated request, which still works for public repositories.
 	 *
-	 * This is used for the first clone attempt so public repositories do not
-	 * surprise users with a sign-in prompt. User-initiated clone failures can
-	 * then call {@link _requestGitHubToken} to prompt and retry once.
+	 * This uses the existing signed-in GitHub account, if any, without forcing
+	 * a new `repo`-scoped session. That matches the other web/session GitHub
+	 * clients and avoids treating an already-authenticated web user as anonymous.
+	 * User-initiated clone failures can then call {@link _requestGitHubToken}
+	 * to request stronger scopes and retry once.
 	 *
-	 * `getSessions` filters by the requested scopes, so the returned
-	 * sessions are guaranteed to grant `repo` access. With multiple
-	 * matching sessions (e.g. EMU + personal), we pick the first; that
-	 * mirrors the broader VS Code authentication UX where account
-	 * selection is owned by the auth provider, not consumers.
+	 * With multiple matching sessions (e.g. EMU + personal), prefer one that
+	 * advertises `repo` scope but otherwise pick the first; that mirrors the
+	 * broader VS Code authentication UX where account selection is owned by the
+	 * auth provider, not consumers.
 	 */
 	private async _lookupGitHubToken(): Promise<string | undefined> {
 		try {
-			const sessions = await this._authenticationService.getSessions('github', ['repo'], { silent: true });
+			const sessions = await this._authenticationService.getSessions('github', [], { silent: true });
 			if (sessions.length === 0) {
 				return undefined;
 			}
-			return sessions[0].accessToken;
+			const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
+			return repoScopeSession?.accessToken ?? sessions[0].accessToken;
 		} catch (err) {
 			this._logService.trace('[BrowserPluginGitCommandService] Silent GitHub session lookup failed:', err);
 			return undefined;

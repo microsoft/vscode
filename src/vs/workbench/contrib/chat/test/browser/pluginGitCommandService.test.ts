@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
 import { parseGitHubCloneUrl } from '../../browser/githubTarballFetcher.js';
 
@@ -148,6 +148,25 @@ suite('BrowserPluginGitCommandService', () => {
 			const file = await fileService.readFile(URI.joinPath(targetDir, 'private.txt'));
 			assert.strictEqual(file.value.toString(), 'secret');
 			assert.strictEqual(state.createSessionCalls, 1);
+		});
+
+		test('uses an existing signed-in GitHub session before falling back to anonymous requests', async () => {
+			service = new BrowserPluginGitCommandService(
+				fileService,
+				new NullLogService(),
+				requestStub as unknown as IRequestService,
+				storage,
+				stubAuthenticationService({ sessions: [createAuthenticationSession('signed-in-token')] }),
+			);
+
+			const tarball = await makeGzippedTar({ 'pkg-sha1/auth.txt': 'authed' });
+			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
+			requestStub.queue('GET', /\/tarball\/sha1$/, bytesResponse(200, tarball));
+
+			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
+
+			assert.strictEqual(requestStub.requests[0].headers?.Authorization, 'Bearer signed-in-token');
+			assert.strictEqual(requestStub.requests[1].headers?.Authorization, 'Bearer signed-in-token');
 		});
 
 		test('failed extraction leaves the previous targetDir intact', async () => {
@@ -353,12 +372,14 @@ class StubRequestService implements Partial<IRequestService> {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _queue: QueuedResponse[] = [];
+	readonly requests: IRequestOptions[] = [];
 
 	queue(method: string, urlMatcher: RegExp, response: () => IRequestContext): void {
 		this._queue.push({ methodMatcher: method, urlMatcher, response });
 	}
 
 	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
+		this.requests.push(options);
 		const url = options.url ?? '';
 		const method = options.type ?? 'GET';
 		const idx = this._queue.findIndex(q => q.methodMatcher === method && q.urlMatcher.test(url));
@@ -510,13 +531,14 @@ function writeOctal(view: Uint8Array, offset: number, value: number, length: num
 }
 
 interface IStubAuthenticationServiceOptions {
+	readonly sessions?: readonly AuthenticationSession[];
 	readonly createdAccessToken?: string;
 	readonly state?: { createSessionCalls: number };
 }
 
 function stubAuthenticationService(options: IStubAuthenticationServiceOptions = {}): IAuthenticationService {
 	return {
-		getSessions: async () => [],
+		getSessions: async () => options.sessions ?? [],
 		createSession: async () => {
 			if (options.state) {
 				options.state.createSessionCalls++;
@@ -527,4 +549,13 @@ function stubAuthenticationService(options: IStubAuthenticationServiceOptions = 
 			return { accessToken: options.createdAccessToken };
 		},
 	} as unknown as IAuthenticationService;
+}
+
+function createAuthenticationSession(accessToken: string, scopes: readonly string[] = []): AuthenticationSession {
+	return {
+		id: accessToken,
+		accessToken,
+		account: { label: 'octocat', id: 'octocat' },
+		scopes,
+	};
 }
