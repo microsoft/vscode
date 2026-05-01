@@ -1016,7 +1016,11 @@ describe('CopilotCLISession', () => {
 			CancellationToken.None
 		);
 
-		expect(stream.output.join('\n')).toContain('Remote control is enabled. Use /remote off to disable it. Session URL: https://github.com/microsoft/vscode/tasks/123');
+		const output = stream.output.join('\n');
+		expect(output).toContain('Remote control is enabled.');
+		expect(output).toContain('Scan with GitHub Mobile');
+		expect(output).toContain('https://github.com/microsoft/vscode/tasks/123');
+		expect(output).toMatch(/[\u2580\u2584\u2588]/);
 	});
 
 	it('shows /remote usage for unsupported arguments', async () => {

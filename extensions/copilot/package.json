@@ -6485,6 +6485,7 @@
 		"@types/mocha": "^10.0.10",
 		"@types/node": "^22.16.3",
 		"@types/picomatch": "^4.0.0",
+		"@types/qrcode": "1.5.5",
 		"@types/react": "17.0.44",
 		"@types/react-dom": "^18.2.17",
 		"@types/sinon": "^17.0.4",
@@ -6593,6 +6594,7 @@
 		"lru-cache": "^11.1.0",
 		"markdown-it": "^14.1.1",
 		"minimatch": "^10.2.1",
+		"qrcode": "1.5.4",
 		"undici": "^7.24.1",
 		"vscode-tas-client": "^0.1.84",
 		"web-tree-sitter": "^0.23.0"

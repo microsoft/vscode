@@ -7,6 +7,7 @@ import type { Attachment, SendOptions, Session, SessionOptions } from '@github/c
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
+import * as QRCode from 'qrcode';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
@@ -84,6 +85,9 @@ interface McSharedState {
 const mcStateBySessionId = new Map<string, McSharedState>();
 
 const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
+const REMOTE_CONTROL_QR_MARGIN = 1;
+const REMOTE_CONTROL_QR_PLACEHOLDER_WIDTH = 10;
+const REMOTE_CONTROL_QR_PLACEHOLDER_HEIGHT = 8;
 
 interface McPermissionResponseCommandData {
 	readonly promptId?: string;
@@ -315,6 +319,60 @@ function getRemoteControlArgs(input: CopilotCLISessionInput): string {
 		}
 	}
 	return prompt;
+}
+
+function getRemoteControlQrPlaceholderBounds(size: number): { rowStart: number; rowEnd: number; colStart: number; colEnd: number } {
+	const width = Math.min(size, REMOTE_CONTROL_QR_PLACEHOLDER_WIDTH);
+	const height = Math.min(size, REMOTE_CONTROL_QR_PLACEHOLDER_HEIGHT);
+	const rowStart = Math.max(0, Math.floor((size - height) / 2));
+	const colStart = Math.max(0, Math.floor((size - width) / 2));
+	return {
+		rowStart,
+		rowEnd: rowStart + height,
+		colStart,
+		colEnd: colStart + width,
+	};
+}
+
+function renderRemoteControlQrCell(top: boolean, bottom: boolean): string {
+	if (top && bottom) {
+		return '\u2588';
+	}
+	if (top) {
+		return '\u2580';
+	}
+	if (bottom) {
+		return '\u2584';
+	}
+	return ' ';
+}
+
+function renderRemoteControlQrCode(data: string): string {
+	const qr = QRCode.create(data, { errorCorrectionLevel: 'H' });
+	const { data: modules, size } = qr.modules;
+	const placeholder = getRemoteControlQrPlaceholderBounds(size);
+	const totalSize = size + REMOTE_CONTROL_QR_MARGIN * 2;
+	const isDark = (row: number, col: number): boolean => {
+		const r = row - REMOTE_CONTROL_QR_MARGIN;
+		const c = col - REMOTE_CONTROL_QR_MARGIN;
+		if (r < 0 || r >= size || c < 0 || c >= size) {
+			return false;
+		}
+		if (r >= placeholder.rowStart && r < placeholder.rowEnd && c >= placeholder.colStart && c < placeholder.colEnd) {
+			return false;
+		}
+		return modules[r * size + c] === 1;
+	};
+
+	const lines: string[] = [];
+	for (let row = 0; row < totalSize; row += 2) {
+		let line = '';
+		for (let col = 0; col < totalSize; col++) {
+			line += renderRemoteControlQrCell(isDark(row, col), row + 1 < totalSize && isDark(row + 1, col));
+		}
+		lines.push(line);
+	}
+	return lines.join('\n');
 }
 
 export interface ICopilotCLISession extends IDisposable {
@@ -1416,21 +1474,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			sharedState.mcFrontendUrl = frontendUrl;
 			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
-			// Render a persistent inline info banner using the proposed
-			// `stream.info()` API (blue background + blue info icon, matches
-			// the native chat info notification style). The button uses
-			// `vscode.open` so it opens the URL externally without invoking
-			// the model, and the banner stays visible after click.
-			const banner = new MarkdownString(
-				`**${l10n.t('Remote control is enabled.')}** ` +
-				l10n.t('You can open this session from any device.')
-			);
-			this._stream?.info(banner);
-			this._stream?.button({
-				command: 'vscode.open',
-				arguments: [Uri.parse(frontendUrl)],
-				title: l10n.t('Open on GitHub'),
-			});
+			this._showRemoteControlEnabled(frontendUrl);
 
 			// Step 9: Start continuous event exporter and command poller
 			this._startMcEventExporter();
@@ -1448,17 +1492,32 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			return;
 		}
 
-		const message = state.mcFrontendUrl
-			? l10n.t('Remote control is enabled. Use /remote off to disable it. Session URL: {0}', state.mcFrontendUrl)
-			: l10n.t('Remote control is enabled. Use /remote off to disable it.');
-		this._stream?.markdown(message);
 		if (state.mcFrontendUrl) {
-			this._stream?.button({
-				command: 'vscode.open',
-				arguments: [Uri.parse(state.mcFrontendUrl)],
-				title: l10n.t('Open on GitHub'),
-			});
+			this._showRemoteControlEnabled(state.mcFrontendUrl);
+			return;
 		}
+
+		this._stream?.markdown(l10n.t('Remote control is enabled. Use /remote off to disable it.'));
+	}
+
+	private _showRemoteControlEnabled(frontendUrl: string): void {
+		const banner = new MarkdownString();
+		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}** ${l10n.t('Scan with GitHub Mobile, or open this session from any device. Use /remote off to disable it.')}\n\n`);
+		banner.appendMarkdown(`${l10n.t('Scan with GitHub Mobile:')}\n\n`);
+		try {
+			banner.appendCodeblock(renderRemoteControlQrCode(frontendUrl), 'text');
+		} catch (error) {
+			this.logService.error(`[CopilotCLISession] Failed to render remote control QR code: ${error instanceof Error ? error.message : String(error)}`);
+			banner.appendMarkdown(l10n.t('QR code could not be rendered. Open this session from any device: {0}', frontendUrl));
+		}
+		banner.appendMarkdown(`\n[${l10n.t('Open on GitHub')}](${frontendUrl})`);
+
+		this._stream?.info(banner);
+		this._stream?.button({
+			command: 'vscode.open',
+			arguments: [Uri.parse(frontendUrl)],
+			title: l10n.t('Open on GitHub'),
+		});
 	}
 
 	/**
