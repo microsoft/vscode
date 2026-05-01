@@ -11,7 +11,7 @@ import { RawThinkingDelta, ThinkingDelta } from '../../thinking/common/thinking'
 import { extractThinkingDeltaFromChoice, } from '../../thinking/common/thinkingUtils';
 import { FinishedCallback, getRequestId, ICodeVulnerabilityAnnotation, ICopilotBeginToolCall, ICopilotConfirmation, ICopilotError, ICopilotFunctionCall, ICopilotReference, ICopilotToolCall, ICopilotToolCallStreamUpdate, IIPCodeCitation, isCodeCitationAnnotation, isCopilotAnnotation, RequestId } from '../common/fetch';
 import { DestroyableStream, Response } from '../common/fetcherService';
-import { APIErrorResponse, APIJsonData, APIUsage, ChoiceLogProbs, FilterReason, FinishedCompletionReason, isApiUsage, IToolCall } from '../common/openai';
+import { APIErrorResponse, APIJsonData, APIUsage, ChoiceLogProbs, FilterReason, FinishedCompletionReason, isApiUsage, IToolCall, StreamingAPIUsage } from '../common/openai';
 
 /** Gathers together many chunks of a single completion choice. */
 class APIJsonDataStreaming {
@@ -279,12 +279,12 @@ export class SSEProcessor {
 				}
 			} else {
 				let completion: FinishedCompletion | undefined;
-				let usage: APIUsage | undefined;
+				let streamingUsage: StreamingAPIUsage | undefined;
 
 				// Process both the usage and the completions, then yield one combined completions
 				for await (const usageOrCompletions of this.processSSEInner(finishedCb)) {
 					if (isApiUsage(usageOrCompletions)) {
-						usage = usageOrCompletions;
+						streamingUsage = usageOrCompletions;
 					} else {
 						completion = usageOrCompletions;
 					}
@@ -295,10 +295,11 @@ export class SSEProcessor {
 				}
 
 				if (completion) {
-					if (usage && typeof usage.total_tokens !== 'number') {
-						// Synthesize total_tokens for models that omit it (e.g. Ollama, LM Studio)
-						usage = { ...usage, total_tokens: usage.prompt_tokens + usage.completion_tokens };
-					}
+					// Upcast to APIUsage, synthesizing total_tokens when the provider omitted it
+					// (many OpenAI-compatible local models such as Ollama and LM Studio do not include it).
+					const usage: APIUsage | undefined = streamingUsage
+						? { ...streamingUsage, total_tokens: streamingUsage.total_tokens ?? streamingUsage.prompt_tokens + streamingUsage.completion_tokens }
+						: undefined;
 					completion.usage = usage;
 					yield completion;
 				}

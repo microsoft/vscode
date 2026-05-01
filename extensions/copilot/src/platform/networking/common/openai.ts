@@ -67,11 +67,17 @@ export interface APIUsage {
 	};
 }
 
-export function isApiUsage(obj: unknown): obj is APIUsage {
-	// total_tokens is intentionally not required — many OpenAI-compatible local
-	// models (Ollama, LM Studio, custom proxies) omit it; it equals prompt_tokens + completion_tokens.
-	return typeof (obj as APIUsage).prompt_tokens === 'number' &&
-		typeof (obj as APIUsage).completion_tokens === 'number';
+/**
+ * Usage as it arrives from an SSE stream. total_tokens is optional because many
+ * OpenAI-compatible local providers (Ollama, LM Studio, custom proxies) omit it;
+ * it can always be derived as prompt_tokens + completion_tokens.
+ * Callers that need a full APIUsage should synthesize total_tokens first.
+ */
+export type StreamingAPIUsage = Omit<APIUsage, 'total_tokens'> & { total_tokens?: number };
+
+export function isApiUsage(obj: unknown): obj is StreamingAPIUsage {
+	return typeof (obj as StreamingAPIUsage).prompt_tokens === 'number' &&
+		typeof (obj as StreamingAPIUsage).completion_tokens === 'number';
 }
 
 
