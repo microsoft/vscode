@@ -124,12 +124,19 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._onDidChangeSyncState.fire(state);
 	}
 
+	/** Cached local synced count — invalidated on set/delete of cloud sessions. */
+	private _cachedLocalSyncedCount: number | undefined;
+
 	/**
 	 * Count sessions from this machine that are synced to the cloud.
 	 * Cross-references SQLite (local sessions) with the cloud session ID store.
+	 * Cached to avoid repeated SQL queries on every flush.
 	 * Falls back to the full cloud store size if SQLite is unavailable.
 	 */
 	private _getLocalSyncedCount(): number {
+		if (this._cachedLocalSyncedCount !== undefined) {
+			return this._cachedLocalSyncedCount;
+		}
 		try {
 			const localIds = this._sessionStore.executeReadOnlyFallback(
 				'SELECT id FROM sessions LIMIT 1000'
@@ -140,11 +147,17 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 					count++;
 				}
 			}
+			this._cachedLocalSyncedCount = count;
 			return count;
 		} catch {
 			// SQLite unavailable — fall back to full cloud store size
 			return this._cloudSessions.size;
 		}
+	}
+
+	/** Invalidate the cached local synced count (call after cloud session set/delete). */
+	private _invalidateLocalSyncedCount(): void {
+		this._cachedLocalSyncedCount = undefined;
 	}
 
 	/**
@@ -173,6 +186,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		try {
 			const cloudSessions = await this._cloudClient.listSessions();
 			this._cloudSessions.mergeFromCloud(cloudSessions);
+			this._invalidateLocalSyncedCount();
 			this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 		} catch {
 			// Non-fatal — disk cache is good enough for ID lookups
@@ -199,6 +213,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._cloudSessions = new CloudSessionIdStore(this._extensionContext.globalStorageUri.fsPath);
 		this._indexingPreference = new SessionIndexingPreference(this._configService);
 		this._cloudClient = new CloudSessionApiClient(this._tokenManager, this._authService, this._fetcherService);
+		this._cloudClient.onRateLimited = (callSite, retryAfterSec) => {
+			this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+				operation: 'rateLimited',
+				error: callSite,
+			}, {
+				retryAfterSec,
+			});
+		};
 		this._circuitBreaker = new CircuitBreaker({
 			failureThreshold: 5,
 			resetTimeoutMs: 1_000,
@@ -239,6 +261,14 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			const isCloudEnabled = cloudEnabled.read(reader);
 
 			if (!isLocalEnabled || !isCloudEnabled) {
+				// Distinguish "disabled by policy" from "not enabled by user"
+				if (isLocalEnabled && !isCloudEnabled) {
+					const inspection = vscode.workspace.getConfiguration().inspect<boolean>('chat.sessionSync.enabled');
+					if ((inspection as { policyValue?: boolean } | undefined)?.policyValue === false) {
+						this._setSyncState({ kind: 'disabled-by-policy' });
+						return;
+					}
+				}
 				this._setSyncState({ kind: 'not-enabled' });
 				return;
 			}
@@ -308,10 +338,22 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	// ── Delete sessions (Command Palette) ───────────────────────────────────────
 
 	private async _deleteCloudSessions(): Promise<void> {
-		// Reconcile with cloud to get the full picture (lazy, once per window)
+		type SessionQuickPickItem = vscode.QuickPickItem & { sessionId: string };
+		const selectAllId = '__all__';
+
+		// Show quick pick immediately with loading spinner
+		const quickPick = vscode.window.createQuickPick<SessionQuickPickItem>();
+		quickPick.title = vscode.l10n.t('Delete Cloud Session Data');
+		quickPick.placeholder = vscode.l10n.t('Loading sessions...');
+		quickPick.canSelectMany = true;
+		quickPick.busy = true;
+		quickPick.show();
+
+		// Reconcile with cloud (lazy, once per window)
 		await this._reconcileWithCloud();
 
 		if (this._cloudSessions.size === 0) {
+			quickPick.dispose();
 			vscode.window.showInformationMessage(vscode.l10n.t('No cloud-synced sessions found.'));
 			return;
 		}
@@ -326,18 +368,19 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			) as Array<{ id: string; repository?: string; created_at?: string; first_message?: string }>;
 			rows = allRows.filter(row => this._cloudSessions.has(row.id));
 		} catch {
-			// SQLite may be disabled — fall back to cloud store IDs only
+			// SQLite may be disabled
 		}
 
 		if (rows.length === 0) {
+			quickPick.dispose();
 			vscode.window.showInformationMessage(vscode.l10n.t('No cloud-synced sessions found locally.'));
 			return;
 		}
 
-		// Build Quick Pick items
-		type SessionQuickPickItem = vscode.QuickPickItem & { sessionId: string };
-		const selectAllId = '__all__';
-		const sessionItems: SessionQuickPickItem[] = [
+		// Populate quick pick with items
+		quickPick.busy = false;
+		quickPick.placeholder = vscode.l10n.t('Select sessions to delete');
+		quickPick.items = [
 			{ label: '$(checklist) ' + vscode.l10n.t('Select All ({0} sessions)', rows.length), sessionId: selectAllId },
 			...rows.map(row => {
 				const label = row.first_message
@@ -351,10 +394,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}),
 		];
 
-		const picked = await vscode.window.showQuickPick(sessionItems, {
-			title: vscode.l10n.t('Delete Cloud Session Data'),
-			placeHolder: vscode.l10n.t('Select sessions to delete'),
-			canPickMany: true,
+		// Wait for user selection
+		const picked = await new Promise<readonly SessionQuickPickItem[] | undefined>(resolve => {
+			quickPick.onDidAccept(() => {
+				resolve([...quickPick.selectedItems]);
+				quickPick.dispose();
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+				quickPick.dispose();
+			});
 		});
 
 		if (!picked || picked.length === 0) {
@@ -441,6 +490,8 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			},
 		);
 
+		this._invalidateLocalSyncedCount();
+
 		// Build result message
 		const parts: string[] = [];
 		if (deleteLocal) {
@@ -457,6 +508,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			vscode.window.showInformationMessage(parts.join(', ') + '.');
 			this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 		}
+
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+			operation: 'deleteSessions',
+			source: 'commandPalette',
+		}, {
+			totalRequested: sessionsToDelete.length,
+			localDeleted,
+			cloudDeleted,
+			cloudErrors,
+		});
 	}
 
 	// ── Delete from cloud + local SQLite (called by sessions window delete action) ─
@@ -499,6 +560,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._translationStates.delete(sessionId);
 			this._disabledSessions.delete(sessionId);
 		}
+		this._invalidateLocalSyncedCount();
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 	}
 
@@ -555,6 +617,15 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		// Update sync state with new count
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
+
+		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
+			operation: 'reindex',
+		}, {
+			created: result.created,
+			failed: result.failed,
+			eventsUploaded: result.eventsUploaded,
+			backfillQueued: result.backfillQueued,
+		});
 
 		return result;
 	}
@@ -781,6 +852,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		};
 
 		this._cloudSessions.set(sessionId, cloudIds);
+		this._invalidateLocalSyncedCount();
 
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 			operation: 'createCloudSession',

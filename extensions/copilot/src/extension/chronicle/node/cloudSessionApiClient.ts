@@ -40,6 +40,12 @@ export class CloudSessionApiClient {
 	/** Timestamp (epoch ms) until which all requests should be skipped due to 429. */
 	private _rateLimitedUntil = 0;
 
+	/** Number of times we've been rate-limited. */
+	private _rateLimitCount = 0;
+
+	/** Callback fired when a 429 is received. */
+	onRateLimited: ((callSite: string, retryAfterSec: number) => void) | undefined;
+
 	constructor(
 		private readonly _tokenManager: ICopilotTokenManager,
 		private readonly _authService: IAuthenticationService,
@@ -52,7 +58,7 @@ export class CloudSessionApiClient {
 	}
 
 	/** Record a 429 response and back off for the indicated duration. */
-	private _handleRateLimit(res: { headers?: { get?(name: string): string | null } }): void {
+	private _handleRateLimit(res: { headers?: { get?(name: string): string | null } }, callSite: string): void {
 		let retryAfterSec = 60; // Default: 60 seconds
 		try {
 			const header = res.headers?.get?.('Retry-After');
@@ -66,6 +72,8 @@ export class CloudSessionApiClient {
 			// Use default
 		}
 		this._rateLimitedUntil = Date.now() + retryAfterSec * 1000;
+		this._rateLimitCount++;
+		this.onRateLimited?.(callSite, retryAfterSec);
 	}
 
 	/**
@@ -104,7 +112,7 @@ export class CloudSessionApiClient {
 			});
 
 			if (res.status === 429) {
-				this._handleRateLimit(res);
+				this._handleRateLimit(res, 'createSession');
 				return { ok: false, reason: 'error' };
 			}
 
@@ -146,7 +154,7 @@ export class CloudSessionApiClient {
 			});
 
 			if (res.status === 429) {
-				this._handleRateLimit(res);
+				this._handleRateLimit(res, 'submitEvents');
 				return false;
 			}
 
@@ -181,7 +189,7 @@ export class CloudSessionApiClient {
 			});
 
 			if (res.status === 429) {
-				this._handleRateLimit(res);
+				this._handleRateLimit(res, 'getSession');
 				return undefined;
 			}
 
@@ -222,7 +230,7 @@ export class CloudSessionApiClient {
 				});
 
 				if (res.status === 429) {
-					this._handleRateLimit(res);
+					this._handleRateLimit(res, 'listSessions');
 					return allSessions;
 				}
 
@@ -278,7 +286,7 @@ export class CloudSessionApiClient {
 			});
 
 			if (res.status === 429) {
-				this._handleRateLimit(res);
+				this._handleRateLimit(res, 'deleteSession');
 				return 'error';
 			}
 			if (res.status === 202) {
@@ -316,7 +324,7 @@ export class CloudSessionApiClient {
 			});
 
 			if (res.status === 429) {
-				this._handleRateLimit(res);
+				this._handleRateLimit(res, 'backfillAnalytics');
 				return { ok: false };
 			}
 

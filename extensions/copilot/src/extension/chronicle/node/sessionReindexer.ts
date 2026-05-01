@@ -437,11 +437,22 @@ async function reindexOneCloudSession(
 	const state = createSessionTranslationState();
 	const batch: SessionEvent[] = [];
 	let sessionRepo: string | undefined;
+	let excluded = false;
 
 	await debugLogService.streamEntries(sessionId, (entry: IDebugLogEntry) => {
 		// Extract repo from session_start for exclusion check
 		if (entry.type === 'session_start' && typeof entry.attrs.repository === 'string') {
 			sessionRepo = entry.attrs.repository;
+			if (isRepoExcluded) {
+				const nwo = extractNwoFromRepoString(sessionRepo);
+				if (nwo && isRepoExcluded(nwo)) {
+					excluded = true;
+				}
+			}
+		}
+		// Skip translation if repo is excluded
+		if (excluded) {
+			return;
 		}
 		const events = translateDebugLogEntry(entry, sessionId, state);
 		for (const event of events) {
@@ -449,14 +460,9 @@ async function reindexOneCloudSession(
 		}
 	});
 
-	// Check if this session's repo is excluded
-	if (sessionRepo && isRepoExcluded) {
-		// Normalize: repo may be a full URL like "https://github.com/owner/repo.git"
-		const nwo = extractNwoFromRepoString(sessionRepo);
-		if (nwo && isRepoExcluded(nwo)) {
-			batch.length = 0;
-			return;
-		}
+	if (excluded) {
+		batch.length = 0;
+		return;
 	}
 
 	// Create cloud session
