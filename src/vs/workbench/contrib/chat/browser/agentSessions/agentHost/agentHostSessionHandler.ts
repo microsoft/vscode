@@ -475,7 +475,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// carries the raw session id that will be used when createSession runs.
 		const resolvedSession = this._resolveSessionUri(sessionResource);
 
-		// The point of this is to
+		// The point of this is to check with the session provider or controller
+		// whether this session resource represents a new session that hasn't yet
+		// been created on the backend.
 		const isNewSession = this._isNewSessionResource(sessionResource);
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
@@ -2063,12 +2065,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return AgentSession.uri(this._config.provider, rawId);
 	}
 
-	/**
-	 * The session would have been created in the
-	 */
 	private _isNewSessionResource(sessionResource: URI): boolean {
-		return this._config.isNewSession?.(sessionResource)
-			|| this._workingDirectoryResolver.isNewSession?.(sessionResource);
+		return !!this._config.isNewSession?.(sessionResource)
+			|| this._workingDirectoryResolver.isNewSession(sessionResource);
 	}
 
 	/**
