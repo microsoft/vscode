@@ -576,7 +576,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 
 **Goal:** A user can log in with Claude Pro and see a fully streamed response with live tool calls.
 
-- [ ] **CredentialBroker** in `extensions/son-of-anton/src/auth/` (§6).
+- [x] **CredentialBroker** in `extensions/son-of-anton/src/auth/` (§6).
   - Localhost socket / named pipe transport with peer-creds check.
   - `vscode.SecretStorage` integration.
   - RPC surface implemented; integration tests with a fake provider.

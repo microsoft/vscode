@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./out-test",
+		"types": [
+			"node",
+			"mocha"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"test/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../types/lib.textEncoder.d.ts"
+	]
+}
