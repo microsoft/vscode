@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -117,7 +118,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private readonly remotePluginNames = observableValue<readonly string[]>('aiCustomizationRemotePluginNames', []);
 	private readonly pluginCount = derived(reader => {
 		const installed = this.agentPluginService.plugins.read(reader);
-		const installedNames = new Set(installed.map(p => (p.label ?? '').toLowerCase()));
+		// Match PluginListWidget's installed-name derivation
+		// (see installedPluginToItem in pluginListWidget.ts) so the model and
+		// editor widget agree on what counts as a duplicate when a plugin's
+		// `label` is empty/undefined.
+		const installedNames = new Set(installed.map(p => (p.label || basename(p.uri)).toLowerCase()));
 		const remoteNames = this.remotePluginNames.read(reader);
 		const uniqueRemote = remoteNames.filter(name => name && !installedNames.has(name.toLowerCase()));
 		return installed.length + uniqueRemote.length;

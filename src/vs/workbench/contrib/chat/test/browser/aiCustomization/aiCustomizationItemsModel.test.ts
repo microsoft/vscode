@@ -607,5 +607,25 @@ suite('AICustomizationItemsModel', () => {
 
 			assert.strictEqual(count.get(), 3, 'dup is counted once via the local source; uniq adds, local-only adds');
 		});
+
+		test('getPluginCount dedups against URI basename when local plugin label is empty', async () => {
+			// Mirrors PluginListWidget: when an installed plugin has no label
+			// (`label === ''`), the editor renders it under `basename(plugin.uri)`
+			// and dedups remote rows against that. The model must use the same
+			// fallback or the sidebar count drifts above the editor count.
+			providerItems = [harnessPluginRow('basename-match')];
+			const labelless: IAgentPlugin = {
+				...localPlugin('basename-match'),
+				uri: URI.parse('plugin-test:///basename-match'),
+				label: '',
+			};
+			plugins.set([labelless], undefined);
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+
+			assert.strictEqual(count.get(), 1, 'remote row is folded into the labelless local plugin via basename');
+		});
 	});
 });
