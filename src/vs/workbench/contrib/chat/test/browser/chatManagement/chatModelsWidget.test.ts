@@ -39,7 +39,7 @@ function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILang
 
 suite('ChatModelsWidget', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('getModelHoverContent', () => {
 
