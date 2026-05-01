@@ -1020,7 +1020,7 @@ describe('CopilotCLISession', () => {
 
 		const output = stream.output.join('\n');
 		expect(output).toContain('Remote control is enabled.');
-		expect(output).toContain('Scan with GitHub Mobile');
+		expect(output).toContain('Use the button below to open in your browser, or scan to steer from the GitHub Mobile app.');
 		expect(output).not.toContain('Scan with GitHub Mobile:');
 		expect(output).toContain('QR code to open this remote session in GitHub Mobile');
 		expect(output).toContain('data:image/png;base64,');
