@@ -65,6 +65,7 @@ export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'pla
 interface McSharedState {
 	mcSessionId: string;
 	mcFrontendUrl?: string;
+	mcMode?: MissionControlMode;
 	mcEventBuffer: McEvent[];
 	mcCompletedCommandIds: string[];
 	mcPendingPermissionRequests: Map<string, { resolve(result: PermissionRequestResult): void }>;
@@ -85,6 +86,12 @@ interface McSharedState {
 const mcStateBySessionId = new Map<string, McSharedState>();
 
 const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
+
+type MissionControlMode = 'plan' | 'autopilot' | 'interactive';
+
+interface McModeCommandData {
+	readonly mode?: string;
+}
 
 interface McPermissionResponseCommandData {
 	readonly promptId?: string;
@@ -164,6 +171,31 @@ function getMissionControlCommandIdFromEvent(event: { type?: string; data?: unkn
 	return typeof source === 'string' && source.startsWith('command-')
 		? source.slice('command-'.length)
 		: undefined;
+}
+
+function getMissionControlModeCommand(content: string): MissionControlMode | undefined {
+	const trimmedContent = content.trim();
+	if (!trimmedContent.startsWith('{')) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(trimmedContent) as McModeCommandData;
+		switch (parsed.mode) {
+			case 'plan':
+			case 'autopilot':
+			case 'interactive':
+				return parsed.mode;
+			case 'auto':
+			case 'autoApprove':
+				return 'autopilot';
+		}
+	} catch {
+	}
+	return undefined;
+}
+
+function isMissionControlCommandSource(source: SendOptions['source'] | undefined): boolean {
+	return typeof source === 'string' && source.startsWith('command-');
 }
 
 function getMissionControlSessionTitleFromEvent(event: { type?: string; data?: unknown }): string | undefined {
@@ -545,10 +577,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
 
 		try {
-			// Send the steering prompt (completes quickly) and also wait for the
-			// previous request to finish, so this promise settles only once all
-			// in-flight work is done.
-			await Promise.all([previousRequestPromise, this.sendRequestInternal(input, attachments, true, logStartTime)]);
+			if ('command' in input && input.command !== 'plan') {
+				await previousRequestPromise;
+				if (!token.isCancellationRequested) {
+					this._stream?.markdown('\n\n');
+					await this.sendRequestInternal(input, attachments, false, logStartTime);
+				}
+			} else {
+				// Send the steering prompt (completes quickly) and also wait for the
+				// previous request to finish, so this promise settles only once all
+				// in-flight work is done.
+				await Promise.all([previousRequestPromise, this.sendRequestInternal(input, attachments, true, logStartTime)]);
+			}
 			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Completed');
 		} catch (error) {
 			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
@@ -642,6 +682,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
+		const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
+		const effectivePermissionLevel = remoteMode ? (remoteMode === 'autopilot' ? 'autopilot' : undefined) : this._permissionLevel;
 		clearTodoList(this._toolsService, request.toolInvocationToken, token).catch(err => {
 			this.logService.error(err, '[CopilotCLISession] Failed to clear todo list at start of session');
 		});
@@ -709,8 +751,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const requestId = event.data.requestId;
 
 				// Auto-approve all requests when the permission level allows it.
-				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
@@ -754,8 +796,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
 						const permissionResolutionTokenSource = new CancellationTokenSource(token);
@@ -797,7 +839,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						const response = await handleExitPlanMode(
 							event.data,
 							this._sdkSession,
-							this._permissionLevel,
+							effectivePermissionLevel,
 							this._toolInvocationToken,
 							this.workspaceService,
 							this.logService,
@@ -1179,7 +1221,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			}
 		} else {
-			if ('command' in input && input.command === 'plan') {
+			const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
+			if (remoteMode) {
+				this._sdkSession.currentMode = remoteMode;
+			} else if ('command' in input && input.command === 'plan') {
 				this._sdkSession.currentMode = 'plan';
 			} else if (this._permissionLevel === 'autopilot') {
 				this._sdkSession.currentMode = 'autopilot';
@@ -1818,6 +1863,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 				state.mcProcessedCommandIds.add(cmd.id);
 				logService.info(`[CopilotCLISession] Processing MC command: ${cmd.type ?? 'user_message'} (${cmd.id})`);
+
+				const mode = getMissionControlModeCommand(cmd.content);
+				if (mode) {
+					state.mcMode = mode;
+					state.mcCompletedCommandIds.push(cmd.id);
+					continue;
+				}
 
 				switch (cmd.type) {
 					case 'abort':
