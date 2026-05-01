@@ -140,9 +140,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	 * Sidebar appearance — full-width row matching the Customizations links
 	 * (`CustomizationLinkViewItem`). Same Monaco `Button` shell, same
 	 * `.sidebar-action-button` styling, same `supportIcons` label rendering.
-	 * The trailing connect indicator floats inside the button like the
-	 * customizations count badges, so the row visually mirrors the
-	 * Customizations rows in the toolbar above.
+	 * The trailing connect indicator is rendered alongside the picker
+	 * button as a sibling control, so the row visually mirrors the
+	 * Customizations rows in the toolbar above without making the
+	 * indicator part of the picker label.
 	 */
 	private _renderSidebar(): void {
 		if (!this.element) {
