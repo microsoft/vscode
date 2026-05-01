@@ -37,14 +37,14 @@ describe('extractFilePath', () => {
 			.toBe('/nb.ipynb');
 	});
 
-	it('extracts filePath from read_file', () => {
+	it('returns undefined for read_file (read-only, not tracked in session_files)', () => {
 		expect(extractFilePath('read_file', { filePath: '/src/read.ts', startLine: 1, endLine: 10 }))
-			.toBe('/src/read.ts');
+			.toBeUndefined();
 	});
 
-	it('extracts path from list_dir', () => {
+	it('returns undefined for list_dir (read-only, not tracked in session_files)', () => {
 		expect(extractFilePath('list_dir', { path: '/src' }))
-			.toBe('/src');
+			.toBeUndefined();
 	});
 
 	it('extracts dirPath from create_directory', () => {
@@ -85,10 +85,12 @@ describe('extractFilePath', () => {
 			.toBe('/cli/new.py');
 	});
 
-	it('returns undefined for unknown tools', () => {
+	it('returns undefined for read-only and unknown tools', () => {
 		expect(extractFilePath('run_in_terminal', { command: 'ls' }))
 			.toBeUndefined();
 		expect(extractFilePath('file_search', { query: '**/*.ts' }))
+			.toBeUndefined();
+		expect(extractFilePath('view_image', { filePath: '/img.png' }))
 			.toBeUndefined();
 	});
 

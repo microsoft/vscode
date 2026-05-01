@@ -550,15 +550,15 @@ Use the session_store_sql tool to run queries. Start with a broad query, then dr
 			? `Available tables (cloud SQL syntax):
 - **sessions**: id, repository, branch, summary, agent_name (who created the session, e.g. 'VS Code', 'cli', 'Copilot Coding Agent', 'Copilot Code Review'), agent_description, created_at, updated_at (TIMESTAMP). NOTE: cwd is always NULL in the cloud. IMPORTANT: Always filter on **updated_at** (not created_at) for time ranges — some session types have created_at set to epoch zero. NOTE: summary and repository/branch may be NULL — always JOIN with turns to get actual content.
 - **turns**: session_id, turn_index, user_message, assistant_response, timestamp (TIMESTAMP). The richest and most reliable source of what actually happened — the first turn (turn_index=0) user_message is effectively the session summary. Always JOIN sessions with turns for meaningful results.
-- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used.
+- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were edited or created and which tool was used.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made.
 
 Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search.
 Always JOIN sessions with turns to get session content — do not rely on sessions.summary alone.`
 			: `Available tables (SQLite syntax — local):
 - **sessions**: id, cwd (workspace folder path), repository, branch, summary, host_type (always 'vscode' locally), agent_name (who created the session, e.g. 'GitHub Copilot Chat', 'copilotcli', 'claude'), agent_description, created_at, updated_at. NOTE: agent_name and agent_description may be empty for older sessions. summary is human-readable plain text (up to 100 chars) — may be empty for older sessions.
-- **turns**: session_id, turn_index, user_message, assistant_response (first ~1000 characters of the assistant reply, with an ellipsis if truncated — not the full response; may be empty for older sessions), timestamp. The richest source of what actually happened — always JOIN sessions with turns for meaningful results.
-- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were read/edited and which tools were used. May be empty for older sessions.
+- **turns**: session_id, turn_index, user_message, assistant_response (first ~1000 characters of the assistant reply, with … if truncated — not the full response; may be empty for older sessions), timestamp. The richest source of what actually happened — always JOIN sessions with turns for meaningful results.
+- **session_files**: session_id, file_path, tool_name, turn_index. Tracks which files were edited or created and which tool was used. May be empty for older sessions.
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index. Tracks PRs created, issues referenced, commits made. May be empty for older sessions.
 - **search_index**: FTS5 virtual table indexing conversation turns (user_message + assistant_response), checkpoint sections (overview, history, work_done, etc.), and workspace artifacts. Records have a source_type column (unindexed) distinguishing content origin. Use \`WHERE search_index MATCH 'query'\` for full-text search across all indexed session content.
 

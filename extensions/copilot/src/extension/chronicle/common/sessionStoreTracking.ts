@@ -23,7 +23,7 @@ export const MAX_ASSISTANT_RESPONSE_LENGTH = 1000;
 export const MAX_SUMMARY_LENGTH = 100;
 
 /**
- * Truncate a string to at most `maxLength` stored characters, appending '...' if truncated.
+ * Truncate a string to at most `maxLength` stored characters, appending '…' if truncated.
  * The returned value, including the truncation suffix, never exceeds `maxLength`.
  * Returns `undefined` for falsy input.
  */
@@ -34,7 +34,7 @@ export function truncateForStore(value: string | undefined, maxLength: number): 
 	if (value.length <= maxLength) {
 		return value;
 	}
-	const ellipsis = '...';
+	const ellipsis = '…';
 	if (maxLength <= ellipsis.length) {
 		return ellipsis.slice(0, maxLength);
 	}
@@ -63,7 +63,7 @@ export function extractToolArgs(span: ICompletedSpanData): Record<string, unknow
 	return {};
 }
 
-/** Tools whose arguments contain a file path being modified or read. */
+/** Tools whose arguments contain a file path being written (created or modified). */
 const FILE_TRACKING_TOOLS = new Set([
 	// VS Code model-facing tool names (from ToolName enum)
 	'replace_string_in_file',
@@ -73,9 +73,6 @@ const FILE_TRACKING_TOOLS = new Set([
 	'create_directory',
 	'edit_notebook_file',
 	'apply_patch',
-	'read_file',
-	'view_image',
-	'list_dir',
 	// CLI-agent tool names (backward compat)
 	'str_replace_editor',
 	'create',
