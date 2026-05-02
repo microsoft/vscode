@@ -92,6 +92,32 @@ function getCopilotCLISessionStateDir(userHome: string): string {
 }
 
 /**
+ * Matches the temp file names the Copilot SDK uses when spilling large tool
+ * results to disk. The SDK writes these into `os.tmpdir()` and references the
+ * path back to the model so it can read the output in a follow-up turn.
+ *
+ * Two layouts are emitted by the SDK depending on the codepath:
+ *  - `<timestamp>-copilot-tool-output-<6-char-id>.txt` (large tool result)
+ *  - `copilot-tool-output-<timestamp>-<6-char-id>.txt` (streaming output buffer)
+ *
+ * Both live directly inside `os.tmpdir()`, so we additionally require the
+ * file's parent directory to be the OS temp directory before auto-approving.
+ */
+const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-[a-z0-9]{6}|copilot-tool-output-\d{10,}-[a-z0-9]{6})\.txt$/i;
+
+function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
+	const fileUri = normalizePath(URI.file(filePath));
+	const tmpDirUri = normalizePath(URI.file(tmpDir));
+	const parentUri = normalizePath(URI.joinPath(fileUri, '..'));
+	if (!extUriBiasedIgnorePathCase.isEqual(parentUri, tmpDirUri)) {
+		return false;
+	}
+	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+	const basename = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
+	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(basename);
+}
+
+/**
  * Immutable snapshot of the active client's contributions at session creation
  * time. Used to detect when the session needs to be refreshed.
  */
@@ -587,6 +613,17 @@ export class CopilotAgentSession extends Disposable {
 			if (sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
 				return { kind: 'approve-once' };
+			}
+
+			// Auto-approve reads of large-tool-output temp files written by the
+			// Copilot SDK itself. The SDK spills oversized tool results to
+			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
+			// to read them back in a follow-up turn — no need to confirm.
+			if (request.kind === 'read' && typeof request.path === 'string') {
+				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
+					return { kind: 'approve-once' };
+				}
 			}
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);

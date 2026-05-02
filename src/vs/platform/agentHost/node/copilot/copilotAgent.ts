@@ -25,7 +25,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -44,6 +44,40 @@ import { ShellManager, createShellTools } from './copilotShellTools.js';
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+/**
+ * A session that has been requested by a client but has not yet been
+ * materialized into a real Copilot SDK session, worktree, or persisted
+ * metadata. Created by {@link CopilotAgent.createSession} when no fork is
+ * requested, and consumed by {@link CopilotAgent._materializeProvisional}
+ * on the first {@link CopilotAgent.sendMessage}.
+ *
+ * Until materialization the session occupies only an in-memory slot and
+ * an entry in the state manager. Disposing a provisional session is a
+ * cheap no-op compared with tearing down a real session — there is no
+ * worktree to remove and no on-disk state to delete.
+ *
+ * `model` absorbs {@link CopilotAgent.changeModel} updates that arrive
+ * before the first message. The latest session config (isolation / branch /
+ * etc.) is read straight from the state manager via
+ * {@link IAgentConfigurationService.getSessionConfigValues} at
+ * materialization time, so no bespoke forwarding is required for it.
+ */
+interface IProvisionalSession {
+	readonly sessionId: string;
+	readonly sessionUri: URI;
+	/**
+	 * Folder the user picked at create time. Used as both the
+	 * pre-worktree working directory and the customization directory
+	 * (plugin discovery is anchored to the original folder, not to a
+	 * worktree path that may not exist yet).
+	 */
+	readonly workingDirectory: URI;
+	/** Most recent model selection. Updated by `changeModel` while provisional. */
+	model: ModelSelection | undefined;
+	/** Project info eagerly resolved at create time so the summary renders. */
+	readonly project: IAgentSessionProjectInfo | undefined;
 }
 
 const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -201,6 +235,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
+	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
@@ -208,6 +244,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<ICopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
+	/**
+	 * Sessions created by a client but not yet materialized into a Copilot
+	 * SDK session + worktree + on-disk metadata. Materialization is deferred
+	 * until the first {@link sendMessage}, at which point the entry moves
+	 * out of this map and into {@link _sessions}. See {@link IProvisionalSession}.
+	 */
+	private readonly _provisionalSessions = new Map<string, IProvisionalSession>();
 	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
 	/**
 	 * Per-session announcement (markdown string) that should be emitted as
@@ -263,7 +306,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
-		const entry = this._sessions.get(AgentSession.id(session));
+		const sessionId = AgentSession.id(session);
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			return this._plugins.getSessionCustomizations(provisional.workingDirectory);
+		}
+		const entry = this._sessions.get(sessionId);
 		const metadata = entry ? undefined : await this._readSessionMetadata(session);
 		return this._plugins.getSessionCustomizations(entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory);
 	}
@@ -605,7 +653,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model.id}` : ''}`);
 		const client = await this._ensureClient();
 
-		// When forking, use the SDK's sessions.fork RPC.
+		// When forking, use the SDK's sessions.fork RPC. Forking from a source
+		// session that has no turns is equivalent to creating a fresh session;
+		// in that case the agent service drops `config.fork` before calling us,
+		// so we never enter this branch with a provisional source.
 		if (config?.fork) {
 			const sourceSessionId = AgentSession.id(config.fork.session);
 
@@ -614,7 +665,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._sessionSequencer.queue(sourceSessionId, async () => {
 				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${config.fork!.turnId}`);
 
-				// Ensure the source session is loaded so we can read its event IDs
 				const sourceEntry = this._sessions.get(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
 
 				// Look up the SDK event ID for the turn *after* the fork point.
@@ -663,32 +713,119 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		}
 
-		const sessionId = config?.session ? AgentSession.id(config.session) : generateUuid();
+		// Non-fork path: create a *provisional* session. The Copilot SDK
+		// session, the worktree (if any), and the on-disk metadata are all
+		// deferred until the first {@link sendMessage} via
+		// {@link _materializeProvisional}. Until then this session occupies
+		// only an in-memory slot plus a state-manager entry, so a workspace
+		// switch (or quick close) costs nothing on disk.
+		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
-		const customizationDirectory = config?.workingDirectory;
-		let seededActiveClient = false;
-		if (config?.activeClient) {
+
+		// Idempotency for already-materialized sessions: a duplicate
+		// `createSession` for a URI that has already been promoted to a real
+		// SDK session (or restored from disk) is a no-op; we return the
+		// non-provisional result so the caller doesn't re-fire `SessionAdded`.
+		// This guards against client retries that race a successful first
+		// message.
+		if (this._sessions.has(sessionId)) {
+			this._logService.info(`[Copilot] createSession is a no-op: session already materialized: ${sessionUri.toString()}`);
+			const project = await projectFromCopilotContext({ cwd: config.workingDirectory.fsPath }, this._gitService);
+			return { session: sessionUri, workingDirectory: config.workingDirectory, ...(project ? { project } : {}) };
+		}
+
+		// Idempotent: a duplicate `createSession` for a still-provisional URI
+		// (e.g. a client retried on reconnect with the same URI) keeps the
+		// existing record. We deliberately do NOT overwrite `model` or
+		// `workingDirectory`: a re-create payload from a fresh connection sends
+		// the eager-create defaults (model: undefined, the same workingDirectory),
+		// which would clobber the user's selections accumulated since the
+		// original create. The active-client / plugin sync below still runs so
+		// the new connection's claim takes effect.
+		const alreadyProvisional = this._provisionalSessions.has(sessionId);
+
+		// Seed active-client snapshot if the client claimed it eagerly. This
+		// runs identically for provisional and real sessions; the SDK side
+		// of activeClient state isn't engaged until materialization.
+		if (config.activeClient) {
 			const ac = this._getOrCreateActiveClient(sessionUri);
-			seededActiveClient = true;
 			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
 			if (config.activeClient.customizations !== undefined) {
 				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
 			}
 		}
+
+		// Compute project metadata cheaply from the original working dir.
+		// Worktrees aren't created until materialization, so the project is
+		// reported relative to the user's chosen folder.
+		const project = await projectFromCopilotContext({ cwd: config.workingDirectory.fsPath }, this._gitService);
+
+		if (!alreadyProvisional) {
+			this._provisionalSessions.set(sessionId, {
+				sessionId,
+				sessionUri,
+				workingDirectory: config.workingDirectory,
+				model: config.model,
+				project,
+			});
+		}
+
+		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
+		return { session: sessionUri, workingDirectory: config.workingDirectory, provisional: true, ...(project ? { project } : {}) };
+	}
+
+	/**
+	 * Promotes a {@link IProvisionalSession} into a real Copilot SDK session
+	 * by performing the work that {@link createSession} previously did
+	 * eagerly: resolves the working directory (creating a worktree if
+	 * `isolation === 'worktree'`), instantiates the {@link CopilotAgentSession},
+	 * persists session metadata, and notifies the {@link IAgentService} via
+	 * {@link onDidMaterializeSession} so it can fire the deferred
+	 * `sessionAdded` protocol notification.
+	 *
+	 * Called from {@link sendMessage} immediately before a turn is dispatched.
+	 * Already runs inside the session sequencer, so concurrent sends serialize
+	 * naturally.
+	 *
+	 * The latest model lives on the provisional record (kept in sync via
+	 * {@link changeModel}). The latest session config (isolation / branch /
+	 * etc.) is read straight from the state manager via
+	 * {@link IAgentConfigurationService.getSessionConfigValues} so any
+	 * `SessionConfigChanged` actions that arrived after `createSession` are
+	 * honoured without bespoke forwarding.
+	 */
+	private async _materializeProvisional(sessionId: string): Promise<CopilotAgentSession> {
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (!provisional) {
+			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
+		}
+		const client = await this._ensureClient();
+		const sessionUri = provisional.sessionUri;
+		const liveSessionConfig = this._configurationService.getSessionConfigValues(sessionUri.toString());
+
+		const materializedConfig: IAgentCreateSessionConfig = {
+			provider: this.id,
+			session: sessionUri,
+			workingDirectory: provisional.workingDirectory,
+			model: provisional.model,
+			config: liveSessionConfig,
+		};
+
+		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
-		const workingDirectory = await this._resolveSessionWorkingDirectory(config, sessionId);
+		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const raw = await client.createSession({
-				model: config?.model?.id,
-				reasoningEffort: this._getReasoningEffort(config?.model),
+				model: provisional.model?.id,
+				reasoningEffort: this._getReasoningEffort(provisional.model),
 				sessionId,
 				streaming: true,
 				workingDirectory: workingDirectory?.fsPath,
-				...await sessionConfig(callbacks),
+				...await sessionConfigBuilder(callbacks),
 			});
 			return new CopilotSessionWrapper(raw);
 		};
@@ -698,19 +835,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession = this._createAgentSession(factory, sessionId, shellManager, workingDirectory, customizationDirectory, snapshot);
 			await agentSession.initializeSession();
 		} catch (error) {
-			if (seededActiveClient) {
-				this._activeClients.delete(sessionUri);
-			}
 			await this._removeCreatedWorktree(sessionId);
 			throw error;
 		}
-		const session = agentSession.sessionUri;
-		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
+
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
-		// Persist model, working directory, and project so we can recreate the
-		// session if the SDK loses it and avoid rediscovering git metadata.
-		await this._storeSessionMetadata(agentSession.sessionUri, config?.model, workingDirectory, customizationDirectory, project, true);
-		return { session, workingDirectory, ...(project ? { project } : {}) };
+
+		this._provisionalSessions.delete(sessionId);
+		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
+
+		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
+		this._onDidMaterializeSession.fire({ session: sessionUri, workingDirectory, project });
+		return agentSession;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -809,9 +945,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
 
+			// First message on a provisional session: materialize the SDK
+			// session, worktree, and on-disk metadata before continuing.
+			let entry: CopilotAgentSession | undefined;
+			if (this._provisionalSessions.has(sessionId)) {
+				entry = await this._materializeProvisional(sessionId);
+			} else {
+				entry = this._sessions.get(sessionId);
+			}
+
 			// If the active client's config changed (tools or plugins),
 			// dispose this session so it gets resumed with the updated config.
-			let entry = this._sessions.get(sessionId);
 			const activeClient = this._activeClients.get(session);
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
@@ -921,6 +1065,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const sessionId = AgentSession.id(session);
+		// Provisional sessions have no SDK history yet.
+		if (this._provisionalSessions.has(sessionId)) {
+			return [];
+		}
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
 			return undefined;
@@ -1050,6 +1198,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async truncateSession(session: URI, turnId?: string): Promise<void> {
 		const sessionId = AgentSession.id(session);
+		if (this._provisionalSessions.has(sessionId)) {
+			return;
+		}
 		await this._sessionSequencer.queue(sessionId, async () => {
 			this._logService.info(`[Copilot:${sessionId}] Truncating session${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
@@ -1080,6 +1231,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async changeModel(session: URI, model: ModelSelection): Promise<void> {
 		const sessionId = AgentSession.id(session);
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			provisional.model = model;
+			return;
+		}
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
 			await entry.setModel(model.id, this._getReasoningEffort(model));
@@ -1117,10 +1273,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Returns true if this provider owns the given session ID.
+	 * Returns true if this provider owns the given session ID. Includes
+	 * provisional sessions that have not yet been materialized.
 	 */
 	hasSession(session: URI): boolean {
-		return this._sessions.has(AgentSession.id(session));
+		const sessionId = AgentSession.id(session);
+		return this._sessions.has(sessionId) || this._provisionalSessions.has(sessionId);
 	}
 
 	// ---- helpers ------------------------------------------------------------
@@ -1161,6 +1319,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
+		// Provisional sessions have no SDK session, no worktree, and no
+		// on-disk metadata — drop the in-memory record and clean up the
+		// active-client snapshot. The state-manager entry is removed by the
+		// caller via {@link IAgentService.disposeSession}.
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			this._provisionalSessions.delete(sessionId);
+			this._activeClients.delete(provisional.sessionUri);
+			return;
+		}
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
 			try {

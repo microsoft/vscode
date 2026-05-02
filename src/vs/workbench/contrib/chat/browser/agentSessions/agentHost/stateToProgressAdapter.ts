@@ -95,11 +95,35 @@ export function getTerminalContentUri(content: ToolResultContent[] | undefined):
 }
 
 /**
- * Converts completed turns from the protocol state into session history items.
+ * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
+ * the chat layer's namespaced language-model id and a human-readable display
+ * name. Both halves are independent: the id flows onto request history items
+ * (so the input picker shows the model that ran), while the display name
+ * flows onto response history items as `details` (so the response footer
+ * shows the model that produced it).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, modelId?: string): IChatSessionHistoryItem[] {
+export interface TurnModelLookup {
+	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
+	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Returns the human-readable display name, or undefined if unknown. */
+	toModelDisplayName(rawModelId: string | undefined): string | undefined;
+}
+
+/**
+ * Converts completed turns from the protocol state into session history items.
+ *
+ * Per turn, prefers `turn.usage?.model` so each request/response pair shows
+ * the model that actually ran, even if the user changed models mid-session.
+ * The `lookup` callback is responsible for any session-level fallback (e.g.
+ * `summary.model?.id` when usage hasn't reported a model yet).
+ */
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
+		const rawModelId = turn.usage?.model;
+		const modelId = lookup?.toLanguageModelId(rawModelId);
+		const modelName = lookup?.toModelDisplayName(rawModelId);
+
 		// Request
 		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId });
 
@@ -141,7 +165,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
 		}
 
-		history.push({ type: 'response', parts, participant: participantId });
+		history.push({ type: 'response', parts, participant: participantId, details: modelName });
 	}
 	return history;
 }

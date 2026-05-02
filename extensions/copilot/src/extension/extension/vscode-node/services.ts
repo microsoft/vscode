@@ -292,6 +292,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingExporterType: otelSettings.get<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
 		settingOtlpEndpoint: otelSettings.get<string>('otlpEndpoint'),
 		settingCaptureContent: otelSettings.get<boolean>('captureContent'),
+		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',

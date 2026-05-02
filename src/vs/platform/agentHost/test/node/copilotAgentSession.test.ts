@@ -201,6 +201,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
+		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: () => undefined,
 		updateRootConfig: () => { /* no-op */ },
@@ -210,6 +211,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
+		tmpDir: URI.file('/mock-tmp'),
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
@@ -446,6 +448,76 @@ suite('CopilotAgentSession', () => {
 					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
 				}
 			}
+		});
+
+		test('auto-approves read of Copilot SDK large-tool-output temp files', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			// Layout 1: <timestamp>-copilot-tool-output-<id>.txt
+			const result1 = await session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', '1730000000000-copilot-tool-output-abc123.txt'),
+				toolCallId: 'tc-tool-output-1',
+			});
+			assert.strictEqual(result1.kind, 'approve-once');
+
+			// Layout 2: copilot-tool-output-<timestamp>-<id>.txt
+			const result2 = await session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-2',
+			});
+			assert.strictEqual(result2.kind, 'approve-once');
+
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve tool-output-named files outside tmpdir', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/some/other/dir', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-outside',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tool-output-outside', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('does not auto-approve unrelated files inside tmpdir', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', 'something-else.txt'),
+				toolCallId: 'tc-tmp-other',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tmp-other', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('does not auto-approve write to a tool-output temp path', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'write',
+				fileName: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-write',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tool-output-write', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('write permission outside working directory fires tool_ready', async () => {

@@ -7,7 +7,7 @@ import { raceTimeout, disposableTimeout } from '../../../../base/common/async.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -15,6 +15,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -23,8 +25,9 @@ import { readSessionGitState, StateComponents, type ISessionGitState } from '../
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
@@ -282,6 +285,317 @@ export class AgentHostSessionAdapter implements ISession {
 }
 
 // ============================================================================
+// NewSession — bundles the in-flight new-session state
+// ============================================================================
+
+/**
+ * Inputs needed to construct a {@link NewSession}.
+ */
+interface INewSessionConstructionContext {
+	readonly workspace: ISessionWorkspace;
+	readonly sessionType: ISessionType;
+	readonly providerId: string;
+	readonly icon: ThemeIcon;
+	readonly resourceScheme: string;
+	readonly authenticationPending: IObservable<boolean>;
+	readonly logService: ILogService;
+	/**
+	 * Optional initial config values to seed into the new session before its
+	 * first {@link NewSession.resolveConfig} round-trip. Used to forward
+	 * `chat.permissions.default` into the agent host's `autoApprove` slot so
+	 * the picker reflects the user's preference immediately.
+	 */
+	readonly initialConfigValues?: Record<string, unknown>;
+}
+
+/**
+ * Bundles the at-most-one in-flight "new session" — the session being
+ * composed in the new-chat view before the first message is sent.
+ *
+ * Encapsulates:
+ *  - the `ISession` skeleton + its observables (status, modelId, loading)
+ *  - the user's selected model (read by `sendAndCreateChat`)
+ *  - the resolved session config + a stale-request guard
+ *  - the eagerly created backend session (URI + subscription) that lets the
+ *    chat handler skip its legacy `createSession`-on-first-message round-trip
+ *
+ * Lifecycle:
+ *  - {@link eagerCreate} fires `connection.createSession` then opens a state
+ *    subscription. Wire ordering matters — see the comment in the body.
+ *  - {@link graduate} releases the subscription without firing
+ *    `disposeSession`; called when the session successfully transitions into
+ *    a real running session via `sendAndCreateChat`.
+ *  - {@link Disposable.dispose}/`dispose` releases the subscription **and**
+ *    fires `connection.disposeSession`; called when the user abandons the
+ *    new session (workspace switch, send failure, etc.).
+ */
+class NewSession extends Disposable {
+
+	readonly session: ISession;
+	readonly sessionId: string;
+	readonly agentProvider: string;
+	readonly workspaceUri: URI;
+
+	private readonly _status: ISettableObservable<SessionStatus>;
+	private readonly _modelId: ISettableObservable<string | undefined>;
+	private readonly _loading: ISettableObservable<boolean>;
+	private _selectedModelId: string | undefined;
+
+	/**
+	 * Latest resolved config. Replaces what used to live in `_newSessionConfigs`.
+	 * `undefined` indicates the most recent {@link resolveConfig} failed and no
+	 * cached values are usable.
+	 */
+	private _config: ResolveSessionConfigResult | undefined = { schema: { type: 'object', properties: {} }, values: {} };
+
+	/**
+	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
+	 * increments the counter and only writes its result back if its sequence
+	 * is still the latest one. Bumped on dispose so any pending resolve
+	 * discards itself.
+	 */
+	private _configRequestSeq = 0;
+
+	/** Backend session URI, set the moment {@link eagerCreate} starts. */
+	private _backendUri: URI | undefined;
+	/** Connection used to create the backend session, captured for `disposeSession` on tear-down. */
+	private _connection: IAgentConnection | undefined;
+	/** Held state subscription. Set after the wire `createSession` resolves. */
+	private _subscription: IReference<unknown> | undefined;
+
+	private readonly _logService: ILogService;
+	private readonly _providerId: string;
+
+	constructor(ctx: INewSessionConstructionContext) {
+		super();
+		const workspaceUri = ctx.workspace.repositories[0]?.uri;
+		if (!workspaceUri) {
+			throw new Error('Workspace has no repository URI');
+		}
+		this.workspaceUri = workspaceUri;
+		this.agentProvider = ctx.sessionType.id;
+		this._providerId = ctx.providerId;
+		this._logService = ctx.logService;
+
+		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
+		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
+		const title = observableValue<string>(this, '');
+		const updatedAt = observableValue(this, new Date());
+		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
+		this._modelId = observableValue<string | undefined>(this, undefined);
+		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
+		const isArchived = observableValue(this, false);
+		const isRead = observableValue(this, true);
+		const description = observableValue<IMarkdownString | undefined>(this, undefined);
+		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
+		this._loading = observableValue(this, true);
+		const createdAt = new Date();
+
+		const mainChat: IChat = {
+			resource, createdAt, title, updatedAt,
+			status: this._status,
+			changes,
+			modelId: this._modelId,
+			mode, isArchived, isRead, description, lastTurnEnd,
+		};
+		const authPending = ctx.authenticationPending;
+		const loading = this._loading;
+		this.session = {
+			sessionId: `${ctx.providerId}:${resource.toString()}`,
+			resource,
+			providerId: ctx.providerId,
+			sessionType: ctx.sessionType.id,
+			icon: ctx.icon,
+			createdAt,
+			workspace: observableValue(this, ctx.workspace),
+			title,
+			updatedAt,
+			status: this._status,
+			changes,
+			modelId: this._modelId,
+			mode,
+			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
+			isArchived,
+			isRead,
+			description,
+			lastTurnEnd,
+			gitHubInfo: observableValue(this, undefined),
+			mainChat,
+			chats: constObservable([mainChat]),
+			capabilities: { supportsMultipleChats: false },
+		};
+		this.sessionId = this.session.sessionId;
+
+		if (ctx.initialConfigValues) {
+			this._config = { schema: { type: 'object', properties: {} }, values: { ...ctx.initialConfigValues } };
+		}
+	}
+
+	// -- Picker mutations ----------------------------------------------------
+
+	setSelectedModelId(modelId: string): void {
+		this._selectedModelId = modelId;
+		this._modelId.set(modelId, undefined);
+	}
+
+	getSelectedModelId(): string | undefined { return this._selectedModelId; }
+	clearSelectedModelId(): void { this._selectedModelId = undefined; }
+
+	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
+
+	// -- Config --------------------------------------------------------------
+
+	getConfig(): ResolveSessionConfigResult | undefined { return this._config; }
+	getConfigValues(): Record<string, unknown> | undefined { return this._config?.values; }
+
+	/**
+	 * Optimistically merges a single property into the cached config. Used by
+	 * the picker to update local state before the next {@link resolveConfig}
+	 * round-trip completes.
+	 */
+	setConfigValue(property: string, value: unknown): void {
+		const current = this._config?.values ?? {};
+		this._config = { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } };
+	}
+
+	/**
+	 * Re-resolves the session config against the agent host using the
+	 * currently cached values. Ignores its own response if a newer call
+	 * superseded it. Returns `true` if the config was applied (i.e. this
+	 * call was not stale by the time the response arrived). On failure, the
+	 * cached config is cleared so {@link getConfig} returns `undefined`.
+	 */
+	async resolveConfig(connection: IAgentConnection): Promise<boolean> {
+		const seq = ++this._configRequestSeq;
+		try {
+			const result = await connection.resolveSessionConfig({
+				provider: this.agentProvider,
+				workingDirectory: this.workspaceUri,
+				config: this._config?.values,
+			});
+			if (seq !== this._configRequestSeq) {
+				return false;
+			}
+			this._config = result;
+			return true;
+		} catch {
+			if (seq !== this._configRequestSeq) {
+				return false;
+			}
+			this._config = undefined;
+			return true;
+		}
+	}
+
+	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined) {
+		return connection.sessionConfigCompletions({
+			provider: this.agentProvider,
+			workingDirectory: this.workspaceUri,
+			config: this._config?.values,
+			property,
+			query,
+		});
+	}
+
+	// -- Backend session lifecycle -------------------------------------------
+
+	/**
+	 * Eagerly create the session on the agent host so the chat handler can
+	 * skip its legacy `createSession`-on-first-message round-trip.
+	 *
+	 * Wire ordering matters: we must `createSession` *before* opening the
+	 * subscription. Subscribing first would race the wire send — the server
+	 * receives the `subscribe` before the `createSession` and rejects it as
+	 * `AHP_SESSION_NOT_FOUND`, leaving the client subscription in an
+	 * unrecoverable error state. The session handler would then fall back
+	 * to its legacy create-and-subscribe path on the user's first send,
+	 * issuing a duplicate `createSession`.
+	 *
+	 * If the user switches workspaces or graduates this session before the
+	 * `createSession` round-trip completes, this object will have been
+	 * disposed (and `_backendUri` cleared) — the bail-out check below skips
+	 * opening a stale subscription.
+	 *
+	 * Failures are non-fatal: the legacy first-message path in
+	 * `AgentHostSessionHandler._invokeAgent` re-issues `createSession` if
+	 * no session state exists at send time.
+	 */
+	eagerCreate(connection: IAgentConnection): void {
+		const backendUri = AgentSession.uri(this.agentProvider, this.session.resource.path.substring(1));
+		this._backendUri = backendUri;
+		this._connection = connection;
+
+		void (async () => {
+			try {
+				await connection.createSession({
+					provider: this.agentProvider,
+					session: backendUri,
+					workingDirectory: this.workspaceUri,
+				});
+			} catch (err) {
+				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
+				// Clear backend bookkeeping so a later `dispose()` doesn't
+				// fire `disposeSession` for a session the agent host never
+				// created. Only do this if we're still the current attempt
+				// (the caller may have already overwritten these fields by
+				// disposing this NewSession and constructing a new one).
+				if (this._backendUri?.toString() === backendUri.toString()) {
+					this._backendUri = undefined;
+					this._connection = undefined;
+				}
+				return;
+			}
+
+			// Bail if the user switched workspaces, graduated this session,
+			// or otherwise disposed it while the round-trip was in flight.
+			if (this._backendUri?.toString() !== backendUri.toString()) {
+				return;
+			}
+
+			// Hold a state subscription for our lifetime so the agent host's
+			// empty-session GC sees a non-zero subscriber count. The session
+			// handler refcounts the same subscription via `getSubscription`
+			// when chat content opens, so when we release this ref on
+			// graduation the wire-level refcount stays positive.
+			this._subscription = connection.getSubscription(StateComponents.Session, backendUri);
+		})();
+	}
+
+	/**
+	 * Release the backend subscription without firing `disposeSession`.
+	 * Used on the success path in `sendAndCreateChat` when the session has
+	 * graduated into a real running session.
+	 */
+	graduate(): void {
+		this._subscription?.dispose();
+		this._subscription = undefined;
+		this._backendUri = undefined;
+		this._connection = undefined;
+		this._configRequestSeq++;
+	}
+
+	override dispose(): void {
+		// Bump the seq so any in-flight resolveConfig discards itself.
+		this._configRequestSeq++;
+
+		this._subscription?.dispose();
+		this._subscription = undefined;
+
+		const oldUri = this._backendUri;
+		const connection = this._connection;
+		this._backendUri = undefined;
+		this._connection = undefined;
+		if (oldUri && connection) {
+			connection.disposeSession(oldUri).catch(err => {
+				this._logService.warn(`[${this._providerId}] Failed to dispose eager backend session ${oldUri.toString()}: ${err}`);
+			});
+		}
+		super.dispose();
+	}
+}
+
+// ============================================================================
 // BaseAgentHostSessionsProvider — shared base for local and remote providers
 // ============================================================================
 
@@ -338,16 +652,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _pendingSession: ISession | undefined;
 
-	protected _currentNewSession: ISession | undefined;
-	protected _currentNewSessionStatus: ISettableObservable<SessionStatus> | undefined;
-	protected _currentNewSessionModelId: ISettableObservable<string | undefined> | undefined;
-	protected _currentNewSessionLoading: ISettableObservable<boolean> | undefined;
-	protected _selectedModelId: string | undefined;
-
-	protected readonly _newSessionWorkspaces = new Map<string, URI>();
-	protected readonly _newSessionConfigs = new Map<string, ResolveSessionConfigResult>();
-	protected readonly _newSessionAgentProviders = new Map<string, string>();
-	protected readonly _newSessionConfigRequests = new Map<string, number>();
+	/**
+	 * The at-most-one in-flight new session — the session being composed in
+	 * the new-chat view before the first message is sent. See
+	 * {@link NewSession} for the encapsulated state and lifecycle.
+	 *
+	 * Held as a {@link MutableDisposable} so reassigning or clearing the
+	 * field automatically disposes the previous instance, and the field is
+	 * cleaned up when the provider itself is disposed.
+	 */
+	private readonly _newSessionRef = this._register(new MutableDisposable<NewSession>());
+	protected get _newSession(): NewSession | undefined { return this._newSessionRef.value; }
+	protected set _newSession(value: NewSession | undefined) { this._newSessionRef.value = value; }
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
@@ -381,6 +697,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IChatService protected readonly _chatService: IChatService,
 		@IChatWidgetService protected readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService protected readonly _languageModelsService: ILanguageModelsService,
+		@IConfigurationService protected readonly _baseConfigurationService: IConfigurationService,
+		@ILogService protected readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -498,8 +816,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getSessionByResource(resource: URI): ISession | undefined {
-		if (this._currentNewSession?.resource.toString() === resource.toString()) {
-			return this._currentNewSession;
+		if (this._newSession?.session.resource.toString() === resource.toString()) {
+			return this._newSession.session;
 		}
 
 		if (this._pendingSession?.resource.toString() === resource.toString()) {
@@ -530,15 +848,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error('Workspace has no repository URI');
 		}
 
-		if (this._currentNewSession) {
-			this._clearNewSessionConfig(this._currentNewSession.sessionId);
-		}
-		this._currentNewSession = undefined;
-		this._selectedModelId = undefined;
-		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionLoading = undefined;
-		this._currentNewSessionStatus = undefined;
-
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
 			throw new Error(this._noAgentsErrorMessage());
@@ -550,7 +859,59 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		return this._createNewSessionForType(workspace, sessionType);
+
+		// Tear down any previous in-flight new session (workspace switch
+		// or back-to-back create). The MutableDisposable setter below
+		// disposes the previous instance, which fires `disposeSession`
+		// against the eagerly created agent-host record so it's freed
+		// immediately rather than waiting for the server-side
+		// empty-session GC.
+		const newSession = new NewSession({
+			workspace,
+			sessionType,
+			providerId: this.id,
+			icon: this.icon,
+			resourceScheme: this.resourceSchemeForProvider(sessionType.id),
+			authenticationPending: this.authenticationPending,
+			logService: this._logService,
+			initialConfigValues: this._initialNewSessionConfig(),
+		});
+		this._newSession = newSession;
+		this._onDidChangeSessionConfig.fire(newSession.sessionId);
+
+		// Kick off the initial config resolve and the eager backend session
+		// in parallel. Both are non-blocking; failures are surfaced through
+		// the session's loading observable.
+		const connection = this.connection;
+		if (connection) {
+			void this._refreshNewSessionConfig(newSession);
+			newSession.eagerCreate(connection);
+		} else {
+			newSession.setLoading(false);
+		}
+		return newSession.session;
+	}
+
+	/**
+	 * Re-resolve the session config against the agent host and pulse
+	 * {@link _onDidChangeSessionConfig}. The {@link NewSession} owns its own
+	 * stale-request guard so back-to-back calls are safe.
+	 */
+	private async _refreshNewSessionConfig(session: NewSession): Promise<void> {
+		const connection = this.connection;
+		if (!connection) {
+			session.setLoading(false);
+			return;
+		}
+		session.setLoading(true);
+		const applied = await session.resolveConfig(connection);
+		// Bail if a newer call superseded us — its own pulse will take over.
+		if (!applied || this._newSession !== session) {
+			return;
+		}
+		const config = session.getConfig();
+		session.setLoading(config !== undefined && !isSessionConfigComplete(config));
+		this._onDidChangeSessionConfig.fire(session.sessionId);
 	}
 
 	/** Subclass hook for additional pre-create checks (e.g. remote requires connection). */
@@ -561,68 +922,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return localize('noAgents', "Agent host has not advertised any agents yet.");
 	}
 
-	private _createNewSessionForType(workspace: ISessionWorkspace, sessionType: ISessionType): ISession {
-		const workspaceUri = workspace.repositories[0]?.uri;
-		if (!workspaceUri) {
-			throw new Error('Workspace has no repository URI');
+	/**
+	 * Initial session-config values applied to a brand-new agent-host session
+	 * before its schema is resolved. The user-facing `chat.permissions.default`
+	 * setting seeds the `autoApprove` property so that agents which advertise
+	 * the well-known auto-approve enum (`default | autoApprove | autopilot`)
+	 * pick it up on their first `resolveSessionConfig` round-trip. Agents that
+	 * do not advertise `autoApprove` simply ignore the unknown key.
+	 *
+	 * If enterprise policy disables global auto-approval
+	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
+	 * clamped to `default` so the agent host never starts in an elevated
+	 * permission level the user is not allowed to pick.
+	 */
+	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
+		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof configured !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			return undefined;
 		}
-
-		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
-		const resource = URI.from({ scheme: resourceScheme, path: `/${generateUuid()}` });
-		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
-		const title = observableValue(this, '');
-		const updatedAt = observableValue(this, new Date());
-		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
-		const modelId = observableValue<string | undefined>(this, undefined);
-		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
-		const isArchived = observableValue(this, false);
-		const isRead = observableValue(this, true);
-		const description = observableValue<IMarkdownString | undefined>(this, undefined);
-		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
-		const loading = observableValue(this, true);
-		const createdAt = new Date();
-
-		const mainChat: IChat = {
-			resource, createdAt, title, updatedAt, status,
-			changes, modelId, mode, isArchived, isRead, description, lastTurnEnd,
-		};
-
-		const authPending = this.authenticationPending;
-		const session: ISession = {
-			sessionId: `${this.id}:${resource.toString()}`,
-			resource,
-			providerId: this.id,
-			sessionType: sessionType.id,
-			icon: this.icon,
-			createdAt,
-			workspace: observableValue(this, workspace),
-			title,
-			updatedAt,
-			status,
-			changes,
-			modelId,
-			mode,
-			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
-			isArchived,
-			isRead,
-			description,
-			lastTurnEnd,
-			gitHubInfo: observableValue(this, undefined),
-			mainChat,
-			chats: constObservable([mainChat]),
-			capabilities: { supportsMultipleChats: false },
-		};
-		this._currentNewSession = session;
-		this._currentNewSessionStatus = status;
-		this._currentNewSessionModelId = modelId;
-		this._currentNewSessionLoading = loading;
-		const agentProvider = sessionType.id;
-		this._newSessionWorkspaces.set(session.sessionId, workspaceUri);
-		this._newSessionAgentProviders.set(session.sessionId, agentProvider);
-		this._newSessionConfigs.set(session.sessionId, { schema: { type: 'object', properties: {} }, values: {} });
-		this._onDidChangeSessionConfig.fire(session.sessionId);
-		this._resolveSessionConfig(session.sessionId, agentProvider, workspaceUri, undefined);
-		return session;
+		const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const value = policyRestricted ? 'default' : configured;
+		return { [SessionConfigKey.AutoApprove]: value };
 	}
 
 	// -- Dynamic session config ----------------------------------------------
@@ -634,9 +954,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// that weren't created in this window. Each query bumps the idle timer
 		// so the subscription stays alive while the picker (or any other UI
 		// surface) is repeatedly reading the running config.
-		const newSessionConfig = this._newSessionConfigs.get(sessionId);
-		if (newSessionConfig) {
-			return newSessionConfig;
+		if (this._newSession?.sessionId === sessionId) {
+			return this._newSession.getConfig();
 		}
 		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
@@ -644,13 +963,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
 		// New session (pre-creation): re-resolve the full config schema
-		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
-		if (workingDirectory) {
-			const current = this._newSessionConfigs.get(sessionId)?.values ?? {};
-			this._newSessionConfigs.set(sessionId, { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
-			this._setNewSessionLoading(sessionId, true);
+		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
+		if (newSession) {
+			newSession.setConfigValue(property, value);
 			this._onDidChangeSessionConfig.fire(sessionId);
-			await this._resolveSessionConfig(sessionId, this._getAgentProviderForSession(sessionId), workingDirectory, { ...current, [property]: value });
+			await this._refreshNewSessionConfig(newSession);
 			return;
 		}
 
@@ -731,27 +1048,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async getSessionConfigCompletions(sessionId: string, property: string, query?: string) {
-		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
+		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
 		const connection = this.connection;
-		if (!workingDirectory || !connection) {
+		if (!newSession || !connection) {
 			return [];
 		}
-		const result = await connection.sessionConfigCompletions({
-			provider: this._getAgentProviderForSession(sessionId),
-			workingDirectory,
-			config: this._newSessionConfigs.get(sessionId)?.values,
-			property,
-			query,
-		});
+		const result = await newSession.getConfigCompletions(connection, property, query);
 		return result.items;
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
-		return this._newSessionConfigs.get(sessionId)?.values;
+		return this._newSession?.sessionId === sessionId ? this._newSession.getConfigValues() : undefined;
 	}
 
 	clearSessionConfig(sessionId: string): void {
-		this._clearNewSessionConfig(sessionId);
+		if (this._newSession?.sessionId === sessionId) {
+			// Setter on the MutableDisposable handles disposal of the old value.
+			this._newSession = undefined;
+		}
 	}
 
 	// -- Root (agent host) Config --------------------------------------------
@@ -818,9 +1132,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Model selection ------------------------------------------------------
 
 	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession?.sessionId === sessionId) {
-			this._selectedModelId = modelId;
-			this._currentNewSessionModelId?.set(modelId, undefined);
+		if (this._newSession?.sessionId === sessionId) {
+			this._newSession.setSelectedModelId(modelId);
 			return;
 		}
 
@@ -910,19 +1223,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 
-		const session = this._currentNewSession;
-		if (!session || session.sessionId !== chatId) {
+		const newSession = this._newSession;
+		if (!newSession || newSession.sessionId !== chatId) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
+		const sessionResource = newSession.session.resource;
+		const selectedModelId = newSession.getSelectedModelId();
 
 		const { query, attachedContext } = options;
 
-		const sessionType = session.resource.scheme;
+		const sessionType = sessionResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
-			userSelectedModelId: this._selectedModelId,
+			userSelectedModelId: selectedModelId,
 			modeInfo: {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
@@ -938,19 +1253,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Open chat widget — getOrCreateChatSession will wait for the session
 		// handler to become available via canResolveChatSession internally.
-		await this._chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		const chatWidget = await this._chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+		await this._chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
+		const chatWidget = await this._chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget) {
 			throw new Error(`[${this.id}] Failed to open chat widget`);
 		}
 
 		// Load session model and apply selected model
-		const modelRef = await this._chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (modelRef) {
-			if (this._selectedModelId) {
-				const languageModel = this._languageModelsService.lookupLanguageModel(this._selectedModelId);
+			if (selectedModelId) {
+				const languageModel = this._languageModelsService.lookupLanguageModel(selectedModelId);
 				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: this._selectedModelId, metadata: languageModel } });
+					modelRef.object.inputModel.setState({ selectedModel: { identifier: selectedModelId, metadata: languageModel } });
 				}
 			}
 			modelRef.dispose();
@@ -963,43 +1278,47 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._ensureSessionCache();
 		const existingKeys = new Set(this._sessionCache.keys());
 
-		const result = await this._chatService.sendRequest(session.resource, query, sendOptions);
+		const result = await this._chatService.sendRequest(sessionResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
 
-		this._currentNewSessionStatus?.set(SessionStatus.InProgress, undefined);
-		const newSession = session;
-		this._pendingSession = newSession;
-		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
-
-		this._selectedModelId = undefined;
-		this._currentNewSessionStatus = undefined;
-		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionLoading = undefined;
+		newSession.setStatus(SessionStatus.InProgress);
+		newSession.clearSelectedModelId();
+		const skeleton = newSession.session;
+		this._pendingSession = skeleton;
+		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
 		try {
 			const committedSession = await this._waitForNewSession(existingKeys);
 			if (committedSession) {
-				this._preserveNewSessionConfig(chatId, committedSession.sessionId);
-				this._currentNewSession = undefined;
-				this._currentNewSessionModelId = undefined;
-				this._currentNewSessionLoading = undefined;
-				this._clearNewSessionConfig(chatId);
-				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
+				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				// Session graduated: release the eager subscription without
+				// firing `disposeSession`. The session handler has already
+				// acquired its own subscription (chat widget was opened
+				// earlier), so the wire-level refcount stays positive.
+				newSession.graduate();
+				if (this._newSession === newSession) {
+					this._newSession = undefined;
+				}
+				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
 		} catch {
-			// Connection lost or timeout — clean up
+			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
 			this._pendingSession = undefined;
 		}
 
-		this._currentNewSession = undefined;
-		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionLoading = undefined;
-		this._clearNewSessionConfig(chatId);
-		return newSession;
+		// On failure: drop the eager subscription without firing
+		// `disposeSession`. The server-side empty-session GC will clean up
+		// the provisional session if it remains; we lean on the GC rather
+		// than risking a double-dispose race on transient failures.
+		newSession.graduate();
+		if (this._newSession === newSession) {
+			this._newSession = undefined;
+		}
+		return skeleton;
 	}
 
 	/** Localized error message when sendAndCreateChat is invoked without a connection. Subclasses can override. */
@@ -1009,42 +1328,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Session config plumbing ---------------------------------------------
 
-	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, unknown> | undefined): Promise<void> {
-		const connection = this.connection;
-		if (!connection) {
-			this._setNewSessionLoading(sessionId, false);
-			return;
-		}
-		const request = (this._newSessionConfigRequests.get(sessionId) ?? 0) + 1;
-		this._newSessionConfigRequests.set(sessionId, request);
-		try {
-			const result = await connection.resolveSessionConfig({
-				provider: agentProvider,
-				workingDirectory,
-				config,
-			});
-			if (this._newSessionConfigRequests.get(sessionId) !== request) {
-				return;
-			}
-			this._newSessionConfigs.set(sessionId, result);
-			this._setNewSessionLoading(sessionId, !isSessionConfigComplete(result));
-		} catch {
-			if (this._newSessionConfigRequests.get(sessionId) !== request) {
-				return;
-			}
-			this._newSessionConfigs.delete(sessionId);
-			this._setNewSessionLoading(sessionId, false);
-		}
-		this._onDidChangeSessionConfig.fire(sessionId);
-	}
-
-	protected _clearNewSessionConfig(sessionId: string): void {
-		this._newSessionWorkspaces.delete(sessionId);
-		this._newSessionConfigs.delete(sessionId);
-		this._newSessionAgentProviders.delete(sessionId);
-		this._newSessionConfigRequests.delete(sessionId);
-	}
-
 	/**
 	 * When a session transitions from untitled (new) to committed (running),
 	 * carry over the full resolved config (schema + values) so consumers like
@@ -1052,22 +1335,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (`isolation`, `branch`, …) through a replace dispatch. Mutable-vs-readonly
 	 * behavior is still driven off the per-property `sessionMutable` flag.
 	 */
-	private _preserveNewSessionConfig(oldSessionId: string, newSessionId: string): void {
-		const config = this._newSessionConfigs.get(oldSessionId);
-		if (!config) {
-			return;
-		}
-		if (Object.keys(config.schema.properties).length > 0) {
-			this._runningSessionConfigs.set(newSessionId, {
+	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string): void {
+		const config = newSession.getConfig();
+		if (config && Object.keys(config.schema.properties).length > 0) {
+			this._runningSessionConfigs.set(committedSessionId, {
 				schema: { type: 'object', properties: { ...config.schema.properties } },
 				values: { ...config.values },
 			});
-		}
-	}
-
-	private _setNewSessionLoading(sessionId: string, loading: boolean): void {
-		if (this._currentNewSession?.sessionId === sessionId) {
-			this._currentNewSessionLoading?.set(loading, undefined);
 		}
 	}
 
@@ -1079,14 +1353,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			return undefined;
 		}
-	}
-
-	private _getAgentProviderForSession(sessionId: string): string {
-		const provider = this._newSessionAgentProviders.get(sessionId);
-		if (!provider) {
-			throw new Error(`No agent provider tracked for new session: ${sessionId}`);
-		}
-		return provider;
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------

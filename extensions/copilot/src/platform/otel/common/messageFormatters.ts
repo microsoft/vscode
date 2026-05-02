@@ -10,21 +10,27 @@
  */
 
 /**
- * Maximum size (in characters) for a single OTel span/log attribute value.
- * Aligned with common backend limits (Jaeger 64KB, Tempo 100KB).
- * Matches gemini-cli's approach of capping content to prevent OTLP batch failures.
- */
-const MAX_OTEL_ATTRIBUTE_LENGTH = 64_000;
-
-/**
  * Truncate a string to fit within OTel attribute size limits.
  * Returns the original string if within bounds, otherwise truncates with a suffix.
+ *
+ * @param value The string to truncate.
+ * @param maxLength The maximum length in characters. A value of `0` (the
+ * default) or any non-positive number disables truncation entirely, matching
+ * the OTel spec's `AttributeValueLengthLimit` default of `Infinity` for string
+ * attributes (see https://opentelemetry.io/docs/specs/otel/common/#attribute-limits).
+ * Production call sites should pass `OTelConfig.maxAttributeSizeChars` so
+ * users can configure truncation to match their backend's per-attribute limit.
  */
-export function truncateForOTel(value: string, maxLength: number = MAX_OTEL_ATTRIBUTE_LENGTH): string {
-	if (value.length <= maxLength) {
+export function truncateForOTel(value: string, maxLength: number = 0): string {
+	if (maxLength <= 0 || value.length <= maxLength) {
 		return value;
 	}
 	const suffix = `...[truncated, original ${value.length} chars]`;
+	// If maxLength is too small to fit the suffix, fall back to a hard cut so
+	// the result is always <= maxLength.
+	if (maxLength <= suffix.length) {
+		return value.substring(0, maxLength);
+	}
 	return value.substring(0, maxLength - suffix.length) + suffix;
 }
 

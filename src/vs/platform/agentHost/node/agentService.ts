@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
@@ -16,7 +17,7 @@ import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCod
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -30,6 +31,14 @@ import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracke
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
+
+/**
+ * Grace period before an empty, unsubscribed session is garbage-collected
+ * via {@link AgentService._runSessionGc}. Gives a disconnected client time
+ * to reconnect (or a workspace switch to settle) before we tear down the
+ * provider-side session, worktree, and on-disk state.
+ */
+const SESSION_GC_GRACE_MS = 30_000;
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -82,6 +91,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+
+	/**
+	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
+	 * armed when a session loses its last subscriber while still empty (no
+	 * turns, no active turn) — see {@link _maybeScheduleSessionGc}. Cleared
+	 * whenever any client subscribes again or the timer fires.
+	 */
+	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
@@ -136,6 +153,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
+		if (provider.onDidMaterializeSession) {
+			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
+		}
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
@@ -249,11 +269,16 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// When forking, build the old→new turn ID mapping before creating the
-		// session so the agent can use it to remap per-turn data.
+		// session so the agent can use it to remap per-turn data. If the
+		// source has no turns to copy (e.g. a still-provisional session), a
+		// "fork" is indistinguishable from a fresh session, so we drop the
+		// fork parameter and fall through to the regular create path.
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			if (sourceState) {
-				const sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+			const sourceTurns = sourceState?.turns.slice(0, config.fork.turnIndex + 1) ?? [];
+			if (sourceTurns.length === 0) {
+				config = { ...config, fork: undefined };
+			} else {
 				const turnIdMapping = new Map<string, string>();
 				for (const t of sourceTurns) {
 					turnIdMapping.set(t.id, generateUuid());
@@ -277,6 +302,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
+		// Cancel any pending GC armed for this URI. A client may be
+		// re-issuing `createSession` for an existing URI mid-grace (e.g.
+		// during a reconnect that returned `missing`); without this, the
+		// timer would still fire and dispose the just-revived session
+		// before the follow-up `subscribe` arrives.
+		this._cancelPendingSessionGc(session);
+
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
@@ -293,35 +325,20 @@ export class AgentService extends Disposable implements IAgentService {
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary: SessionSummary = {
-				resource: session.toString(),
-				provider: provider.id,
-				title: sourceState?.summary.title ?? 'Forked Session',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-				model: config?.model,
-				workingDirectory: (created.workingDirectory ?? config.workingDirectory)?.toString(),
-			};
+			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
 		} else {
-			// Create empty state for new sessions
-			const summary: SessionSummary = {
-				resource: session.toString(),
-				provider: provider.id,
-				title: '',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-				model: config?.model,
-				workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			};
-			const state = this._stateManager.createSession(summary);
+			// Provisional sessions defer the `sessionAdded` notification and
+			// the `SessionReady` lifecycle transition until the agent fires
+			// {@link IAgent.onDidMaterializeSession} (typically on first
+			// `sendMessage`). Until then, the state exists in memory so
+			// clients can subscribe and stream config / model changes that
+			// the agent will pick up at materialization time.
+			const summary = this._buildInitialSummary(provider, session, config, created, '');
+			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
 		}
@@ -330,16 +347,81 @@ export class AgentService extends Disposable implements IAgentService {
 		// user's input) so clients can render them on restore without having
 		// to re-resolve. Mid-session changes are persisted by `AgentSideEffects`
 		// when handling `SessionConfigChanged`.
-		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0) {
+		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0 && !created.provisional) {
 			this._persistConfigValues(session, sessionConfig.values);
 		}
-		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
-		// Lazily compute git state for sessions with a working directory;
-		// attaches under `state._meta.git` once ready.
-		this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+		if (!created.provisional) {
+			// `SessionReady` transitions the session lifecycle from
+			// `Creating` to `Ready`. For provisional sessions we defer
+			// this to {@link _onDidMaterializeSession} so subscribers
+			// don't see `Ready` until the agent actually has an SDK
+			// session, working directory, etc.
+			this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
+
+			// Lazily compute git state for sessions with a working directory;
+			// attaches under `state._meta.git` once ready.
+			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+		}
 
 		return session;
+	}
+
+	/**
+	 * Builds the {@link SessionSummary} we seed into the state manager when a
+	 * new session is created. The fork and non-fork paths only differ in
+	 * `title`; everything else is identical.
+	 */
+	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
+		const now = Date.now();
+		return {
+			resource: session.toString(),
+			provider: provider.id,
+			title,
+			status: SessionStatus.Idle,
+			createdAt: now,
+			modifiedAt: now,
+			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+			model: config?.model,
+			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
+		};
+	}
+
+	/**
+	 * Listen for an agent transitioning a provisional session into a fully
+	 * materialized SDK session. The agent has already created the worktree
+	 * (if any) and persisted on-disk metadata; we need to:
+	 * - Refresh the in-memory summary with the resolved working directory
+	 *   and project metadata.
+	 * - Persist any config values now that we have a real on-disk session.
+	 * - Emit the deferred `notify/sessionAdded` so other clients learn of
+	 *   the session.
+	 * - Dispatch `SessionReady` so subscribers see the lifecycle transition.
+	 * - Lazily attach git state for the (possibly new) working directory.
+	 */
+	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
+		const sessionKey = e.session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
+			return;
+		}
+		const summary: SessionSummary = {
+			...state.summary,
+			...(e.project ? { project: { uri: e.project.uri.toString(), displayName: e.project.displayName } } : {}),
+			workingDirectory: e.workingDirectory?.toString() ?? state.summary.workingDirectory,
+			modifiedAt: Date.now(),
+		};
+		const configValues = state.config?.values;
+		if (configValues && Object.keys(configValues).length > 0) {
+			this._persistConfigValues(e.session, configValues);
+		}
+		// `markSessionPersisted` writes the summary into state and fires
+		// the deferred `SessionAdded` notification atomically so subscribers
+		// see consistent state through both paths.
+		this._stateManager.markSessionPersisted(sessionKey, summary);
+		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionKey });
+		this._attachGitState(e.session, e.workingDirectory);
 	}
 
 	/**
@@ -501,6 +583,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._resourceSubscribers.set(resource, set);
 		}
 		set.add(clientId);
+		// A new subscriber means the session is being observed again; cancel
+		// any pending GC armed while it had no subscribers.
+		this._cancelPendingSessionGc(resource);
 	}
 
 	unsubscribe(resource: URI, clientId: string): void {
@@ -513,7 +598,81 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._resourceSubscribers.delete(resource);
+		// An empty session whose last subscriber dropped is a candidate for
+		// full GC (provider session, worktree, on-disk state). Sessions with
+		// at least one turn fall through to {@link _maybeEvictIdleSession},
+		// which only drops the in-memory cache and lets the session be
+		// restored from disk later. Skipping eviction here for empty
+		// sessions ensures their state stays observable so a re-subscribe
+		// can re-arm GC.
+		if (this._maybeScheduleSessionGc(resource)) {
+			return;
+		}
 		this._maybeEvictIdleSession(resource);
+	}
+
+	/**
+	 * If `resource` names a session that no client is still subscribed to and
+	 * that has produced no turns (and has no active turn), schedule a delayed
+	 * {@link _runSessionGc} to fully tear it down — provider session, worktree,
+	 * persisted state and all. Sessions with at least one turn are left to the
+	 * existing {@link _maybeEvictIdleSession} path which only drops cached
+	 * state and lets the session be restored from disk later.
+	 *
+	 * The delay ({@link SESSION_GC_GRACE_MS}) gives a disconnected client time
+	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
+	 * (or createSession on the same URI) cancels the timer via
+	 * {@link _cancelPendingSessionGc}.
+	 *
+	 * Returns `true` if a GC timer was armed (existing or newly scheduled),
+	 * so callers can skip alternative cleanup paths.
+	 */
+	private _maybeScheduleSessionGc(resource: URI): boolean {
+		const key = resource.toString();
+		// Subagent URIs are backed by the parent session; the parent's GC is
+		// scheduled when its own subscriber count reaches zero.
+		if (parseSubagentSessionUri(key)) {
+			return false;
+		}
+		const state = this._stateManager.getSessionState(key);
+		if (!state) {
+			return false;
+		}
+		if (state.turns.length > 0 || state.activeTurn !== undefined) {
+			return false;
+		}
+		this._pendingSessionGc.set(resource, disposableTimeout(() => {
+			this._pendingSessionGc.deleteAndDispose(resource);
+			this._runSessionGc(resource).catch(err => {
+				this._logService.error(err, `[AgentService] GC failed for ${key}`);
+			});
+		}, SESSION_GC_GRACE_MS));
+		return true;
+	}
+
+	private _cancelPendingSessionGc(resource: URI): void {
+		this._pendingSessionGc.deleteAndDispose(resource);
+	}
+
+	/**
+	 * Fires {@link SESSION_GC_GRACE_MS} after a session lost its last
+	 * subscriber while empty. Re-checks both invariants (still no subscribers,
+	 * still empty) before tearing the session down via {@link disposeSession}.
+	 * The cached state may already have been evicted by
+	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
+	 * "evicted + no resubscribe" implies no client is observing the session.
+	 */
+	private async _runSessionGc(resource: URI): Promise<void> {
+		const key = resource.toString();
+		if (this._resourceSubscribers.has(resource)) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(key);
+		if (state && (state.turns.length > 0 || state.activeTurn !== undefined)) {
+			return;
+		}
+		this._logService.info(`[AgentService] GC: disposing empty unsubscribed session ${key}`);
+		await this.disposeSession(resource);
 	}
 
 	/**
