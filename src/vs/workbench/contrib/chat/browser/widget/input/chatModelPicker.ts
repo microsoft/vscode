@@ -646,6 +646,7 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
 		this._domNode.setAttribute('role', 'group');
 
+		// Apply initial collapsed state now that _domNode exists
 		if (this._hideChevrons?.get()) {
 			this._domNode.classList.toggle('hide-chevrons', true);
 		}
@@ -676,45 +677,27 @@ export class ModelPickerWidget extends Disposable {
 
 		this._renderLabel();
 
-		// Name button: open model picker
-		this._register(dom.addDisposableGenericMouseDownListener(this._nameButton, e => {
-			if (e.button !== 0) { return; }
-			dom.EventHelper.stop(e, true);
-			this.show();
-		}));
-		this._register(dom.addDisposableListener(this._nameButton, dom.EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e, true);
-				this.show();
-			}
-		}));
+		this._registerButtonAction(this._nameButton, () => this.show());
+		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
+		this._registerButtonAction(this._tokensButton, () => this._cycleTokens());
+	}
 
-		// Effort button: open thinking effort picker
-		this._register(dom.addDisposableGenericMouseDownListener(this._effortButton, e => {
-			if (e.button !== 0) { return; }
-			dom.EventHelper.stop(e, true);
-			this._showEffortPicker();
-		}));
-		this._register(dom.addDisposableListener(this._effortButton, dom.EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e, true);
-				this._showEffortPicker();
+	/**
+	 * Registers mouse-down and Enter/Space key handlers on a button element.
+	 */
+	private _registerButtonAction(element: HTMLElement, action: () => void): void {
+		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+			if (e.button !== 0) {
+				return;
 			}
-		}));
-
-		// Tokens button: cycle max tokens
-		this._register(dom.addDisposableGenericMouseDownListener(this._tokensButton, e => {
-			if (e.button !== 0) { return; }
 			dom.EventHelper.stop(e, true);
-			this._cycleTokens();
+			action();
 		}));
-		this._register(dom.addDisposableListener(this._tokensButton, dom.EventType.KEY_DOWN, (e) => {
+		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
-				this._cycleTokens();
+				action();
 			}
 		}));
 	}
@@ -1046,7 +1029,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 		if (hasContent) {
 			markdown.appendMarkdown(`\n\n`);
 		}
-		markdown.appendMarkdown(`${model.metadata.pricing}`);
+		markdown.appendMarkdown(`${localize('models.cost', 'Cost: {0}', model.metadata.pricing)}`);
 		hasContent = true;
 	}
 
