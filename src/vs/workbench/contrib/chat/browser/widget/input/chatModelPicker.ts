@@ -559,21 +559,6 @@ export function getShortModelName(name: string): string {
 	return name;
 }
 
-/**
- * Shortens a localized effort label for compact display.
- * e.g. "Medium" → "Med". Leaves short labels as-is.
- */
-function shortenEffortLabel(label: string): string {
-	if (label.length <= 4) {
-		return label;
-	}
-	// Shorten known long labels
-	if (/^medium$/i.test(label)) {
-		return label.slice(0, 3); // "Med" / "med"
-	}
-	return label;
-}
-
 type ModelPickerBadge = 'info' | 'warning';
 
 /**
@@ -900,13 +885,12 @@ export class ModelPickerWidget extends Disposable {
 		if (effortConfig && this._effortButton) {
 			// Use the localized enumItemLabel from the schema, falling back to the raw value
 			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
-			const localizedLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
+			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
 				? effortConfig.schema.enumItemLabels[enumIndex]
 				: String(effortConfig.value);
-			const effortLabel = shortenEffortLabel(localizedLabel);
 			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
 			this._effortButton.style.display = '';
-			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", localizedLabel);
+			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
 		} else if (this._effortButton) {
 			this._effortButton.style.display = 'none';
 		}
