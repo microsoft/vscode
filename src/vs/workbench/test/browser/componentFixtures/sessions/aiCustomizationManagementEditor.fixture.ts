@@ -5,15 +5,19 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -35,7 +39,7 @@ import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDe
 import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
@@ -65,9 +69,6 @@ import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
@@ -109,10 +110,60 @@ function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier;
 	};
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[]): IPromptsService {
-	const applyToMap = new ResourceMap<string | undefined>();
-	const descriptionMap = new ResourceMap<string | undefined>();
-	for (const f of files) { applyToMap.set(f.uri, f.applyTo); descriptionMap.set(f.uri, f.description); }
+function createFixtureFileContent(file: IFixtureFile): string {
+	if (file.type === PromptsType.hook) {
+		return JSON.stringify({
+			name: file.name,
+			description: file.description,
+			command: 'npm test',
+		}, null, 2);
+	}
+
+	const headerLines = [
+		'---',
+		`description: ${JSON.stringify(file.description ?? `${file.name ?? 'Customization'} description`)}`,
+	];
+
+	if (file.type === PromptsType.instructions && file.applyTo) {
+		headerLines.push(`applyTo: ${JSON.stringify(file.applyTo)}`);
+	}
+
+	if (file.type === PromptsType.agent) {
+		headerLines.push('tools:');
+		headerLines.push('  - read_file');
+		headerLines.push('  - grep_search');
+	}
+
+	if (file.type === PromptsType.skill) {
+		headerLines.push(`input: ${JSON.stringify('Code review findings')}`);
+	}
+
+	if (file.type === PromptsType.prompt) {
+		headerLines.push(`argument-hint: ${JSON.stringify('Paste the failing stack trace')}`);
+	}
+
+	headerLines.push('---', '');
+
+	return `${headerLines.join('\n')}## Overview\n\nUse **${file.name ?? 'this customization'}** when you need consistent AI guidance.\n\n- Review the active change\n- Preserve existing conventions\n- Explain the reasoning clearly\n\n\`\`\`ts\nconst ready = true;\n\`\`\`\n`;
+}
+
+function createInstructionFileContent(file: IAgentInstructionFile): string {
+	return `---\ndescription: ${JSON.stringify('Repository-level instructions')}\napplyTo: ${JSON.stringify('**/*')}\n---\n\n## Overview\n\nThese instructions apply across the workspace.\n`;
+}
+
+function createFixtureContentMap(files: IFixtureFile[], instructions: IAgentInstructionFile[]): ResourceMap<string> {
+	const contents = new ResourceMap<string>();
+	for (const file of files) {
+		contents.set(file.uri, createFixtureFileContent(file));
+	}
+	for (const file of instructions) {
+		contents.set(file.uri, createInstructionFileContent(file));
+	}
+	return contents;
+}
+
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[], contents: ResourceMap<string>): IPromptsService {
+	const parser = new PromptFileParser();
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -143,11 +194,10 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			})) as never[];
 		}
 		override async parseNew(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
-			const header = {
-				get applyTo() { return applyToMap.get(uri); },
-				get description() { return descriptionMap.get(uri); },
-			};
-			return new ParsedPromptFile(uri, header as never);
+			return parser.parse(uri, contents.get(uri) ?? '');
+		}
+		override getParsedPromptFile(model: { uri: URI; getValue(): string }) {
+			return parser.parse(model.uri, model.getValue());
 		}
 		override async getSourceFolders() { return [] as never[]; }
 		override async getInstructionFiles() {
@@ -195,15 +245,15 @@ function createMockHarnessService(activeHarnessId: string, descriptors: readonly
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
 		override readonly availableHarnesses = constObservable(descriptors);
+		override findHarnessById(id: string) {
+			return descriptors.find(h => h.id === id);
+		}
 		override getStorageSourceFilter(type: PromptsType) {
 			const d = descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 			return d.getStorageSourceFilter(type);
 		}
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
-		}
-		override findHarnessById(id: string) {
-			return descriptors.find(h => h.id === id);
 		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
 		override registerExternalHarness() { return { dispose() { } }; }
@@ -379,6 +429,8 @@ interface IRenderEditorOptions {
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
+	readonly openItemLabel?: string;
+	readonly editorDisplayMode?: 'preview' | 'raw';
 }
 
 async function waitForAnimationFrames(count: number): Promise<void> {
@@ -438,6 +490,55 @@ async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<v
 	}
 }
 
+function renderFixtureMarkdown(markdown: string): HTMLElement {
+	const container = DOM.$('div.fixture-rendered-markdown');
+	const lines = markdown.split(/\r?\n/);
+	let index = 0;
+
+	while (index < lines.length) {
+		const line = lines[index].trimEnd();
+		if (!line.trim()) {
+			index++;
+			continue;
+		}
+
+		if (line.startsWith('## ')) {
+			const heading = DOM.append(container, DOM.$('h2'));
+			heading.textContent = line.slice(3);
+			index++;
+			continue;
+		}
+
+		if (line.startsWith('- ')) {
+			const list = DOM.append(container, DOM.$('ul'));
+			while (index < lines.length && lines[index].trimStart().startsWith('- ')) {
+				DOM.append(list, DOM.$('li')).textContent = lines[index].trimStart().slice(2);
+				index++;
+			}
+			continue;
+		}
+
+		if (line.startsWith('```')) {
+			index++;
+			const codeLines: string[] = [];
+			while (index < lines.length && !lines[index].startsWith('```')) {
+				codeLines.push(lines[index]);
+				index++;
+			}
+			const pre = DOM.append(container, DOM.$('pre'));
+			DOM.append(pre, DOM.$('code')).textContent = codeLines.join('\n');
+			index++;
+			continue;
+		}
+
+		const paragraph = DOM.append(container, DOM.$('p'));
+		paragraph.textContent = line.replace(/\*\*/g, '');
+		index++;
+	}
+
+	return container;
+}
+
 // ============================================================================
 // Render helper — creates the full management editor
 // ============================================================================
@@ -465,6 +566,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const fileContents = createFixtureContentMap(allFiles, agentInstructions);
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -522,7 +624,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}();
 				override getSession() { return undefined; }
 			}());
-			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions));
+			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions, fileContents));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -563,6 +665,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override userHome(): Promise<URI>;
 				override userHome(): URI | Promise<URI> { return userHome; }
 			}());
+			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
+				declare readonly _serviceBrand: undefined;
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					const modelService = modelServiceRef.value!;
+					const languageService = languageServiceRef.value!;
+					let model = modelService.getModel(resource);
+					if (!model) {
+						const languageId = languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? 'plaintext';
+						const languageSelection = languageService.createById(languageId);
+						model = modelService.createModel(fileContents.get(resource) ?? '', languageSelection, resource);
+					}
+					const onWillDispose = new Emitter<void>();
+					const textEditorModel: IResolvedTextEditorModel = {
+						textEditorModel: model,
+						onWillDispose: onWillDispose.event,
+						isReadonly: () => false,
+						isResolved: () => true,
+						isDisposed: () => false,
+						getLanguageId: () => model.getLanguageId(),
+						createSnapshot: () => model.createSnapshot(),
+						resolve: async () => { },
+						dispose: () => onWillDispose.dispose(),
+					};
+					return { object: textEditorModel, dispose: () => { } };
+				}
+				override canHandleResource() { return true; }
+				override registerTextModelContentProvider() { return { dispose: () => { } }; }
+			}());
 			reg.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
 				override readonly onDidChangeDirty = Event.None;
 				override readonly onDidSave = Event.None;
@@ -579,9 +709,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render() {
+				override render(markdown: IMarkdownString | string) {
 					const rendered: IRenderedMarkdown = {
-						element: DOM.$('span'),
+						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
 						dispose() { },
 					};
 					return rendered;
@@ -622,6 +752,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	for (const [uri, content] of fileContents) {
+		if (!modelServiceRef.value.getModel(uri)) {
+			modelServiceRef.value.createModel(content, null, uri, false);
+		}
+	}
 
 	const editor = ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
@@ -647,15 +782,25 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.openFirstItem) {
 		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-		const firstRow = visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
-		if (firstRow) {
-			firstRow.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			firstRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		const openItemLabel = options.openItemLabel;
+		const rowToOpen = openItemLabel
+			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item') as HTMLElement | undefined;
+		if (rowToOpen) {
+			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 			// Allow any async setInput to settle.
 			await waitForAnimationFrames(2);
 			await new Promise(resolve => setTimeout(resolve, 250));
+
+			if (options.editorDisplayMode === 'raw') {
+				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
+				modeButton?.click();
+				await waitForAnimationFrames(2);
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
 		}
 	}
 }
@@ -1319,14 +1464,49 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// Item-editor view (after clicking an agent) — verifies the editor header back
-	// button aligns with the section back arrow at exactly the same x/y position.
-	AgentsItemEditor: defineComponentFixture({
+	// Item-preview view (after clicking an agent) — verifies the structured front
+	// matter preview and rendered markdown body.
+	AgentsItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harnessId: SessionType.Local,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
+		}),
+	}),
+
+	// Raw markdown editor view reached from the structured preview's Edit action.
+	AgentsItemRaw: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.Agents,
+			openFirstItem: true,
+			editorDisplayMode: 'raw',
+		}),
+	}),
+
+	// Built-in skill preview view — verifies that built-in skills open in the
+	// structured preview while still offering an editable raw override path.
+	BuiltinSkillItemPreview: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.Skills,
+			openFirstItem: true,
+			openItemLabel: 'act-on-feedback',
+		}),
+	}),
+
+	// Built-in skill raw view reached from the structured preview's Edit action.
+	BuiltinSkillItemRaw: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harnessId: SessionType.Local,
+			selectedSection: AICustomizationManagementSection.Skills,
+			openFirstItem: true,
+			openItemLabel: 'act-on-feedback',
+			editorDisplayMode: 'raw',
 		}),
 	}),
 

@@ -66,7 +66,7 @@ Key attrs: `args` (JSON string of tool input), `result` (tool output or error te
 ```jsonl
 {"ts":1773200231010,"dur":3001,"sid":"62f52dec","type":"llm_request","name":"chat:gpt-4o","spanId":"000000000000000c","parentSpanId":"0000000000000003","status":"ok","attrs":{"model":"gpt-4o","inputTokens":15025,"outputTokens":126,"ttft":1987,"maxTokens":32000,"systemPromptFile":"system_prompt_0.json","userRequest":"echo hello","inputMessages":"[{...}]"}}
 ```
-Key attrs: `model`, `inputTokens`, `outputTokens`, `ttft` (time to first token in ms), `maxTokens`, `temperature`, `topP`, `systemPromptFile` (references a system prompt file in the session directory), `toolsFile` (references a tools file in the session directory), `userRequest` (the full user message content, untruncated), `inputMessages` (full messages array as JSON, pre-truncated at 64KB), `error` (when failed).
+Key attrs: `model`, `inputTokens`, `outputTokens`, `ttft` (time to first token in ms), `maxTokens`, `temperature`, `topP`, `systemPromptFile` (references a system prompt file in the session directory), `toolsFile` (references a tools file in the session directory), `userRequest` (the full user message content, untruncated), `inputMessages` (full messages array as JSON, truncated to the configured `maxAttributeSizeChars` — unlimited by default), `error` (when failed).
 
 #### agent_response — model output (text + tool calls)
 ```jsonl

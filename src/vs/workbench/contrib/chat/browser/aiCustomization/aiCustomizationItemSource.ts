@@ -458,26 +458,34 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			return [];
 		}
 
-		const providerItems: ICustomizationItem[] = files
-			.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
-			.map(file => ({
-				uri: file.uri,
-				type: promptType,
-				name: getFriendlyName(basename(file.uri)),
-				groupKey: 'sync-local',
-				enabled: true,
-				extensionId: file.extension?.id,
-				pluginUri: file.pluginUri,
-				userInvocable: undefined
-			}));
+		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
+			uri: file.uri,
+			type: promptType,
+			name: getFriendlyName(basename(file.uri)),
+			groupKey: 'sync-local',
+			enabled: true,
+			extensionId: file.extension?.id,
+			pluginUri: file.pluginUri,
+			userInvocable: undefined
+		});
 
-		return this.itemNormalizer.normalizeItems(providerItems, promptType)
+		// Local/user files are sync-eligible (the user picks individual items
+		// to push to the remote agent host). Locally-installed plugin files
+		// always show up but are not individually syncable — the plugin is
+		// the unit of sync.
+		const syncEligibleFiles = files.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user);
+		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
+
+		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
 			.map(item => ({
 				...item,
 				id: `sync-${item.id}`,
 				syncable: true,
 				synced: !syncProvider.isDisabled(item.uri),
 			}));
+		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
+
+		return [...syncEligibleItems, ...pluginItems];
 	}
 }
 

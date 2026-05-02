@@ -10,11 +10,12 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { errorResult, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const RunPlaywrightCodeToolData: IToolData = {
 	id: 'run_playwright_code',
-	toolReferenceName: 'runPlaywrightCode',
+	toolReferenceName: BrowserChatToolReferenceName.RunPlaywrightCode,
 	displayName: localize('runPlaywrightCodeTool.displayName', 'Run Playwright Code'),
 	userDescription: localize('runPlaywrightCodeTool.userDescription', 'Run a Playwright code snippet against a browser page'),
 	modelDescription: `Run a Playwright code snippet to control a browser page. Only use this if other browser tools are insufficient.`,

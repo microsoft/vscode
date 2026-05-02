@@ -274,7 +274,15 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// Route signals with parentToolCallId to the subagent session.
-		const parentToolCallId = signal.kind === 'action' ? signal.parentToolCallId : undefined;
+		// Both action signals and pending_confirmation signals can carry
+		// a parentToolCallId — for client tools inside a subagent the
+		// permission flow fires `pending_confirmation` for an inner tool
+		// call, and that signal must be routed to the subagent session
+		// (otherwise the resulting SessionToolCallReady would land on the
+		// parent session, which has no matching SessionToolCallStart).
+		const parentToolCallId = signal.kind === 'action' || signal.kind === 'pending_confirmation'
+			? signal.parentToolCallId
+			: undefined;
 		if (parentToolCallId) {
 			const subagentKey = `${sessionKey}:${parentToolCallId}`;
 			const subagentSession = this._subagentSessions.get(subagentKey);
@@ -285,7 +293,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
 				if (subTurnId) {
-					this._dispatchActionForSession(signal, subagentSession, subTurnId);
+					this._dispatchActionForSession(signal, subagentSession, subTurnId, agent);
 				}
 				return;
 			}
@@ -303,8 +311,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// Route pending_confirmation signals for tools inside subagent sessions
-		// (the signal lacks parentToolCallId, but the tool was previously
-		// registered under its subagent session key in _toolCallAgents).
+		// (legacy path for signals without an explicit parentToolCallId — the
+		// tool was previously registered under its subagent session key in
+		// _toolCallAgents).
 		if (signal.kind === 'pending_confirmation') {
 			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, signal.state.toolCallId);
 			if (subagentSession) {

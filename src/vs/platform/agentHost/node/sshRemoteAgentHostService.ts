@@ -168,7 +168,7 @@ function startRemoteAgentHost(
 	commandOverride?: string,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent-host --port 0 --accept-server-license-terms`;
+		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent host --port 0 --accept-server-license-terms`;
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).

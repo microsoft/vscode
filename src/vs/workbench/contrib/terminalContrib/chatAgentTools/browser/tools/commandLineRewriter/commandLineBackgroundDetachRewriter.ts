@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { isFish, isPowerShell } from '../../runInTerminalHelpers.js';
+import { isBash, isFish, isPowerShell, isZsh } from '../../runInTerminalHelpers.js';
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 /**
@@ -109,29 +109,44 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	private _rewriteForPosix(options: ICommandLineRewriterOptions): ICommandLineRewriterResult {
 		const trimmed = options.commandLine.trimEnd();
 
+		// Check for a trailing background `&` (not `&&`) on the original command.
+		// When wrapping in `shell -c`, we strip the trailing `&` from the inner
+		// command and always place it outside the quotes to avoid double-backgrounding.
+		const endsWithBackgroundAmp = /(?:^|[^&])&$/.test(trimmed);
+
 		// nohup only accepts a simple external command as its argument — it cannot exec
 		// compound statements (for/while/if/case) or shell builtins (eval/set/export/source).
 		// Wrap those in `<shell> -c '...'` so the whole construct runs as a single executable.
 		let commandToWrap = trimmed;
 		if (this._needsShellCWrapper(trimmed)) {
+			// Strip trailing `&` before quoting — we'll add the outer `&` below.
+			const innerCommand = endsWithBackgroundAmp ? trimmed.replace(/\s*&$/, '') : trimmed;
 			if (isFish(options.shell, options.os)) {
 				// Fish does not support the POSIX '\'' escape inside single-quoted strings.
 				// Use a double-quoted string and escape backslash and double-quote instead.
-				const escaped = trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+				const escaped = innerCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 				commandToWrap = `${options.shell} -c "${escaped}"`;
 			} else {
 				// bash/zsh: escape single quotes for use inside a single-quoted shell -c '...' string.
-				const escaped = trimmed.replace(/'/g, `'\\''`);
+				const escaped = innerCommand.replace(/'/g, `'\\''`);
 				commandToWrap = `${options.shell} -c '${escaped}'`;
 			}
 		}
 
-		// If the command already ends with a single trailing `&` (background operator,
-		// as opposed to `&&` for command chaining), don't append another one.
-		const endsWithBackgroundAmp = /(?:^|[^&])&$/.test(commandToWrap);
-		const rewritten = endsWithBackgroundAmp
-			? `nohup ${commandToWrap}`
-			: `nohup ${commandToWrap} &`;
+		// Always append `&` unless the (unwrapped) command already has a trailing `&`
+		// and we didn't wrap it in shell -c (in which case the `&` is still present).
+		const needsTrailingAmp = !(/(?:^|[^&])&$/.test(commandToWrap));
+
+		// `disown` removes the job from the shell's job table so it won't print
+		// `[1]+  Done  nohup ...` notifications that contaminate subsequent command
+		// output and can cause spurious SIGINT (exit 130). Only bash/zsh support
+		// `disown`; fish handles it differently (no contamination observed).
+		const supportsDisown = isBash(options.shell, options.os) || isZsh(options.shell, options.os);
+		const disownSuffix = supportsDisown ? ' disown' : '';
+
+		const rewritten = needsTrailingAmp
+			? `nohup ${commandToWrap} &${disownSuffix}`
+			: `nohup ${commandToWrap}${disownSuffix}`;
 		return {
 			rewritten,
 			reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
@@ -140,9 +155,13 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	}
 
 	/**
-	 * Returns true when the command uses shell compound constructs or builtins that
-	 * `nohup` cannot exec directly. Such commands must be wrapped in `<shell> -c '...'` before
-	 * being passed to nohup.
+	 * Returns true when the command uses shell constructs that `nohup` cannot exec
+	 * directly. Such commands must be wrapped in `<shell> -c '...'` before being
+	 * passed to nohup.
+	 *
+	 * `nohup` only accepts a single simple external command (plus its arguments).
+	 * Anything that requires shell parsing — compound statements, builtins, shell
+	 * operators, or inline variable assignments — must go through a shell wrapper.
 	 */
 	private _needsShellCWrapper(commandLine: string): boolean {
 		const trimmed = commandLine.trimStart();
@@ -150,13 +169,22 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 			// Bash compound command keywords — syntax constructs that are not executables.
 			/^(for|while|until|if|case|select|function)\b/.test(trimmed) ||
 			// Shell builtins — these only run meaningfully inside the current shell; nohup
-			// cannot exec them (eval, set, export, source, unset, declare, etc.).
-			/^(eval|set|export|source|unset|declare|typeset|local|readonly|alias)\b/.test(trimmed) ||
+			// cannot exec them (eval, set, export, source, unset, declare, cd, exec, etc.).
+			/^(eval|set|export|source|unset|declare|typeset|local|readonly|alias|cd|exec)\b/.test(trimmed) ||
 			// `. file` (dot-source builtin). Exclude `./script` (relative path) by requiring
 			// whitespace after the dot.
 			/^\.\s/.test(trimmed) ||
 			// Compound groupings: subshell `( ... )` or brace group `{ ...; }`.
-			/^[{(]/.test(trimmed)
+			/^[{(]/.test(trimmed) ||
+			// Inline environment variable assignments before a command (e.g. `VAR=val cmd`).
+			// nohup would try to exec `VAR=val` as a program name.
+			/^[A-Za-z_][A-Za-z0-9_]*=/.test(trimmed) ||
+			// Shell operators: pipes, command chains (&&, ||), semicolons, or background
+			// operators (&) in the middle of the command. nohup only execs the first
+			// simple command; the rest would be lost or misinterpreted.
+			// A single trailing `&` is handled separately (not matched here) since it's
+			// just a background operator that nohup can coexist with.
+			/(?:\|\||&&|[|;]|&(?!&)(?!\s*$))/.test(trimmed)
 		);
 	}
 

@@ -36,6 +36,22 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
+/**
+ * Configuration key that controls whether the Claude agent provider is registered
+ * inside the agent host. Read on the workbench side and forwarded to the agent host
+ * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
+ * host process must be restarted for changes to take effect.
+ */
+export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+
+/**
+ * Environment variable that, when set to `'1'`, causes the agent host process to
+ * register the Claude agent provider. Set by the agent host starters when
+ * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
+ * directly by developers as an override.
+ */
+export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
 	readonly socketPath: string;
@@ -82,6 +98,8 @@ export interface IAgentSessionMetadata {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
 	readonly status?: SessionStatus;
+	/** Human-readable description of what the session is currently doing. */
+	readonly activity?: string;
 	readonly model?: ModelSelection;
 	readonly workingDirectory?: URI;
 	readonly customizationDirectory?: URI;
@@ -108,6 +126,27 @@ export interface IAgentCreateSessionResult {
 	readonly project?: IAgentSessionProjectInfo;
 	/** The resolved working directory, which may differ from the requested one (e.g. worktree). */
 	readonly workingDirectory?: URI;
+	/**
+	 * `true` when the agent only allocated an in-memory placeholder for this
+	 * session (no SDK session, no worktree, no on-disk state). Materialization
+	 * happens lazily on the first {@link IAgent.sendMessage}, at which point
+	 * the agent fires {@link IAgent.onDidMaterializeSession}. The
+	 * {@link IAgentService} uses this flag to defer the `sessionAdded` protocol
+	 * notification so observers don't see the session in their list until it
+	 * has been persisted.
+	 */
+	readonly provisional?: boolean;
+}
+
+/**
+ * Payload of {@link IAgent.onDidMaterializeSession}. Fired once per session
+ * when a previously {@link IAgentCreateSessionResult.provisional} session has
+ * its SDK session, worktree (if any), and on-disk metadata in place.
+ */
+export interface IAgentMaterializeSessionEvent {
+	readonly session: URI;
+	readonly workingDirectory: URI | undefined;
+	readonly project: IAgentSessionProjectInfo | undefined;
 }
 
 export type AgentProvider = string;
@@ -143,6 +182,22 @@ export interface AuthenticateResult {
 	/** Whether the token was accepted. */
 	readonly authenticated: boolean;
 }
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for the GitHub Copilot
+ * resource. Shared between every agent provider that consumes a GitHub
+ * Copilot bearer token (e.g. Copilot CLI, Claude) so they advertise an
+ * identical resource identifier to the auth flow — clients dispatch by
+ * `resource`, and divergent metadata would silently route the same
+ * token down separate code paths.
+ */
+export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com',
+	resource_name: 'GitHub Copilot',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['read:user', 'user:email'],
+	required: true,
+};
 
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
@@ -268,6 +323,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * If set, the tool call belongs to the subagent rooted at this
+	 * parent tool call. Used by the host to route the resulting
+	 * `SessionToolCallReady` to the subagent session — otherwise the
+	 * action would land on the parent session, where there is no
+	 * matching `SessionToolCallStart`.
+	 */
+	readonly parentToolCallId?: string;
 }
 
 /**
@@ -338,6 +401,16 @@ export interface IAgent {
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<AgentSignal>;
 
+	/**
+	 * Fires once when a previously
+	 * {@link IAgentCreateSessionResult.provisional} session has been
+	 * materialized — i.e. its SDK session, worktree (if any), and on-disk
+	 * metadata are all in place. The {@link IAgentService} uses this event
+	 * to fire the deferred `sessionAdded` notification with the now-final
+	 * summary.
+	 */
+	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
+
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
@@ -392,6 +465,9 @@ export interface IAgent {
 
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+
+	/** Retrieve metadata for a single persisted session, without enumerating the provider catalog. */
+	getSessionMetadata?(session: URI): Promise<IAgentSessionMetadata | undefined>;
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): ProtectedResourceMetadata[];
@@ -533,12 +609,28 @@ export interface IAgentService {
 	/**
 	 * Subscribe to state at the given URI. Returns a snapshot of the current
 	 * state and the serverSeq at snapshot time. Subsequent actions for this
-	 * resource arrive via {@link onDidAction}.
+	 * resource arrive via {@link onDidAction}. Registers `clientId` against
+	 * the resource so the server-side refcount knows who is watching, so the
+	 * caller does not need to invoke {@link addSubscriber} separately. Pair
+	 * with {@link unsubscribe} when the subscription is released.
 	 */
-	subscribe(resource: URI): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string): Promise<IStateSnapshot>;
 
-	/** Unsubscribe from state updates for the given URI. */
-	unsubscribe(resource: URI): void;
+	/**
+	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
+	 * for `resource`; when the last subscriber is removed, idle session state
+	 * for `resource` may be evicted from the server.
+	 */
+	unsubscribe(resource: URI, clientId: string): void;
+
+	/**
+	 * Register `clientId` against `resource` without going through
+	 * {@link subscribe}. Only needed by callers that hand out snapshots
+	 * synchronously (e.g. the JSON-RPC handshake serving `initialSubscriptions`
+	 * out of the in-memory state cache); regular subscribers should call
+	 * {@link subscribe} instead. Counterpart cleanup is {@link unsubscribe}.
+	 */
+	addSubscriber(resource: URI, clientId: string): void;
 
 	/**
 	 * Fires when the server applies an action to subscribable state.
