@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -88,6 +88,14 @@ type ChatModelPickerInteractionEvent = {
 	interaction: ChatModelPickerInteraction;
 };
 
+/**
+ * Returns true if the model uses multiplier-based pricing (e.g. "2x").
+ * The copilot extension always sets multiplierNumeric alongside multiplier pricing strings.
+ */
+function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.multiplierNumeric !== undefined;
+}
+
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
@@ -151,7 +159,7 @@ function createModelAction(
 	const configDescription = getModelConfigurationDescription(model, languageModelsService);
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
-	const pricingForDescription = model.metadata.multiplierNumeric !== undefined ? model.metadata.pricing : undefined;
+	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
 	const detailParts = [model.metadata.detail, pricingForDescription].filter(Boolean);
 	const baseDescription = detailParts.length > 0 ? detailParts.join(' · ') : undefined;
 	const description = configDescription && baseDescription
@@ -592,6 +600,7 @@ export class ModelPickerWidget extends Disposable {
 	private _nameButton: HTMLElement | undefined;
 	private _effortButton: HTMLElement | undefined;
 	private _tokensButton: HTMLElement | undefined;
+	private readonly _pendingOverflowCheck = this._register(new MutableDisposable());
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -668,6 +677,7 @@ export class ModelPickerWidget extends Disposable {
 		this._effortButton.tabIndex = 0;
 		this._effortButton.setAttribute('role', 'button');
 		this._effortButton.setAttribute('aria-haspopup', 'true');
+		this._effortButton.setAttribute('aria-expanded', 'false');
 		this._effortButton.style.display = 'none';
 
 		// Max tokens toggle button (conditionally visible)
@@ -878,7 +888,7 @@ export class ModelPickerWidget extends Disposable {
 		// Check overflow after layout and collapse to short name if needed
 		if (fullNameSpan && this._nameButton) {
 			this._nameButton.classList.remove('collapsed');
-			dom.getWindow(this._nameButton).requestAnimationFrame(() => {
+			this._pendingOverflowCheck.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._nameButton), () => {
 				if (fullNameSpan && fullNameSpan.scrollWidth > fullNameSpan.clientWidth) {
 					this._nameButton?.classList.add('collapsed');
 				}
@@ -942,11 +952,15 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _showEffortPicker(): void {
+		if (this._domNode?.classList.contains('disabled')) {
+			return;
+		}
 		const config = this._getConfigProperty('navigation');
 		if (!config || !this._effortButton || !this._selectedModel) {
 			return;
 		}
 
+		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = enumValues.map((value: unknown, index: number) => {
@@ -965,7 +979,7 @@ export class ModelPickerWidget extends Disposable {
 					label: displayLabel,
 					run: () => {
 						this._languageModelsService.setModelConfiguration(
-							this._selectedModel!.identifier,
+							modelIdentifier,
 							{ [config.key]: value }
 						);
 					}
@@ -1012,6 +1026,9 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _cycleTokens(): void {
+		if (this._domNode?.classList.contains('disabled')) {
+			return;
+		}
 		const config = this._getConfigProperty('tokens');
 		if (!config || !this._selectedModel) {
 			return;
@@ -1041,7 +1058,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 	}
 
 	// Show non-multiplier (UBB/AIC) pricing in hover
-	if (!isAuto && model.metadata.pricing && model.metadata.multiplierNumeric === undefined) {
+	if (!isAuto && model.metadata.pricing && !isMultiplierPricing(model)) {
 		if (hasContent) {
 			markdown.appendMarkdown(`\n\n`);
 		}
