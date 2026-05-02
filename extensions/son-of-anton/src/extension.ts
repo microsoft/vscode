@@ -28,8 +28,18 @@ import { StartupMessages } from './personality/StartupMessages';
 import { TerminalBanner } from './personality/TerminalBanner';
 import { KonamiCode } from './personality/KonamiCode';
 import { GitBlameEasterEgg } from './personality/GitBlameEasterEgg';
+import { activateAuth } from './auth/activation';
 
 export function activate(context: vscode.ExtensionContext): void {
+	// --- Credential broker (OAuth-based provider sign-in) ---
+	const auth = activateAuth({
+		secrets: context.secrets,
+		openExternal: uri => vscode.env.openExternal(vscode.Uri.parse(uri)),
+		getConfig: section => vscode.workspace.getConfiguration(section),
+		registerCommand: (id, handler) => vscode.commands.registerCommand(id, handler),
+	});
+	context.subscriptions.push(...auth.disposables);
+
 	const llmClient = new LlmClient(context);
 	const mcpClient = new McpClient();
 	const agentManager = new AgentManager(llmClient);
