@@ -75,7 +75,10 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			name: 'agent-host',
 			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
-			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			args: [
+				'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				'--user-data-dir', this._environmentMainService.userDataPath,
+			],
 			env: {
 				...deepClone(process.env),
 				...shellEnv,

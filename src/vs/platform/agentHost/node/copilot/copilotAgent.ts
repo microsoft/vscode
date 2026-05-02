@@ -545,6 +545,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionId = AgentSession.id(session);
+		const storedMetadata = await this._readStoredSessionMetadata(session);
+		if (!storedMetadata) {
+			return undefined;
+		}
+
+		const client = await this._ensureClient();
+		const sessionMetadata = await client.getSessionMetadata(sessionId);
+		if (!sessionMetadata) {
+			return undefined;
+		}
+
+		let project = storedMetadata?.project;
+		if (storedMetadata && !storedMetadata.resolved) {
+			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
+			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
+			void this._storeSessionProjectResolution(session, project);
+		}
+
+		const workingDirectory = storedMetadata?.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
+		return {
+			session,
+			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
+			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
+			project,
+			summary: sessionMetadata?.summary,
+			model: storedMetadata?.model,
+			workingDirectory,
+			customizationDirectory: storedMetadata?.customizationDirectory,
+		};
+	}
+
 	private async _listModels(): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();

@@ -714,6 +714,59 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('restores known session without listing all provider sessions', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				throw new Error('restoreSession should not enumerate sessions');
+			};
+
+			await service.restoreSession(session);
+
+			assert.strictEqual(listSessionsCalled, false);
+			assert.ok(service.stateManager.getSessionState(session.toString()));
+		});
+
+		test('falls back to listing sessions when direct metadata restore fails', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			copilotAgent.getSessionMetadata = async () => {
+				throw new Error('direct metadata unavailable');
+			};
+			const originalListSessions = copilotAgent.listSessions.bind(copilotAgent);
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				return originalListSessions();
+			};
+
+			await service.restoreSession(session);
+
+			assert.deepStrictEqual({
+				listSessionsCalled,
+				restored: !!service.stateManager.getSessionState(session.toString()),
+			}, {
+				listSessionsCalled: true,
+				restored: true,
+			});
+		});
+
 		test('restores a session with subagent tool calls', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
