@@ -1069,6 +1069,29 @@ suite('AgentService (node dispatcher)', () => {
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 1, 'rearmed timer fires after fresh 30s');
 			});
 		});
+
+		test('createSession on the same URI cancels a pending GC', () => {
+			// Models the reconnect path: client subscribes to a session,
+			// drops the subscription (GC armed), then re-issues
+			// `createSession` for the same URI before the grace expires.
+			// Without explicit cancellation, the timer would fire and
+			// dispose the just-revived session.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Re-issue createSession mid-grace.
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+
+				// Wait past the original grace window. If GC wasn't
+				// cancelled by createSession, dispose would have fired.
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+			});
+		});
 	});
 
 	suite('session config persistence', () => {

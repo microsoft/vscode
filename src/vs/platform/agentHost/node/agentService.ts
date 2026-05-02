@@ -302,6 +302,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
+		// Cancel any pending GC armed for this URI. A client may be
+		// re-issuing `createSession` for an existing URI mid-grace (e.g.
+		// during a reconnect that returned `missing`); without this, the
+		// timer would still fire and dispose the just-revived session
+		// before the follow-up `subscribe` arrives.
+		this._cancelPendingSessionGc(session);
+
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
@@ -344,9 +351,14 @@ export class AgentService extends Disposable implements IAgentService {
 			this._persistConfigValues(session, sessionConfig.values);
 		}
 
-		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
-
 		if (!created.provisional) {
+			// `SessionReady` transitions the session lifecycle from
+			// `Creating` to `Ready`. For provisional sessions we defer
+			// this to {@link _onDidMaterializeSession} so subscribers
+			// don't see `Ready` until the agent actually has an SDK
+			// session, working directory, etc.
+			this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
+
 			// Lazily compute git state for sessions with a working directory;
 			// attaches under `state._meta.git` once ready.
 			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
@@ -400,11 +412,13 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectory: e.workingDirectory?.toString() ?? state.summary.workingDirectory,
 			modifiedAt: Date.now(),
 		};
-		state.summary = summary;
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
 			this._persistConfigValues(e.session, configValues);
 		}
+		// `markSessionPersisted` writes the summary into state and fires
+		// the deferred `SessionAdded` notification atomically so subscribers
+		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionKey });
 		this._attachGitState(e.session, e.workingDirectory);

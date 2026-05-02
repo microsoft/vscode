@@ -175,9 +175,9 @@ export class AgentHostStateManager extends Disposable {
 	 * Fire a {@link NotificationType.SessionAdded} notification for a session
 	 * whose creation was deferred via `createSession({ emitNotification: false })`.
 	 *
-	 * Pass the latest summary — typically captured after the agent has fully
-	 * materialized the session (e.g. once worktree + SDK session + on-disk
-	 * metadata are in place). No-ops for sessions that were already announced
+	 * Atomically writes the supplied summary into `state.summary` so
+	 * subscribers reading state directly stay consistent with what was
+	 * announced. No-ops for sessions that were already announced
 	 * (idempotent).
 	 */
 	markSessionPersisted(session: URI, summary: SessionSummary): void {
@@ -194,6 +194,12 @@ export class AgentHostStateManager extends Disposable {
 		if (this._lastNotifiedSummaries.has(key)) {
 			return;
 		}
+		// Update the in-memory summary so subscribers calling
+		// `getSessionState` see the same fields the notification carries.
+		// We don't need to schedule a `SessionSummaryChanged` flush because
+		// the upcoming `SessionAdded` notification carries the complete
+		// summary already.
+		state.summary = summary;
 		this._lastNotifiedSummaries.set(key, summary);
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionAdded,

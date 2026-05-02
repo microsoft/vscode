@@ -522,6 +522,15 @@ class NewSession extends Disposable {
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
+				// Clear backend bookkeeping so a later `dispose()` doesn't
+				// fire `disposeSession` for a session the agent host never
+				// created. Only do this if we're still the current attempt
+				// (the caller may have already overwritten these fields by
+				// disposing this NewSession and constructing a new one).
+				if (this._backendUri?.toString() === backendUri.toString()) {
+					this._backendUri = undefined;
+					this._connection = undefined;
+				}
 				return;
 			}
 
