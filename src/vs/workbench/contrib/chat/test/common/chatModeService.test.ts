@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,6 +21,7 @@ import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -67,6 +68,10 @@ suite('ChatModeService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICustomizationHarnessService, {
+			onDidChangeCustomAgents: Event.None,
+			getCustomAgents: async () => [],
+		});
 
 		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 		// Eagerly create the ChatModes for the local session type and await

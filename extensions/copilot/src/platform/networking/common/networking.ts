@@ -427,7 +427,7 @@ function networkRequest(
 		Authorization: `Bearer ${secretKey}`,
 		'X-Request-Id': requestId,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
-		'X-GitHub-Api-Version': '2025-05-01',
+		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
 		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
 	};
