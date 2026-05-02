@@ -3,8 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as path from 'path';
+import { $ } from 'zx';
 import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
 import { e } from '../common/publish.ts';
+
+/**
+ * Staple the notarization ticket into the artifact so that Gatekeeper
+ * can verify it offline on first launch. Without a stapled ticket, macOS
+ * has to perform an online lookup against Apple's notarization service
+ * which can intermittently fail and surface to users as
+ * "<App> is damaged and can't be opened" — see #313109.
+ */
+async function stapleZippedApp(folder: string, glob: string): Promise<void> {
+	const zipPath = path.join(folder, glob);
+	if (!fs.existsSync(zipPath)) {
+		throw new Error(`Cannot staple: archive not found at ${zipPath}`);
+	}
+
+	const stagingDir = path.join(folder, '.staple');
+	fs.rmSync(stagingDir, { recursive: true, force: true });
+	fs.mkdirSync(stagingDir, { recursive: true });
+
+	await $`unzip -q ${zipPath} -d ${stagingDir}`;
+
+	const appName = fs.readdirSync(stagingDir).find(name => name.endsWith('.app'));
+	if (!appName) {
+		throw new Error(`Cannot staple: no .app bundle found inside ${zipPath}`);
+	}
+	const appPath = path.join(stagingDir, appName);
+
+	await $`xcrun stapler staple ${appPath}`;
+	await $`xcrun stapler validate ${appPath}`;
+
+	fs.rmSync(zipPath);
+	await $({ cwd: stagingDir })`zip -r -X -y ${zipPath} ${appName}`;
+
+	fs.rmSync(stagingDir, { recursive: true, force: true });
+}
+
+async function stapleArtifact(filePath: string): Promise<void> {
+	if (!fs.existsSync(filePath)) {
+		throw new Error(`Cannot staple: artifact not found at ${filePath}`);
+	}
+	await $`xcrun stapler staple ${filePath}`;
+	await $`xcrun stapler validate ${filePath}`;
+}
 
 async function main() {
 	const arch = e('VSCODE_ARCH');
@@ -71,6 +116,14 @@ async function main() {
 		printBanner('Notarize web');
 		await streamProcessOutputAndCheckResult('Notarize web', notarizeWebTask);
 	}
+
+	// Staple the notarization ticket onto the client artifacts so that
+	// Gatekeeper can verify them offline at first launch. See #313109.
+	printBanner('Staple client');
+	await stapleZippedApp(clientFolder, clientGlob);
+
+	printBanner('Staple DMG');
+	await stapleArtifact(path.join(dmgFolder, dmgGlob));
 }
 
 main().then(() => {
