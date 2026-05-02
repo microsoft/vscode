@@ -99,7 +99,11 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
-			args: ['--type=agentHost', '--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			args: [
+				'--type=agentHost',
+				'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				'--user-data-dir', this._environmentService.userDataPath,
+			],
 			env,
 		};
 
