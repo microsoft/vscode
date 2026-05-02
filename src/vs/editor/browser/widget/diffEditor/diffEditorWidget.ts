@@ -5,7 +5,7 @@
 import { getWindow, h } from '../../../../base/browser/dom.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
-import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -403,7 +403,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			if (!model) { return; }
 			for (const m of [model.model.original, model.model.modified]) {
 				store.add(m.onWillDispose(e => {
-					onUnexpectedError(new BugIndicatingError('TextModel got disposed before DiffEditorWidget model got reset'));
+					// Recover from external TextModel disposal (e.g. textModelResolverService dropping the
+					// last reference) racing ahead of the widget's own teardown. setModel(null) clears
+					// _diffModelSrc and unwires the inner editors before any further reads observe a
+					// disposed model. Race is intrinsic to TextModel ref-counting; do not report.
+					console.warn('TextModel got disposed before DiffEditorWidget model got reset; recovering via setModel(null).');
 					this.setModel(null);
 				}));
 			}
