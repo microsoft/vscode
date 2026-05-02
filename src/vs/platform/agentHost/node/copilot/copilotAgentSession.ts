@@ -103,9 +103,9 @@ function getCopilotCLISessionStateDir(userHome: string): string {
  * Both live directly inside `os.tmpdir()`, so we additionally require the
  * file's parent directory to be the OS temp directory before auto-approving.
  */
-const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d+-copilot-tool-output-[a-z0-9]+|copilot-tool-output-\d+-[a-z0-9]+)\.txt$/i;
+const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-[a-z0-9]{6}|copilot-tool-output-\d{10,}-[a-z0-9]{6})\.txt$/i;
 
-export function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
+function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
 	const fileUri = normalizePath(URI.file(filePath));
 	const tmpDirUri = normalizePath(URI.file(tmpDir));
 	const parentUri = normalizePath(URI.joinPath(fileUri, '..'));
