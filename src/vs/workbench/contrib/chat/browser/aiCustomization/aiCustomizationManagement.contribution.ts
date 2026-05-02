@@ -32,10 +32,13 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
@@ -171,6 +174,7 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 	}
 	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
+
 
 /**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
@@ -693,6 +697,20 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const harnessService = accessor.get(ICustomizationHarnessService);
+
+				// Detect the active chat session type and switch the harness
+				// so the customization editor opens in the matching context.
+				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				if (sessionResource) {
+					const sessionType = getChatSessionType(sessionResource);
+					const harness = harnessService.findHarnessById(sessionType);
+					if (harness) {
+						harnessService.setActiveHarness(sessionType);
+					}
+				}
+
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {

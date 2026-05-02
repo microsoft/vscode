@@ -190,8 +190,11 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly tooltip?: string;
 	readonly detail?: string;
-	readonly multiplier?: string;
 	readonly multiplierNumeric?: number;
+	readonly pricing?: string;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -827,10 +830,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		// Activate extensions before requesting to resolve the models
-		await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
-
-		const provider = this._providers.get(vendorId);
+		// If a provider is already registered (e.g. a renderer-side provider
+		// such as the agent host), skip the activation wait — there's nothing
+		// more for an extension to contribute, and waiting would block on
+		// extension host startup unnecessarily.
+		let provider = this._providers.get(vendorId);
+		if (!provider) {
+			// Activate extensions before requesting to resolve the models
+			await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
+			provider = this._providers.get(vendorId);
+		}
 		if (!provider) {
 			this._logService.warn(`[LM] No provider registered for vendor ${vendorId}`);
 			return;
@@ -900,6 +909,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 				try {
 					const models = await provider.provideLanguageModelChatInfo({ group: group.name, silent, configuration }, CancellationToken.None);
 					if (models.length) {
+						// Provide a sensible default for `metadata.detail` so that
+						// multiple instances of the same vendor (e.g. multiple
+						// Ollama servers) are distinguishable in the model picker.
+						// Providers that supply their own `detail` keep it; when
+						// the provider does not set one, fall back to the user-
+						// configured group name.
+						for (let i = 0; i < models.length; i++) {
+							if (!models[i].metadata.detail) {
+								models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
+							}
+						}
 						allModels.push(...models);
 						languageModelsGroups.push({ group, modelIdentifiers: models.map(m => m.identifier) });
 					}
@@ -926,6 +946,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			const oldModels = this._clearModelCache(vendorId);
 			let hasChanges = false;
@@ -941,6 +962,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._logService.trace(`[LM] Resolved language models for vendor ${vendorId}`, allModels);
 			hasChanges = hasChanges || oldModels.size > 0;
 
+			// Also detect group structure changes (added/removed groups, status changes)
+			// so the UI updates even when individual models haven't changed
+			if (!hasChanges) {
+				hasChanges = this._hasGroupStructureChanged(oldGroups, languageModelsGroups);
+			}
+
 			// Update per-model configurations for this vendor
 			this._clearModelConfigurations(vendorId);
 			for (const [identifier, config] of perModelConfigurations) {
@@ -955,6 +982,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+	}
+
+	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
+		if (oldGroups.length !== newGroups.length) {
+			return true;
+		}
+		for (let i = 0; i < oldGroups.length; i++) {
+			const oldGroup = oldGroups[i];
+			const newGroup = newGroups[i];
+			if (oldGroup.group?.name !== newGroup.group?.name
+				|| oldGroup.group?.vendor !== newGroup.group?.vendor
+				|| oldGroup.status?.message !== newGroup.status?.message
+				|| oldGroup.status?.severity !== newGroup.status?.severity
+				|| oldGroup.modelIdentifiers.length !== newGroup.modelIdentifiers.length) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
@@ -1156,7 +1201,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
-import { ResponsePartKind, type IMarkdownResponsePart } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, type MarkdownResponsePart } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -67,7 +67,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
 		const responsePartAction = getActionEnvelope(responsePart).action as IResponsePartAction;
 		assert.strictEqual(responsePartAction.part.kind, ResponsePartKind.Markdown);
-		assert.strictEqual((responsePartAction.part as IMarkdownResponsePart).content, 'Allowed.');
+		assert.strictEqual((responsePartAction.part as MarkdownResponsePart).content, 'Allowed.');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});

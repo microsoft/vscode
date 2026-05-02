@@ -32,7 +32,6 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 			workingDirectory: opts.worktree,
 			detail: undefined,
 			baseBranchName: undefined,
-			baseBranchProtected: undefined,
 		}],
 		requiresWorkspaceTrust: false,
 	} : undefined;
@@ -72,6 +71,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		gitHubInfo: observableValue('gitHubInfo', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: chat,
+		capabilities: { supportsMultipleChats: false },
 	};
 	return session;
 }

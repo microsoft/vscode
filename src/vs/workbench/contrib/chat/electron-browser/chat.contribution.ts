@@ -32,6 +32,7 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
@@ -50,7 +51,8 @@ import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
 // Override the browser PluginGitCommandService with the native one that always
-// runs git locally via the shared process.
+// runs git locally via the shared process. See the decision matrix on the
+// `IPluginGitService` interface for the full per-flavor wiring.
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
@@ -251,6 +253,7 @@ registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 
 // Register command for opening a new Agent Host session from the session type picker
 CommandsRegistry.registerCommand(

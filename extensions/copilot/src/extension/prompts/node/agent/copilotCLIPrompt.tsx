@@ -74,7 +74,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		// Also today we have a generic prompt that reads `Implement this.` and we have attachments.
 		// Thats not sufficient to direct the model to use prompt instructions.
 		// In regular chat we have `Follow instructions in #<file>` & thats very effective as the prompt is very sepcfici about what to do. `Implement this.` is not.
-		const instructions = promptVariable ?
+		const instructions = promptVariable && promptVariable.reference.name !== 'prompt:plan.prompt.md' ?
 			`Follow instructions in #${promptVariable.reference.name}` :
 			'IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task';
 		return (
@@ -123,8 +123,13 @@ export async function generateUserPrompt(request: ChatRequest, prompt: string | 
 		request: prompt ?? request.prompt,
 		editedFileEvents: request.editedFileEvents,
 	});
-	if (messages.length === 1 && messages[0].role === ChatRole.User && messages[0].content.length === 1 && messages[0].content[0].type === ChatCompletionContentPartKind.Text) {
-		return messages[0].content[0].text;
+
+	const userMessages = messages.filter(message => message.role === ChatRole.User);
+	if (userMessages.length > 0) {
+		const textParts = userMessages.flatMap(message => message.content);
+		if (textParts.every(part => part.type === ChatCompletionContentPartKind.Text)) {
+			return textParts.map(part => part.text).join('');
+		}
 	}
 	throw new Error(`[CopilotCLISession] Unexpected generated prompt structure.`);
 

@@ -55,7 +55,7 @@ import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySend
 import { INextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
-import { ISimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
+import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
 import { XtabProvider } from '../../extension/xtab/node/xtabProvider';
 import { IAuthenticationService } from '../../platform/authentication/common/authentication';
 import { ICopilotTokenManager } from '../../platform/authentication/common/copilotTokenManager';
@@ -104,8 +104,8 @@ import { resolveOTelConfig } from '../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../platform/otel/common/otelService';
 import { IProxyModelsService } from '../../platform/proxyModels/common/proxyModelsService';
 import { ProxyModelsService } from '../../platform/proxyModels/node/proxyModelsService';
-import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../platform/simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../platform/snippy/common/snippyService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../../platform/telemetry/common/nullExperimentationService';
@@ -484,14 +484,6 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 	}
 }
 
-class NullSimilarFilesContextService implements ISimilarFilesContextService {
-	declare readonly _serviceBrand: undefined;
-
-	async compute(): Promise<undefined> {
-		return undefined;
-	}
-}
-
 class NullEndpointProvider implements IEndpointProvider {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidModelsRefresh = VsEvent.None;
@@ -716,7 +708,7 @@ export interface IEditorSession {
 	readonly uiKind?: string;
 }
 
-export type IActionItem = ActionItem
+export type IActionItem = ActionItem;
 export interface INotificationSender {
 	showWarningMessage(message: string, ...actions: IActionItem[]): Promise<IActionItem | undefined>;
 }

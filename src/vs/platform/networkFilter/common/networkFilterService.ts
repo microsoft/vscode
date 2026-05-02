@@ -10,17 +10,23 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
+import { ITerminalSandboxService } from '../../sandbox/common/terminalSandboxService.js';
 import { extractDomainFromUri, isDomainAllowed } from './domainMatcher.js';
 import { AgentNetworkDomainSettingId } from './settings.js';
 
 export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterService>('agentNetworkFilterService');
 
+export const AgentNetworkFilterFetchWebToolName = 'fetchWebTool';
+
 /**
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
  *
- * Filtering is only active when the `chat.agent.networkFilter` setting is
- * enabled.  When both domain lists are empty, all domains are denied.
+ * Filtering is active for all callers when the `chat.agent.networkFilter` setting
+ * is enabled. When only sandboxing is enabled, filtering is active for fetch web
+ * page tool requests. This has to be revisited for integrated browser requests.
+ * When both domain lists are empty, all domains are denied.
  * When a domain appears on the denied list it is always blocked, even if it
  * also matches an entry on the allowed list.
  */
@@ -31,9 +37,10 @@ export interface IAgentNetworkFilterService {
 	 * Extracts the domain from a URI and checks it against the configured
 	 * allowed/denied domain filter.
 	 * File URIs and URIs without an authority always pass.
+	 * @param toolName Optional tool name for sandbox-only filtering.
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
-	isUriAllowed(uri: URI): boolean;
+	isUriAllowed(uri: URI, toolName?: string): boolean;
 
 	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
@@ -51,7 +58,8 @@ export interface IAgentNetworkFilterService {
 export class AgentNetworkFilterService extends Disposable implements IAgentNetworkFilterService {
 	readonly _serviceBrand: undefined;
 
-	private enabled = false;
+	private networkFilterEnabled = false;
+	private terminalSandboxEnabled = false;
 	private allowedPatterns: string[] = [];
 	private deniedPatterns: string[] = [];
 	private readonly domainCache = new LRUCache<string, boolean>(100);
@@ -61,9 +69,11 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITerminalSandboxService private readonly terminalSandboxService: ITerminalSandboxService,
 	) {
 		super();
 		this.readConfiguration();
+		void this.updateTerminalSandboxEnabled();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -73,20 +83,37 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 			) {
 				this.readConfiguration();
 				this.onDidChangeEmitter.fire();
+			} else if (
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled)
+			) {
+				void this.updateTerminalSandboxEnabled();
 			}
 		}));
 	}
 
 	private readConfiguration(): void {
-		this.enabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+		const networkFilterEnabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+
+		this.networkFilterEnabled = networkFilterEnabled;
 		this.allowedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
 		this.deniedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 		this.domainCache.clear();
 	}
 
-	isUriAllowed(uri: URI): boolean {
-		// When the network filter is disabled, allow all requests.
-		if (!this.enabled) {
+	private async updateTerminalSandboxEnabled(): Promise<void> {
+		const enabled = await this.terminalSandboxService.isEnabled();
+		if (this.terminalSandboxEnabled === enabled) {
+			return;
+		}
+		this.terminalSandboxEnabled = enabled;
+		this.readConfiguration();
+		this.onDidChangeEmitter.fire();
+	}
+
+	isUriAllowed(uri: URI, toolName?: string): boolean {
+		// When domain filtering is inactive, allow all requests.
+		if (!this.shouldFilter(toolName)) {
 			return true;
 		}
 
@@ -107,6 +134,13 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 		}
 
 		return result;
+	}
+	// Determines whether network filtering should be applied for a given request
+	// based on the global network filter setting, the terminal sandbox state, and the tool making the request.
+	// For sandbox mode, network filtering is applied only when the global network filter is disabled
+	// and the request is coming from the fetch web tool.
+	private shouldFilter(toolName: string | undefined): boolean {
+		return this.networkFilterEnabled || (this.terminalSandboxEnabled && toolName === AgentNetworkFilterFetchWebToolName);
 	}
 
 	formatError(uri: URI): string {

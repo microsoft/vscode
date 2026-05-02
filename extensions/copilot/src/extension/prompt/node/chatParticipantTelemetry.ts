@@ -25,7 +25,6 @@ import { DiagnosticsTelemetryData, findDiagnosticsTelemetry } from '../../inline
 import { InteractionOutcome } from '../../inlineChat/node/promptCraftingTypes';
 import { AgentIntent } from '../../intents/node/agentIntent';
 import { EditCodeIntent } from '../../intents/node/editCodeIntent';
-import { DocumentToAstSelectionData } from '../../prompts/node/inline/inlineChatEditCodePrompt';
 import { getCustomInstructionTelemetry } from '../../prompts/node/panel/customInstructions';
 import { PATCH_PREFIX } from '../../tools/node/applyPatch/parseApplyPatch';
 import { ChatVariablesCollection, parseSlashCommand } from '../common/chatVariablesCollection';
@@ -205,8 +204,6 @@ type RequestInlineTelemetryMeasurements = RequestTelemetryMeasurements & {
 	selectionProblemsCount: number;
 	diagnosticsCount: number;
 	selectionDiagnosticsCount: number;
-	userSelectionLength: number;
-	adjustedSelectionLength: number;
 };
 
 //#endregion
@@ -506,6 +503,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 		const toolCallProperties = {
 			intentId: this._intent.id,
 			conversationId: this._conversation.sessionId,
+			requestId: this.telemetryMessageId,
 			responseType,
 			toolCounts: JSON.stringify(toolCounts),
 			model: this._endpoint.model
@@ -532,6 +530,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				"comment": "Records information about tool calls during a request.",
 				"intentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the invoked intent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current turn request." },
 				"numRequests": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The total number of requests made" },
 				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The conversation turn index" },
 				"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": false, "comment": "The number of times each tool was used" },
@@ -901,11 +900,6 @@ export class InlineChatTelemetry extends ChatTelemetry<IDocumentContext> {
 			return acc;
 		}, {} as Record<string, number>);
 
-
-		const selectionData = this._getTelemetryData(DocumentToAstSelectionData);
-		const userSelectionLength = selectionData?.original.length ?? -1;
-		const adjustedSelectionLength = selectionData?.adjusted.length ?? -1;
-
 		/* __GDPR__
 			"inline.request" : {
 				"owner": "digitarald",
@@ -952,8 +946,6 @@ export class InlineChatTelemetry extends ChatTelemetry<IDocumentContext> {
 				"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The total number of tool calls" },
 				"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How number of tools that were available." },
 				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How many tokens were used by tool definitions." },
-				"userSelectionLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The length of the user selection" },
-				"adjustedSelectionLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The length of the adjusted user selection" },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the request was for a BYOK model" },
 				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the request was for an Auto model" }
 			}
@@ -999,8 +991,6 @@ export class InlineChatTelemetry extends ChatTelemetry<IDocumentContext> {
 			numToolCalls: toolCalls.length,
 			availableToolCount: this._availableToolCount,
 			toolTokenCount: this._toolTokenCount,
-			userSelectionLength,
-			adjustedSelectionLength,
 			isBYOK: isBYOKModel(this._endpoint),
 			isAuto: isAutoModel(this._endpoint)
 		} satisfies RequestInlineTelemetryMeasurements);

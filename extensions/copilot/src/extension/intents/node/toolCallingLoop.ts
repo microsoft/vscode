@@ -39,7 +39,7 @@ import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelTextPart, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
+import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { AnthropicTokenUsageMetadata, Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -176,6 +176,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private agentSpan: ISpanHandle | undefined;
 	private chatSessionIdForTools: string | undefined;
 	private toolsAvailableEmitted = false;
+	private lastHeaderRequestId: string | undefined;
+	private lastModelCallId: string | undefined;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -192,8 +194,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private readonly _onDidReceiveResponse = this._register(new Emitter<IToolCallingResponseEvent>());
 	public readonly onDidReceiveResponse = this._onDidReceiveResponse.event;
 
+	protected get currentToolCallRounds(): readonly IToolCallRound[] {
+		return this.toolCallRounds;
+	}
+
 	private get turn() {
 		return this.options.conversation.getLatestTurn();
+	}
+
+	protected get agentName(): string | undefined {
+		return (this.options.request as { subAgentName?: string }).subAgentName
+			?? (this.options.request as { participant?: string }).participant;
 	}
 
 	constructor(
@@ -264,6 +275,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			hasStopHookQuery,
 			modeInstructions: this.options.request.modeInstructions2,
 			additionalHookContext: this.additionalHookContext,
+			parentHeaderRequestId: this.lastHeaderRequestId,
+			parentModelCallId: this.lastModelCallId,
 		};
 	}
 
@@ -378,9 +391,26 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return undefined;
 		}
 
+		// If the model produced a substantive text response with no tool calls, treat it
+		// as a final summary and let the loop stop. Nudging in this case typically just
+		// wastes a turn — the model considers itself done. The user can always continue
+		// the conversation if it wasn't.
+		if (result.round.toolCalls.length === 0 && result.round.response.trim().length > 0) {
+			this._logService.info('[ToolCallingLoop] Autopilot: model produced a text-only response, treating as done');
+			return undefined;
+		}
+
 		// safety valve — only give up after exhausting all continuation attempts
 		if (this.autopilotIterationCount >= ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS) {
 			this._logService.info(`[ToolCallingLoop] Autopilot: hit max iterations (${ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS}), letting it stop`);
+			return undefined;
+		}
+
+		// If we already nudged once and the model still produced no tool calls, the model
+		// is effectively done — further nudges just waste tokens. Bail out and let the
+		// loop stop.
+		if (this.autopilotStopHookActive && result.round.toolCalls.length === 0) {
+			this._logService.info('[ToolCallingLoop] Autopilot: prior nudge produced no tool calls, stopping to avoid wasted requests');
 			return undefined;
 		}
 
@@ -685,6 +715,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			if (isFirstTurn) {
 				const startHookResult = await this.executeSessionStartHook({
 					source: 'new',
+					model: this.options.request.model?.id ?? 'unknown',
+					agent_type: this.agentName,
 				}, sessionId, outputStream, token);
 				if (startHookResult.additionalContext) {
 					this.additionalHookContext = startHookResult.additionalContext;
@@ -701,9 +733,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	public async run(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<IToolCallLoopResult> {
-		const agentName = (this.options.request as { subAgentName?: string }).subAgentName
-			?? (this.options.request as { participant?: string }).participant
-			?? 'GitHub Copilot Chat';
+		const agentName = this.agentName ?? 'GitHub Copilot Chat';
 
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;
@@ -742,7 +772,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
-					...(customModeName ? { 'copilot_chat.mode_name': customModeName } : {}),
+					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
@@ -804,6 +834,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
 					])));
+					// Set USER_REQUEST so event translator can emit user.message
+					if (userMessage) {
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
 						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
@@ -813,6 +847,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// Accumulate token usage across all LLM turns per GenAI agent span spec
 				let totalInputTokens = 0;
 				let totalOutputTokens = 0;
+				let totalCacheReadTokens = 0;
+				let totalCacheCreationTokens = 0;
 				let lastResolvedModel: string | undefined;
 				let turnIndex = 0;
 				const tokenListener = this.onDidReceiveResponse(({ response }) => {
@@ -821,6 +857,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					if (response.type === ChatFetchResponseType.Success && response.usage) {
 						totalInputTokens += turnInputTokens;
 						totalOutputTokens += turnOutputTokens;
+						totalCacheReadTokens += (response.usage.prompt_tokens_details?.cached_tokens || 0);
+						totalCacheCreationTokens += (response.usage.prompt_tokens_details?.cache_creation_input_tokens || 0);
 					}
 					if (response.type === ChatFetchResponseType.Success && response.resolvedModel) {
 						lastResolvedModel = response.resolvedModel;
@@ -835,6 +873,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						[CopilotChatAttr.TURN_COUNT]: result.toolCallRounds.length,
 						[GenAiAttr.USAGE_INPUT_TOKENS]: totalInputTokens,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: totalOutputTokens,
+						...(totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: totalCacheReadTokens } : {}),
+						...(totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: totalCacheCreationTokens } : {}),
 						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: lastResolvedModel } : {}),
 					});
 					// Always capture agent output message and tool definitions for the debug panel
@@ -846,11 +886,18 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 								{ role: 'assistant', parts: [{ type: 'text', content: responseText }] }
 							])));
 						}
-						// Log tool definitions once on the agent span (same set across all turns)
+						// Log tool definitions once on the agent span (same set across all turns).
+						// Includes `parameters` (inputSchema) per OTel GenAI semantic convention so
+						// trace viewers can render full tool signatures (issue #300318).
 						if (result.availableTools.length > 0) {
-							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, JSON.stringify(
-								result.availableTools.map(t => ({ type: 'function', name: t.name, description: t.description }))
-							));
+							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(
+								result.availableTools.map(t => ({
+									type: 'function',
+									name: t.name,
+									description: t.description,
+									parameters: t.inputSchema,
+								}))
+							)));
 						}
 					}
 					span.setStatus(SpanStatusCode.OK);
@@ -891,7 +938,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				const permLevel = this.options.request.permissionLevel;
 				if (permLevel === 'autopilot' && this.options.toolCallLimit < 200) {
 					this.options.toolCallLimit = Math.min(Math.round(this.options.toolCallLimit * 3 / 2), 200);
-					this.showAutopilotProgress(outputStream, l10n.t('Extending tool call limit with Autopilot...'), l10n.t('Extended tool call limit with Autopilot'));
+					this.showAutopilotProgress(outputStream, l10n.t('Autopilot: extending tool call limit\u2026'), l10n.t('Autopilot extended tool call limit'));
 				} else {
 					lastResult = this.hitToolCallLimit(outputStream, lastResult);
 					break;
@@ -942,9 +989,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						this.autopilotRetryCount++;
 						this._logService.info(`[ToolCallingLoop] Auto-retrying on error (attempt ${this.autopilotRetryCount}/${ToolCallingLoop.MAX_AUTOPILOT_RETRIES}): ${result.response.type}`);
 						if (this.options.request.permissionLevel === 'autopilot') {
-							this.showAutopilotProgress(outputStream, l10n.t('Request failed, retrying with Autopilot...'), l10n.t('Request failed, retried with Autopilot'));
+							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: recovering from a request error\u2026'), l10n.t('Autopilot recovered from a request error'));
 						} else {
-							this.showAutopilotProgress(outputStream, l10n.t('Request failed, retrying request...'), l10n.t('Request failed, retried request'));
+							this.showAutopilotProgress(outputStream, l10n.t('Recovering from a request error\u2026'), l10n.t('Recovered from a request error'));
 						}
 						await timeout(1000, token);
 						continue;
@@ -994,7 +1041,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						const autopilotContinue = this.shouldAutopilotContinue(result);
 						if (autopilotContinue) {
 							this._logService.info(`[ToolCallingLoop] Autopilot internal stop hook: continuing because task may not be complete`);
-							this.showAutopilotProgress(outputStream, l10n.t('Continuing with Autopilot: Task not yet complete'), l10n.t('Continued with Autopilot: Task not yet complete'));
+							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: verifying task is done\u2026'), l10n.t('Autopilot continued working'));
 							this.stopHookReason = autopilotContinue;
 							result.round.hookContext = formatHookContext([autopilotContinue]);
 							this.autopilotStopHookActive = true;
@@ -1158,7 +1205,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (!this.toolsAvailableEmitted && this.agentSpan && availableTools.length > 0) {
 			this.toolsAvailableEmitted = true;
 			this.agentSpan.addEvent('tools_available', {
-				toolDefinitions: JSON.stringify(availableTools.map(t => ({ type: 'function', name: t.name, description: t.description }))),
+				toolDefinitions: truncateForOTel(JSON.stringify(availableTools.map(t => ({
+					type: 'function',
+					name: t.name,
+					description: t.description,
+					parameters: t.inputSchema,
+				})))),
 				...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
 			});
 		}
@@ -1318,14 +1370,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						arguments: call.arguments === '' ? '{}' : call.arguments
 					})));
 				}
-				if (delta.serverToolCalls) {
-					for (const serverCall of delta.serverToolCalls) {
-						const result: LanguageModelToolResult2 = {
-							content: [new LanguageModelTextPart(JSON.stringify(serverCall.result, undefined, 2))]
-						};
-						this._requestLogger.logServerToolCall(serverCall.id, serverCall.name, serverCall.args, result);
-					}
-				}
 				if (delta.statefulMarker) {
 					statefulMarker = delta.statefulMarker;
 				}
@@ -1351,6 +1395,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				})),
 			},
 			userInitiatedRequest: (iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId && !this.options.request.isSystemInitiated) || this.stopHookUserInitiated,
+			iterationNumber,
 			modelCapabilities: {
 				enableThinking,
 			},
@@ -1358,6 +1403,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.stopHookUserInitiated = false;
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
+
+		// Store the server-echoed headerRequestId from the fetch response for subagent telemetry linking.
+		// Prefer serverRequestId (the server's x-request-id response header) because it matches
+		// chatCompletion.requestId.headerRequestId which is reported as `requestId` in response.success.
+		// Fall back to requestId (client-generated UUID) if the server didn't echo the header.
+		// Use || instead of ?? because getRequestId() returns '' for missing headers.
+		if (fetchResult.type === ChatFetchResponseType.Success) {
+			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
+			this.lastModelCallId = fetchResult.modelCallId;
+		}
 
 		const promptTokenDetails = await computePromptTokenDetails({
 			messages: effectiveBuildPromptResult.messages,

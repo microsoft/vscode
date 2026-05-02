@@ -40,7 +40,7 @@ export interface OTelOutputMessage extends OTelChatMessage {
 export type OTelMessagePart =
 	| { type: 'text'; content: string }
 	| { type: 'tool_call'; id: string; name: string; arguments: unknown }
-	| { type: 'tool_call_response'; id: string; content: unknown }
+	| { type: 'tool_call_response'; id: string; response: unknown }
 	| { type: 'reasoning'; content: string };
 
 export type OTelSystemInstruction = Array<{ type: 'text'; content: string }>;
@@ -54,10 +54,17 @@ export interface OTelToolDefinition {
 
 /**
  * Convert an array of internal messages to OTel input message format.
+ * Handles OpenAI format (tool_calls, tool_call_id) natively.
  */
-export function toInputMessages(messages: ReadonlyArray<{ role?: string; content?: string; tool_calls?: ReadonlyArray<{ id: string; function: { name: string; arguments: string } }> }>): OTelChatMessage[] {
+export function toInputMessages(messages: ReadonlyArray<{ role?: string; content?: string; tool_calls?: ReadonlyArray<{ id: string; function: { name: string; arguments: string } }>; tool_call_id?: string }>): OTelChatMessage[] {
 	return messages.map(msg => {
 		const parts: OTelMessagePart[] = [];
+
+		// OpenAI tool-result message (role=tool): map to tool_call_response
+		if (msg.role === 'tool' && msg.tool_call_id) {
+			parts.push({ type: 'tool_call_response', id: msg.tool_call_id, response: msg.content ?? '' });
+			return { role: msg.role, parts };
+		}
 
 		if (msg.content) {
 			parts.push({ type: 'text', content: msg.content });
@@ -127,21 +134,131 @@ export function toSystemInstructions(systemMessage: string | undefined): OTelSys
 }
 
 /**
- * Convert tool definitions to OTel tool definition format.
+ * Normalize provider-specific messages (Anthropic content blocks, OpenAI tool messages)
+ * to OTel GenAI semantic convention format.
+ *
+ * Handles:
+ * - Anthropic content block arrays: tool_use → tool_call, tool_result → tool_call_response
+ * - OpenAI format: tool_calls, role=tool with tool_call_id
+ * - Plain string content
+ */
+export function normalizeProviderMessages(messages: ReadonlyArray<Record<string, unknown>>): OTelChatMessage[] {
+	return messages.map(msg => {
+		const role = msg.role as string | undefined;
+		const parts: OTelMessagePart[] = [];
+		const content = msg.content;
+
+		// OpenAI tool-result message
+		if (role === 'tool' && typeof msg.tool_call_id === 'string') {
+			parts.push({ type: 'tool_call_response', id: msg.tool_call_id, response: content ?? '' });
+			return { role, parts };
+		}
+
+		if (typeof content === 'string' && content.length > 0) {
+			parts.push({ type: 'text', content });
+		} else if (Array.isArray(content)) {
+			// Anthropic content block array
+			for (const block of content) {
+				if (!block || typeof block !== 'object') { continue; }
+				const b = block as Record<string, unknown>;
+				switch (b.type) {
+					case 'text':
+						if (typeof b.text === 'string') {
+							parts.push({ type: 'text', content: b.text });
+						}
+						break;
+					case 'tool_use':
+						parts.push({
+							type: 'tool_call',
+							id: String(b.id ?? ''),
+							name: String(b.name ?? ''),
+							arguments: b.input,
+						});
+						break;
+					case 'tool_result':
+						parts.push({
+							type: 'tool_call_response',
+							id: String(b.tool_use_id ?? ''),
+							response: b.content ?? '',
+						});
+						break;
+					case 'thinking':
+						if (typeof b.thinking === 'string') {
+							parts.push({ type: 'reasoning', content: b.thinking });
+						}
+						break;
+					default:
+						// Unknown block type — include as text fallback
+						parts.push({ type: 'text', content: JSON.stringify(b) });
+						break;
+				}
+			}
+		}
+
+		// OpenAI tool_calls
+		const toolCalls = msg.tool_calls;
+		if (Array.isArray(toolCalls)) {
+			for (const tc of toolCalls) {
+				if (!tc || typeof tc !== 'object') { continue; }
+				const call = tc as Record<string, unknown>;
+				const fn = call.function as Record<string, unknown> | undefined;
+				if (fn) {
+					let args: unknown;
+					try { args = typeof fn.arguments === 'string' ? JSON.parse(fn.arguments) : fn.arguments; } catch { args = fn.arguments; }
+					parts.push({
+						type: 'tool_call',
+						id: String(call.id ?? ''),
+						name: String(fn.name ?? ''),
+						arguments: args,
+					});
+				}
+			}
+		}
+
+		return { role, parts };
+	});
+}
+
+/**
+ * Convert tool definitions to OTel `gen_ai.tool.definitions` format.
+ *
+ * Accepts the variants emitted by the different request bodies/providers:
+ * - OpenAI Chat Completions: `{ type: 'function', function: { name, description, parameters } }`
+ * - OpenAI Responses API:    `{ type: 'function', name, description, parameters }`
+ * - Anthropic Messages API:  `{ name, description, input_schema }`
+ * - VS Code tool info:       `{ name, description, inputSchema }`
+ *
+ * Tools without a name (e.g. OpenAI client-side `tool_search`) are skipped
+ * because OTel `gen_ai.tool.definitions` requires a name per entry.
+ *
+ * @see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/#gen-ai-tool-definitions
  */
 export function toToolDefinitions(tools: ReadonlyArray<{
 	type?: string;
-	function?: { name: string; description?: string; parameters?: unknown };
+	name?: string;
+	description?: string;
+	parameters?: unknown;
+	input_schema?: unknown;
+	inputSchema?: unknown;
+	function?: { name?: string; description?: string; parameters?: unknown };
 }> | undefined): OTelToolDefinition[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
-	return tools
-		.filter((t): t is typeof t & { function: NonNullable<typeof t['function']> } => !!t.function)
-		.map(t => ({
-			type: 'function' as const,
-			name: t.function.name,
-			description: t.function.description,
-			parameters: t.function.parameters,
-		}));
+	const out: OTelToolDefinition[] = [];
+	for (const t of tools) {
+		const name = t.function?.name ?? t.name;
+		if (!name) {
+			continue;
+		}
+		const description = t.function?.description ?? t.description;
+		const parameters = t.function?.parameters ?? t.parameters ?? t.input_schema ?? t.inputSchema;
+		out.push({
+			type: 'function',
+			name,
+			description,
+			parameters,
+		});
+	}
+	return out.length > 0 ? out : undefined;
 }

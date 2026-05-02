@@ -49,6 +49,7 @@ import './allAgentPrompts';
 import { AlternateGPTPrompt, DefaultReminderInstructions, DefaultToolReferencesHint, ReminderInstructionsProps, ToolReferencesHintProps } from './defaultAgentInstructions';
 import { AgentPromptCustomizations, ReminderInstructionsConstructor, ToolReferencesHintConstructor } from './promptRegistry';
 import { SummarizedConversationHistory } from './summarizedConversationHistory';
+import { DeferredToolListReminder } from './toolSearchInstructions';
 
 export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
@@ -71,8 +72,11 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	 */
 	readonly customizations?: AgentPromptCustomizations;
 
-	/** Whether this summarization was triggered as a background or foreground operation. */
-	readonly summarizationSource?: 'background' | 'foreground';
+	/**
+	 * Prefer Simple mode for summarization, typically for the budget-exceeded recovery path.
+	 * An explicit summarization mode configuration can still force Full mode.
+	 */
+	readonly forceSimpleSummary?: boolean;
 }
 
 /** Proportion of the prompt token budget any singular textual tool result is allowed to use. */
@@ -143,6 +147,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SummarizedConversationHistory
 					flexGrow={1}
 					triggerSummarize={this.props.triggerSummarize}
+					forceSimpleSummary={this.props.forceSimpleSummary}
 					priority={900}
 					promptContext={this.props.promptContext}
 					location={this.props.location}
@@ -150,7 +155,6 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 					endpoint={this.props.endpoint}
 					tools={this.props.promptContext.tools?.availableTools}
 					enableCacheBreakpoints={this.props.enableCacheBreakpoints}
-					summarizationSource={this.props.summarizationSource}
 					userQueryTagName={userQueryTagName}
 					ReminderInstructionsClass={ReminderInstructionsClass}
 					ToolReferencesHintClass={ToolReferencesHintClass}
@@ -275,6 +279,7 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
 			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
+			<DeferredToolListReminder availableTools={this.props.availableTools} />
 			{this.props.enableCacheBreakpoints && <cacheBreakpoint type={CacheType} />}
 		</UserMessage>;
 	}
@@ -522,6 +527,8 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 	constructor(
 		props: SkillAdherenceReminderProps,
 		@ICustomInstructionsService private readonly customInstructionsService: ICustomInstructionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
@@ -536,6 +543,14 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 		const indexFile = this.customInstructionsService.parseInstructionIndexFile(indexVariable.value);
 		if (indexFile.skills.size === 0) {
 			return undefined;
+		}
+
+		const skillToolEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, this.experimentationService);
+
+		if (skillToolEnabled) {
+			return <Tag name='additional_skills_reminder'>
+				Always check if any skills apply to the user's request. If so, use the {ToolName.Skill} tool to invoke the skill by name. Multiple skill files may be needed for a single request. These files contain best practices built from testing that are needed for high-quality outputs.<br />
+			</Tag>;
 		}
 
 		return <Tag name='additional_skills_reminder'>

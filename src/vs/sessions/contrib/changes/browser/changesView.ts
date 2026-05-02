@@ -5,7 +5,9 @@
 
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -13,7 +15,7 @@ import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -55,6 +57,8 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
@@ -66,12 +70,14 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 
 const $ = dom.$;
 
@@ -162,7 +168,9 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
+			action.id === 'github.copilot.claude.sessions.sync' ||
+			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR' ||
+			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
 		) {
 			const customLabel = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
@@ -194,7 +202,11 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
 			action.id === 'github.copilot.sessions.commit' ||
-			action.id === 'agentSession.markAsDone'
+			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
+			action.id === 'github.copilot.claude.sessions.commit' ||
+			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
+			action.id === 'agentSession.markAsDone' ||
+			isAgentHostSkillButtonId(action.id)
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
 		}
@@ -220,7 +232,7 @@ export class ChangesViewPane extends ViewPane {
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
 	private filesHeaderNode: HTMLElement | undefined;
-	private filesCountBadge: HTMLElement | undefined;
+	private fileHeaderToolbarContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
 	private overviewContainer: HTMLElement | undefined;
 	private summaryContainer: HTMLElement | undefined;
@@ -244,6 +256,8 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
+
+	private readonly scopedInstantiationService: IInstantiationService;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 
@@ -275,6 +289,10 @@ export class ChangesViewPane extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
 
+		// Multi-diff editor source resolver
+		const changesMultiDiffSourceResolver = this.instantiationService.createInstance(ChangesMultiDiffSourceResolver, this.viewModel);
+		this._register(changesMultiDiffSourceResolver);
+
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
 		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.scopedContextKeyService);
@@ -303,6 +321,10 @@ export class ChangesViewPane extends ViewPane {
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
+
+		const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+		this.scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+		this._register(this.scopedInstantiationService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -330,19 +352,29 @@ export class ChangesViewPane extends ViewPane {
 		// Files header
 		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
 
+		// Changesets toolbar
 		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
 				}
 				return undefined;
 			},
 		}));
 
-		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
-		this.filesCountBadge.style.display = 'none';
+		// File header right-aligned toolbar
+		this.fileHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-right-toolbar'));
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.fileHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderRightToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action, options) => {
+				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
+					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, this.viewModel, options);
+				}
+				return undefined;
+			},
+		}));
 
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
@@ -514,11 +546,7 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
-			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
-			this.renderDisposables.add(scopedInstantiationService);
-
-			this.renderDisposables.add(scopedInstantiationService.createInstance(
+			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
 				ChangesButtonBarWidget, this.actionsContainer, this.viewModel));
 		}
 
@@ -527,7 +555,7 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.status.read(reader);
 		});
 
-		// Update visibility and file count badge based on entries
+		// Update visibility based on entries
 		this.renderDisposables.add(autorun(reader => {
 			if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
 				return;
@@ -540,18 +568,21 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			dom.setVisibility(hasGitRepository, this.filesHeaderNode!);
 
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
 
+			// Show the files header whenever the session is git-backed (so users
+			// can switch version modes) or there are session-provided entries to
+			// count (for non-git sessions like the local agent host).
+			dom.setVisibility(hasGitRepository || hasEntries, this.filesHeaderNode!);
+
+			if (this.fileHeaderToolbarContainer) {
+				dom.setVisibility(hasEntries, this.fileHeaderToolbarContainer);
+			}
+
 			dom.setVisibility(hasEntries, this.listContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
-
-			if (this.filesCountBadge) {
-				this.filesCountBadge.textContent = `${files}`;
-				this.filesCountBadge.style.display = '';
-			}
 
 			this.layoutSplitView();
 		}));
@@ -597,8 +628,15 @@ export class ChangesViewPane extends ViewPane {
 
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
-				const items = changesObs.get();
-				this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+				const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+				if (modalEditorMode === 'all') {
+					const items = changesObs.get();
+					this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+					return;
+				}
+
+				// Open multi-file diff editor
+				void this._openMultiFileDiffEditor(e.element.uri);
 			}));
 		}
 
@@ -615,6 +653,9 @@ export class ChangesViewPane extends ViewPane {
 			const changes = changesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
+			// Read session state so this autorun re-runs when git state (e.g. branch name)
+			// arrives asynchronously, since the tree root label depends on it.
+			this.viewModel.activeSessionStateObs.read(reader);
 
 			if (!this.tree || isLoading) {
 				return;
@@ -758,6 +799,10 @@ export class ChangesViewPane extends ViewPane {
 		const versionMode = this.viewModel.versionModeObs.get();
 		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
 		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
+
+		if (versionMode === ChangesVersionMode.UncommittedChanges) {
+			return 'HEAD';
+		}
 
 		return versionMode === ChangesVersionMode.LastTurn
 			? lastCheckpointRef
@@ -922,14 +967,22 @@ export class ChangesViewPane extends ViewPane {
 		));
 	}
 
-	async openChanges(): Promise<void> {
+	async openChanges(resource?: URI): Promise<void> {
 		const items = this.viewModel.activeSessionChangesObs.get();
 		if (items.length === 0) {
 			return;
 		}
 
-		const changes = toIChangesFileItem(items);
-		await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		if (modalEditorMode === 'all') {
+			const changes = toIChangesFileItem(items);
+			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
+			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
+			return;
+		}
+
+		// Open multi-file diff editor
+		await this._openMultiFileDiffEditor(resource);
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
@@ -976,6 +1029,43 @@ export class ChangesViewPane extends ViewPane {
 			resource: modifiedFileUri,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 		}, group);
+	}
+
+	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
+		const sessionResource = this.viewModel.activeSessionResourceObs.get();
+		const changes = this.viewModel.activeSessionChangesObs.get();
+
+		if (!sessionResource || changes.length === 0) {
+			return;
+		}
+
+		// Determine the reveal target (original/modified URI pair) from the
+		// current change list, so the multi-diff editor can navigate to it.
+		let options: IMultiDiffEditorOptions | undefined;
+		if (reveal) {
+			const target = changes.find(c => isEqual(c.modifiedUri, reveal));
+			if (target) {
+				options = {
+					viewState: {
+						revealData: {
+							resource: {
+								original: target.originalUri,
+								modified: target.modifiedUri,
+							},
+						},
+					},
+				} satisfies IMultiDiffEditorOptions;
+			}
+		}
+
+		// Open the multi-diff editor using the sessions source URI. The resource
+		// list is resolved via `SessionsMultiDiffSourceResolver` and updates
+		// reactively as `activeSessionChangesObs` changes.
+		await this.editorService.openEditor({
+			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
+			label: localize('sessions.changes.title', 'Session Changes'),
+			options,
+		});
 	}
 
 	override dispose(): void {
@@ -1153,6 +1243,7 @@ class VersionsPickerAction extends Action2 {
 				id: MenuId.ChatEditingSessionChangesFileHeaderToolbar,
 				group: 'navigation',
 				order: 9,
+				when: ActiveSessionContextKeys.HasGitRepository,
 			}],
 		});
 	}
@@ -1177,12 +1268,12 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const branchName = state?.branchName;
 				const baseBranchName = state?.baseBranchName;
 
-				return [
+				const actions = [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
 						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
-						description: branchName && baseBranchName
+						detail: branchName && baseBranchName
 							? `${branchName} → ${baseBranchName}`
 							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
@@ -1195,13 +1286,32 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							}
 						},
 					},
-					{
+				];
+
+				if (!isWeb) {
+					actions.push({
+						...action,
+						id: 'chatEditing.versionsUncommittedChanges',
+						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
+						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
+						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
+						category: { label: 'changes', order: 2, showHeader: false },
+						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
+						run: async () => {
+							viewModel.setVersionMode(ChangesVersionMode.UncommittedChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.UncommittedChanges);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
+						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
-						category: { label: 'checkpoints', order: 2, showHeader: false },
+						category: { label: 'checkpoints', order: 3, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
@@ -1212,14 +1322,14 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-					{
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsLastTurnChanges',
 						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
-						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
+						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
-						category: { label: 'checkpoints', order: 3, showHeader: false },
+						category: { label: 'checkpoints', order: 4, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
@@ -1230,12 +1340,14 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-				];
+					});
+				}
+
+				return actions;
 			},
 		};
 
-		super(action, { actionProvider, listOptions: { descriptionBelow: true } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		super(action, { actionProvider, listOptions: {} }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);
@@ -1250,12 +1362,119 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const mode = this.viewModel.versionModeObs.get();
 		const label = mode === ChangesVersionMode.BranchChanges
 			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
-			: mode === ChangesVersionMode.AllChanges
-				? localize('sessionsChanges.versionsAllChanges', "All Changes")
-				: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
+			: mode === ChangesVersionMode.UncommittedChanges
+				? localize('sessionsChanges.versionsUncommittedChanges', 'Uncommitted Changes')
+				: mode === ChangesVersionMode.AllChanges
+					? localize('sessionsChanges.versionsAllChanges', "All Changes")
+					: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
 
 		dom.reset(element, dom.$('span', undefined, label), ...renderLabelWithIcons('$(chevron-down)'));
 		this.updateAriaLabel();
 		return null;
+	}
+}
+
+// --- Diff Stats Action
+
+class ChangesDiffStatsAction extends Action2 {
+	static readonly ID = 'workbench.changesView.action.viewChanges';
+
+	constructor() {
+		super({
+			id: ChangesDiffStatsAction.ID,
+			title: localize2('changesView.viewChanges', 'View All Changes'),
+			f1: false,
+			menu: {
+				id: MenuId.ChatEditingSessionChangesFileHeaderRightToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.hasAgentSessionChanges
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		await view?.openChanges();
+	}
+}
+registerAction2(ChangesDiffStatsAction);
+
+class ChangesDiffStatsActionItem extends ActionViewItem {
+	private readonly diffStatsObs: IObservable<{ files: number; insertions: number; deletions: number } | undefined>;
+
+	constructor(
+		action: MenuItemAction,
+		viewModel: ChangesViewModel,
+		options: IActionViewItemOptions,
+	) {
+		super(null, action, { ...options, icon: false, label: true });
+
+		const diffStatsRawObs = derivedObservableWithCache<{ files: number; insertions: number; deletions: number } | undefined>(this,
+			(reader, lastValue) => {
+				const entries = viewModel.activeSessionChangesObs.read(reader);
+				const isLoading = viewModel.activeSessionIsLoadingObs.read(reader);
+
+				if (isLoading) {
+					return lastValue;
+				}
+
+				let insertions = 0, deletions = 0;
+				for (const entry of entries) {
+					insertions += entry.insertions;
+					deletions += entry.deletions;
+				}
+
+				return { files: entries.length, insertions, deletions };
+			});
+
+		this.diffStatsObs = derivedOpts<{ files: number; insertions: number; deletions: number } | undefined>({
+			equalsFn: structuralEquals
+		}, reader => diffStatsRawObs.read(reader));
+
+		this._register(autorun(reader => {
+			const diffStats = this.diffStatsObs.read(reader);
+			if (diffStats === undefined) {
+				return;
+			}
+
+			this.updateLabel();
+			this.updateTooltip();
+		}));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('changes-diff-stats-action');
+	}
+
+	protected override updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+
+		const diffStats = this.diffStatsObs.get();
+		if (diffStats === undefined) {
+			return;
+		}
+
+		const { insertions, deletions } = diffStats;
+
+		dom.reset(
+			this.label,
+			dom.$('span.working-set-lines-added', undefined, `+${insertions}`),
+			dom.$('span.working-set-lines-removed', undefined, `-${deletions}`)
+		);
+	}
+
+	protected override getTooltip(): string | undefined {
+		const diffStats = this.diffStatsObs.get();
+		if (diffStats === undefined) {
+			return undefined;
+		}
+
+		const { files, insertions, deletions } = diffStats;
+		return localize('changesView.diffStats.label', '{0} files, {1} additions, {2} deletions', files, insertions, deletions);
 	}
 }

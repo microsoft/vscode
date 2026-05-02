@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { ActionType, IActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { TerminalClaimKind, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BasePty } from '../common/basePty.js';
@@ -31,6 +33,51 @@ export interface IAgentHostPtyOptions {
 	readonly attachOnly?: boolean;
 }
 
+export interface IAgentHostPtyCommandExecutedEvent {
+	readonly commandId: string;
+	readonly commandLine: string;
+	readonly timestamp: number;
+	/** The stored VT output for this command (present during content replay). */
+	readonly storedOutput?: string;
+}
+
+export interface IAgentHostPtyCommandFinishedEvent {
+	readonly commandId: string;
+	readonly exitCode?: number;
+	readonly durationMs?: number;
+}
+
+export const enum AhpCommandMarkKind {
+	Executed = 's',
+	End = 'e'
+}
+
+
+/**
+ * Generates the mark ID used to correlate SetMark VT codes with xterm markers
+ * via {@link IBufferMarkCapability.getMark}.
+ */
+export function getAhpCommandMarkId(commandId: string, kind: AhpCommandMarkKind): string {
+	return `ahp-${commandId}-${kind}`;
+}
+
+/** Generates an OSC 633 SetMark sequence for an AHP command boundary. */
+function getAhpCommandMarkCode(commandId: string, kind: AhpCommandMarkKind): string {
+	return `\x1b]633;SetMark;Id=${getAhpCommandMarkId(commandId, kind)};Hidden\x07`;
+}
+
+/**
+ * The sentinel prefix used by copilot shell tools for exit code detection.
+ * When shell integration is active, these internal sentinel echo commands
+ * get detected as real commands — we suppress them from command events.
+ */
+const COPILOT_SENTINEL_PREFIX = '<<<COPILOT_SENTINEL_';
+
+/** Returns whether a command line is a copilot sentinel echo, not a real user command. */
+function isCopilotSentinelCommand(commandLine: string): boolean {
+	return commandLine.includes(COPILOT_SENTINEL_PREFIX);
+}
+
 /**
  * A pseudo-terminal backed by an Agent Host Protocol terminal subscription.
  *
@@ -48,12 +95,32 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	private readonly _startBarrier = new Barrier();
 	private readonly _subscriptionDisposables = this._register(new DisposableStore());
-	private _subscriptionRef: IReference<IAgentSubscription<ITerminalState>> | undefined;
+	private _subscriptionRef: IReference<IAgentSubscription<TerminalState>> | undefined;
 	private _initialCwd = '';
+
+	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
+	readonly onCommandExecuted: Event<IAgentHostPtyCommandExecutedEvent> = this._onCommandExecuted.event;
+
+	private readonly _onCommandFinished = this._register(new Emitter<IAgentHostPtyCommandFinishedEvent>());
+	readonly onCommandFinished: Event<IAgentHostPtyCommandFinishedEvent> = this._onCommandFinished.event;
+
+	private readonly _onSupportsCommandDetection = this._register(new Emitter<void>());
+	readonly onSupportsCommandDetection: Event<void> = this._onSupportsCommandDetection.event;
+
+	private _supportsCommandDetection = false;
+	get supportsCommandDetection(): boolean { return this._supportsCommandDetection; }
+
+	/**
+	 * Command IDs for sentinel commands that should be suppressed from shell
+	 * integration events. When the copilot shell tools fall back to sentinel-
+	 * based exit code detection, shell integration may also detect the sentinel
+	 * echo as a real command — we filter those out here.
+	 */
+	private readonly _suppressedCommandIds = new Set<string>();
 
 	constructor(
 		id: number,
-		private readonly _connection: IAgentConnection,
+		private _connection: IAgentConnection,
 		private readonly _terminalUri: URI,
 		private readonly _options?: IAgentHostPtyOptions,
 	) {
@@ -69,7 +136,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					terminal: this._terminalUri.toString(),
 					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
 					name: this._options?.name,
-					cwd: this._options?.cwd?.toString(),
+					cwd: this._resolveCwdForProtocol(this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
 					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
 				});
@@ -90,12 +157,14 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				});
 			}
 
-			const state = subscription.value as ITerminalState;
+			const state = subscription.value as TerminalState;
 
 			// 4. Replay any existing content from the snapshot
-			if (state.content) {
-				this.handleData(state.content);
+			if (state.supportsCommandDetection) {
+				this._supportsCommandDetection = true;
+				this._onSupportsCommandDetection.fire();
 			}
+			this._replayContent(state.content);
 
 			// 5. Track initial cwd
 			this._initialCwd = state.cwd?.toString() ?? '';
@@ -120,7 +189,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 	}
 
-	private _handleAction(envelope: IActionEnvelope): void {
+	private _handleAction(envelope: ActionEnvelope): void {
 		const action = envelope.action;
 		switch (action.type) {
 			case ActionType.TerminalData:
@@ -148,7 +217,87 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					});
 				}
 				break;
+			case ActionType.TerminalCommandDetectionAvailable:
+				if (!this._supportsCommandDetection) {
+					this._supportsCommandDetection = true;
+					this._onSupportsCommandDetection.fire();
+				}
+				break;
+			case ActionType.TerminalCommandExecuted:
+				if (isCopilotSentinelCommand(action.commandLine)) {
+					this._suppressedCommandIds.add(action.commandId);
+					break;
+				}
+				this.handleData(getAhpCommandMarkCode(action.commandId, AhpCommandMarkKind.Executed));
+				this._onCommandExecuted.fire({
+					commandId: action.commandId,
+					commandLine: action.commandLine,
+					timestamp: action.timestamp,
+				});
+				break;
+			case ActionType.TerminalCommandFinished:
+				if (this._suppressedCommandIds.delete(action.commandId)) {
+					break;
+				}
+				this.handleData(getAhpCommandMarkCode(action.commandId, AhpCommandMarkKind.End));
+				this._onCommandFinished.fire({
+					commandId: action.commandId,
+					exitCode: action.exitCode,
+					durationMs: action.durationMs,
+				});
+				break;
 		}
+	}
+
+	/**
+	 * Replays structured terminal content parts from the initial state snapshot.
+	 * Emits command lifecycle events for command parts so that consumers
+	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
+	 */
+	private _replayContent(content: TerminalContentPart[]): void {
+		for (const part of content) {
+			if (part.type === 'unclassified') {
+				if (part.value) {
+					this.handleData(part.value);
+				}
+			} else if (part.type === 'command') {
+				if (isCopilotSentinelCommand(part.commandLine)) {
+					continue;
+				}
+				this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.Executed));
+				this._onCommandExecuted.fire({
+					commandId: part.commandId,
+					commandLine: part.commandLine,
+					timestamp: part.timestamp,
+					storedOutput: part.output,
+				});
+				if (part.output) {
+					this.handleData(part.output);
+				}
+				if (part.isComplete) {
+					this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.End));
+					this._onCommandFinished.fire({
+						commandId: part.commandId,
+						exitCode: part.exitCode,
+						durationMs: part.durationMs,
+					});
+				}
+			}
+		}
+	}
+
+	/**
+	 * Resolves a cwd URI for sending over the protocol. Agent-host URIs
+	 * are unwrapped to their original URI via {@link fromAgentHostUri}.
+	 */
+	private _resolveCwdForProtocol(cwd: URI | undefined): string | undefined {
+		if (!cwd) {
+			return undefined;
+		}
+		if (cwd.scheme === AGENT_HOST_SCHEME) {
+			return fromAgentHostUri(cwd).toString();
+		}
+		return cwd.toString();
 	}
 
 	input(data: string): void {
@@ -227,6 +376,84 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	async updateProperty<T extends ProcessPropertyType>(_type: T, _value: IProcessPropertyMap[T]): Promise<void> {
 		// Not applicable
+	}
+
+	/**
+	 * Reconnect this pty to a new agent host connection. Tears down the
+	 * old subscription and re-subscribes with the new connection, replaying
+	 * content from the server-side snapshot. Terminal output during the
+	 * disconnect gap is a stream (not state), so some loss is expected.
+	 *
+	 * @returns `true` if reconnection succeeded, `false` otherwise.
+	 */
+	async reconnect(newConnection: IAgentConnection): Promise<boolean> {
+		// Clean up old subscription
+		this._subscriptionDisposables.clear();
+		this._subscriptionRef?.dispose();
+		this._subscriptionRef = undefined;
+
+		// Swap connection
+		this._connection = newConnection;
+
+		try {
+			// Re-subscribe to the terminal state
+			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
+			const subscription = this._subscriptionRef.object;
+
+			// Wait for hydration with a timeout — the terminal may no longer
+			// exist on the server (e.g. agent process restarted).
+			if (subscription.value === undefined) {
+				const RECONNECT_HYDRATE_TIMEOUT_MS = 10_000;
+				await new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(() => {
+						listener.dispose();
+						reject(new Error('Reconnect hydration timed out'));
+					}, RECONNECT_HYDRATE_TIMEOUT_MS);
+					const listener = subscription.onDidChange(() => {
+						clearTimeout(timer);
+						listener.dispose();
+						resolve();
+					});
+					this._subscriptionDisposables.add(listener);
+				});
+			}
+
+			const state = subscription.value as TerminalState;
+
+			if (state.supportsCommandDetection && !this._supportsCommandDetection) {
+				this._supportsCommandDetection = true;
+				this._onSupportsCommandDetection.fire();
+			}
+
+			// Clear the terminal buffer before replaying to avoid duplicate
+			// content. ESC[2J clears the screen, ESC[3J clears scrollback,
+			// ESC[H moves cursor to home position.
+			this.handleData('\x1b[2J\x1b[3J\x1b[H');
+			this._replayContent(state.content);
+
+			// Update cwd/title if they changed
+			if (state.cwd) {
+				this._properties.cwd = state.cwd.toString();
+			}
+			if (state.title) {
+				this._properties.title = state.title;
+			}
+
+			// Wire up action listener for streaming updates
+			this._subscriptionDisposables.add(subscription.onDidApplyAction(envelope => {
+				this._handleAction(envelope);
+			}));
+
+			return true;
+		} catch (err) {
+			console.warn('[AgentHostPty] Reconnection failed:', err instanceof Error ? err.message : String(err));
+			return false;
+		}
+	}
+
+	/** The terminal URI this pty is subscribed to. */
+	get terminalUri(): URI {
+		return this._terminalUri;
 	}
 
 	override dispose(): void {

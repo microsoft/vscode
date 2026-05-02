@@ -12,7 +12,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IChat, ISession, ISessionType } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session's provider supports multiple chats per session"));
+export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Event fired when sessions change within a provider.
@@ -74,17 +74,6 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable for the currently active sessions provider ID.
-	 * When only one provider exists, it is selected automatically.
-	 */
-	readonly activeProviderId: IObservable<string | undefined>;
-
-	/**
-	 * Set the active sessions provider by ID.
-	 */
-	setActiveProvider(providerId: string): void;
-
-	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
@@ -117,6 +106,18 @@ export interface ISessionsManagementService {
 	 * Send a request, creating a new chat in the session.
 	 */
 	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Send a request for an existing chat within a session.
+	 */
+	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Switch to the new-chat-in-session view.
+	 * Adds a new chat to the session via the provider, makes it the active chat,
+	 * and shows a rich input for composing a message.
+	 */
+	openNewChatInSession(session: ISession): void;
 
 	// -- Session Actions --
 

@@ -959,7 +959,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const modelItems: vscode.ChatSessionProviderOptionItem[] = models.value.map(model => ({
 					id: model.id,
 					name: model.name,
-					description: `${model.billing.multiplier}x`,
+					...(model.billing?.multiplier !== undefined ? { description: `${model.billing.multiplier}x` } : {}),
 				}));
 				if (!models.value.find(m => m.id === DEFAULT_MODEL_ID)) {
 					modelItems.unshift({ id: DEFAULT_MODEL_ID, name: vscode.l10n.t('Auto'), description: vscode.l10n.t('Automatically select the best model') });
@@ -1176,7 +1176,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}
 
 				const multiDiffPart = await this._prFileChangesService.getFileChangesMultiDiffPart(pr);
-				const changes = multiDiffPart?.value?.map(change => new vscode.ChatSessionChangedFile2(
+				const changes = multiDiffPart?.value?.map(change => new vscode.ChatSessionChangedFile(
 					change.goToFileUri!,
 					change.originalUri,
 					change.modifiedUri,

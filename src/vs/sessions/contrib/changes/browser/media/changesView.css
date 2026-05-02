@@ -68,6 +68,7 @@
 
 .changes-view-body .changes-files-header-toolbar {
 	flex: 1;
+	min-width: 0;
 }
 
 .changes-view-body .changes-files-header-toolbar .action-label {
@@ -86,17 +87,19 @@
 	}
 }
 
-.changes-view-body .changes-files-count {
+.changes-view-body .changes-files-header-right-toolbar {
 	flex-shrink: 0;
-	font-size: 11px;
-	padding: 2px 0;
-	border-radius: 4px;
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
-	color: var(--vscode-descriptionForeground);
-	line-height: 1;
-	font-weight: 600;
-	min-width: 16px;
-	text-align: center;
+	display: flex;
+	align-items: center;
+}
+
+.changes-view-body .changes-files-header-right-toolbar .changes-diff-stats-action .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	font-weight: 500;
+	padding: 2px 4px;
 }
 
 /* Overview section (header) - hidden since actions moved outside card */
@@ -129,6 +132,14 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 	font-size: 11px;
 	font-weight: 500;
+}
+
+.changes-view-body .changes-files-header-right-toolbar .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .changes-files-header-right-toolbar .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Actions container */

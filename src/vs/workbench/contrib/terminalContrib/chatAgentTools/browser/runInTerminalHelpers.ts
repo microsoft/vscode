@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -47,8 +47,6 @@ export function isFish(envShell: string, os: OperatingSystem): boolean {
 	return /^fish$/.test(pathPosix.basename(envShell));
 }
 
-// Maximum output length to prevent context overflow
-const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
 export const TRUNCATION_MESSAGE = '\n\n[... PREVIOUS OUTPUT TRUNCATED ...]\n\n';
 
 export function truncateOutputKeepingTail(output: string, maxLength: number): string {
@@ -62,19 +60,6 @@ export function truncateOutputKeepingTail(output: string, maxLength: number): st
 	const availableLength = maxLength - truncationMessageLength;
 	const endPortion = output.slice(-availableLength);
 	return TRUNCATION_MESSAGE + endPortion;
-}
-
-export function sanitizeTerminalOutput(output: string): string {
-	let sanitized = removeAnsiEscapeCodes(output)
-		// Trim trailing \r\n characters
-		.trimEnd();
-
-	// Truncate if output is too long to prevent context overflow
-	if (sanitized.length > MAX_OUTPUT_LENGTH) {
-		sanitized = truncateOutputKeepingTail(sanitized, MAX_OUTPUT_LENGTH);
-	}
-
-	return sanitized;
 }
 
 /**
@@ -100,6 +85,23 @@ export function buildCommandDisplayText(command: string): string {
  */
 export function normalizeCommandForExecution(command: string): string {
 	return command.replace(/\r\n|\r|\n/g, ' ').trim();
+}
+
+/**
+ * Whether a command spans multiple lines (heredoc, multi-statement block, etc.).
+ * Multi-line commands must be sent verbatim through bracketed paste mode so the
+ * shell treats them as a single paste instead of executing each line as it
+ * arrives.
+ *
+ * Bare line continuations (`\` immediately before a newline) are **not**
+ * considered multi-line because the shell joins them into a single logical
+ * line. Only newlines that are *not* preceded by a backslash count.
+ */
+export function isMultilineCommand(command: string): boolean {
+	// Normalize all line-ending variants to \n, then check for a newline
+	// that is not preceded by a backslash (i.e. not a line continuation).
+	const normalized = command.replace(/\r\n|\r/g, '\n');
+	return /(?<!\\)\n/.test(normalized);
 }
 
 export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {

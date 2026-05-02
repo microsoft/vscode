@@ -14,7 +14,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
@@ -80,11 +79,6 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		if (repository) {
-			// Remote agent host sessions use a read-only FS provider that
-			// should not be added as a workspace folder.
-			if (repository.scheme === AGENT_HOST_SCHEME) {
-				return undefined;
-			}
 			return {
 				uri: repository,
 				name: workspace?.label,

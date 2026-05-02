@@ -18,11 +18,18 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	async isInsideWorkTree(): Promise<boolean> { return this.insideWorkTree; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
+	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
 	async addWorktree(): Promise<void> { }
+	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
+	async branchExists(): Promise<boolean> { return false; }
+	async hasUncommittedChanges(): Promise<boolean> { return false; }
+	async getSessionGitState(): Promise<undefined> { return undefined; }
+	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
+	async showBlob(): Promise<undefined> { return undefined; }
 }
 
 suite('Copilot Git Project', () => {

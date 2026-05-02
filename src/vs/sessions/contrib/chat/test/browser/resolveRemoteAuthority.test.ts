@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { resolveRemoteAuthority, sshAuthorityString } from '../../browser/chat.contribution.js';
+import { resolveRemoteAuthority, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { decodeHex } from '../../../../../base/common/buffer.js';
 
 suite('resolveRemoteAuthority', () => {
@@ -16,7 +16,7 @@ suite('resolveRemoteAuthority', () => {
 
 	function makeProvidersService(remoteAddress?: string): ISessionsProvidersService {
 		return {
-			getProvider: () => remoteAddress ? { remoteAddress } : undefined,
+			getProvider: (id: string) => remoteAddress ? { id, remoteAddress } : undefined,
 		} as unknown as ISessionsProvidersService; // no-as-any justification: lightweight test mock for a multi-method service interface
 	}
 
@@ -37,10 +37,10 @@ suite('resolveRemoteAuthority', () => {
 
 	test('returns undefined when provider has no remoteAddress', () => {
 		const noRemoteProviders = {
-			getProvider: () => ({ /* no remoteAddress */ }),
+			getProvider: (id: string) => ({ id /* no remoteAddress */ }),
 		} as unknown as ISessionsProvidersService; // no-as-any justification: lightweight test mock for a multi-method service interface
 		const result = resolveRemoteAuthority(
-			'some-id',
+			'agenthost-no-address',
 			noRemoteProviders,
 			makeRemoteAgentHostService() as IRemoteAgentHostService,
 		);

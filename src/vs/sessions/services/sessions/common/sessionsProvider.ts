@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -29,15 +26,6 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
-}
-
-/**
- * Capabilities declared by a sessions provider.
- * Consumers check these before surfacing provider-specific features in the UI.
- */
-export interface ISessionsProviderCapabilities {
-	/** Whether the provider supports multiple chats within a single session. */
-	readonly multipleChatsPerSession: boolean;
 }
 
 /**
@@ -73,15 +61,6 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * Capabilities of the provider, which may affect how sessions from this provider are surfaced in the UI. The provider is expected to update capabilities and fire `onDidChangeCapabilities` when they change.
-	 */
-	readonly capabilities: ISessionsProviderCapabilities;
-	/**
-	 * Event that fires when capabilities change. Consumers should refresh any UI affected by capabilities when this occurs.
-	 */
-	readonly onDidChangeCapabilities: Event<ISessionsProviderCapabilities>;
-
-	/**
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
@@ -104,10 +83,19 @@ export interface ISessionsProvider {
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
+	 * Whether this provider can resolve and run sessions against local file-system workspaces.
+	 * When `true`, the workspace picker includes a "Local" tab with a built-in
+	 * folder browse action that resolves through this provider.
+	 */
+	readonly supportsLocalWorkspaces?: boolean;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
+	 * Returns `undefined` when the provider cannot handle the given URI
+	 * (e.g. wrong scheme or authority).
 	 * @param repositoryUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
 
 	/**
 	 * Create a new session for the given repository URI.
@@ -170,26 +158,20 @@ export interface ISessionsProvider {
 	 */
 	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
 
-	// -- Remote Connection (optional, used by remote agent host providers) --
-	/** Connection status observable, present on remote providers. */
-	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
-	/** Remote address string, present on remote providers. */
-	readonly remoteAddress?: string;
-	/** Output channel ID for remote provider logs. */
-	outputChannelId?: string;
+	/**
+	 * Add a new empty chat to an existing session without sending a request.
+	 * The new chat is registered in the group model and can be used to compose
+	 * a message before sending.
+	 * @param sessionId The ID of the session to add a chat to.
+	 * @returns The newly created chat.
+	 */
+	addChat(sessionId: string): IChat;
 
-	// -- Dynamic Session Config --
-
-	/** Optional. Fires when dynamic configuration for a new session changes. */
-	readonly onDidChangeSessionConfig?: Event<string>;
-	/** Optional. Returns the last resolved dynamic configuration for a new session. */
-	getSessionConfig?(sessionId: string): IResolveSessionConfigResult | undefined;
-	/** Optional. Sets one dynamic configuration property and re-resolves the schema. */
-	setSessionConfigValue?(sessionId: string, property: string, value: string): Promise<void>;
-	/** Optional. Returns dynamic completions for a configuration property. */
-	getSessionConfigCompletions?(sessionId: string, property: string, query?: string): Promise<readonly ISessionConfigValueItem[]>;
-	/** Optional. Returns the resolved config that should be sent to createSession. */
-	getCreateSessionConfig?(sessionId: string): Record<string, string> | undefined;
-	/** Optional. Clears dynamic configuration state for an abandoned new session. */
-	clearSessionConfig?(sessionId: string): void;
+	/**
+	 * Send a request for an existing chat within a session.
+	 * @param sessionId The ID of the session containing the chat.
+	 * @param chatResource The resource URI of the chat to send the request for.
+	 * @param options Options for the request, including the query and any attached context entries.
+	 */
+	sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession>;
 }

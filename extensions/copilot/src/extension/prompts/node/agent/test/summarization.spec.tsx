@@ -30,7 +30,8 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
-import { ConversationHistorySummarizationPrompt, extractInlineSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
+import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
+import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
 	let accessor: ITestingServicesAccessor;
@@ -537,47 +538,47 @@ suite('Agent Summarization', () => {
 	});
 });
 
-suite('extractInlineSummary', () => {
+suite('extractSummary', () => {
 	test('extracts clean summary tags', () => {
 		const text = 'Some preamble\n<summary>\nThis is the summary content.\n</summary>\nSome trailing text';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('This is the summary content.');
 	});
 
 	test('extracts summary with no closing tag', () => {
 		const text = 'Preamble text\n<summary>\nThis is a partial summary that was cut off';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('This is a partial summary that was cut off');
 	});
 
 	test('returns undefined when no tags found', () => {
 		const text = 'This is just a normal response with no summary tags at all.';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBeUndefined();
 	});
 
 	test('uses first complete summary when multiple blocks exist', () => {
 		const text = '<summary>First summary</summary>\n<summary>Second summary</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('First summary');
 	});
 
 	test('handles empty summary tags', () => {
 		const text = '<summary></summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('');
 	});
 
 	test('handles summary with analysis tags inside', () => {
 		const text = '<summary>\n<analysis>Some analysis</analysis>\n\n1. Overview: test\n2. Details: test\n</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toContain('1. Overview: test');
 		expect(result).toContain('<analysis>Some analysis</analysis>');
 	});
 
 	test('trims whitespace from extracted summary', () => {
 		const text = '<summary>\n\n  Padded summary text  \n\n</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('Padded summary text');
 	});
 });
@@ -655,16 +656,6 @@ suite('stripToolSearchMessages', () => {
 		}
 	});
 
-	test('does not strip server-side tool_search_tool_regex', () => {
-		const messages = [
-			makeUserMessage(),
-			makeAssistantMessage([{ id: 'tc1', name: 'tool_search_tool_regex' }]),
-			makeToolResult('tc1'),
-		];
-		const result = stripToolSearchMessages(messages);
-		expect(result).toBe(messages);
-	});
-
 	test('preserves non-tool messages', () => {
 		const messages = [
 			makeUserMessage('first'),
@@ -678,5 +669,46 @@ suite('stripToolSearchMessages', () => {
 		expect(result).toHaveLength(5);
 		expect(result[0].content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' });
 		expect(result[2].content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' });
+	});
+});
+
+suite('appendTranscriptHintToSummary', () => {
+	class FakeTranscriptService extends NullSessionTranscriptService {
+		constructor(
+			private readonly path: URI | undefined,
+			private readonly lineCount: number | undefined,
+		) {
+			super();
+		}
+		override getTranscriptPath(): URI | undefined { return this.path; }
+		override getLineCount(): number | undefined { return this.lineCount; }
+	}
+
+	function makeService(path: URI | undefined, lineCount: number | undefined): ISessionTranscriptService {
+		return new FakeTranscriptService(path, lineCount);
+	}
+
+	test('returns summary unchanged when no transcript path is available', () => {
+		const svc = makeService(undefined, undefined);
+		const result = appendTranscriptHintToSummary('original summary', 'session-1', svc);
+		expect(result).toBe('original summary');
+	});
+
+	test('appends path-only hint when line count is missing', () => {
+		const transcript = URI.file('/tmp/transcript.jsonl');
+		const svc = makeService(transcript, undefined);
+		const result = appendTranscriptHintToSummary('S', 'session-1', svc);
+		expect(result.startsWith('S\n')).toBe(true);
+		expect(result).toContain(transcript.fsPath);
+		expect(result).toContain(`${ToolName.ReadFile}`);
+		expect(result).not.toContain('the transcript had');
+	});
+
+	test('bakes line count snapshot into hint when available', () => {
+		const transcript = URI.file('/tmp/transcript.jsonl');
+		const svc = makeService(transcript, 42);
+		const result = appendTranscriptHintToSummary('S', 'session-1', svc);
+		expect(result).toContain('At the time this summary was created, the transcript had 42 lines.');
+		expect(result).toContain(transcript.fsPath);
 	});
 });

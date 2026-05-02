@@ -21,7 +21,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
@@ -695,13 +695,15 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
 		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
 		const isSubagent = !!this.options.request.subAgentInvocationId;
+		const modeChanged = this.didModeChangeSincePreviousRequest();
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
+			modeChanged,
 			modelCapabilities: {
 				...opts.modelCapabilities,
 				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,
 				reasoningEffort,
-				enableToolSearch: !isSubagent && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService),
+				enableToolSearch: !isSubagent && !!this.options.invocation.endpoint.supportsToolSearch,
 				enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.options.invocation.endpoint, this._configurationService, this._experimentationService),
 			},
 			debugName,
@@ -729,6 +731,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				messageSource: this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
+				iterationNumber: opts.iterationNumber.toString(),
 			},
 			requestKindOptions: this.options.request.subAgentInvocationId
 				? { kind: 'subagent' }
@@ -737,11 +740,46 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		}, token);
 	}
 
+	private didModeChangeSincePreviousRequest(): boolean {
+		if (this.options.invocation.endpoint.apiType !== 'responses') {
+			return false;
+		}
+
+		const previousTurn = this.options.conversation.turns.at(-2);
+		if (!previousTurn) {
+			return false;
+		}
+
+		// Once a mode-switched turn has successfully produced a fresh responses-api
+		// stateful marker, later requests in the same turn should resume from that
+		// new chain instead of continuing to invalidate previous_response_id.
+		// This is especially important for websocket follow-up requests after tool
+		// calls: keeping modeChanged=true for the entire turn would force the full
+		// pre-switch history back into every follow-up request, which can pull the
+		// model back toward the prior mode (for example implementation after
+		// switching into Plan mode).
+		if (this.currentToolCallRounds.some(round => !!round.statefulMarker)) {
+			return false;
+		}
+
+		const previousModeInstructions = previousTurn.modeInstructions;
+		if (!previousModeInstructions && !this.options.request.modeInstructions2) {
+			return false;
+		}
+
+		const modeChanged = !areModeInstructionsEqual(previousModeInstructions, this.options.request.modeInstructions2);
+		if (modeChanged) {
+			this._logService.trace('[DefaultIntentRequestHandler] Detected mode instructions changed between requests');
+		}
+
+		return modeChanged;
+	}
+
 	protected override async getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]> {
 		const tools = await this.options.invocation.getAvailableTools?.() ?? [];
 
 		// Skip tool grouping when Anthropic tool search is enabled
-		if (isAnthropicFamily(this.options.invocation.endpoint) && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService)) {
+		if (isAnthropicFamily(this.options.invocation.endpoint) && this.options.invocation.endpoint.supportsToolSearch) {
 			return tools;
 		}
 
@@ -792,4 +830,40 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 interface IInternalRequestResult extends IToolCallLoopResult {
 	lastRequestTelemetry: ChatTelemetry;
+}
+
+type ModeInstructions = NonNullable<ChatRequest['modeInstructions2']>;
+type ModeInstructionMetadata = ModeInstructions['metadata'];
+
+function areModeInstructionsEqual(a: ChatRequest['modeInstructions2'], b: ChatRequest['modeInstructions2']): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+
+	return a.uri?.toString() === b.uri?.toString()
+		&& a.name === b.name
+		&& a.content === b.content
+		&& a.isBuiltin === b.isBuiltin
+		&& serializeModeInstructionMetadata(a.metadata) === serializeModeInstructionMetadata(b.metadata);
+}
+
+function normalizeModeInstructionMetadata(metadata: ModeInstructionMetadata): Record<string, boolean | string | number> | undefined {
+	if (!metadata) {
+		return undefined;
+	}
+
+	const entries = Object.entries(metadata).sort(([left], [right]) => left.localeCompare(right));
+	if (entries.length === 0) {
+		return undefined;
+	}
+
+	return entries.reduce<Record<string, boolean | string | number>>((result, [key, value]) => {
+		result[key] = value;
+		return result;
+	}, {});
+}
+
+function serializeModeInstructionMetadata(metadata: ModeInstructionMetadata): string | undefined {
+	const normalizedMetadata = normalizeModeInstructionMetadata(metadata);
+	return normalizedMetadata ? JSON.stringify(normalizedMetadata) : undefined;
 }

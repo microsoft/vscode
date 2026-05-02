@@ -14,6 +14,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -52,6 +53,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							ChatContextKeys.agentSessionType.notEqualsTo(CopilotCloudSessionType.id),
+							IsPhoneLayoutContext.negate(),
 						),
 					},
 				],

@@ -86,6 +86,8 @@ If you need a new field on `IPolicyData`, add it to the interface in `src/vs/bas
 
 **Optional: `enumDescriptions` for enum/string policies:**
 
+**IMPORTANT:** If the configuration property has `type: 'string'` and an `enum` array, you **must** include `enumDescriptions` in the `localization` block with the same number of entries as the `enum` array. Without this, `npm run export-policy-data` will fail with: `enumDescriptions must exist and have the same length as enum for policy "..."`.
+
 ```typescript
 localization: {
     description: { key: '...', value: nls.localize('...', "...") },
@@ -181,6 +183,54 @@ The file `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture
 | `vscode-website` (`gulpfile.policies.js`) | `policyData.jsonc` | Enterprise policy reference table at code.visualstudio.com/docs/enterprise/policies |
 | `vscode-docs` | Generated from website build | `docs/enterprise/policies.md` |
 
+## GitHub Preview Features
+
+If your setting is a **GitHub Preview Feature** — meaning it's a Copilot/chat feature that organizations can disable via their GitHub account-level policy — you **must** add a `value` function that checks `policyData.chat_preview_features_enabled`.
+
+### When to add this flag
+
+Add the `chat_preview_features_enabled` check when **all** of these apply:
+
+- The setting controls a Copilot or chat feature (e.g., agent tools, hooks, MCP, auto-approve)
+- The feature is in preview or experimental status (typically tagged `'preview'` or `'experimental'`)
+- An organization admin should be able to disable it for all users in their org via GitHub account policy
+
+### How it works
+
+The `chat_preview_features_enabled` field on `IPolicyData` (defined in `src/vs/base/common/defaultAccount.ts`) is populated from the user's GitHub Copilot token entitlements. When an organization admin disables preview features, `chat_preview_features_enabled` is set to `false`.
+
+### Pattern
+
+Add a `value` function to the policy that returns a disabling value when `chat_preview_features_enabled === false`, and `undefined` otherwise (to fall through to the user's own setting):
+
+```typescript
+policy: {
+    name: 'MyPreviewFeaturePolicy',
+    category: PolicyCategory.InteractiveSession,
+    minimumVersion: '1.xx', // Must match the first VS Code release that ships this policy.
+    value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+    localization: {
+        description: {
+            key: 'my.setting.description',
+            value: nls.localize('my.setting.description', "Description of the setting."),
+        }
+    }
+}
+```
+
+Key details:
+- **Always compare with `=== false`**, not `!policyData.chat_preview_features_enabled` — the field is optional and `undefined` means "no policy data available", which should not disable the feature.
+- **Return `undefined`** when the flag is not `false` so the account-level policy does not override the user's setting.
+- **Return the disabling value** for the setting's type: `false` for booleans, a restrictive string/enum value for other types.
+
+### Real-world examples
+
+See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/contrib/chat/browser/chat.contribution.ts` for existing settings that use this pattern.
+
 ## Examples
 
 Search the codebase for `policy:` to find all the examples of different policy configurations.
+
+## Learnings
+
+* Never hand-edit `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` is failing, fix the script — don't patch the JSON. Common cause: running it in the wrong working directory (e.g. main repo instead of a worktree), which silently exports the wrong source tree.

@@ -252,6 +252,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					defaultIntentId;
 
 				const handler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
+
 				let result = await handler.getResult();
 
 				// Auto-retry with Auto model when the setting is enabled and the handler signals it
@@ -281,7 +282,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
 			return request;
 		}
-		if (this._chatQuotaService.overagesEnabled || !this._chatQuotaService.quotaExhausted) {
+		if (this._chatQuotaService.additionalUsageEnabled || !this._chatQuotaService.quotaExhausted) {
 			return request;
 		}
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
@@ -294,14 +295,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. [Enable additional paid premium requests]({1}) to continue using premium models.',
-				args: [baseEndpoint.name, 'command:chat.enablePremiumOverages'],
+				message: 'You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure additional spend]({1}) to keep going.',
+				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
 			}));
-			messageString.isTrusted = { enabledCommands: ['chat.enablePremiumOverages'] };
+			messageString.isTrusted = { enabledCommands: ['chat.enableAdditionalUsage'] };
 		} else {
-			messageString = new vscode.MarkdownString(vscode.l10n.t('You have exceeded your premium request allowance. We have automatically switched you to {0} which is included with your plan. To enable additional paid premium requests, contact your organization admin.', baseEndpoint.name));
+			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. To configure additional spend, contact your organization admin.', baseEndpoint.name));
 		}
 		stream.warning(messageString);
 		return request;
@@ -320,6 +321,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		stream.warning(new vscode.MarkdownString(vscode.l10n.t('You were rate-limited on the selected model. Switching to Auto and retrying your request.')));
 		return request;
 	}
+
 }
 
 type IntentOrGetter = Intent | ((request: vscode.ChatRequest) => Intent);

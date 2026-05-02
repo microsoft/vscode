@@ -86,6 +86,7 @@ export interface IProductConfiguration {
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -222,6 +223,7 @@ export interface IProductConfiguration {
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
 	readonly darwinBundleIdentifier?: string;
+	readonly darwinSiblingBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
@@ -237,7 +239,6 @@ export interface IProductConfiguration {
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 
 	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
-	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
 	readonly embedded?: IEmbeddedProductConfiguration;
@@ -261,14 +262,6 @@ export interface IProductOnboardingKeymap {
 	readonly description: string;
 }
 
-export interface IProductOnboardingExtension {
-	readonly id: string;
-	readonly name: string;
-	readonly publisher: string;
-	readonly description: string;
-	readonly icon: string;
-}
-
 export interface IProductOnboardingTheme {
 	readonly id: string;
 	readonly label: string;
@@ -282,6 +275,7 @@ export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
 	'applicationName' |
 	'dataFolderName' |
 	'darwinBundleIdentifier' |
+	'darwinSiblingBundleIdentifier' |
 	'urlProtocol' |
 	'win32AppUserModelId' |
 	'win32MutexName' |
@@ -433,7 +427,6 @@ export interface IDefaultChatAgent {
 
 	readonly walkthroughCommand: string;
 	readonly completionsMenuCommand: string;
-	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
 	readonly resolveMergeConflictsCommand: string;

@@ -7,14 +7,14 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, type IActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, TerminalClaimKind, type IRootState, type ISessionState, type ITerminalState } from '../../common/state/protocol/state.js';
+import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
+import { SessionLifecycle, SessionStatus, TerminalClaimKind, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
 import { StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
-function makeRootState(overrides?: Partial<IRootState>): IRootState {
+function makeRootState(overrides?: Partial<RootState>): RootState {
 	return {
 		agents: [],
 		activeSessions: 0,
@@ -23,7 +23,7 @@ function makeRootState(overrides?: Partial<IRootState>): IRootState {
 	};
 }
 
-function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>): ISessionState {
+function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>): SessionState {
 	return {
 		summary: {
 			resource: sessionUri,
@@ -40,16 +40,16 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 	};
 }
 
-function makeTerminalState(overrides?: Partial<ITerminalState>): ITerminalState {
+function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 	return {
 		title: 'bash',
-		content: '',
+		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'c1' },
 		...overrides,
 	};
 }
 
-function makeEnvelope(action: IActionEnvelope['action'], serverSeq: number, origin?: IActionEnvelope['origin'], rejectionReason?: string): IActionEnvelope {
+function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string): ActionEnvelope {
 	return { action, serverSeq, origin, rejectionReason };
 }
 
@@ -57,7 +57,7 @@ const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 
-// ─── RootStateSubscription ───────────────────────────────────────────────────
+// RootStateSubscription
 
 suite('RootStateSubscription', () => {
 
@@ -89,7 +89,7 @@ suite('RootStateSubscription', () => {
 
 	test('handleSnapshot fires onDidChange', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
-		const fired: IRootState[] = [];
+		const fired: RootState[] = [];
 		disposables.add(sub.onDidChange(s => fired.push(s)));
 		sub.handleSnapshot(makeRootState(), 0);
 		assert.strictEqual(fired.length, 1);
@@ -102,7 +102,7 @@ suite('RootStateSubscription', () => {
 			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 5 },
 			1,
 		));
-		assert.strictEqual((sub.value as IRootState).activeSessions, 5);
+		assert.strictEqual((sub.value as RootState).activeSessions, 5);
 	});
 
 	test('ignores non-root actions', () => {
@@ -138,9 +138,9 @@ suite('RootStateSubscription', () => {
 		));
 		assert.strictEqual(sub.value, undefined);
 
-		// Now apply snapshot with fromSeq=1 → envelope at seq 2 should replay
+		// Now apply snapshot with fromSeq=1; envelope at seq 2 should replay
 		sub.handleSnapshot(makeRootState(), 1);
-		assert.strictEqual((sub.value! as IRootState).activeSessions, 7);
+		assert.strictEqual((sub.value! as RootState).activeSessions, 7);
 	});
 
 	test('buffered envelopes with serverSeq <= fromSeq are discarded', () => {
@@ -151,7 +151,7 @@ suite('RootStateSubscription', () => {
 		));
 		sub.handleSnapshot(makeRootState({ activeSessions: 0 }), 1);
 		// Envelope at seq 1 should not replay since fromSeq === 1
-		assert.strictEqual((sub.value as IRootState).activeSessions, 0);
+		assert.strictEqual((sub.value as RootState).activeSessions, 0);
 	});
 
 	test('setError makes value return the error', () => {
@@ -165,7 +165,7 @@ suite('RootStateSubscription', () => {
 	});
 });
 
-// ─── SessionStateSubscription ────────────────────────────────────────────────
+// SessionStateSubscription
 
 suite('SessionStateSubscription', () => {
 
@@ -212,7 +212,7 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(clientSeq, 1);
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
 		// verifiedValue should remain unchanged
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
 	});
@@ -236,8 +236,8 @@ suite('SessionStateSubscription', () => {
 
 		// After confirmation, verifiedValue should match
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
-		// No pending → value falls through to confirmed
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Optimistic');
+		// No pending, value falls through to confirmed
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
 	});
 
 	test('rejected own action removes pending without updating confirmed', () => {
@@ -260,8 +260,8 @@ suite('SessionStateSubscription', () => {
 
 		// Confirmed state unchanged
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
-		// No more pending → value = confirmed
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Test');
+		// No more pending, value = confirmed
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
 	});
 
 	test('foreign action updates confirmed and recomputes optimistic', () => {
@@ -285,7 +285,7 @@ suite('SessionStateSubscription', () => {
 		// Confirmed state should have SessionReady applied
 		assert.strictEqual(sub.verifiedValue!.lifecycle, SessionLifecycle.Ready);
 		// Optimistic should still have 'Local' title on top
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Local');
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
 	});
 
 	test('after all pending cleared, value falls through to verifiedValue', () => {
@@ -319,12 +319,12 @@ suite('SessionStateSubscription', () => {
 			title: 'Pending',
 		});
 
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Pending');
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Pending');
 
 		sub.clearPending();
 
 		// Should fall back to confirmed
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
 	});
 
 	test('ignores actions for different session', () => {
@@ -336,7 +336,7 @@ suite('SessionStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ISessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
 	});
 
 	test('buffers envelopes before snapshot and replays after', () => {
@@ -351,14 +351,14 @@ suite('SessionStateSubscription', () => {
 
 		sub.handleSnapshot(makeSessionState(sessionUri), 1);
 
-		assert.strictEqual((sub.value! as ISessionState).summary.title, 'Buffered');
+		assert.strictEqual((sub.value! as SessionState).summary.title, 'Buffered');
 	});
 
 	test('fires onDidChange on optimistic apply', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeSessionState(sessionUri), 0);
 
-		const fired: ISessionState[] = [];
+		const fired: SessionState[] = [];
 		disposables.add(sub.onDidChange(s => fired.push(s)));
 
 		sub.applyOptimistic({
@@ -372,7 +372,7 @@ suite('SessionStateSubscription', () => {
 	});
 });
 
-// ─── TerminalStateSubscription ───────────────────────────────────────────────
+// TerminalStateSubscription
 
 suite('TerminalStateSubscription', () => {
 
@@ -397,7 +397,9 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, 'hello');
+		assert.deepStrictEqual((sub.value as TerminalState).content, [
+			{ type: 'unclassified', value: 'hello' },
+		]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -409,7 +411,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as TerminalState).content, []);
 	});
 
 	test('ignores non-terminal actions', () => {
@@ -421,7 +423,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as TerminalState).content, []);
 	});
 
 	test('handleSnapshot sets value', () => {
@@ -432,7 +434,7 @@ suite('TerminalStateSubscription', () => {
 	});
 });
 
-// ─── AgentSubscriptionManager ────────────────────────────────────────────────
+// AgentSubscriptionManager
 
 suite('AgentSubscriptionManager', () => {
 
@@ -489,7 +491,7 @@ suite('AgentSubscriptionManager', () => {
 	test('getSubscription returns IReference with subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 
 		assert.ok(ref.object);
 		assert.strictEqual(ref.object.value, undefined); // not yet initialized (async)
@@ -504,8 +506,8 @@ suite('AgentSubscriptionManager', () => {
 	test('second call for same resource increments refcount', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref1 = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
-		const ref2 = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
+		const ref2 = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -524,7 +526,7 @@ suite('AgentSubscriptionManager', () => {
 	test('disposing last ref calls unsubscribe callback', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 
 		await new Promise(r => setTimeout(r, 0));
 
@@ -537,7 +539,7 @@ suite('AgentSubscriptionManager', () => {
 		mgr.handleRootSnapshot(makeRootState(), 0);
 
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 		await new Promise(r => setTimeout(r, 0));
 
 		// Send a root action
@@ -545,14 +547,14 @@ suite('AgentSubscriptionManager', () => {
 			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 10 },
 			1,
 		));
-		assert.strictEqual((mgr.rootState.value as IRootState).activeSessions, 10);
+		assert.strictEqual((mgr.rootState.value as RootState).activeSessions, 10);
 
 		// Send a session action
 		mgr.receiveEnvelope(makeEnvelope(
 			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Routed' },
 			2,
 		));
-		assert.strictEqual((ref.object.value as ISessionState).summary.title, 'Routed');
+		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
 
 		ref.dispose();
 	});
@@ -560,7 +562,7 @@ suite('AgentSubscriptionManager', () => {
 	test('creating session subscription for copilot: URI', async () => {
 		const mgr = createManager();
 		const mySessionUri = URI.from({ scheme: 'copilot', path: '/my-session' });
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, mySessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, mySessionUri);
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -572,7 +574,7 @@ suite('AgentSubscriptionManager', () => {
 	test('creating terminal subscription for terminal URI', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(terminalUri);
-		const ref = mgr.getSubscription<ITerminalState>(StateComponents.Terminal, uri);
+		const ref = mgr.getSubscription<TerminalState>(StateComponents.Terminal, uri);
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.ok(ref.object.value);
@@ -584,7 +586,7 @@ suite('AgentSubscriptionManager', () => {
 	test('dispatchOptimistic applies to matching session subscription', async () => {
 		const mgr = createManager();
 		const uri = URI.parse(sessionUri);
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 		await new Promise(r => setTimeout(r, 0));
 
 		const clientSeq = mgr.dispatchOptimistic({
@@ -594,7 +596,7 @@ suite('AgentSubscriptionManager', () => {
 		});
 
 		assert.ok(clientSeq > 0);
-		assert.strictEqual((ref.object.value as ISessionState).summary.title, 'Dispatched');
+		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Dispatched');
 		// verifiedValue unchanged
 		assert.strictEqual(ref.object.verifiedValue!.summary.title, 'Test');
 
@@ -604,8 +606,8 @@ suite('AgentSubscriptionManager', () => {
 	test('dispose clears all subscriptions and calls unsubscribe for each', async () => {
 		const mgr = createManager();
 
-		const ref1 = mgr.getSubscription<ISessionState>(StateComponents.Session, URI.parse(sessionUri));
-		const ref2 = mgr.getSubscription<ITerminalState>(StateComponents.Terminal, URI.parse(terminalUri));
+		const ref1 = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri));
+		const ref2 = mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse(terminalUri));
 		await new Promise(r => setTimeout(r, 0));
 
 		// Remove the manager from disposables so we can dispose it manually
@@ -623,7 +625,7 @@ suite('AgentSubscriptionManager', () => {
 
 	test('getSubscriptionUnmanaged returns undefined when no subscription exists', () => {
 		const mgr = createManager();
-		const result = mgr.getSubscriptionUnmanaged<ISessionState>(URI.parse('copilot:/nonexistent'));
+		const result = mgr.getSubscriptionUnmanaged<SessionState>(URI.parse('copilot:/nonexistent'));
 		assert.strictEqual(result, undefined);
 	});
 
@@ -632,19 +634,19 @@ suite('AgentSubscriptionManager', () => {
 		const uri = URI.parse(sessionUri);
 
 		// Create a subscription via getSubscription
-		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 		await new Promise(r => setTimeout(r, 0));
 
 		// Get it unmanaged
-		const unmanaged = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		const unmanaged = mgr.getSubscriptionUnmanaged<SessionState>(uri);
 		assert.ok(unmanaged);
 		assert.strictEqual(unmanaged, ref.object);
 
-		// Dispose the ref — subscription should be released (refcount was 1)
+		// Dispose the ref. Subscription should be released (refcount was 1)
 		ref.dispose();
 
 		// Now unmanaged should return undefined since it was released
-		const after = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		const after = mgr.getSubscriptionUnmanaged<SessionState>(uri);
 		assert.strictEqual(after, undefined);
 	});
 });

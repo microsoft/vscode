@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
+import type { TraceContext } from '../../../../platform/otel/common/otelService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Event } from '../../../../util/vs/base/common/event';
 import type { ClaudeFolderInfo } from './claudeFolderInfo';
@@ -22,6 +23,8 @@ export interface SessionState {
 	capturingToken: CapturingToken | undefined;
 	folderInfo: ClaudeFolderInfo | undefined;
 	usageHandler: UsageHandler | undefined;
+	reasoningEffort: EffortLevel | undefined;
+	traceContext: TraceContext | undefined;
 }
 
 /**
@@ -91,6 +94,26 @@ export interface IClaudeSessionStateService {
 	 * Sets the usage handler for a session.
 	 */
 	setUsageHandlerForSession(sessionId: string, handler: UsageHandler | undefined): void;
+
+	/**
+	 * Gets the reasoning effort for a session (user's per-request selection from the model picker).
+	 */
+	getReasoningEffortForSession(sessionId: string): EffortLevel | undefined;
+
+	/**
+	 * Sets the reasoning effort for a session.
+	 */
+	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void;
+
+	/**
+	 * Gets the OTel trace context for a session (used to parent chat spans to invoke_agent).
+	 */
+	getTraceContextForSession(sessionId: string): TraceContext | undefined;
+
+	/**
+	 * Sets the OTel trace context for a session.
+	 */
+	setTraceContextForSession(sessionId: string, traceContext: TraceContext | undefined): void;
 }
 
 export const IClaudeSessionStateService = createServiceIdentifier<IClaudeSessionStateService>('IClaudeSessionStateService');
