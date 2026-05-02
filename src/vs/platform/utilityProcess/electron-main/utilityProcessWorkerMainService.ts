@@ -65,8 +65,8 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason.code}, signal: ${reason.signal}`);
 			}
 
-			this.workers.deleteAndDispose(workerId);
 			onDidTerminate.complete({ reason });
+			this.workers.deleteAndDispose(workerId);
 		});
 
 		return onDidTerminate.p;
