@@ -65,6 +65,8 @@ import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
+import { MessageRenderer } from './messageRenderer.js';
+import { AgentEvent } from '../../../common/agentEvents.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -131,6 +133,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _sendButton: Button | undefined;
 	private _sending = false;
 	private _altKeyDown = false;
+
+	// Streaming response area (§7.3 of AGENTIC_PLATFORM_PLAN.md)
+	private _responseContainer: HTMLElement | undefined;
+	private readonly _activeRenderer = this._register(new MutableDisposable<MessageRenderer>());
+	private _streamAbortController: AbortController | undefined;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -322,6 +329,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Create initial session
 		this._createNewSession();
+
+		// Streaming response area — hidden until a request is in flight
+		this._responseContainer = dom.append(wrapper, dom.$('.sessions-chat-response-container.hidden'));
 
 		// Reveal
 		welcomeElement.classList.add('revealed');
@@ -1006,23 +1016,69 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
 
-
 		try {
-			await this.sessionsManagementService.sendRequestForNewSession(
+			// Attempt streaming path first. Falls back to the legacy batch path
+			// when the service returns null (infrastructure not yet wired).
+			const ctrl = new AbortController();
+			this._streamAbortController = ctrl;
+			this._showResponseContainer();
+
+			const stream = await this.sessionsManagementService.streamRequestForNewSession(
 				session.resource,
-				options?.openNewAfterSend ? { openNewSessionView: true } : undefined
+				ctrl.signal,
+				options?.openNewAfterSend ? { openNewSessionView: true } : undefined,
 			);
+
+			if (stream) {
+				this._startStreaming(stream, ctrl.signal);
+			} else {
+				// Non-streaming path: hide the response area, navigate as before
+				this._hideResponseContainer();
+			}
+
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
+			this._hideResponseContainer();
 		}
-
 
 		this._sending = false;
 		this._editor.updateOptions({ readOnly: false });
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
+	}
+
+	private _showResponseContainer(): void {
+		if (this._responseContainer) {
+			this._responseContainer.classList.remove('hidden');
+			dom.clearNode(this._responseContainer);
+		}
+	}
+
+	private _hideResponseContainer(): void {
+		this._responseContainer?.classList.add('hidden');
+	}
+
+	private _startStreaming(stream: AsyncIterable<AgentEvent>, signal: AbortSignal): void {
+		if (!this._responseContainer) {
+			return;
+		}
+
+		const renderer = this._activeRenderer.value = new MessageRenderer(
+			this._responseContainer,
+			() => {
+				// Retry: clear the response area and re-send
+				this._hideResponseContainer();
+				this._send();
+			},
+			() => {
+				this._streamAbortController?.abort();
+				this._hideResponseContainer();
+			},
+		);
+
+		renderer.render(stream, signal);
 	}
 
 	/**

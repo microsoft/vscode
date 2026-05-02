@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { AgentEvent } from '../../../common/agentEvents.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -91,6 +92,26 @@ export interface ISessionsManagementService {
 	 * instead of navigating to the newly created session.
 	 */
 	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void>;
+
+	/**
+	 * Stream agent events for a new-session request.
+	 *
+	 * Behaves identically to `sendRequestForNewSession` from a session-lifecycle
+	 * perspective, but returns an async iterable of `AgentEvent` values so that
+	 * callers can render the response incrementally.
+	 *
+	 * Returns `null` when the underlying infrastructure does not yet support
+	 * streaming for this session type; callers must fall back to
+	 * `sendRequestForNewSession` in that case.
+	 *
+	 * The `signal` is wired to the provider connection — aborting it cancels
+	 * the in-flight request and closes the SSE stream.
+	 */
+	streamRequestForNewSession(
+		sessionResource: URI,
+		signal: AbortSignal,
+		options?: { openNewSessionView?: boolean },
+	): Promise<AsyncIterable<AgentEvent> | null>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -299,6 +320,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const repository = this.getRepositoryFromSessionOption(sessionResource);
 		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
+	}
+
+	async streamRequestForNewSession(
+		sessionResource: URI,
+		_signal: AbortSignal,
+		options?: { openNewSessionView?: boolean },
+	): Promise<AsyncIterable<AgentEvent> | null> {
+		// Streaming infrastructure (model-router direct connection) is not yet
+		// wired into the IDE. Fall back to the non-streaming path and signal
+		// to the caller that no event stream is available.
+		await this.sendRequestForNewSession(sessionResource, options);
+		return null;
 	}
 
 	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void> {

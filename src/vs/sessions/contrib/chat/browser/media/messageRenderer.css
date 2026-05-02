@@ -1,0 +1,221 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.message-renderer {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px 0;
+	font-size: 13px;
+	line-height: 1.6;
+	color: var(--vscode-editor-foreground);
+}
+
+/* ── Thinking panel ──────────────────────────────────────────────────────── */
+
+.message-renderer-thinking {
+	display: none;
+	border-left: 2px solid var(--vscode-editorWidget-border);
+	padding-left: 8px;
+	opacity: 0.7;
+}
+
+.message-renderer-thinking:not(.hidden) {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.message-renderer-thinking-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	padding: 0;
+	text-align: left;
+}
+
+.message-renderer-thinking-toggle:hover {
+	color: var(--vscode-foreground);
+}
+
+.message-renderer-thinking-toggle .codicon {
+	font-size: 10px;
+	transition: transform 100ms ease;
+}
+
+.message-renderer-thinking.expanded .message-renderer-thinking-toggle .codicon {
+	transform: rotate(90deg);
+}
+
+.message-renderer-thinking-content {
+	display: none;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.message-renderer-thinking.expanded .message-renderer-thinking-content {
+	display: block;
+}
+
+/* ── Main text ───────────────────────────────────────────────────────────── */
+
+.message-renderer-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.message-renderer.streaming .message-renderer-text::after {
+	content: '▋';
+	display: inline-block;
+	animation: blink 1s step-end infinite;
+	color: var(--vscode-editor-foreground);
+	opacity: 0.8;
+}
+
+@keyframes blink {
+	0%, 100% { opacity: 0.8; }
+	50% { opacity: 0; }
+}
+
+/* ── Tool call cards ─────────────────────────────────────────────────────── */
+
+.message-renderer-tools {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.message-renderer-tool-card {
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+}
+
+.message-renderer-tool-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--vscode-sideBarSectionHeader-background);
+	font-size: 12px;
+}
+
+.message-renderer-tool-header .codicon {
+	opacity: 0.7;
+	font-size: 12px;
+}
+
+.message-renderer-tool-name {
+	font-weight: 600;
+	font-family: var(--vscode-editor-font-family);
+}
+
+.message-renderer-tool-status {
+	margin-left: auto;
+	opacity: 0.6;
+	font-size: 11px;
+}
+
+.message-renderer-tool-card.done .message-renderer-tool-status {
+	color: var(--vscode-testing-iconPassed);
+	opacity: 1;
+}
+
+.message-renderer-tool-args {
+	margin: 0;
+	padding: 6px 8px;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+/* ── Usage chip ──────────────────────────────────────────────────────────── */
+
+.message-renderer-usage {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* ── Error section ───────────────────────────────────────────────────────── */
+
+.message-renderer-error {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	font-size: 12px;
+}
+
+.message-renderer-error-message {
+	flex: 1;
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.message-renderer-retry-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.message-renderer-retry-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* ── Cancel button ───────────────────────────────────────────────────────── */
+
+.message-renderer-cancel {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 8px;
+	align-self: flex-start;
+	background: none;
+	color: var(--vscode-descriptionForeground);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 11px;
+}
+
+.message-renderer-cancel:hover {
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder);
+}
+
+/* ── Chat widget response container ─────────────────────────────────────── */
+
+.sessions-chat-response-container {
+	padding: 12px 16px;
+	border-top: 1px solid var(--vscode-editorWidget-border);
+	overflow-y: auto;
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────────── */
+
+.hidden {
+	display: none !important;
+}
