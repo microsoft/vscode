@@ -32,7 +32,10 @@
         "typescript.tsserver.nodePath",
         "js/ts.tsserver.node.path",
         "js/ts.tsserver.diagnosticDir",
-        "js/ts.tsserver.heapProfile"
+        "js/ts.tsserver.heapProfile",
+        "js/ts.preferences.autoImportSpecifierExcludeRegexes",
+        "typescript.preferences.autoImportSpecifierExcludeRegexes",
+        "javascript.preferences.autoImportSpecifierExcludeRegexes"
       ]
     }
   },
@@ -2423,7 +2426,7 @@
           },
           "js/ts.tsserver.node.path": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "scope": "window",
             "keywords": [
               "TypeScript"
@@ -2431,7 +2434,7 @@
           },
           "typescript.tsserver.nodePath": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "markdownDeprecationMessage": "%configuration.tsserver.nodePath.unifiedDeprecationMessage%",
             "scope": "window"
           },

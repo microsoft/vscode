@@ -227,6 +227,51 @@ suite('ChatRequestParser', () => {
 		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Chat], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
+	test('agent host: forcedAgent + supportsPromptAttachments revives /skill as prompt slash part', async () => {
+		// Mirrors what AgentHostSessionHandler._parsePromptForHistory does
+		// when restoring a session: pass forcedAgent + capabilities + an
+		// empty references/tools map and expect a ChatRequestSlashPromptPart
+		// for /skill <name>.
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const forcedAgent = { ...getAgentWithSlashCommands([]), capabilities: { supportsPromptAttachments: true } } satisfies IChatAgentData;
+		const result = parser.parseChatRequestWithReferences(
+			[],
+			new Map(),
+			'/skill plan run a quick plan',
+			ChatAgentLocation.Chat,
+			{ sessionType: 'agent-host-copilot', forcedAgent, attachmentCapabilities: forcedAgent.capabilities },
+		);
+		await assertSnapshot(result);
+	});
+
+	test('agent host: missing forcedAgent still revives /skill via no-agent branch', async () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequestWithReferences(
+			[],
+			new Map(),
+			'/skill plan run a quick plan',
+			ChatAgentLocation.Chat,
+			{ sessionType: 'agent-host-copilot' },
+		);
+		await assertSnapshot(result);
+	});
+
 	test('agent with subcommand after text', async () => {
 		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
@@ -405,6 +450,38 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /fix this', undefined, {
 			attachmentCapabilities: { supportsPromptAttachments: true }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('silent slash command with agent and no supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([{ command: 'clear', silent: true }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /clear', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: false }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('non-silent slash command with agent and no supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /fix this', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: false }
 		});
 		await assertSnapshot(result);
 	});

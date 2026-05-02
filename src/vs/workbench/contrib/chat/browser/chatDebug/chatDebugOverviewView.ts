@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -23,11 +24,13 @@ import { IChatWidgetService } from '../chat.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
+const numberFormatter = safeIntl.NumberFormat();
 
 export const enum OverviewNavigation {
 	Home = 'home',
 	Logs = 'logs',
 	FlowChart = 'flowchart',
+	CacheExplorer = 'cache',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -117,7 +120,7 @@ export class ChatDebugOverviewView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Logs"), true),
 			new TextBreadcrumbItem(sessionTitle),
 		]);
 	}
@@ -250,6 +253,13 @@ export class ChatDebugOverviewView extends Disposable {
 			this._onNavigate.fire(OverviewNavigation.FlowChart);
 		}));
 
+		const cacheBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.cacheExplorer', "Cache Explorer") }));
+		cacheBtn.element.classList.add('chat-debug-overview-action-button');
+		cacheBtn.label = `$(database) ${localize('chatDebug.cacheExplorer', "Cache Explorer")}`;
+		this.loadDisposables.add(cacheBtn.onDidClick(() => {
+			this._onNavigate.fire(OverviewNavigation.CacheExplorer);
+		}));
+
 	}
 
 	private renderMetricsShimmer(container: HTMLElement): void {
@@ -257,9 +267,11 @@ export class ChatDebugOverviewView extends Disposable {
 		const placeholderLabels = [
 			localize('chatDebug.metric.modelTurns', "Model Turns"),
 			localize('chatDebug.metric.toolCalls', "Tool Calls"),
+			localize('chatDebug.metric.totalInputTokens', "Total Input Tokens"),
+			localize('chatDebug.metric.totalOutputTokens', "Total Output Tokens"),
+			localize('chatDebug.metric.totalCachedInputTokens', "Total Cached Input Tokens"),
 			localize('chatDebug.metric.totalTokens', "Total Tokens"),
 			localize('chatDebug.metric.errors', "Errors"),
-			localize('chatDebug.metric.totalEvents', "Total Events"),
 		];
 		for (const label of placeholderLabels) {
 			const card = DOM.append(container, $('.chat-debug-overview-metric-card'));
@@ -278,15 +290,21 @@ export class ChatDebugOverviewView extends Disposable {
 			(e.kind === 'toolCall' && e.result === 'error')
 		);
 
+		const fmt = numberFormatter.value;
+		const totalInputTokens = modelTurns.reduce((sum, e) => sum + (e.inputTokens ?? 0), 0);
+		const totalOutputTokens = modelTurns.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0);
+		const totalCachedTokens = modelTurns.reduce((sum, e) => sum + (e.cachedTokens ?? 0), 0);
 		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
 
 		interface OverviewMetric { label: string; value: string }
 		const metrics: OverviewMetric[] = [
-			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) },
-			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) },
-			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() },
-			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) },
-			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) },
+			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: fmt.format(modelTurns.length) },
+			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: fmt.format(toolCalls.length) },
+			{ label: localize('chatDebug.metric.totalInputTokens', "Total Input Tokens"), value: fmt.format(totalInputTokens) },
+			{ label: localize('chatDebug.metric.totalOutputTokens', "Total Output Tokens"), value: fmt.format(totalOutputTokens) },
+			{ label: localize('chatDebug.metric.totalCachedInputTokens', "Total Cached Input Tokens"), value: fmt.format(totalCachedTokens) },
+			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: fmt.format(totalTokens) },
+			{ label: localize('chatDebug.metric.errors', "Errors"), value: fmt.format(errors.length) },
 		];
 
 		for (const metric of metrics) {

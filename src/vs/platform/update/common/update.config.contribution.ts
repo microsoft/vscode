@@ -78,31 +78,19 @@ configurationRegistry.registerConfiguration({
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
 		},
-		'update.statusBar': {
-			type: 'string',
-			enum: ['hidden', 'actionable', 'detailed'],
-			default: 'detailed',
+		'update.showPostInstallInfo': {
+			type: 'boolean',
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('statusBar', "Controls the visibility of the update status bar entry."),
-			enumDescriptions: [
-				localize('hidden', "The status bar entry is never shown."),
-				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('detailed', "The status bar entry is shown for all update states including progress.")
-			]
+			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
+			tags: ['usesOnlineServices']
 		},
 		'update.titleBar': {
-			type: 'string',
-			enum: ['none', 'actionable', 'detailed'],
-			default: 'none',
+			type: 'boolean',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			description: localize('titleBar', "Controls the experimental update title bar entry."),
-			enumDescriptions: [
-				localize('titleBarNone', "The title bar entry is never shown."),
-				localize('titleBarActionable', "The title bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('titleBarDetailed', "The title bar entry is shown for all update states including progress.")
-			]
+			description: localize('updateTitleBar', "Show the update indicator in the title bar."),
+			included: !isWeb
 		}
 	}
 });

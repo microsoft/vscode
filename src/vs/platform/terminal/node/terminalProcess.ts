@@ -31,7 +31,7 @@ const enum ShutdownConstants {
 	 * on Windows under conpty, killing a process while data is being output will cause the [conhost
 	 * flush to hang the pty host][2] because [conhost should be hosted on another thread][3].
 	 *
-	 * [1]: https://github.com/Tyriar/node-pty/issues/72
+	 * [1]: https://github.com/microsoft/node-pty/issues/72
 	 * [2]: https://github.com/microsoft/vscode/issues/71966
 	 * [3]: https://github.com/microsoft/node-pty/pull/415
 	 */
@@ -69,6 +69,10 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 ]);
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
+	['claude', GeneralShellType.Claude],
+	['codex', GeneralShellType.Codex],
+	['copilot', GeneralShellType.Copilot],
+	['gemini', GeneralShellType.Gemini],
 	['pwsh', GeneralShellType.PowerShell],
 	['powershell', GeneralShellType.PowerShell],
 	['python', GeneralShellType.Python],
@@ -337,7 +341,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		}));
-		this._sendProcessId(ptyProcess.pid);
+		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
+		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
+		// for the first data event which only fires after the connection completes
+		// and the real pid is available. See microsoft/node-pty#885.
+		if (ptyProcess.pid > 0) {
+			this._sendProcessId(ptyProcess.pid);
+		} else {
+			const dataListener = ptyProcess.onData(() => {
+				dataListener.dispose();
+				this._childProcessMonitor?.setPid(ptyProcess.pid);
+				this._sendProcessId(ptyProcess.pid);
+			});
+			this._register(dataListener);
+		}
 		this._setupTitlePolling(ptyProcess);
 	}
 
@@ -355,7 +372,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	// Allow any trailing data events to be sent before the exit event is sent.
-	// See https://github.com/Tyriar/node-pty/issues/72
+	// See https://github.com/microsoft/node-pty/issues/72
 	private _queueProcessExit() {
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('TerminalProcess#_queueProcessExit', new Error().stack?.replace(/^Error/, ''));

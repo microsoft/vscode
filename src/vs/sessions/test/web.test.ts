@@ -31,6 +31,11 @@ import { IProcessEnvironment } from '../../base/common/platform.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { VSBuffer } from '../../base/common/buffer.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
+import { ServiceIdentifier } from '../../platform/instantiation/common/instantiation.js';
+import { IWorkbench } from '../../workbench/browser/web.api.js';
+import { isEqual } from '../../base/common/resources.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -88,6 +93,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -95,13 +101,14 @@ class MockChatEntitlementService implements IChatEntitlementService {
 
 	readonly quotas = {};
 
-	readonly sentiment: IChatSentiment = { installed: true, registered: true };
-	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { installed: true, registered: true });
+	readonly sentiment: IChatSentiment = { completed: true, registered: true };
+	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { completed: true, registered: true });
 
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
 	markAnonymousRateLimited(): void { }
+	setForceHidden(_hidden: boolean): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }
 
@@ -116,6 +123,7 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
 	readonly policyData: IPolicyData | null = null;
+	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 
@@ -238,7 +246,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
@@ -247,7 +254,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
 		this.registerMockTerminalBackend();
-		this.preseedFolder();
 	}
 
 	/**
@@ -279,14 +285,14 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		}));
 
 		// Add or update session in list
-		const existing = this._sessionItems.find(s => s.resource.toString() === key);
-		let addedOrUpdated: IChatSessionItem | undefined = existing;
-		if (existing) {
-			existing.timing.lastRequestStarted = now;
-			existing.timing.lastRequestEnded = now;
+		const existingIndex = this._sessionItems.findIndex(s => isEqual(s.resource, resource));
+		let addedOrUpdated = existingIndex !== -1 ? { ...this._sessionItems[existingIndex] } : undefined;
+		if (addedOrUpdated) {
+			addedOrUpdated.timing = { ...addedOrUpdated.timing, lastRequestStarted: now, lastRequestEnded: now };
 			if (changes) {
-				existing.changes = changes;
+				addedOrUpdated.changes = changes;
 			}
+			this._sessionItems[existingIndex] = addedOrUpdated;
 		} else {
 			addedOrUpdated = {
 				resource,
@@ -342,7 +348,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 					// ChatEditingService computes actual diffs
 					if (response.fileEdits) {
 						emitFileEdits(response.fileEdits, progress);
-						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits`);
+						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits OK`);
 					}
 
 					self.addSessionItem(request.sessionResource, request.message, response.text, response.fileEdits);
@@ -367,7 +373,12 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
 					async provideChatSessionContent(sessionResource, _token) {
 						const key = sessionResource.toString();
-						const history = self._sessionHistory.get(key) ?? [];
+						// Ensure the history array is stored in _sessionHistory so
+						// addSessionItem pushes into the SAME reference returned here.
+						if (!self._sessionHistory.has(key)) {
+							self._sessionHistory.set(key, []);
+						}
+						const history = self._sessionHistory.get(key)!;
 						console.log(`[Sessions Web Test] Opening session ${key} (${history.length} history items)`);
 						const disposeEmitter = new Emitter<void>();
 						const isComplete = observableValue('isComplete', history.length > 0);
@@ -424,6 +435,9 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		return {
 			remoteAuthority: undefined,
 			isVirtualProcess: false,
+			isResponsive: true,
+			whenReady: Promise.resolve(),
+			setReady: () => { },
 			onDidRequestDetach: Event.None,
 			attachToProcess: async () => { throw new Error('Not supported'); },
 			attachToRevivedProcess: async () => { throw new Error('Not supported'); },
@@ -481,7 +495,14 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			},
 			getWslPath: async (original: string, _direction: 'unix-to-win' | 'win-to-unix') => original,
 			getEnvironment: async () => ({}),
+			getLatency: async () => [],
 			getPerformanceMarks: () => [],
+			updateTitle: async () => { },
+			updateIcon: async () => { },
+			setNextCommandId: async () => { },
+			restartPtyHost: () => { },
+			installAutoReply: async () => { },
+			uninstallAllAutoReplies: async () => { },
 			onPtyHostUnresponsive: Event.None,
 			onPtyHostResponsive: Event.None,
 			onPtyHostRestart: Event.None,
@@ -489,11 +510,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		} as unknown as ITerminalBackend;
 	}
 
-	private preseedFolder(): void {
-		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' }).toString();
-		this.storageService.store('agentSessions.lastPickedFolder', mockFolderUri, StorageScope.PROFILE, StorageTarget.MACHINE);
-		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri}`);
-	}
+
 }
 
 // Register the contribution so it runs during workbench startup
@@ -516,28 +533,66 @@ class MockGitService implements IGitService {
 
 /**
  * Test variant of SessionsBrowserMain that injects mock services
- * for E2E testing. Service overrides for entitlements and auth are set
- * in createWorkbench(). The mock chat agent is registered via a
- * workbench contribution (MockChatAgentContribution above).
+ * for E2E testing. Mock singletons are patched into the global
+ * singleton registry before `super.open()` so they take effect
+ * during both `BrowserMain.initServices()` and `Workbench.initServices()`.
+ * Original descriptors are restored when the workbench shuts down.
  */
 export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
-	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
-		console.log('[Sessions Web Test] Injecting mock services');
+	private _savedDescriptors: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
-		// Register mock-fs:// provider FIRST so all services can resolve workspace files
+	override async open(): Promise<IWorkbench> {
+		// Patch the global singleton registry BEFORE super.open() calls initServices().
+		// getSingletonServiceDescriptors() returns the mutable internal array, so
+		// replacing entries here ensures both BrowserMain and Workbench pick up mocks.
+		const registry = getSingletonServiceDescriptors();
+		const overrides: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [
+			[IChatEntitlementService, new SyncDescriptor(MockChatEntitlementService)],
+			[IDefaultAccountService, new SyncDescriptor(MockDefaultAccountService)],
+			[IGitService, new SyncDescriptor(MockGitService)],
+		];
+		for (const [serviceId, mockDescriptor] of overrides) {
+			const idx = registry.findIndex(([id]) => id === serviceId);
+			if (idx !== -1) {
+				this._savedDescriptors.push([serviceId, registry[idx][1]]);
+				registry[idx] = [serviceId, mockDescriptor];
+			} else {
+				registry.push([serviceId, mockDescriptor]);
+			}
+		}
+
+		const workbench = await super.open();
+
+		// Restore original descriptors now that the workbench has started,
+		// so subsequent tests in the same process are not affected.
+		for (const [serviceId, original] of this._savedDescriptors) {
+			const idx = registry.findIndex(([id]) => id === serviceId);
+			if (idx !== -1) {
+				registry[idx] = [serviceId, original];
+			}
+		}
+
+		return workbench;
+	}
+
+	private preseedFolder(storageService: IStorageService): void {
+		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
+		const providerId = 'default-copilot';
+
+		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
+		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId, checked: true }]);
+		storageService.store('sessions.recentlyPickedWorkspaces', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
+	}
+
+	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
+		// Register mock-fs:// provider so all services can resolve workspace files
 		registerMockFileSystemProvider(serviceCollection);
 
-		// Override entitlement service so Sessions thinks user is signed in
-		serviceCollection.set(IChatEntitlementService, new MockChatEntitlementService());
+		this.preseedFolder(serviceCollection.get(IStorageService) as IStorageService);
 
-		// Override default account service to hide the "Sign In" button
-		serviceCollection.set(IDefaultAccountService, new MockDefaultAccountService());
-
-		// Override git service so openRepository resolves instantly (no 10s barrier wait)
-		serviceCollection.set(IGitService, new MockGitService());
-
-		console.log('[Sessions Web Test] Creating Sessions workbench with mocks');
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}
 }

@@ -95,11 +95,13 @@ import './mainThreadMcp.js';
 import './mainThreadChatContext.js';
 import './mainThreadChatDebug.js';
 import './mainThreadChatStatus.js';
+import './mainThreadChatInputNotification.js';
 import './mainThreadChatOutputRenderer.js';
 import './mainThreadChatSessions.js';
 import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
 import './mainThreadGitExtensionService.js';
+import './mainThreadBrowsers.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

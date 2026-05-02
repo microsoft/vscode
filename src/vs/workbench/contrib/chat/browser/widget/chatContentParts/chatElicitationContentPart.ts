@@ -84,7 +84,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.kind === 'elicitation2' && elicitation.state.get() === ElicitationState.Pending);
 
-		this._register(confirmationWidget.onDidClick(async e => {
+		this._register(confirmationWidget.onDidClick(async ({ button: e }) => {
 			if (elicitation.kind !== 'elicitation2') {
 				return;
 			}

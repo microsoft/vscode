@@ -73,7 +73,7 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], syncOpts);
+			run('sudo', ['docker', 'run', '--rm', '--privileged', 'vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0', '--reset', '-p', 'yes'], syncOpts);
 		}
 		run('sudo', [
 			'docker', 'run',
@@ -179,6 +179,32 @@ function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
 	for (const key of rootNpmrcConfigKeys) {
 		const envKey = `npm_config_${key.replace(/-/g, '_')}`;
 		delete env[envKey];
+	}
+}
+
+function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): 'existing' | 'junction' | 'symlink' | 'hard link' {
+	if (fs.existsSync(linkPath)) {
+		return 'existing';
+	}
+
+	const sourcePath = path.resolve(path.dirname(linkPath), sourceRelativePath);
+	const isDirectory = fs.statSync(sourcePath).isDirectory();
+
+	try {
+		if (process.platform === 'win32' && isDirectory) {
+			fs.symlinkSync(sourcePath, linkPath, 'junction');
+			return 'junction';
+		}
+
+		fs.symlinkSync(sourceRelativePath, linkPath, isDirectory ? 'dir' : 'file');
+		return 'symlink';
+	} catch (error) {
+		if (process.platform === 'win32' && !isDirectory && (error as NodeJS.ErrnoException).code === 'EPERM') {
+			fs.linkSync(sourcePath, linkPath);
+			return 'hard link';
+		}
+
+		throw error;
 	}
 }
 
@@ -288,6 +314,37 @@ async function main() {
 
 	fs.writeFileSync(stateFile, JSON.stringify(_state));
 	fs.writeFileSync(stateContentsFile, JSON.stringify(computeContents()));
+
+	// Symlink .claude/ files to their canonical locations to test Claude agent harness
+	const claudeDir = path.join(root, '.claude');
+	fs.mkdirSync(claudeDir, { recursive: true });
+
+	const claudeMdLink = path.join(claudeDir, 'CLAUDE.md');
+	const claudeMdLinkType = ensureAgentHarnessLink(path.join('..', '.github', 'copilot-instructions.md'), claudeMdLink);
+	if (claudeMdLinkType !== 'existing') {
+		log('.', `Created ${claudeMdLinkType} .claude/CLAUDE.md -> .github/copilot-instructions.md`);
+	}
+
+	const claudeSkillsLink = path.join(claudeDir, 'skills');
+	const claudeSkillsLinkType = ensureAgentHarnessLink(path.join('..', '.agents', 'skills'), claudeSkillsLink);
+	if (claudeSkillsLinkType !== 'existing') {
+		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
+	}
+
+	// Temporary: patch @github/copilot-sdk session.js to fix ESM import
+	// (missing .js extension on vscode-jsonrpc/node). Fixed upstream in v0.1.32.
+	// TODO: Remove once @github/copilot-sdk is updated to >=0.1.32
+	for (const dir of ['', 'remote']) {
+		const sessionFile = path.join(root, dir, 'node_modules', '@github', 'copilot-sdk', 'dist', 'session.js');
+		if (fs.existsSync(sessionFile)) {
+			const content = fs.readFileSync(sessionFile, 'utf8');
+			const patched = content.replace(/from "vscode-jsonrpc\/node"/g, 'from "vscode-jsonrpc/node.js"');
+			if (content !== patched) {
+				fs.writeFileSync(sessionFile, patched);
+				log(dir || '.', 'Patched @github/copilot-sdk session.js (vscode-jsonrpc ESM import fix)');
+			}
+		}
+	}
 }
 
 main().catch(err => {

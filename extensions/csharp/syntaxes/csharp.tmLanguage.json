@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/2e6860d87d4019b0b793b1e21e9e5c82185a01aa",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/32ee13e806edf480ef9423adcf5ecf61ba39561b",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -5579,6 +5579,12 @@
 					"include": "#preprocessor-app-directive-property"
 				},
 				{
+					"include": "#preprocessor-app-directive-exclude"
+				},
+				{
+					"include": "#preprocessor-app-directive-include"
+				},
+				{
 					"include": "#preprocessor-app-directive-project"
 				},
 				{
@@ -5623,6 +5629,28 @@
 					"name": "punctuation.separator.equals.cs"
 				},
 				"4": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-exclude": {
+			"match": "\\b(exclude)\\b\\s*(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.exclude.cs"
+				},
+				"2": {
+					"name": "string.unquoted.preprocessor.message.cs"
+				}
+			}
+		},
+		"preprocessor-app-directive-include": {
+			"match": "\\b(include)\\b\\s*(.*)?\\s*",
+			"captures": {
+				"1": {
+					"name": "keyword.preprocessor.include.cs"
+				},
+				"2": {
 					"name": "string.unquoted.preprocessor.message.cs"
 				}
 			}

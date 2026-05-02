@@ -30,6 +30,7 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -47,7 +48,7 @@ import { ChatEditingDeletedFileEntry } from './chatEditingDeletedFileEntry.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
-import { FileOperation, FileOperationType } from './chatEditingOperations.js';
+import { FileOperation, FileOperationType, getKeyForChatSessionResource } from './chatEditingOperations.js';
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo, IExplanationGenerationHandle } from './chatEditingExplanationModelManager.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -58,6 +59,25 @@ const enum NotExistBehavior {
 	Create,
 	Abort,
 }
+
+type ChatEditingSessionInfoEvent = {
+	editSessionId: string;
+	entryCount: number;
+	modifiedCount: number;
+	acceptedCount: number;
+	rejectedCount: number;
+};
+
+type ChatEditingSessionInfoClassification = {
+	owner: 'jrieken';
+	comment: 'Tracks the number and state of chat editing entries when a session is stored.';
+	editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed identifier of the chat session for correlation.' };
+	entryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of entries stored with the session.' };
+	modifiedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Modified state when storing.' };
+	acceptedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Accepted state when storing.' };
+	rejectedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries in Rejected state when storing.' };
+};
+
 
 class ThrottledSequencer extends Sequencer {
 
@@ -129,6 +149,7 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
+	readonly supportsKeepUndo = false;
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 
@@ -199,6 +220,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._timeline = this._instantiationService.createInstance(
@@ -229,8 +251,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				});
 			},
 			deleteFile: async (uri) => {
+				const removedEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
 				const entries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
 				this._entriesObs.set(entries, undefined);
+				removedEntry?.dispose();
 				await this._bulkEditService.apply({ edits: [{ oldResource: uri, options: { ignoreIfNotExists: true } }] });
 			},
 			renameFile: async (fromUri, toUri) => {
@@ -308,7 +332,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
-		return storage.storeState(this._getStoredState());
+		const storedState = this._getStoredState();
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionStore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
+			...this._countEntryStates(this._entriesObs.get()),
+		});
+		return storage.storeState(storedState);
 	}
 
 	private _getStoredState(sessionResource = this.chatSessionResource): StoredSessionState {
@@ -637,7 +666,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]> {
+	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]> {
 		const snapshots = new ResourceMap<string | undefined>();
 		const acquiredLockPromises: DeferredPromise<void>[] = [];
 		const releaseLockPromises: DeferredPromise<void>[] = [];
@@ -647,7 +676,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		await chatEditingSessionIsReady(this);
 
 		// Acquire locks for each resource and take snapshots
-		for (const resource of resources) {
+		for (let i = 0; i < resources.length; i++) {
+			const resource = resources[i];
+			const contentSource = contentFor?.[i];
 			const releaseLock = new DeferredPromise<void>();
 			releaseLockPromises.push(releaseLock);
 
@@ -660,20 +691,37 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					return;
 				}
 
-				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo);
+				let initialContent: string | undefined;
+				if (contentSource) {
+					// Read the before-content from the provided URI instead of disk
+					try {
+						const data = await this._fileService.readFile(contentSource);
+						initialContent = data.value.toString();
+					} catch {
+						initialContent = '';
+					}
+				}
+
+				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
 				if (entry) {
 					await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
 				}
 
-
 				const notebookUri = CellUri.parse(resource)?.notebook || resource;
 				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
 
-				// Save to disk to ensure disk state is current before external edits
-				await entry?.save();
-
-				// Take snapshot of current state
-				snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+				if (initialContent !== undefined) {
+					if (entry) {
+						entry.initialContent = initialContent;
+						await entry.resetEditTrackerToInitialContent(); // in case it's reused
+					}
+					snapshots.set(resource, initialContent);
+				} else {
+					// Save to disk to ensure disk state is current before external edits
+					await entry?.save();
+					// Take snapshot of current state
+					snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+				}
 				entry?.startExternalEdit();
 				acquiredLock.complete();
 
@@ -696,7 +744,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return progress;
 	}
 
-	async stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]> {
+	async stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]> {
 		const operation = this._externalEditOperations.get(operationId);
 		if (!operation) {
 			this._logService.warn(`stopExternalEdits called for unknown operation ${operationId}`);
@@ -708,6 +756,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const progress: IChatProgress[] = [];
 
 		try {
+			// Build a map of resource -> contentFor URI
+			const contentForMap = new ResourceMap<URI>();
+			if (contentFor) {
+				let idx = 0;
+				for (const [resource] of operation.snapshots) {
+					if (idx < contentFor.length && contentFor[idx]) {
+						contentForMap.set(resource, contentFor[idx]);
+					}
+					idx++;
+				}
+			}
+
 			// For each resource, compute the diff and create edit parts
 			for (const [resource, beforeSnapshot] of operation.snapshots) {
 				let entry = this._getEntry(resource);
@@ -726,11 +786,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					continue;
 				}
 
-				// Reload from disk to ensure in-memory model is in sync with file system
-				await entry.revertToDisk();
-
-				// Take new snapshot after external changes
-				const afterSnapshot = this._getCurrentTextOrNotebookSnapshot(entry);
+				let afterSnapshot: string;
+				const contentSource = contentForMap.get(resource);
+				if (contentSource) {
+					// Read after-content from the provided URI instead of disk
+					try {
+						const data = await this._fileService.readFile(contentSource);
+						afterSnapshot = data.value.toString();
+					} catch (_e) {
+						afterSnapshot = '';
+					}
+				} else {
+					// Reload from disk to ensure in-memory model is in sync with file system
+					await entry.revertToDisk();
+					afterSnapshot = this._getCurrentTextOrNotebookSnapshot(entry) ?? '';
+				}
 
 				// Compute edits from the snapshots
 				let edits: (TextEdit | ICellEditOperation)[] = [];
@@ -945,6 +1015,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
+		this._telemetryService.publicLog2<ChatEditingSessionInfoEvent, ChatEditingSessionInfoClassification>('chatEditing/sessionRestore', {
+			editSessionId: getKeyForChatSessionResource(this.chatSessionResource),
+			...this._countEntryStates(entriesArr),
+		});
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -979,6 +1053,28 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return undefined;
 			}
 		};
+	}
+
+	private _countEntryStates(entries: readonly AbstractChatEditingModifiedFileEntry[]): { entryCount: number; modifiedCount: number; acceptedCount: number; rejectedCount: number } {
+		let entryCount = 0;
+		let modifiedCount = 0;
+		let acceptedCount = 0;
+		let rejectedCount = 0;
+		for (const entry of entries) {
+			entryCount += 1;
+			switch (entry.state.get()) {
+				case ModifiedFileEntryState.Modified:
+					modifiedCount += 1;
+					break;
+				case ModifiedFileEntryState.Accepted:
+					acceptedCount += 1;
+					break;
+				case ModifiedFileEntryState.Rejected:
+					rejectedCount += 1;
+					break;
+			}
+		}
+		return { entryCount, modifiedCount, acceptedCount, rejectedCount };
 	}
 
 	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {

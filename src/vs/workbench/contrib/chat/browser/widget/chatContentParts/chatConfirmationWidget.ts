@@ -5,11 +5,14 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import type { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -34,6 +37,16 @@ export interface IChatConfirmationButton<T> {
 	disabled?: boolean;
 	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
+}
+
+export interface IChatConfirmationButtonClickEvent<T> {
+	readonly button: IChatConfirmationButton<T>;
+	/**
+	 * True when the click originated from a touch tap (vs. mouse/keyboard/programmatic).
+	 * Callers that restore focus after confirmation (e.g. to the chat input) should
+	 * skip that behavior when this is true to avoid popping the on-screen keyboard on mobile.
+	 */
+	readonly isTouchClick: boolean;
 }
 
 export interface IChatConfirmationWidgetOptions<T> {
@@ -105,8 +118,8 @@ export class ChatQueryTitlePart extends Disposable {
 }
 
 abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
-	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButtonClickEvent<T>>());
+	get onDidClick(): Event<IChatConfirmationButtonClickEvent<T>> { return this._onDidClick.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -118,6 +131,8 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
+	private readonly messageScrollable: DomScrollableElement;
+	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		protected readonly context: IChatContentPartRenderContext,
@@ -154,6 +169,18 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		));
 
 		this.messageElement = elements.message;
+		const messageParent = this.messageElement.parentElement;
+		const messageNextSibling = this.messageElement.nextSibling;
+		this.messageScrollable = this._register(new DomScrollableElement(this.messageElement, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
+		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		this._register(messageResizeObserver.observe(this.messageElement));
+		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
 		// Create buttons
 		buttons.forEach(buttonData => {
@@ -175,7 +202,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 							undefined,
 							!action.disabled,
 							() => {
-								this._onDidClick.fire(action);
+								this._onDidClick.fire({ button: action, isTouchClick: false });
 								return Promise.resolve();
 							},
 						));
@@ -187,7 +214,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 			this._register(button);
 			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
@@ -216,7 +243,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	protected renderMessage(element: HTMLElement): void {
+		const store = new DisposableStore();
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		store.add(messageContentResizeObserver.observe(element));
+		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
+		this.messageScrollable.scanDomNode();
 	}
 }
 
@@ -256,8 +288,8 @@ export interface IChatConfirmationWidget2Options<T> {
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
-	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButtonClickEvent<T>>());
+	get onDidClick(): Event<IChatConfirmationButtonClickEvent<T>> { return this._onDidClick.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -271,6 +303,8 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
+	private readonly messageScrollable: DomScrollableElement;
+	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
 
 	public get codeblocksPartId() {
@@ -320,6 +354,18 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		));
 
 		this.messageElement = elements.message;
+		const messageParent = this.messageElement.parentElement;
+		const messageNextSibling = this.messageElement.nextSibling;
+		this.messageScrollable = this._register(new DomScrollableElement(this.messageElement, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
+		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		this._register(messageResizeObserver.observe(this.messageElement));
+		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
 		this.updateButtons(buttons);
 
@@ -368,7 +414,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 							undefined,
 							!action.disabled,
 							() => {
-								this._onDidClick.fire(action);
+								this._onDidClick.fire({ button: action, isTouchClick: false });
 								return Promise.resolve();
 							},
 						));
@@ -380,7 +426,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 			this._register(button);
 			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
 				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
 			}
@@ -403,7 +449,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				this.markdownRendererService,
 				undefined,
 				this._context.currentWidth.get(),
-				this._context.codeBlockModelCollection,
 				{
 					allowInlineDiffs: true,
 					horizontalPadding: 6,
@@ -415,10 +460,16 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			element = part.domNode;
 		}
 
-		for (const child of this.messageElement.children) {
-			child.remove();
+		dom.clearNode(this.messageElement);
+		const store = new DisposableStore();
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		store.add(messageContentResizeObserver.observe(element));
+		if (this.markdownContentPart.value) {
+			store.add(this.markdownContentPart.value.onDidChangeHeight(() => this.messageScrollable.scanDomNode()));
 		}
+		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
+		this.messageScrollable.scanDomNode();
 	}
 }
 export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
