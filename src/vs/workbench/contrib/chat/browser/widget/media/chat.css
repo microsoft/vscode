@@ -1865,6 +1865,86 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
+/* Split model picker layout */
+.interactive-session .chat-input-toolbar .chat-input-picker-item:has(.model-picker-split) {
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
+	padding: 0;
+	gap: 2px;
+	overflow: visible;
+	height: auto;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
+	display: flex;
+	align-items: center;
+	padding: 3px 5px;
+	border-radius: 3px;
+	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
+	white-space: nowrap;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+	min-width: 0;
+	flex-shrink: 1;
+	overflow: hidden;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Collapse behavior: short name hidden by default, shown when name is overflowing */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name .model-name-short {
+	display: none;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name.collapsed .model-name-full {
+	display: none;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name.collapsed .model-name-short {
+	display: inline;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
+	font-size: 12px;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
+	margin-left: 2px;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
+	cursor: default;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
+	background-color: transparent;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
