@@ -301,7 +301,7 @@ export class FileIconThemeLoader {
 						if (isGlobPattern(name)) {
 							const globSelector = globToAttributeSelector(name, 'data-folder-name');
 							if (globSelector) {
-								addSelector(css.inline`${qualifier} ${selectors.join('')}${globSelector}.folder-icon::before`, folderNames[key]);
+								addSelector(css.inline`${qualifier} ${selectors.join('')}:where(${globSelector}).folder-icon::before`, folderNames[key]);
 								result.hasFolderIcons = true;
 							}
 						} else {
@@ -319,7 +319,7 @@ export class FileIconThemeLoader {
 						if (isGlobPattern(name)) {
 							const globSelector = globToAttributeSelector(name, 'data-folder-name');
 							if (globSelector) {
-								addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}${globSelector}.folder-icon::before`, folderNamesExpanded[key]);
+								addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}:where(${globSelector}).folder-icon::before`, folderNamesExpanded[key]);
 								result.hasFolderIcons = true;
 							}
 						} else {
@@ -337,7 +337,7 @@ export class FileIconThemeLoader {
 						if (isGlobPattern(name)) {
 							const globSelector = globToAttributeSelector(name, 'data-folder-name');
 							if (globSelector) {
-								addSelector(css.inline`${qualifier} ${globSelector}.rootfolder-icon::before`, rootFolderNames[key]);
+								addSelector(css.inline`${qualifier} :where(${globSelector}).rootfolder-icon::before`, rootFolderNames[key]);
 								result.hasFolderIcons = true;
 							}
 						} else {
@@ -353,7 +353,7 @@ export class FileIconThemeLoader {
 						if (isGlobPattern(name)) {
 							const globSelector = globToAttributeSelector(name, 'data-folder-name');
 							if (globSelector) {
-								addSelector(css.inline`${qualifier} ${expanded} ${globSelector}.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
+								addSelector(css.inline`${qualifier} ${expanded} :where(${globSelector}).rootfolder-icon::before`, rootFolderNamesExpanded[key]);
 								result.hasFolderIcons = true;
 							}
 						} else {
@@ -383,7 +383,7 @@ export class FileIconThemeLoader {
 						if (isGlobPattern(name)) {
 							const globSelector = extensionGlobToAttributeSelector(name, 'data-file-name');
 							if (globSelector) {
-								addSelector(css.inline`${qualifier} .name-file-icon${globSelector}.ext-file-icon.file-icon::before`, fileExtensions[key]);
+								addSelector(css.inline`${qualifier} .ext-file-icon:where(${globSelector}).file-icon::before`, fileExtensions[key]);
 								result.hasFileIcons = true;
 								hasSpecificFileIcons = true;
 							}
@@ -408,12 +408,13 @@ export class FileIconThemeLoader {
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
 						if (isGlobPattern(fileName)) {
 							// Glob in file names: use attribute selector instead of class selectors.
-							// Omit the .name-file-icon score boost so exact fileNames always win.
+							// Add .ext-file-icon and .name-file-icon to rank above fileExtensions exact matches
+							// but below exact fileNames (which stack even more class selectors).
 							const globSelector = globToAttributeSelector(fileName, 'data-file-name');
 							if (globSelector) {
-								// Add .ext-file-icon to rank above fileExtensions exact matches
 								selectors.push(css.inline`.ext-file-icon`);
-								addSelector(css.inline`${qualifier} ${selectors.join('')}${globSelector}.file-icon::before`, fileNames[key]);
+								selectors.push(css.inline`.name-file-icon`);
+								addSelector(css.inline`${qualifier} ${selectors.join('')}:where(${globSelector}).file-icon::before`, fileNames[key]);
 								result.hasFileIcons = true;
 								hasSpecificFileIcons = true;
 							}
@@ -613,7 +614,8 @@ function globToAttributeSelector(pattern: string, attr: string): css.CssFragment
  * Unlike `globToAttributeSelector` which uses ^= (starts-with) and $= (ends-with),
  * extension globs need *= (contains) because the extension appears in the middle of the filename.
  *
- * Each non-empty segment between `*` characters is prefixed with `.` and matched via contains.
+ * Each non-empty segment between `*` characters is matched via contains with a leading `.`
+ * to anchor on extension boundaries.
  * e.g., `"stories.*"` should match `button.stories.tsx` via `[data-file-name*='.stories.' i]`
  * e.g., `"*.stories.*"` should also match `button.stories.tsx` via `[data-file-name*='.stories.' i]`
  */
@@ -635,8 +637,10 @@ function extensionGlobToAttributeSelector(pattern: string, attr: string): css.Cs
 		if (!segment) {
 			continue;
 		}
-		// Extension segments are matched as ".segment" anywhere in the filename
-		parts.push(css.inline`[${attrFragment}*=${css.stringValue('.' + segment)} i]`);
+		// Ensure the segment starts with '.' to anchor on extension boundaries.
+		// Some segments (e.g., from "*.stories.*") already include the leading dot.
+		const normalized = segment.startsWith('.') ? segment : '.' + segment;
+		parts.push(css.inline`[${attrFragment}*=${css.stringValue(normalized)} i]`);
 	}
 
 	return parts.join('');

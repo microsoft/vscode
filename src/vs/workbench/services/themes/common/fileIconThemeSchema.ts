@@ -71,7 +71,7 @@ const schema: IJSONSchema = {
 		},
 		fileExtensions: {
 			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Keys may contain \'*\' wildcards to match patterns (e.g., \'stories.*\'). Extensions are compared case insensitive.'),
+			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is a file extension or a multi-part extension (e.g., \'ts\', \'test.ts\', \'stories.tsx\'). Keys may contain \'*\' wildcards to match patterns (e.g., \'stories.*\' matches any file with .stories. in its name). Extensions are compared case insensitive.'),
 
 			additionalProperties: {
 				type: 'string',

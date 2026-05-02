@@ -183,18 +183,20 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			const labelClasses = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE).classes;
-			const detailClasses = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE).classes;
-			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
+			const labelInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
+			const detailInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
+			const chosenInfo = labelInfo.classes.length > detailInfo.classes.length ? labelInfo : detailInfo;
+			labelOptions.extraClasses = chosenInfo.classes;
+			labelOptions.extraAttributes = chosenInfo.attributes;
 
 		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = [
-				getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER).classes,
-				getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER).classes
-			].flat();
+			const labelInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER);
+			const detailInfo = getFileIconInfo(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER);
+			labelOptions.extraClasses = [...labelInfo.classes, ...detailInfo.classes];
+			labelOptions.extraAttributes = labelInfo.attributes ?? detailInfo.attributes;
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';
