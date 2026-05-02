@@ -632,7 +632,7 @@ export class AgentService extends Disposable implements IAgentService {
 				} catch (fallbackErr) {
 					if (fallbackErr instanceof ProtocolError) {
 						const message = err instanceof Error ? err.message : String(err);
-						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`);
+						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
 					}
 					throw fallbackErr;
 				}
