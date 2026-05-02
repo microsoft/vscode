@@ -116,36 +116,44 @@ function createModelItem(
 }
 
 /**
- * Returns a short description summarizing the model's current configuration values
- * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ * Resolves a configuration property from a model's configurationSchema by group.
+ * Returns the key, current value (with default fallback), and schema metadata.
  */
-function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+function resolveConfigProperty(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	group: string,
+	languageModelsService: ILanguageModelsService,
+): { key: string; value: unknown; schema: { enum?: unknown[]; enumItemLabels?: string[]; enumDescriptions?: string[]; default?: unknown } } | undefined {
 	const schema = model.metadata.configurationSchema;
 	if (!schema?.properties) {
 		return undefined;
 	}
-
 	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-	const parts: string[] = [];
-
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (propSchema.group !== 'navigation') {
+		if (propSchema.group !== group) {
 			continue;
 		}
 		if (!propSchema.enum || propSchema.enum.length < 2) {
 			continue;
 		}
 		const value = currentConfig[key] ?? propSchema.default;
-		if (value === undefined) {
-			continue;
-		}
-		const enumItemLabels = propSchema.enumItemLabels;
-		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-		const label = enumItemLabels?.[enumIndex] ?? String(value);
-		parts.push(label);
+		return { key, value, schema: propSchema };
 	}
+	return undefined;
+}
 
-	return parts.length > 0 ? parts.join(', ') : undefined;
+/**
+ * Returns a short description summarizing the model's current configuration values
+ * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ */
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const config = resolveConfigProperty(model, 'navigation', languageModelsService);
+	if (!config || config.value === undefined) {
+		return undefined;
+	}
+	const enumIndex = config.schema.enum?.indexOf(config.value) ?? -1;
+	const label = config.schema.enumItemLabels?.[enumIndex] ?? String(config.value);
+	return label;
 }
 
 function createModelAction(
@@ -850,26 +858,11 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelLabel);
 	}
 
-	private _getConfigProperty(group: string): { key: string; value: unknown; schema: { enum?: unknown[]; enumItemLabels?: string[]; enumDescriptions?: string[]; default?: unknown } } | undefined {
+	private _getConfigProperty(group: string) {
 		if (!this._selectedModel) {
 			return undefined;
 		}
-		const schema = this._selectedModel.metadata.configurationSchema;
-		if (!schema?.properties) {
-			return undefined;
-		}
-		const currentConfig = this._languageModelsService.getModelConfiguration(this._selectedModel.identifier) ?? {};
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (propSchema.group !== group) {
-				continue;
-			}
-			if (!propSchema.enum || propSchema.enum.length < 2) {
-				continue;
-			}
-			const value = currentConfig[key] ?? propSchema.default;
-			return { key, value, schema: propSchema };
-		}
-		return undefined;
+		return resolveConfigProperty(this._selectedModel, group, this._languageModelsService);
 	}
 
 	private _showEffortPicker(): void {
