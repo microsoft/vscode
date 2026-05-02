@@ -732,7 +732,7 @@ suite('buildModelPickerItems', () => {
 	test('model description includes pricing when set', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);

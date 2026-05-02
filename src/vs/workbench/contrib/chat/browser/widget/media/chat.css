@@ -1871,10 +1871,30 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
-	padding: 0;
+	padding: 0 6px;
 	gap: 2px;
 	overflow: visible;
 	height: auto;
+	border-radius: 0;
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before {
+	left: 0;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	right: 0;
 }
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
