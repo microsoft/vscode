@@ -23,24 +23,32 @@ async function stapleZippedApp(folder: string, glob: string): Promise<void> {
 	}
 
 	const stagingDir = path.join(folder, '.staple');
+	const tmpZipPath = `${zipPath}.tmp`;
 	fs.rmSync(stagingDir, { recursive: true, force: true });
+	fs.rmSync(tmpZipPath, { force: true });
 	fs.mkdirSync(stagingDir, { recursive: true });
 
-	await $`unzip -q ${zipPath} -d ${stagingDir}`;
+	try {
+		await $`unzip -q ${zipPath} -d ${stagingDir}`;
 
-	const appName = fs.readdirSync(stagingDir).find(name => name.endsWith('.app'));
-	if (!appName) {
-		throw new Error(`Cannot staple: no .app bundle found inside ${zipPath}`);
+		const appName = fs.readdirSync(stagingDir).find(name => name.endsWith('.app'));
+		if (!appName) {
+			throw new Error(`Cannot staple: no .app bundle found inside ${zipPath}`);
+		}
+		const appPath = path.join(stagingDir, appName);
+
+		await $`xcrun stapler staple ${appPath}`;
+		await $`xcrun stapler validate ${appPath}`;
+
+		// Write to a temp path first, then atomically replace the original
+		// only once zipping has succeeded — avoids losing the notarized
+		// artifact if the re-zip step fails for any reason.
+		await $({ cwd: stagingDir })`zip -r -X -y ${tmpZipPath} ${appName}`;
+		fs.renameSync(tmpZipPath, zipPath);
+	} finally {
+		fs.rmSync(stagingDir, { recursive: true, force: true });
+		fs.rmSync(tmpZipPath, { force: true });
 	}
-	const appPath = path.join(stagingDir, appName);
-
-	await $`xcrun stapler staple ${appPath}`;
-	await $`xcrun stapler validate ${appPath}`;
-
-	fs.rmSync(zipPath);
-	await $({ cwd: stagingDir })`zip -r -X -y ${zipPath} ${appName}`;
-
-	fs.rmSync(stagingDir, { recursive: true, force: true });
 }
 
 async function stapleArtifact(filePath: string): Promise<void> {
