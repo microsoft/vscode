@@ -41,6 +41,8 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 	parentToolCallId?: string;
 	/** The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
 	parentHeaderRequestId?: string;
+	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
 }
 
 /** A terminal command that is no longer being awaited by the subagent — either
@@ -313,7 +315,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
+	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: ExecutionSubagentToolCallingLoop.ID,
@@ -335,6 +337,8 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
+				parentModelCallId: this.options.parentModelCallId,
+				iterationNumber: iterationNumber.toString(),
 			},
 		}, token);
 	}

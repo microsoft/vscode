@@ -168,16 +168,32 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		for (const provider of this._providers.values()) {
-			const resources = provider.getProtectedResources();
-			if (resources.some(r => r.resource === params.resource)) {
-				const accepted = await provider.authenticate(params.resource, params.token);
-				if (accepted) {
-					return { authenticated: true };
-				}
+		// Multiple providers may share the same protected resource (e.g.
+		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// Fan out to every matching provider in parallel; the request is
+		// considered authenticated if at least one accepts. Provider
+		// failures are isolated — one provider rejecting (e.g. proxy
+		// server bind failure) MUST NOT prevent another provider from
+		// accepting the same token.
+		const matching = [...this._providers.values()].filter(
+			p => p.getProtectedResources().some(r => r.resource === params.resource),
+		);
+		const settled = await Promise.allSettled(
+			matching.map(p => p.authenticate(params.resource, params.token)),
+		);
+		let authenticated = false;
+		for (let i = 0; i < settled.length; i++) {
+			const result = settled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				this._logService.error(
+					result.reason,
+					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
+				);
 			}
 		}
-		return { authenticated: false };
+		return { authenticated };
 	}
 
 	// ---- session management -------------------------------------------------
@@ -738,19 +754,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
 
-		// Verify the session actually exists on the backend to avoid
-		// creating phantom sessions for made-up URIs.
-		let allSessions;
-		try {
-			allSessions = await agent.listSessions();
-		} catch (err) {
-			if (err instanceof ProtocolError) {
-				throw err;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
-		}
-		const meta = allSessions.find(s => s.session.toString() === sessionStr);
+		const meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
 		}
@@ -860,6 +864,48 @@ export class AgentService extends Disposable implements IAgentService {
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
 		this._attachGitState(session, meta.workingDirectory);
+	}
+
+	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		if (agent.getSessionMetadata) {
+			try {
+				return await agent.getSessionMetadata(session);
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
+				try {
+					return await this._getSessionMetadataFromCatalog(agent, session);
+				} catch (fallbackErr) {
+					if (fallbackErr instanceof ProtocolError) {
+						const message = err instanceof Error ? err.message : String(err);
+						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
+					}
+					throw fallbackErr;
+				}
+			}
+		}
+
+		// Older providers only expose catalog enumeration. Keep the fallback so
+		// restore remains compatible, but providers with a direct lookup avoid
+		// blocking session open on a full catalog refresh.
+		return this._getSessionMetadataFromCatalog(agent, session);
+	}
+
+	private async _getSessionMetadataFromCatalog(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		let allSessions;
+		try {
+			allSessions = await agent.listSessions();
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
+		}
+		return allSessions.find(s => s.session.toString() === sessionStr);
 	}
 
 	async resourceRead(uri: URI): Promise<ResourceReadResult> {

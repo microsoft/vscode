@@ -131,6 +131,8 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 
 class TestCopilotClient implements ICopilotClient {
 	readonly rpc: ICopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
+	listSessionCallCount = 0;
+	readonly getSessionMetadataCalls: string[] = [];
 
 	constructor(
 		private readonly _sessions: Awaited<ReturnType<ICopilotClient['listSessions']>>,
@@ -138,9 +140,15 @@ class TestCopilotClient implements ICopilotClient {
 
 	async start(): Promise<void> { }
 	async stop(): ReturnType<ICopilotClient['stop']> { return []; }
-	async listSessions(): ReturnType<ICopilotClient['listSessions']> { return this._sessions; }
+	async listSessions(): ReturnType<ICopilotClient['listSessions']> {
+		this.listSessionCallCount++;
+		return this._sessions;
+	}
 	async listModels(): ReturnType<ICopilotClient['listModels']> { return []; }
-	async getSessionMetadata(): ReturnType<ICopilotClient['getSessionMetadata']> { return undefined; }
+	async getSessionMetadata(sessionId: string): ReturnType<ICopilotClient['getSessionMetadata']> {
+		this.getSessionMetadataCalls.push(sessionId);
+		return this._sessions.find(s => s.sessionId === sessionId);
+	}
 	createSession: ICopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ICopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
 }
@@ -413,6 +421,51 @@ suite('CopilotAgent', () => {
 				summary: 'SDK legacy',
 				workingDirectory: URI.file('/workspace'),
 			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('getSessionMetadata reads one SDK session and stored metadata without listing sessions', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'target');
+		const db = sessionDataService.openDatabase(session);
+		await db.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+		db.dispose();
+
+		const client = new TestCopilotClient([sdkSession('target')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const metadata = await agent.getSessionMetadata(session);
+			assert.ok(metadata);
+			assert.deepStrictEqual(withoutUndefinedProperties(metadata), {
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'SDK target',
+				workingDirectory: URI.file('/workspace'),
+			});
+			assert.deepStrictEqual(client.getSessionMetadataCalls, ['target']);
+			assert.strictEqual(client.listSessionCallCount, 0);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('getSessionMetadata only returns sessions with a database', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'external');
+		const client = new TestCopilotClient([sdkSession('external', '/workspace')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			assert.strictEqual(await agent.getSessionMetadata(session), undefined);
+			assert.deepStrictEqual(client.getSessionMetadataCalls, []);
+			assert.strictEqual(client.listSessionCallCount, 0);
+			assert.deepStrictEqual(sessionDataService.openedSessions, []);
 		} finally {
 			await disposeAgent(agent);
 		}

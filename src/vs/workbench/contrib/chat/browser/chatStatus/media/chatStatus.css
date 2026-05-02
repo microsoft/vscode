@@ -6,7 +6,7 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	padding: 14px;
+	padding: 8px;
 	min-width: 320px;
 	max-width: 360px;
 }
@@ -23,7 +23,6 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	margin-top: 8px;
 	padding: 6px 0 6px 0;
 	border: none;
 	border-top: 1px solid var(--vscode-editorWidget-border);
@@ -31,7 +30,7 @@
 	cursor: pointer;
 	font-size: 13px;
 	font-family: inherit;
-	font-weight: 600;
+	font-weight: 400;
 	color: var(--vscode-foreground);
 }
 
@@ -53,6 +52,9 @@
 	font-size: 12px;
 	display: flex;
 	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+	margin-top: 2px;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-label {
@@ -106,6 +108,7 @@
 	gap: 10px;
 	margin-top: 10px;
 	margin-bottom: 4px;
+	padding-left: 24px;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content.collapsed > .collapsible-inner {
@@ -130,14 +133,15 @@
 	color: var(--vscode-foreground);
 	font-size: 13px;
 	line-height: 18px;
-	padding-bottom: 12px;
-	margin-bottom: 12px;
+	padding-bottom: 10px;
+	margin-bottom: 6px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border);
 	font-weight: 400;
 }
 
 .chat-status-bar-entry-tooltip div.header .header-label {
 	flex-grow: 1;
+	font-weight: 400;
 }
 
 .chat-status-bar-entry-tooltip div.header .monaco-action-bar {
@@ -182,8 +186,8 @@
 .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
 	font-size: 13px;
 	line-height: 18px;
-	font-weight: 400;
-	color: var(--vscode-descriptionForeground);
+	font-weight: 600;
+	color: var(--vscode-foreground);
 	margin-bottom: 4px;
 }
 

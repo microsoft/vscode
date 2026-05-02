@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -88,6 +88,14 @@ type ChatModelPickerInteractionEvent = {
 	interaction: ChatModelPickerInteraction;
 };
 
+/**
+ * Returns true if the model uses multiplier-based pricing (e.g. "2x").
+ * The copilot extension always sets multiplierNumeric alongside multiplier pricing strings.
+ */
+function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.multiplierNumeric !== undefined;
+}
+
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
@@ -108,36 +116,44 @@ function createModelItem(
 }
 
 /**
- * Returns a short description summarizing the model's current configuration values
- * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ * Resolves a configuration property from a model's configurationSchema by group.
+ * Returns the key, current value (with default fallback), and schema metadata.
  */
-function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+function resolveConfigProperty(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	group: string,
+	languageModelsService: ILanguageModelsService,
+): { key: string; value: unknown; schema: { enum?: unknown[]; enumItemLabels?: string[]; enumDescriptions?: string[]; default?: unknown } } | undefined {
 	const schema = model.metadata.configurationSchema;
 	if (!schema?.properties) {
 		return undefined;
 	}
-
 	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-	const parts: string[] = [];
-
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (propSchema.group !== 'navigation') {
+		if (propSchema.group !== group) {
 			continue;
 		}
 		if (!propSchema.enum || propSchema.enum.length < 2) {
 			continue;
 		}
 		const value = currentConfig[key] ?? propSchema.default;
-		if (value === undefined) {
-			continue;
-		}
-		const enumItemLabels = propSchema.enumItemLabels;
-		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-		const label = enumItemLabels?.[enumIndex] ?? String(value);
-		parts.push(label);
+		return { key, value, schema: propSchema };
 	}
+	return undefined;
+}
 
-	return parts.length > 0 ? parts.join(', ') : undefined;
+/**
+ * Returns a short description summarizing the model's current configuration values
+ * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ */
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const config = resolveConfigProperty(model, 'navigation', languageModelsService);
+	if (!config || config.value === undefined) {
+		return undefined;
+	}
+	const enumIndex = config.schema.enum?.indexOf(config.value) ?? -1;
+	const label = config.schema.enumItemLabels?.[enumIndex] ?? String(config.value);
+	return label;
 }
 
 function createModelAction(
@@ -149,7 +165,10 @@ function createModelAction(
 ): IActionWidgetDropdownAction & { section?: string } {
 	const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
 	const configDescription = getModelConfigurationDescription(model, languageModelsService);
-	const detailParts = [model.metadata.detail, model.metadata.pricing].filter(Boolean);
+	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
+	// Detailed AIC/token pricing is shown in the hover instead.
+	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
+	const detailParts = [model.metadata.detail, pricingForDescription].filter(Boolean);
 	const baseDescription = detailParts.length > 0 ? detailParts.join(' · ') : undefined;
 	const description = configDescription && baseDescription
 		? `${configDescription} · ${baseDescription}`
@@ -552,6 +571,9 @@ export class ModelPickerWidget extends Disposable {
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
+	private _nameButton: HTMLElement | undefined;
+	private _effortButton: HTMLElement | undefined;
+	private _tokensButton: HTMLElement | undefined;
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -609,37 +631,61 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
-		this._domNode = dom.append(container, dom.$('a.action-label'));
-		this._domNode.tabIndex = 0;
-		this._domNode.setAttribute('role', 'button');
-		this._domNode.setAttribute('aria-haspopup', 'true');
-		this._domNode.setAttribute('aria-expanded', 'false');
+		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
+		this._domNode.setAttribute('role', 'group');
 
 		// Apply initial collapsed state now that _domNode exists
 		if (this._hideChevrons?.get()) {
 			this._domNode.classList.toggle('hide-chevrons', true);
 		}
 
-		this._badgeIcon = dom.append(this._domNode, dom.$('span.model-picker-badge'));
+		// Model name button
+		this._nameButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-name'));
+		this._nameButton.tabIndex = 0;
+		this._nameButton.setAttribute('role', 'button');
+		this._nameButton.setAttribute('aria-haspopup', 'true');
+		this._nameButton.setAttribute('aria-expanded', 'false');
+
+		// Thinking effort button (conditionally visible)
+		this._effortButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-effort'));
+		this._effortButton.tabIndex = 0;
+		this._effortButton.setAttribute('role', 'button');
+		this._effortButton.setAttribute('aria-haspopup', 'true');
+		this._effortButton.setAttribute('aria-expanded', 'false');
+		this._effortButton.style.display = 'none';
+
+		// Max tokens toggle button (conditionally visible)
+		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
+		this._tokensButton.tabIndex = 0;
+		this._tokensButton.setAttribute('role', 'button');
+		this._tokensButton.style.display = 'none';
+
+		this._badgeIcon = dom.$('span.model-picker-badge');
 		this._updateBadge();
 
 		this._renderLabel();
 
-		// Open picker on click (uses pointerdown on iOS where mousedown is unreliable)
-		this._register(dom.addDisposableGenericMouseDownListener(this._domNode, e => {
+		this._registerButtonAction(this._nameButton, () => this.show());
+		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
+		this._registerButtonAction(this._tokensButton, () => this._cycleTokens());
+	}
+
+	/**
+	 * Registers mouse-down and Enter/Space key handlers on a button element.
+	 */
+	private _registerButtonAction(element: HTMLElement, action: () => void): void {
+		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
 			if (e.button !== 0) {
-				return; // only left click
+				return;
 			}
 			dom.EventHelper.stop(e, true);
-			this.show();
+			action();
 		}));
-
-		// Open picker on Enter/Space
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, (e) => {
+		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
-				this.show();
+				action();
 			}
 		}));
 	}
@@ -719,14 +765,14 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
-				this._domNode?.setAttribute('aria-expanded', 'false');
+				this._nameButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
 		};
 
-		this._domNode?.setAttribute('aria-expanded', 'true');
+		this._nameButton?.setAttribute('aria-expanded', 'true');
 
 		this._actionWidgetService.show(
 			'ChatModelPicker',
@@ -761,38 +807,153 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _renderLabel(): void {
-		if (!this._domNode) {
+		if (!this._domNode || !this._nameButton) {
 			return;
 		}
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
-		const domChildren: (HTMLElement | string)[] = [];
 
+		// --- Name section ---
+		const nameChildren: (HTMLElement | string)[] = [];
 		if (statusIcon) {
-			const iconElement = renderIcon(statusIcon);
-			domChildren.push(iconElement);
+			nameChildren.push(renderIcon(statusIcon));
 		}
-
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		const configDescription = this._selectedModel
-			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
-			: undefined;
-		const fullLabel = configDescription
-			? `${modelLabel} · ${configDescription}`
-			: modelLabel;
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
-
-		// Badge icon between label and chevron
+		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		if (this._badgeIcon) {
-			domChildren.push(this._badgeIcon);
+			nameChildren.push(this._badgeIcon);
+		}
+		dom.reset(this._nameButton, ...nameChildren);
+
+		// --- Effort section (from configurationSchema group 'navigation') ---
+		const effortConfig = this._getConfigProperty('navigation');
+		if (effortConfig && this._effortButton) {
+			// Use the localized enumItemLabel from the schema, falling back to the raw value
+			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
+			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
+				? effortConfig.schema.enumItemLabels[enumIndex]
+				: String(effortConfig.value);
+			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
+			this._effortButton.style.display = '';
+			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
+		} else if (this._effortButton) {
+			this._effortButton.style.display = 'none';
 		}
 
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-
-		dom.reset(this._domNode, ...domChildren);
+		// --- Tokens section (from configurationSchema group 'tokens') ---
+		const tokensConfig = this._getConfigProperty('tokens');
+		if (tokensConfig && this._tokensButton) {
+			const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
+			const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
+				? tokensConfig.schema.enumItemLabels[idx]
+				: formatTokenCount(Number(tokensConfig.value));
+			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
+			this._tokensButton.style.display = '';
+			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Max Tokens: {0}", tokensLabel);
+		} else if (this._tokensButton) {
+			this._tokensButton.style.display = 'none';
+		}
 
 		// Aria
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
+		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelLabel);
+	}
+
+	private _getConfigProperty(group: string) {
+		if (!this._selectedModel) {
+			return undefined;
+		}
+		return resolveConfigProperty(this._selectedModel, group, this._languageModelsService);
+	}
+
+	private _showEffortPicker(): void {
+		if (this._domNode?.classList.contains('disabled')) {
+			return;
+		}
+		const config = this._getConfigProperty('navigation');
+		if (!config || !this._effortButton || !this._selectedModel) {
+			return;
+		}
+
+		const modelIdentifier = this._selectedModel.identifier;
+		const enumValues = config.schema.enum ?? [];
+		const enumItemLabels = config.schema.enumItemLabels;
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = enumValues.map((value: unknown, index: number) => {
+			const label = enumItemLabels?.[index] ?? String(value);
+			const isDefault = value === config.schema.default;
+			const displayLabel = isDefault
+				? localize('models.effortDefault', "{0} (default)", label)
+				: label;
+			return {
+				item: {
+					id: `effort.${value}`,
+					enabled: true,
+					checked: config.value === value,
+					class: undefined,
+					tooltip: config.schema.enumDescriptions?.[index] ?? '',
+					label: displayLabel,
+					run: () => {
+						this._languageModelsService.setModelConfiguration(
+							modelIdentifier,
+							{ [config.key]: value }
+						);
+					}
+				},
+				kind: ActionListItemKind.Action,
+				label: displayLabel,
+				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
+				hideIcon: false,
+			};
+		});
+
+		const previouslyFocusedElement = dom.getActiveElement();
+		const delegate = {
+			onSelect: (action: IActionWidgetDropdownAction) => {
+				this._actionWidgetService.hide();
+				action.run();
+			},
+			onHide: () => {
+				this._effortButton?.setAttribute('aria-expanded', 'false');
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+			}
+		};
+
+		this._effortButton.setAttribute('aria-expanded', 'true');
+
+		this._actionWidgetService.show(
+			'ChatModelEffortPicker',
+			false,
+			items,
+			delegate,
+			this._effortButton,
+			undefined,
+			[],
+			{
+				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+				},
+				getRole: () => 'menuitemradio' as const,
+				getWidgetRole: () => 'menu' as const,
+			}
+		);
+	}
+
+	private _cycleTokens(): void {
+		if (this._domNode?.classList.contains('disabled')) {
+			return;
+		}
+		const config = this._getConfigProperty('tokens');
+		if (!config || !this._selectedModel) {
+			return;
+		}
+		const enumValues = config.schema.enum ?? [];
+		const currentIndex = enumValues.indexOf(config.value);
+		const nextIndex = (currentIndex + 1) % enumValues.length;
+		this._languageModelsService.setModelConfiguration(
+			this._selectedModel.identifier,
+			{ [config.key]: enumValues[nextIndex] }
+		);
 	}
 }
 
@@ -807,6 +968,15 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
 		markdown.appendMarkdown(`${model.metadata.tooltip}`);
+		hasContent = true;
+	}
+
+	// Show non-multiplier (UBB/AIC) pricing in hover
+	if (!isAuto && model.metadata.pricing && !isMultiplierPricing(model)) {
+		if (hasContent) {
+			markdown.appendMarkdown(`\n\n`);
+		}
+		markdown.appendMarkdown(`${localize('models.cost', 'Cost: {0}', model.metadata.pricing)}`);
 		hasContent = true;
 	}
 

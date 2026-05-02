@@ -515,6 +515,71 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(result, { authenticated: false });
 			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
 		});
+
+		test('fans out to every provider that owns the resource', async () => {
+			// Two providers share the same protected resource (the real
+			// motivating example: both Copilot CLI and Claude consume the
+			// GitHub Copilot token). Both must see the token — the
+			// previous for-loop short-circuit only delivered to the first.
+			const claudeAgent = new MockAgent('claude');
+			claudeAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			disposables.add(toDisposable(() => claudeAgent.dispose()));
+			service.registerProvider(copilotAgent);
+			service.registerProvider(claudeAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual({
+				result,
+				copilotCalls: copilotAgent.authenticateCalls,
+				claudeCalls: claudeAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				copilotCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+				claudeCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+			});
+		});
+
+		test('isolates a provider that throws — others still authenticate', async () => {
+			// Regression: if any provider's authenticate() rejects, the
+			// fan-out must NOT sink the others. Previously the call used
+			// Promise.all, which propagated the first rejection.
+			const flakyAgent = new MockAgent('claude');
+			flakyAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyAgent.authenticate = async () => { throw new Error('proxy bind failed'); };
+			disposables.add(toDisposable(() => flakyAgent.dispose()));
+			service.registerProvider(copilotAgent);
+			service.registerProvider(flakyAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual({
+				result,
+				copilotCalls: copilotAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				copilotCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+			});
+		});
+
+		test('reports not authenticated when every matching provider rejects', async () => {
+			// All matching providers fail — the result must be
+			// { authenticated: false } rather than a thrown error.
+			const flakyA = new MockAgent('claude');
+			const flakyB = new MockAgent('mock');
+			flakyA.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyB.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyA.authenticate = async () => { throw new Error('A'); };
+			flakyB.authenticate = async () => { throw new Error('B'); };
+			disposables.add(toDisposable(() => flakyA.dispose()));
+			disposables.add(toDisposable(() => flakyB.dispose()));
+			service.registerProvider(flakyA);
+			service.registerProvider(flakyB);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual(result, { authenticated: false });
+		});
 	});
 
 	// ---- shutdown -------------------------------------------------------
@@ -648,6 +713,59 @@ suite('AgentService (node dispatcher)', () => {
 				() => service.restoreSession(AgentSession.uri('copilot', 'nonexistent')),
 				/Session not found on backend/,
 			);
+		});
+
+		test('restores known session without listing all provider sessions', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				throw new Error('restoreSession should not enumerate sessions');
+			};
+
+			await service.restoreSession(session);
+
+			assert.strictEqual(listSessionsCalled, false);
+			assert.ok(service.stateManager.getSessionState(session.toString()));
+		});
+
+		test('falls back to listing sessions when direct metadata restore fails', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			copilotAgent.getSessionMetadata = async () => {
+				throw new Error('direct metadata unavailable');
+			};
+			const originalListSessions = copilotAgent.listSessions.bind(copilotAgent);
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				return originalListSessions();
+			};
+
+			await service.restoreSession(session);
+
+			assert.deepStrictEqual({
+				listSessionsCalled,
+				restored: !!service.stateManager.getSessionState(session.toString()),
+			}, {
+				listSessionsCalled: true,
+				restored: true,
+			});
 		});
 
 		test('restores a session with subagent tool calls', async () => {
