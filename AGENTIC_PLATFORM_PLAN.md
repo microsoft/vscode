@@ -588,7 +588,7 @@ Three sprints to land the subscription-integration foundation, then the existing
   - Text, tool_use, thinking, usage, error all rendered live.
   - Cancel button propagates AbortSignal.
 - [x] **mcp-gateway tool-result streaming** in `services/mcp-gateway/src/server.ts` (§7.2). _(partial: streaming wrapper + types landed, semantic_search migrated as proof of concept; remaining 17 tools migrate in follow-up)_
-- [ ] **Auth wizard MVP** with Claude OAuth only (§9.1).
+- [x] **Auth wizard MVP** with Claude OAuth only (§9.1).
 
 **Demo:** "Log in with Claude, ask a code-review question, watch tokens stream and tool calls appear inline."
 

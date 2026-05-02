@@ -1,0 +1,141 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-auth-wizard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 24px;
+	max-width: 560px;
+	width: 100%;
+	padding: 16px;
+	box-sizing: border-box;
+}
+
+.sessions-auth-wizard-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	text-align: center;
+}
+
+.sessions-auth-wizard-header .sessions-auth-wizard-icon .codicon {
+	font-size: 64px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-auth-wizard-header h2 {
+	margin: 0;
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-auth-wizard-subtitle {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-auth-wizard-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+}
+
+.sessions-auth-wizard-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	transition: border-color 120ms ease-out, opacity 120ms ease-out;
+}
+
+.sessions-auth-wizard-row.recommended {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-auth-wizard-row.unavailable {
+	opacity: 0.55;
+}
+
+.sessions-auth-wizard-row.connecting,
+.sessions-auth-wizard-row.connected {
+	border-color: var(--vscode-charts-green, var(--vscode-focusBorder));
+}
+
+.sessions-auth-wizard-row.errored {
+	border-color: var(--vscode-errorForeground);
+}
+
+.sessions-auth-wizard-row-icon .codicon {
+	font-size: 20px;
+	color: var(--vscode-foreground);
+}
+
+.sessions-auth-wizard-row-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.sessions-auth-wizard-row-title-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.sessions-auth-wizard-row-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-auth-wizard-row-badge {
+	font-size: 11px;
+	padding: 1px 6px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.sessions-auth-wizard-row-description {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.35;
+}
+
+.sessions-auth-wizard-row-status {
+	margin: 4px 0 0;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-auth-wizard-row.errored .sessions-auth-wizard-row-status {
+	color: var(--vscode-errorForeground);
+}
+
+.sessions-auth-wizard-row.connected .sessions-auth-wizard-row-status {
+	color: var(--vscode-charts-green, var(--vscode-foreground));
+}
+
+.sessions-auth-wizard-row-action {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-auth-wizard-row-action .monaco-button {
+	min-width: 88px;
+	padding: 6px 14px;
+	font-size: 12px;
+}
