@@ -596,7 +596,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 
 **Goal:** A user can connect Claude, Codex, and Copilot, and run two specialists in parallel.
 
-- [ ] **ChatGPTOAuth adapter** with event normaliser (§5.2). Captured-SSE fixture suite.
+- [x] **ChatGPTOAuth adapter** with event normaliser (§5.2). Captured-SSE fixture suite.
 - [ ] **Copilot adapter** using existing GH auth flow (§5.3).
 - [ ] **Connected accounts panel** (§9.2).
 - [ ] **Per-agent provider selection UI** (§9.3) with `.son-of-anton/routing.json`.
