@@ -39,10 +39,6 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 			return Codicon.circleSlash;
 		}
 
-		if (toolInvocation.toolSpecificData?.kind === 'search') {
-			return Codicon.search;
-		}
-
 		return confirmState?.type === ToolConfirmKind.Denied ?
 			Codicon.error :
 			IChatToolInvocation.isComplete(toolInvocation) ?
