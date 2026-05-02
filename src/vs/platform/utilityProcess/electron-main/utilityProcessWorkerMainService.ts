@@ -66,7 +66,12 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 			}
 
 			onDidTerminate.complete({ reason });
-			this.workers.deleteAndDispose(workerId);
+
+			// Only remove from map if this worker is still the one tracked.
+			if (this.workers.get(workerId) === worker) {
+				this.workers.deleteAndLeak(workerId);
+			}
+			worker.dispose();
 		});
 
 		return onDidTerminate.p;
