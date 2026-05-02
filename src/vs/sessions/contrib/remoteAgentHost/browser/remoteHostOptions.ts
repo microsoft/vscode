@@ -13,6 +13,22 @@ import { IOutputService } from '../../../../workbench/services/output/common/out
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 
+export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
+	if (provider.connect) {
+		await provider.connect();
+	} else if (provider.remoteAddress) {
+		remoteAgentHostService.reconnect(provider.remoteAddress);
+	}
+}
+
+export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
+	if (provider.disconnect) {
+		await provider.disconnect();
+	} else if (provider.remoteAddress) {
+		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+	}
+}
+
 export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	switch (status) {
 		case RemoteAgentHostConnectionStatus.Connected:
@@ -121,10 +137,10 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	switch (result.id) {
 		case 'reconnect':
-			remoteAgentHostService.reconnect(address);
+			await reconnectRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'remove':
-			await remoteAgentHostService.removeRemoteAgentHost(address);
+			await removeRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'copy':
 			await clipboardService.writeText(address);
@@ -140,4 +156,3 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	}
 	return undefined;
 }
-

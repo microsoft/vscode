@@ -269,6 +269,7 @@ export class MenuId {
 	static readonly ChatEditingSessionChangeToolbar = new MenuId('ChatEditingSessionChangeToolbar');
 	static readonly ChatEditingSessionChangesVersionsSubmenu = new MenuId('ChatEditingSessionChangesVersionsSubmenu');
 	static readonly ChatEditingSessionChangesFileHeaderToolbar = new MenuId('ChatEditingSessionChangesFileHeaderToolbar');
+	static readonly ChatEditingSessionChangesFileHeaderRightToolbar = new MenuId('ChatEditingSessionChangesFileHeaderRightToolbar');
 	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
 	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
 	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');

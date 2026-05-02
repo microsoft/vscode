@@ -33,7 +33,7 @@ use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 use super::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 
 /// How often to check for server updates.
-pub const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+pub const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 /// How often to re-check whether the server has exited when an update is pending.
 pub const UPDATE_POLL_INTERVAL: Duration = Duration::from_secs(10 * 60);
 /// How long to wait for the server to signal readiness.
@@ -243,7 +243,10 @@ impl AgentHostManager {
 					if let Some(o) = opener.take() {
 						o.open(Err(format!("Server exited before ready: {e:?}")));
 					}
-					break;
+					// Child has already exited; don't store it in `running`,
+					// otherwise the manager would be wedged with a dead child
+					// forever and ensure_server() would never restart.
+					return;
 				}
 			}
 
@@ -259,10 +262,6 @@ impl AgentHostManager {
 				child,
 				commit: release.commit.clone(),
 			});
-		}
-
-		if !ready {
-			return;
 		}
 
 		info!(self.log, "[{}]: Server ready", commit_prefix);

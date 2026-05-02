@@ -19,6 +19,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -63,18 +64,28 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// PATH and other vars from the user's login shell (macOS/Linux GUI launches).
 		const shellEnv = await this._resolveShellEnv();
 
+		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
+		// The Claude agent is opt-in: enabled when either the workbench setting is on
+		// or the env var is already set on the parent process (developer override).
+		const claudeEnabled = this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId)
+			|| process.env[AgentHostEnableClaudeEnvVar] === '1';
+
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
 			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
-			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			args: [
+				'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				'--user-data-dir', this._environmentMainService.userDataPath,
+			],
 			env: {
 				...deepClone(process.env),
 				...shellEnv,
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
+				...(claudeEnabled ? { [AgentHostEnableClaudeEnvVar]: '1' } : {}),
 			}
 		});
 

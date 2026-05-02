@@ -98,6 +98,13 @@ export interface ReconnectReplayResult {
 	type: ReconnectResultType.Replay;
 	/** Missed action envelopes since `lastSeenServerSeq` */
 	actions: ActionEnvelope[];
+	/**
+	 * URIs from `ReconnectParams.subscriptions` that the server cannot resume.
+	 * This includes resources that no longer exist (e.g. disposed sessions or
+	 * terminals) as well as resources the client is no longer permitted to
+	 * observe. Clients SHOULD drop these from their local subscription set.
+	 */
+	missing: URI[];
 }
 
 /**

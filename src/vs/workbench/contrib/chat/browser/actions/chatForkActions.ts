@@ -17,6 +17,7 @@ import { IChatService, ResponseModelState } from '../../common/chatService/chatS
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 
@@ -62,7 +63,7 @@ export function registerChatForkActions() {
 
 				// Check if this is a contributed session that supports forking
 				const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
-				if (contentProviderSchemes.includes(sourceSessionResource.scheme)) {
+				if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
 					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, chatWidgetService);
 				}
 
@@ -142,7 +143,7 @@ export function registerChatForkActions() {
 
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
-			if (contentProviderSchemes.includes(sessionResource.scheme)) {
+			if (contentProviderSchemes.includes(getChatSessionType(sessionResource))) {
 				const contributedSession = await chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
 				let request = contributedSession.history.find((entry): entry is IChatSessionRequestHistoryItem => entry.type === 'request' && entry.id === targetRequestId);
 				if (!request) {

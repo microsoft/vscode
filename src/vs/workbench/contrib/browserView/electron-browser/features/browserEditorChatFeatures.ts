@@ -35,9 +35,12 @@ import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribut
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import product from '../../../../../platform/product/common/product.js';
+import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
+import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -201,7 +204,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			hoverDelegate
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
-		this._shareButton.label = '$(agent)';
+		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
@@ -249,11 +252,14 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
-			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
-			: '$(agent)';
-		this._shareButton.setTitle(isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
+			: '$(share-window)';
+
+		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent"));
+			: localize('browser.shareWithAgent', "Share with Agent");
+		this._shareButton.setTitle(title);
+		this._shareButton.element.setAttribute('aria-label', title);
 	}
 
 	private static readonly SHARING_CONTENT_WARNING_DONT_ASK_KEY = 'browserView.agentSharingContentWarning.dontAskAgain';
@@ -627,6 +633,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					}
 				},
 			}
+		},
+		[AgentHostChatToolsEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
 		}
 	}
 });

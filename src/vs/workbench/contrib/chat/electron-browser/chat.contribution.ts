@@ -51,7 +51,8 @@ import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
 // Override the browser PluginGitCommandService with the native one that always
-// runs git locally via the shared process.
+// runs git locally via the shared process. See the decision matrix on the
+// `IPluginGitService` interface for the full per-flavor wiring.
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 

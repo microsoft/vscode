@@ -690,12 +690,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._register(this._chatSessionsService.onDidChangeSessionOptions(({ sessionResource, updates }) => {
 			warnOnUntitledSessionResource(sessionResource, this._logService);
-			const handle = this._getHandleForSessionType(sessionResource.scheme);
-			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.size} update(s)`);
+			const sessionType = getChatSessionType(sessionResource);
+			const handle = this._getHandleForSessionType(sessionType);
+			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: sessionType '${sessionType}', handle ${handle}, ${updates.size} update(s)`);
 			if (handle !== undefined) {
 				this.notifyOptionsChange(handle, sessionResource, updates);
 			} else {
-				this._logService.warn(`[MainThreadChatSessions] Cannot notify option change for scheme '${sessionResource.scheme}': no provider registered. Registered schemes: [${Array.from(this._sessionTypeToHandle.keys()).join(', ')}]`);
+				this._logService.warn(`[MainThreadChatSessions] Cannot notify option change for sessionType '${sessionType}': no provider registered. Registered types: [${Array.from(this._sessionTypeToHandle.keys()).join(', ')}]`);
 			}
 		}));
 

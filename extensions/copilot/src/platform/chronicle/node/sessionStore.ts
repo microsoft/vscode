@@ -387,6 +387,22 @@ export class SessionStore implements ISessionStore {
 	}
 
 	/**
+	 * Delete a session and all associated data.
+	 * Removes turns, checkpoints, files, refs, search index entries, and the session row.
+	 */
+	deleteSession(sessionId: string): void {
+		const db = this.ensureDb();
+		this.runInTransaction(() => {
+			db.prepare('DELETE FROM search_index WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM session_refs WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM session_files WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM checkpoints WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM turns WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+		});
+	}
+
+	/**
 	 * Full-text search across all indexed content (turns, checkpoint sections, and workspace artifacts).
 	 * Uses FTS5 MATCH with BM25 ranking.
 	 *

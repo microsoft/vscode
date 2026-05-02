@@ -14,12 +14,13 @@ import { IPlaywrightService } from '../../../../../platform/browserView/common/p
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { errorResult, playwrightInvokeRaw } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 import { ReadBrowserToolData } from './readBrowserTool.js';
 
 export const ScreenshotBrowserToolData: IToolData = {
 	id: 'screenshot_page',
-	toolReferenceName: 'screenshotPage',
+	toolReferenceName: BrowserChatToolReferenceName.ScreenshotPage,
 	displayName: localize('screenshotBrowserTool.displayName', 'Screenshot Page'),
 	userDescription: localize('screenshotBrowserTool.userDescription', 'Capture a screenshot of a browser page'),
 	modelDescription: `Capture a screenshot of the current browser page. You can't perform actions based on the screenshot; use ${ReadBrowserToolData.id} for actions.`,

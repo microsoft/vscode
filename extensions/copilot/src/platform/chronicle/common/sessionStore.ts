@@ -114,6 +114,9 @@ export interface ISessionStore {
 	/** Index a workspace artifact for full-text search. Upserts by file path. */
 	indexWorkspaceArtifact(sessionId: string, filePath: string, content: string): void;
 
+	/** Delete a session and all associated data (turns, checkpoints, files, refs, search index). */
+	deleteSession(sessionId: string): void;
+
 	// ── Queries ─────────────────────────────────────────────────────────
 
 	/** Full-text search across all indexed content. */

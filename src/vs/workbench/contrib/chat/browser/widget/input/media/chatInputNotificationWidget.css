@@ -81,13 +81,12 @@
 	white-space: nowrap;
 }
 
-/* Body row: description + actions inline, wraps at small widths */
+/* Body row: description + actions inline */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
-	flex-wrap: wrap;
 }
 
 /* Description */
@@ -96,7 +95,10 @@
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
-	min-width: 150px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* Actions container */

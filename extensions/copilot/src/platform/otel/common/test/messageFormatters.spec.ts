@@ -322,15 +322,25 @@ describe('truncateForOTel', () => {
 		expect(result).toContain('...[truncated, original 200 chars]');
 	});
 
-	it('uses default 64000 limit', () => {
-		const s = 'x'.repeat(64_001);
-		const result = truncateForOTel(s);
-		expect(result.length).toBeLessThanOrEqual(64_000);
-		expect(result).toContain('...[truncated');
+	it('default (no maxLength) is unlimited', () => {
+		const s = 'x'.repeat(200_000);
+		expect(truncateForOTel(s)).toBe(s);
 	});
 
-	it('does not truncate at exactly 64000', () => {
-		const s = 'x'.repeat(64_000);
-		expect(truncateForOTel(s)).toBe(s);
+	it('returns string unchanged when maxLength is 0 (unlimited)', () => {
+		const s = 'a'.repeat(200_000);
+		expect(truncateForOTel(s, 0)).toBe(s);
+	});
+
+	it('returns string unchanged when maxLength is negative (unlimited)', () => {
+		const s = 'a'.repeat(200_000);
+		expect(truncateForOTel(s, -1)).toBe(s);
+	});
+
+	it('falls back to a hard cut when maxLength is too small to fit the suffix', () => {
+		const s = 'a'.repeat(200);
+		const result = truncateForOTel(s, 5);
+		expect(result.length).toBeLessThanOrEqual(5);
+		expect(result).toBe('aaaaa');
 	});
 });

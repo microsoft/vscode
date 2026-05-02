@@ -4,28 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Event } from '../../../../../base/common/event.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../common/chatModes.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export class MockChatModeService implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
-	public readonly onDidChangeChatModes = Event.None;
+	private readonly _onDidChange = new Emitter<void>();
+	private readonly _modesView: IChatModes;
 
 	constructor(
 		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }
-	) { }
-
-	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return this._modes;
+	) {
+		const modes = this._modes;
+		const onDidChange = this._onDidChange.event;
+		this._modesView = {
+			sessionType: localChatSessionType,
+			onDidChange,
+			get builtin() { return modes.builtin; },
+			get custom() { return modes.custom; },
+			findModeById(id: string): IChatMode | undefined {
+				return modes.builtin.find(mode => mode.id === id) ?? modes.custom.find(mode => mode.id === id);
+			},
+			findModeByName(name: string): IChatMode | undefined {
+				return modes.builtin.find(mode => mode.name.get() === name) ?? modes.custom.find(mode => mode.name.get() === name);
+			},
+			waitForRefresh(): Promise<void> {
+				return Promise.resolve();
+			},
+		};
 	}
 
-	findModeById(id: string): IChatMode | undefined {
-		return this._modes.builtin.find(mode => mode.id === id) ?? this._modes.custom.find(mode => mode.id === id);
+	getModes(_sessionType: string): IChatModes {
+		return this._modesView;
 	}
 
-	findModeByName(name: string): IChatMode | undefined {
-		return this._modes.builtin.find(mode => mode.name.get() === name) ?? this._modes.custom.find(mode => mode.name.get() === name);
+	async awaitModes(_sessionType: string): Promise<IChatModes> {
+		return this._modesView;
 	}
 
+	/** Test helper to fire the change event for the cached modes view. */
+	fireDidChange(): void {
+		this._onDidChange.fire();
+	}
 }

@@ -16,7 +16,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly name?: string; readonly storage?: PromptsStorage; readonly groupKey?: string }[];
+	readonly allItems: readonly { readonly name?: string; readonly storage?: PromptsStorage; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -273,9 +273,20 @@ function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
 	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
 	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
+	const syncableCount = state.allItems.filter(i => i.syncable).length;
+	if (syncableCount > 0) {
+		lines.push(`    syncable:  ${syncableCount}`);
+	}
 
 	for (const item of state.allItems) {
-		lines.push(`    - ${item.name} [storage=${item.storage ?? '?'}, groupKey=${item.groupKey ?? '(none)'}]`);
+		const flags: string[] = [`storage=${item.storage ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
+		if (item.syncable) {
+			flags.push('syncable');
+		}
+		if (item.pluginUri) {
+			flags.push(`pluginUri=${item.pluginUri.toString()}`);
+		}
+		lines.push(`    - ${item.name} [${flags.join(', ')}]`);
 	}
 
 	lines.push(`  displayEntries (after filterItems): ${state.displayEntries.length}`);
@@ -342,7 +353,12 @@ function appendInstalledPlugins(lines: string[], agentPluginService: IAgentPlugi
 	lines.push(`  Total: ${plugins.length}`);
 	for (const p of plugins) {
 		lines.push(`  [${p.label}] ${p.uri.toString()}`);
-		lines.push(`    fromMarketplace: ${p.fromMarketplace}`);
+		if (p.fromMarketplace) {
+			const m = p.fromMarketplace;
+			lines.push(`    fromMarketplace: ${m.name}@${m.version} (marketplace=${m.marketplace}, type=${m.marketplaceType})`);
+		} else {
+			lines.push(`    fromMarketplace: (none)`);
+		}
 	}
 	lines.push('');
 }

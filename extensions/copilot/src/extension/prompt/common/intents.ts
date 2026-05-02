@@ -125,6 +125,11 @@ export interface IBuildPromptContext {
 	 * Used by subagent tools to link their telemetry back to the parent's HTTP request.
 	 */
 	readonly parentHeaderRequestId?: string;
+	/**
+	 * The modelCallId from the most recent parent model call.
+	 * Used by subagent tools to link their telemetry back to the parent's specific model call.
+	 */
+	readonly parentModelCallId?: string;
 }
 
 export const IBuildPromptContext = createServiceIdentifier<IBuildPromptContext>('IBuildPromptContext');

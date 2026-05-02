@@ -130,7 +130,7 @@ export class RemoteAgentPluginController extends Disposable {
 				id: 'remoteAgentHost.addPlugin',
 				label: localize('remoteAgentHost.addPlugin', "Add Remote Plugin"),
 				tooltip: localize('remoteAgentHost.addPluginTooltip', "Add a plugin folder that already exists on this remote agent host."),
-				icon: Codicon.add,
+				icon: Codicon.remote,
 				run: () => this.addConfiguredPlugin(),
 			},
 		];

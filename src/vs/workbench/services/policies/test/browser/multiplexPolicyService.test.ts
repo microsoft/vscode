@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
+import { CopilotSessionSearchPolicy, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -125,7 +125,18 @@ suite('MultiplexPolicyService', () => {
 			'setting.E': {
 				'type': 'boolean',
 				'default': true,
-			}
+			},
+			'setting.F': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicySettingF',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				}
+			},
 		}
 	};
 
@@ -310,6 +321,56 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
+		}
+	});
+
+	test('session_search policy disabled overrides setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { session_search: CopilotSessionSearchPolicy.Disabled };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), false);
+	});
+
+	test('session_search policy enabled does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { session_search: CopilotSessionSearchPolicy.Enabled };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('session_search policy with no opinion values does not override setting', async () => {
+		await clear();
+
+		for (const value of [CopilotSessionSearchPolicy.Unknown, CopilotSessionSearchPolicy.Unconfigured, CopilotSessionSearchPolicy.NoPolicy]) {
+			const policyData: IPolicyData = { session_search: value };
+			defaultAccountService = disposables.add(new DefaultAccountService(TestProductService));
+			defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+			await defaultAccountService.refresh();
+
+			policyService = disposables.add(new MultiplexPolicyService([
+				disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService())),
+				disposables.add(new AccountPolicyService(logService, defaultAccountService)),
+			], logService));
+			const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+			await defaultConfiguration.initialize();
+			policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+			await policyConfiguration.initialize();
+
+			assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined, `Expected undefined for CopilotSessionSearchPolicy value ${value}`);
+			assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined, `Expected undefined for CopilotSessionSearchPolicy value ${value}`);
 		}
 	});
 });

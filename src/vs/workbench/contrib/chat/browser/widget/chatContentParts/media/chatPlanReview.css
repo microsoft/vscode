@@ -171,32 +171,15 @@
 	min-height: 0;
 }
 
-/* The inner message element must have its own bounded height so that
- * `scrollHeight > clientHeight` and DomScrollableElement renders a scrollbar.
- * Without this the element grows to its natural content size and never
- * scrolls (parity with .chat-confirmation-widget-message in the tool
- * confirmation carousel). */
+/* The inner element must fill the wrapper exactly — `DomScrollableElement`
+ * measures `clientHeight` against it, so a taller layout height would break
+ * scrollbar geometry once the feedback section claims part of the widget. */
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body {
 	padding: 6px 12px;
 	background: transparent;
 	border-bottom: none;
-	max-height: min(320px, 40vh);
-}
-
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body {
-	max-height: min(620px, 65vh);
-}
-
-/* When the feedback section is open it claims ~80px below the body. Shrink
- * the body's cap so the widget's overall max-height isn't exceeded and the
- * footer buttons + textarea remain visible (otherwise the bottom of the
- * widget gets clipped by the widget's own `overflow: hidden`). */
-.interactive-session .chat-plan-review-container.chat-plan-review-feedback-mode .chat-confirmation-widget-message.chat-plan-review-body {
-	max-height: min(220px, 28vh);
-}
-
-.interactive-session .chat-plan-review-container.chat-plan-review-expanded.chat-plan-review-feedback-mode .chat-confirmation-widget-message.chat-plan-review-body {
-	max-height: min(520px, 55vh);
+	height: 100%;
+	box-sizing: border-box;
 }
 
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown p:first-child {
@@ -259,6 +242,112 @@
 	color: var(--vscode-input-placeholderForeground);
 }
 
+/* ---------- Inline comments list (anchored feedback captured from editor) ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-comments-list-scrollable {
+	margin-bottom: 2px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comments-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 100px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row {
+	display: flex;
+	align-items: stretch;
+	min-width: 0;
+	border: 1px solid transparent;
+	border-radius: 4px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-reveal {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 3px 6px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-size: var(--vscode-chat-font-size-body-s);
+	text-align: left;
+	cursor: pointer;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-reveal:focus {
+	outline: none;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:hover .chat-plan-review-comment-remove,
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-row:focus-within .chat-plan-review-comment-remove,
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove:focus {
+	opacity: 1;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-remove:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-line {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-comment-text {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ---------- Feedback header actions (Back, Clear All) ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-feedback-close,
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-feedback-clear-all,
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-review-button:not(.chat-plan-review-title-icon-button) {
+	width: auto;
+	min-width: auto;
+	padding: 0 8px;
+	height: 22px;
+}
+
 /* ---------- Footer buttons ---------- */
 .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer {
 	justify-content: flex-start;
@@ -271,10 +360,6 @@
 	display: flex;
 	column-gap: 6px;
 	align-items: center;
-}
-
-.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer .chat-buttons .monaco-button.chat-plan-review-feedback-button {
-	margin-left: auto;
 }
 
 /* ---------- Hidden helper ---------- */

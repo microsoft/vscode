@@ -1473,7 +1473,7 @@ export interface SessionCustomization {
 	enabled: boolean;
 	/**
 	 * The `clientId` of the client that contributed this customization.
-	 * Absent for host-provided customizations.
+	 * Absent for server-provided customizations.
 	 */
 	clientId?: string;
 	/** Server-reported loading status */

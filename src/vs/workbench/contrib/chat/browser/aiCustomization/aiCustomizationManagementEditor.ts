@@ -5,11 +5,15 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { localize } from '../../../../../nls.js';
@@ -56,7 +60,9 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIco
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
@@ -72,6 +78,7 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -274,19 +281,34 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	// Embedded editor state
 	private editorContentContainer: HTMLElement | undefined;
+	private editorPreviewContainer: HTMLElement | undefined;
+	private editorPreviewScrollContainer: HTMLElement | undefined;
+	private editorPreviewIssuesContainer: HTMLElement | undefined;
+	private editorPreviewFrontMatterContainer: HTMLElement | undefined;
+	private editorPreviewBodyContainer: HTMLElement | undefined;
+	private embeddedEditorContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
 	private editorActionButton!: HTMLButtonElement;
 	private editorActionButtonIcon!: HTMLElement;
+	private editorModeButton: HTMLButtonElement | undefined;
 	private editorActionButtonInProgress = false;
+	private editorDisplayMode: 'preview' | 'raw' = 'preview';
 	private editorItemNameElement!: HTMLElement;
 	private editorItemPathElement!: HTMLElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
+	private readonly editorPreviewDisposables = this._register(new DisposableStore());
+	private readonly editorPreviewRenderScheduler = this._register(new RunOnceScheduler(() => {
+		if (this.viewMode === 'editor' && this.editorDisplayMode === 'preview') {
+			this.renderCurrentEditorPreview();
+		}
+	}, 200));
 	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
 	private currentEditingStorage: AICustomizationPromptsStorage | undefined;
 	private currentEditingPromptType: PromptsType | undefined;
+	private currentEditingReadOnly = false;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail' = 'list';
 
@@ -342,6 +364,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1387,7 +1410,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	override focus(): void {
 		super.focus();
 		if (this.viewMode === 'editor') {
-			this.embeddedEditor?.focus();
+			if (this.editorDisplayMode === 'raw') {
+				this.embeddedEditor?.focus();
+			} else {
+				this.editorModeButton?.focus();
+			}
 			return;
 		}
 		if (this.selectedSection === undefined) {
@@ -1500,15 +1527,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
 		this.editorItemPathElement = DOM.append(itemInfo, $('.editor-item-path'));
 
+		this.editorModeButton = DOM.append(editorHeader, $('button.editor-mode-button'));
+		this.editorModeButton.type = 'button';
+		this.editorModeButton.setAttribute('aria-pressed', 'false');
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.editorModeButton, () => this.getEditorModeButtonTooltip()));
+		this.editorDisposables.add(DOM.addDisposableListener(this.editorModeButton, 'click', () => {
+			this.toggleEditorDisplayMode();
+		}));
+
 		this.editorSaveIndicator = DOM.append(editorHeader, $('.editor-save-indicator'));
 
-		const embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
+		this.editorPreviewContainer = DOM.append(this.editorContentContainer, $('.editor-preview-container'));
+		this.editorPreviewScrollContainer = DOM.append(this.editorPreviewContainer, $('.editor-preview-scroll-container'));
+		this.editorPreviewScrollContainer.setAttribute('role', 'region');
+		this.editorPreviewScrollContainer.setAttribute('aria-label', localize('customizationPreviewAriaLabel', "Customization preview"));
+
+		this.editorPreviewIssuesContainer = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-issues'));
+
+		const frontMatterSection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-frontmatter-section'));
+		this.editorPreviewFrontMatterContainer = DOM.append(frontMatterSection, $('.editor-preview-frontmatter-list'));
+
+		const bodySection = DOM.append(this.editorPreviewScrollContainer, $('.editor-preview-section.editor-preview-body-section'));
+		this.editorPreviewBodyContainer = DOM.append(bodySection, $('.editor-preview-body-content'));
+
+		this.embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
 		const overflowWidgetsDomNode = DOM.append(this.editorContentContainer, $('.embedded-editor-overflow-widgets.monaco-editor'));
 		this.editorDisposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
 
 		this.embeddedEditor = this.editorDisposables.add(this.instantiationService.createInstance(
 			CodeEditorWidget,
-			embeddedEditorContainer,
+			this.embeddedEditorContainer,
 			{
 				...getSimpleEditorOptions(this.configurationService),
 				readOnly: false,
@@ -1524,16 +1572,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			},
 			{ isSimpleWidget: false }
 		));
+
+		this.updateEditorDisplayMode();
 	}
 
 	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: AICustomizationPromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
 		this.editorModelChangeDisposables.clear();
+		this.editorPreviewDisposables.clear();
+		this.editorPreviewRenderScheduler.cancel();
 		this.currentEditingUri = uri;
 		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
 		this.currentEditingStorage = storage;
 		this.currentEditingPromptType = promptType;
+		this.currentEditingReadOnly = isReadOnly;
+		this.editorDisplayMode = this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
 		this.viewMode = 'editor';
 
 		this.editorItemNameElement.textContent = displayName;
@@ -1541,6 +1595,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._editorContentChanged = false;
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
+		this.updateEditorDisplayMode();
 		this.updateContentVisibility();
 
 		try {
@@ -1554,15 +1609,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.embeddedEditor!.setModel(session.model);
 				this.embeddedEditor!.updateOptions({ readOnly: false });
 				this._editorContentChanged = session.model.getValue() !== session.originalContent;
+				this.renderCurrentEditorPreview();
 				this.updateEditorActionButton();
 
 				if (this.dimension) {
 					this.layout(this.dimension);
 				}
-				this.embeddedEditor!.focus();
+				if (this.editorDisplayMode === 'raw') {
+					this.embeddedEditor!.focus();
+				} else {
+					this.editorModeButton?.focus();
+				}
 
 				this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
 					this._editorContentChanged = session.model.getValue() !== session.originalContent;
+					this.scheduleCurrentEditorPreviewRender();
 					this.updateEditorActionButton();
 				}));
 				return;
@@ -1578,15 +1639,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.currentModelRef = ref;
 			this.embeddedEditor!.setModel(ref.object.textEditorModel);
 			this.embeddedEditor!.updateOptions({ readOnly: isReadOnly });
+			this.renderCurrentEditorPreview();
 
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			this.embeddedEditor!.focus();
+			if (this.editorDisplayMode === 'raw') {
+				this.embeddedEditor!.focus();
+			} else {
+				this.editorModeButton?.focus();
+			}
 
 			this._editorContentChanged = this.workingCopyService.isDirty(uri);
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this._editorContentChanged = true;
+				this.scheduleCurrentEditorPreviewRender();
 				this.resetEditorSaveIndicator();
 			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
@@ -1595,6 +1662,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
 					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 					this.editorSaveIndicator.title = localize('saved', "Saved");
+					this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
+					status(localize('saved', "Saved"));
 				}
 			}));
 		} catch (error) {
@@ -1625,10 +1694,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingProjectRoot = undefined;
 		this.currentEditingStorage = undefined;
 		this.currentEditingPromptType = undefined;
+		this.currentEditingReadOnly = false;
+		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
+		this.editorPreviewRenderScheduler.cancel();
+		this.clearEditorPreview();
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
+		this.updateEditorDisplayMode();
 		this.embeddedEditor?.setModel(null);
 		this.viewMode = 'list';
 		this.updateContentVisibility();
@@ -1889,6 +1963,268 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private resetEditorSaveIndicator(): void {
 		this.editorSaveIndicator.className = 'editor-save-indicator';
 		this.editorSaveIndicator.title = '';
+		this.editorSaveIndicator.removeAttribute('aria-label');
+	}
+
+	private isStructuredPreviewSupported(promptType: PromptsType | undefined): boolean {
+		return promptType === PromptsType.agent
+			|| promptType === PromptsType.skill
+			|| promptType === PromptsType.instructions
+			|| promptType === PromptsType.prompt;
+	}
+
+	private getCurrentEditingModel(): ITextModel | undefined {
+		if (!this.currentEditingUri) {
+			return undefined;
+		}
+
+		if (this.currentEditingStorage === BUILTIN_STORAGE) {
+			return this.builtinEditingSessions.get(this.currentEditingUri.toString())?.model;
+		}
+
+		return this.currentModelRef?.object.textEditorModel;
+	}
+
+	private toggleEditorDisplayMode(): void {
+		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+			return;
+		}
+
+		this.editorDisplayMode = this.editorDisplayMode === 'preview' ? 'raw' : 'preview';
+		if (this.editorDisplayMode === 'preview') {
+			this.editorPreviewRenderScheduler.cancel();
+			this.renderCurrentEditorPreview();
+		}
+
+		this.updateEditorDisplayMode();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+
+		if (this.editorDisplayMode === 'raw') {
+			this.embeddedEditor?.focus();
+		} else {
+			this.editorModeButton?.focus();
+		}
+	}
+
+	private updateEditorDisplayMode(): void {
+		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		const showPreview = supportsStructuredPreview && this.editorDisplayMode === 'preview';
+
+		if (this.editorModeButton) {
+			this.editorModeButton.style.display = supportsStructuredPreview ? '' : 'none';
+			this.editorModeButton.textContent = this.getEditorModeButtonLabel();
+			this.editorModeButton.setAttribute('aria-label', this.getEditorModeButtonTooltip());
+			this.editorModeButton.setAttribute('aria-pressed', String(this.editorDisplayMode === 'raw'));
+			this.editorModeButton.title = this.getEditorModeButtonTooltip();
+		}
+
+		if (this.editorPreviewContainer) {
+			this.editorPreviewContainer.style.display = showPreview ? '' : 'none';
+		}
+
+		if (this.embeddedEditorContainer) {
+			this.embeddedEditorContainer.style.display = showPreview ? 'none' : '';
+		}
+	}
+
+	private getEditorModeButtonLabel(): string {
+		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+			return '';
+		}
+
+		if (this.editorDisplayMode === 'raw') {
+			return localize('editorPreviewButtonLabel', "Preview");
+		}
+
+		return this.canEditCurrentRaw()
+			? localize('editorEditRawButtonLabel', "Edit")
+			: localize('editorViewRawButtonLabel', "View Raw");
+	}
+
+	private getEditorModeButtonTooltip(): string {
+		if (!this.isStructuredPreviewSupported(this.currentEditingPromptType)) {
+			return '';
+		}
+
+		if (this.editorDisplayMode === 'raw') {
+			return localize('editorPreviewButtonTooltip', "Show structured preview");
+		}
+
+		return this.canEditCurrentRaw()
+			? localize('editorEditRawButtonTooltip', "Edit the raw markdown file")
+			: localize('editorViewRawButtonTooltip', "Show the raw markdown file");
+	}
+
+	private canEditCurrentRaw(): boolean {
+		const promptType = this.currentEditingPromptType;
+		if (!promptType) {
+			return false;
+		}
+
+		return (this.currentEditingStorage === BUILTIN_STORAGE && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
+			|| !this.currentEditingReadOnly;
+	}
+
+	private scheduleCurrentEditorPreviewRender(): void {
+		if (this.editorDisplayMode !== 'preview') {
+			return;
+		}
+
+		this.editorPreviewRenderScheduler.schedule();
+	}
+
+	private renderCurrentEditorPreview(): void {
+		const model = this.getCurrentEditingModel();
+		const promptType = this.currentEditingPromptType;
+		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
+			this.clearEditorPreview();
+			return;
+		}
+
+		const parsedPromptFile = this.promptsService.getParsedPromptFile(model);
+		this.renderEditorPreview(parsedPromptFile, promptType);
+	}
+
+	private renderEditorPreview(parsedPromptFile: ParsedPromptFile, promptType: PromptsType): void {
+		if (!this.editorPreviewIssuesContainer || !this.editorPreviewFrontMatterContainer || !this.editorPreviewBodyContainer) {
+			return;
+		}
+
+		this.editorPreviewDisposables.clear();
+		DOM.clearNode(this.editorPreviewIssuesContainer);
+		DOM.clearNode(this.editorPreviewFrontMatterContainer);
+		DOM.clearNode(this.editorPreviewBodyContainer);
+
+		const target = getTarget(promptType, parsedPromptFile.header ?? parsedPromptFile.uri);
+		this.renderPreviewIssues(parsedPromptFile);
+		this.renderPreviewFrontMatter(parsedPromptFile, promptType, target);
+		this.renderPreviewBody(parsedPromptFile);
+	}
+
+	private renderPreviewIssues(parsedPromptFile: ParsedPromptFile): void {
+		if (!this.editorPreviewIssuesContainer || !parsedPromptFile.header?.errors.length) {
+			return;
+		}
+
+		const issuesContainer = DOM.append(this.editorPreviewIssuesContainer, $('.editor-preview-issues-box'));
+		DOM.append(issuesContainer, $('div.editor-preview-issues-title')).textContent = localize('previewHeaderIssuesTitle', "Header issues detected");
+		DOM.append(issuesContainer, $('div.editor-preview-issues-description')).textContent = localize('previewHeaderIssuesDescription', "Switch to raw view to fix invalid or unsupported metadata entries.");
+		const list = DOM.append(issuesContainer, $('ul.editor-preview-issues-list'));
+		for (const error of parsedPromptFile.header.errors) {
+			DOM.append(list, $('li.editor-preview-issues-item')).textContent = error.message;
+		}
+	}
+
+	private renderPreviewFrontMatter(parsedPromptFile: ParsedPromptFile, promptType: PromptsType, target: Target): void {
+		if (!this.editorPreviewFrontMatterContainer) {
+			return;
+		}
+
+		const attributes = parsedPromptFile.header?.attributes ?? [];
+		if (!attributes.length) {
+			DOM.append(this.editorPreviewFrontMatterContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoFrontMatter', "No metadata found in this file.");
+			return;
+		}
+
+		for (const attribute of attributes) {
+			this.renderPreviewAttribute(attribute, promptType, target);
+		}
+	}
+
+	private renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void {
+		if (!this.editorPreviewFrontMatterContainer) {
+			return;
+		}
+
+		const row = DOM.append(this.editorPreviewFrontMatterContainer, $('.editor-preview-row'));
+		const header = DOM.append(row, $('.editor-preview-row-header'));
+		DOM.append(header, $('div.editor-preview-row-key')).textContent = attribute.key;
+
+		const helpButton = DOM.append(header, $('button.editor-preview-row-help')) as HTMLButtonElement;
+		helpButton.type = 'button';
+		helpButton.setAttribute('aria-label', localize('previewFieldHelpAriaLabel', "Show help for '{0}'", attribute.key));
+		const helpIcon = DOM.append(helpButton, $('span.editor-preview-row-help-icon'));
+		helpIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		helpIcon.setAttribute('aria-hidden', 'true');
+
+		const description = getAttributeDefinition(attribute.key, promptType, target)?.description ?? localize('previewUnknownFieldDescription', "Custom metadata field `{0}`.", attribute.key);
+		const helpHover = this.editorPreviewDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), helpButton, {
+			markdown: new MarkdownString(description),
+			markdownNotSupportedFallback: description,
+		}));
+		this.editorPreviewDisposables.add(DOM.addDisposableListener(helpButton, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			helpHover.show(true);
+		}));
+
+		const valueElement = DOM.append(row, $('div.editor-preview-row-value'));
+		const valueText = this.stringifyPreviewValue(attribute.value);
+		valueElement.textContent = valueText;
+		valueElement.classList.toggle('multiline', valueText.includes('\n'));
+	}
+
+	private renderPreviewBody(parsedPromptFile: ParsedPromptFile): void {
+		if (!this.editorPreviewBodyContainer) {
+			return;
+		}
+
+		const bodyContent = parsedPromptFile.body?.getContent() ?? '';
+		if (!bodyContent.trim()) {
+			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No markdown body found in this file.");
+			return;
+		}
+
+		const markdown = new MarkdownString(bodyContent, { supportThemeIcons: true });
+		markdown.baseUri = parsedPromptFile.uri;
+		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
+		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
+	}
+
+	private stringifyPreviewValue(value: IValue): string {
+		switch (value.type) {
+			case 'scalar':
+				return value.value;
+			case 'sequence':
+				if (value.items.every(item => item.type === 'scalar')) {
+					return value.items.map(item => item.value).join('\n');
+				}
+				return JSON.stringify(this.toPreviewObject(value), null, 2);
+			case 'map':
+				return JSON.stringify(this.toPreviewObject(value), null, 2);
+		}
+	}
+
+	private toPreviewObject(value: IValue): unknown {
+		switch (value.type) {
+			case 'scalar':
+				return value.value;
+			case 'sequence':
+				return value.items.map(item => this.toPreviewObject(item));
+			case 'map': {
+				const entries: Record<string, unknown> = {};
+				for (const property of value.properties) {
+					entries[property.key.value] = this.toPreviewObject(property.value);
+				}
+				return entries;
+			}
+		}
+	}
+
+	private clearEditorPreview(): void {
+		this.editorPreviewRenderScheduler.cancel();
+		this.editorPreviewDisposables.clear();
+		if (this.editorPreviewIssuesContainer) {
+			DOM.clearNode(this.editorPreviewIssuesContainer);
+		}
+		if (this.editorPreviewFrontMatterContainer) {
+			DOM.clearNode(this.editorPreviewFrontMatterContainer);
+		}
+		if (this.editorPreviewBodyContainer) {
+			DOM.clearNode(this.editorPreviewBodyContainer);
+		}
 	}
 
 	private disposeBuiltinEditingSessions(): void {

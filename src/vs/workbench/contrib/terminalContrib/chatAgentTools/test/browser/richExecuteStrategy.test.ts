@@ -62,6 +62,7 @@ suite('RichExecuteStrategy', () => {
 		const strategy = store.add(new RichExecuteStrategy(
 			instance,
 			commandDetection,
+			false,
 			new TestConfigurationService(),
 			createLogService(),
 		));
@@ -109,6 +110,7 @@ suite('RichExecuteStrategy', () => {
 		const strategy = store.add(new RichExecuteStrategy(
 			instance,
 			commandDetection,
+			false,
 			new TestConfigurationService(),
 			createLogService(),
 		));
@@ -153,6 +155,7 @@ suite('RichExecuteStrategy', () => {
 		const strategy = store.add(new RichExecuteStrategy(
 			instance,
 			commandDetection,
+			false,
 			new TestConfigurationService(),
 			createLogService(),
 		));
@@ -184,6 +187,7 @@ suite('RichExecuteStrategy', () => {
 		const strategy = store.add(new RichExecuteStrategy(
 			instance,
 			commandDetection,
+			false,
 			new TestConfigurationService(),
 			createLogService(),
 		));
@@ -212,6 +216,7 @@ suite('RichExecuteStrategy', () => {
 		const strategy = store.add(new RichExecuteStrategy(
 			instance,
 			commandDetection,
+			false,
 			new TestConfigurationService(),
 			createLogService(),
 		));

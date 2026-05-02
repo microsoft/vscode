@@ -169,6 +169,23 @@
 	height: auto;
 }
 
+/* Split model picker: undo the fixed height/overflow from .action-label above */
+.sessions-chat-config-toolbar .action-label.model-picker-split {
+	height: auto;
+	overflow: visible;
+	padding: 0 6px;
+	min-width: 0;
+}
+
+.sessions-chat-config-toolbar .action-item:has(.model-picker-split) {
+	overflow: visible;
+}
+
+/* Hide the right divider from the workbench base styles */
+.agent-sessions-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	content: none;
+}
+
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: inline-flex;
 	align-items: center;

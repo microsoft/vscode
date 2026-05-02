@@ -111,7 +111,7 @@ suite('TabbedActionListWidget', () => {
 			anchor,
 			tabs: ['Local', 'Remote'],
 			initialTab: 'Local',
-			buildItems: () => ({ items: [action('a')] }),
+			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
 		});
 		assert.strictEqual(widget.isVisible, true);
@@ -132,7 +132,7 @@ suite('TabbedActionListWidget', () => {
 			anchor,
 			tabs: ['Local', 'Remote'],
 			initialTab: 'Remote',
-			buildItems: (tab) => {
+			createActionList: (tab) => {
 				calls.push(tab);
 				return { items: [action(tab)] };
 			},
@@ -153,7 +153,7 @@ suite('TabbedActionListWidget', () => {
 			anchor,
 			tabs: ['Local'],
 			initialTab: 'Local',
-			buildItems: () => ({ items: [action('a')] }),
+			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
 		});
 
@@ -165,26 +165,26 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
-	test('onHide fires when the popup dismisses', () => {
+	test('onDidHide fires when the popup dismisses', () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('div');
 		document.body.appendChild(anchor);
 		disposables.add({ dispose: () => anchor.remove() });
 
 		let hidden = 0;
+		disposables.add(widget.onDidHide(() => { hidden++; }));
 		widget.show<ITestItem>({
 			user: 'test',
 			anchor,
 			tabs: ['Local'],
 			initialTab: 'Local',
-			buildItems: () => ({ items: [action('a')] }),
+			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
-			onHide: () => { hidden++; },
 		});
 
 		// Simulate an external dismissal (e.g. user clicked outside).
 		contextView.hideContextView();
-		assert.strictEqual(hidden, 1, `expected onHide to fire once, got ${hidden}; widget visible: ${widget.isVisible}`);
+		assert.strictEqual(hidden, 1, `expected onDidHide to fire once, got ${hidden}; widget visible: ${widget.isVisible}`);
 		assert.strictEqual(widget.isVisible, false);
 	});
 });

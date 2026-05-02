@@ -14,7 +14,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -44,7 +43,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -53,6 +52,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -1035,7 +1035,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource.scheme), token))) {
+		const sessionType = getChatSessionType(sessionResource);
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
@@ -1047,7 +1048,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
 			throw Error(`Can not find provider for ${sessionResource}`);
@@ -1055,9 +1056,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		let session: IChatSession;
 		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
-		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
+		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
 			const options: ChatSessionOptionsMap = new Map();
-			for (const group of newSessionOptionGroups) {
+			for (const group of newSessionOptionGroups ?? []) {
 				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
 				if (selected) {
 					options.set(group.id, selected);
@@ -1089,7 +1090,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
+		const sessionData = new ContributedChatSessionData(session, sessionType, sessionResource, session.options, resource => {
 			sessionData.dispose();
 			this._sessions.delete(resource);
 		});

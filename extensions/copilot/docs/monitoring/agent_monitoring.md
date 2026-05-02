@@ -70,6 +70,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.maxAttributeSizeChars` | integer | `0` | Max characters per OTel content attribute (prompts, tool args/results, hook input/output). `0` (the default) disables truncation so backends with no per-attribute limit get full payloads. Set to a positive value to match your backend's per-attribute size limit — consult your backend's documentation. The value counts JavaScript string characters (UTF-16 code units); for non-ASCII content one character can be multiple UTF-8 bytes on the wire. |
 | `github.copilot.chat.otel.outfile` | string | `""` | File path for JSON-lines output |
 | `github.copilot.chat.otel.dbSpanExporter.enabled` | boolean | `false` | Persist OTel spans to a local SQLite database for the **Chat: Export Agent Traces DB** command. Implicitly enables OTel. |
 
@@ -87,6 +88,7 @@ Environment variables **always take precedence** over VS Code settings.
 | `OTEL_SERVICE_NAME` | `copilot-chat` | Service name in resource attributes |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes (`key1=val1,key2=val2`) |
 | `COPILOT_OTEL_CAPTURE_CONTENT` | `false` | Capture full prompt/response content |
+| `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` | `0` | Override the max character size for OTel content attributes. `0` (default) disables truncation; set to a positive value when your backend has a per-attribute limit. Takes precedence over the `maxAttributeSizeChars` setting. |
 | `COPILOT_OTEL_LOG_LEVEL` | `info` | Min log level: `trace`, `debug`, `info`, `warn`, `error` |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |

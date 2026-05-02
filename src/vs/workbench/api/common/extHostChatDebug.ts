@@ -155,6 +155,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
+					cachedTokens: e.cachedTokens,
 					totalTokens: e.totalTokens,
 					durationInMillis: e.durationInMillis,
 				};
@@ -283,12 +284,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					status: mt.status,
 					durationInMillis: mt.durationInMillis,
 					timeToFirstTokenInMillis: mt.timeToFirstTokenInMillis,
+					requestId: mt.requestId,
 					maxInputTokens: mt.maxInputTokens,
 					maxOutputTokens: mt.maxOutputTokens,
 					inputTokens: mt.inputTokens,
 					outputTokens: mt.outputTokens,
 					cachedTokens: mt.cachedTokens,
 					totalTokens: mt.totalTokens,
+					requestOptions: mt.requestOptions,
 					errorMessage: mt.errorMessage,
 					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
 				};
@@ -339,8 +342,10 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.model = dto.model;
+				evt.requestName = dto.requestName;
 				evt.inputTokens = dto.inputTokens;
 				evt.outputTokens = dto.outputTokens;
+				evt.cachedTokens = dto.cachedTokens;
 				evt.totalTokens = dto.totalTokens;
 				evt.durationInMillis = dto.durationInMillis;
 				return evt;

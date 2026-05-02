@@ -276,7 +276,6 @@ export interface ISessionCapabilities {
  * of contributed values.
  */
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
-export const SESSION_WORKSPACE_GROUP_CLOUD = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
 export interface ISessionWorkspaceBrowseAction {

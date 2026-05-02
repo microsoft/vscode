@@ -13,7 +13,7 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentHostFilterService } from '../common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
@@ -22,10 +22,15 @@ import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem
 const PICK_HOST_FILTER_ID = 'sessions.agentHostFilter.pick';
 
 /**
- * Action that backs the host filter dropdown in the titlebar. Selection
- * is actually handled by {@link HostFilterActionViewItem}, so the action's
- * `run` is a no-op. Gated on `isWeb` via its menu `when` clause so the
- * combo only shows up in the web build.
+ * Action that backs the host filter dropdown. Selection is actually handled
+ * by {@link HostFilterActionViewItem}, so the action's `run` is a no-op.
+ *
+ * Surface placement:
+ * - Web desktop (`isWeb && !isPhoneLayout`): rendered in the sessions
+ *   sidebar via `Menus.SidebarAgentHost` (see `AgentHostShortcutsWidget`).
+ * - Web phone: rendered in the `MobileTitlebarPart` center slot via
+ *   `Menus.MobileTitleBarCenter`.
+ * - Electron desktop: not surfaced (no `IsWebContext`).
  */
 registerAction2(class PickAgentHostFilterAction extends Action2 {
 	constructor() {
@@ -34,16 +39,17 @@ registerAction2(class PickAgentHostFilterAction extends Action2 {
 			title: localize2('agentHostFilter.pick', "Select Agent Host"),
 			f1: false,
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.SidebarAgentHost,
 				group: 'navigation',
 				order: 1,
-				// Always shown on web (regardless of host count): when no
-				// hosts are known the pill renders a re-discover affordance
-				// (refresh icon + click triggers `rediscover()`); when one
-				// or more are known it is the host picker.
+				// Always shown on web desktop (regardless of host count):
+				// when no hosts are known the pill renders a re-discover
+				// affordance (refresh icon + click triggers `rediscover()`);
+				// when one or more are known it is the host picker.
 				when: ContextKeyExpr.and(
 					IsWebContext,
 					IsAuxiliaryWindowContext.toNegated(),
+					IsPhoneLayoutContext.negate(),
 				),
 			}, {
 				// On phone/mobile layouts the desktop titlebar is replaced
@@ -95,9 +101,9 @@ class AgentHostFilterContribution extends Disposable implements IWorkbenchContri
 		const refreshSignal = Event.any(filterService.onDidChange, filterService.onDidChangeDiscovering, registered.event);
 
 		this._register(actionViewItemService.register(
-			Menus.TitleBarLeftLayout,
+			Menus.SidebarAgentHost,
 			PICK_HOST_FILTER_ID,
-			(action, _options, instaService) => instaService.createInstance(HostFilterActionViewItem, action),
+			(action, _options, instaService) => instaService.createInstance(HostFilterActionViewItem, action, 'sidebar'),
 			refreshSignal,
 		));
 

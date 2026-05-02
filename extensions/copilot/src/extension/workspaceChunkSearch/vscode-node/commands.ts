@@ -6,7 +6,6 @@ import { t } from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { TriggerRemoteIndexingError } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { IWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
-import { IWorkspaceFileIndex } from '../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
 import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -16,7 +15,6 @@ export const deleteExternalIngestWorkspaceIndexCommandId = 'github.copilot.delet
 
 export function register(accessor: ServicesAccessor): IDisposable {
 	const workspaceChunkSearch = accessor.get(IWorkspaceChunkSearchService);
-	const workspaceFileIndex = accessor.get(IWorkspaceFileIndex);
 
 	const disposableStore = new DisposableStore();
 
@@ -54,39 +52,65 @@ export function register(accessor: ServicesAccessor): IDisposable {
 	})));
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.debug.collectWorkspaceIndexDiagnostics', async () => {
-		vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: t`Collecting codebase index diagnostics...`,
-		}, async () => {
-			const document = await vscode.workspace.openTextDocument({ language: 'markdown' });
-			const editor = await vscode.window.showTextDocument(document);
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'Collecting codebase index diagnostics...\n' });
+		const editor = await vscode.window.showTextDocument(document);
 
-			await appendText(editor, '# Codebase Index Diagnostics\n');
-			await appendText(editor, 'Tracked file count: ' + workspaceFileIndex.fileCount + '\n\n');
-
-			await appendText(editor, '## All tracked files\n');
-			const fileEntries = Array.from(workspaceFileIndex.values());
-			const stepSize = 500;
-			for (let i = 0; i < fileEntries.length; i += stepSize) {
-				if (editor.document.isClosed) {
-					return;
-				}
-
-				const files = fileEntries.slice(i, i + stepSize);
-				if (files.length) {
-					await appendText(editor, files.map(file => `- ${file.uri.fsPath}`).join('\n') + '\n');
-				}
+		const cts = new vscode.CancellationTokenSource();
+		const closeListener = vscode.workspace.onDidCloseTextDocument(closedDoc => {
+			if (closedDoc === document) {
+				cts.cancel();
 			}
 		});
+
+		await vscode.window.withProgress({
+			location: vscode.ProgressLocation.Window,
+			title: t`Collecting codebase index diagnostics...`,
+			cancellable: false,
+		}, async () => {
+			let pendingText = '';
+			let updateTimer: ReturnType<typeof setTimeout> | undefined;
+
+			const flush = async () => {
+				updateTimer = undefined;
+				if (!pendingText) {
+					return;
+				}
+				const text = pendingText;
+				pendingText = '';
+				await editor.edit(edit => {
+					edit.insert(document.positionAt(document.getText().length), text);
+				});
+			};
+
+			// Clear the initial placeholder
+			await editor.edit(edit => {
+				const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+				edit.replace(fullRange, '');
+			});
+
+			for await (const chunk of workspaceChunkSearch.getDiagnosticsDump()) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
+				pendingText += chunk;
+				if (!updateTimer) {
+					updateTimer = setTimeout(flush, 1000);
+				}
+			}
+
+			if (updateTimer) {
+				clearTimeout(updateTimer);
+			}
+			if (!cts.token.isCancellationRequested) {
+				await flush();
+			}
+		});
+
+		closeListener.dispose();
+		cts.dispose();
 	}));
 
 	return disposableStore;
-}
-
-async function appendText(editor: vscode.TextEditor, string: string) {
-	await editor.edit(builder => {
-		builder.insert(editor.document.lineAt(editor.document.lineCount - 1).range.end, string);
-	});
 }
 
 function onlyRunOneAtATime<T>(taskFactory: () => Promise<T>): () => Promise<T> {

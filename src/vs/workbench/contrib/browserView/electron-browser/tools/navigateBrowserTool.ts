@@ -12,11 +12,12 @@ import { IPlaywrightService } from '../../../../../platform/browserView/common/p
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const NavigateBrowserToolData: IToolData = {
 	id: 'navigate_page',
-	toolReferenceName: 'navigatePage',
+	toolReferenceName: BrowserChatToolReferenceName.NavigatePage,
 	displayName: localize('navigateBrowserTool.displayName', 'Navigate Page'),
 	userDescription: localize('navigateBrowserTool.userDescription', 'Navigate or reload a browser page'),
 	modelDescription: 'Navigate a browser page by URL, history, or reload.',

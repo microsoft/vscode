@@ -10,8 +10,8 @@ import { ChatDebugFileLoggerContribution } from '../../chat/vscode-node/chatDebu
 import { ChatQuotaContribution } from '../../chat/vscode-node/chatQuota.contribution';
 import { ChatSessionContextContribution } from '../../chatSessionContext/vscode-node/chatSessionContextProvider';
 import { ChatSessionsContrib } from '../../chatSessions/vscode-node/chatSessions';
-import { RemoteSessionExporter } from '../../chronicle/vscode-node/remoteSessionExporter';
 import { SessionStoreTracker } from '../../chronicle/vscode-node/sessionStoreTracker';
+import * as sessionSyncContribution from '../../chronicle/vscode-node/sessionSync.contribution';
 import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/chatBlockLanguageFeatures.contribution';
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
@@ -103,7 +103,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(GitHubMcpContrib),
 	asContributionFactory(OTelContrib),
 	asContributionFactory(SessionStoreTracker),
-	asContributionFactory(RemoteSessionExporter),
+	sessionSyncContribution,
 ];
 
 /**

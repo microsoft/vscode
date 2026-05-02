@@ -25,7 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -295,7 +295,6 @@ class ToggleChatModeAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
-		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -313,7 +312,8 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modeService);
+		const modes = widget.input.currentChatModesObs.get();
+		const switchToMode = (arg && (modes.findModeById(arg.modeId) || modes.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modes);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -352,8 +352,7 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, modeService: IChatModeService): IChatMode {
-		const modes = modeService.getModes();
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, modes: IChatModes): IChatMode {
 		const flat = [
 			...modes.builtin.filter(mode => {
 				return mode.kind !== ChatModeKind.Edit || requestCount === 0;
@@ -1032,6 +1031,8 @@ interface IGetHandoffsArgs {
 	 * handoffs from all agents and built-in modes are returned.
 	 */
 	sourceCustomAgent?: string;
+
+	sessionType?: string;
 }
 
 /**
@@ -1061,7 +1062,7 @@ class GetHandoffsAction extends Action2 {
 		const modeService = accessor.get(IChatModeService);
 		const arg = args.at(0) as IGetHandoffsArgs | undefined;
 
-		const { builtin, custom } = modeService.getModes();
+		const { builtin, custom } = modeService.getModes(arg?.sessionType ?? localChatSessionType);
 		let allModes: readonly IChatMode[] = [...builtin, ...custom];
 
 		if (arg?.sourceCustomAgent) {
@@ -1118,7 +1119,6 @@ class ExecuteHandoffAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<IExecuteHandoffResult> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const modeService = accessor.get(IChatModeService);
 
 		const arg = args.at(0) as IExecuteHandoffArgs | undefined;
 		if (!arg?.id && !arg?.label) {
@@ -1146,7 +1146,7 @@ class ExecuteHandoffAction extends Action2 {
 		let sourceMode: IChatMode | undefined;
 		if (arg.sourceCustomAgent) {
 			const filterName = arg.sourceCustomAgent.toLowerCase();
-			const { builtin, custom } = modeService.getModes();
+			const { builtin, custom } = widget.input.currentChatModesObs.get();
 			sourceMode = [...builtin, ...custom].find(m => m.name.get().toLowerCase() === filterName || m.id.toLowerCase() === filterName);
 		}
 		if (!sourceMode) {

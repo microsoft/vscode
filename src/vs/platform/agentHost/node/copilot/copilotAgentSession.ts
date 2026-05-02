@@ -92,6 +92,32 @@ function getCopilotCLISessionStateDir(userHome: string): string {
 }
 
 /**
+ * Matches the temp file names the Copilot SDK uses when spilling large tool
+ * results to disk. The SDK writes these into `os.tmpdir()` and references the
+ * path back to the model so it can read the output in a follow-up turn.
+ *
+ * Two layouts are emitted by the SDK depending on the codepath:
+ *  - `<timestamp>-copilot-tool-output-<6-char-id>.txt` (large tool result)
+ *  - `copilot-tool-output-<timestamp>-<6-char-id>.txt` (streaming output buffer)
+ *
+ * Both live directly inside `os.tmpdir()`, so we additionally require the
+ * file's parent directory to be the OS temp directory before auto-approving.
+ */
+const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-[a-z0-9]{6}|copilot-tool-output-\d{10,}-[a-z0-9]{6})\.txt$/i;
+
+function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
+	const fileUri = normalizePath(URI.file(filePath));
+	const tmpDirUri = normalizePath(URI.file(tmpDir));
+	const parentUri = normalizePath(URI.joinPath(fileUri, '..'));
+	if (!extUriBiasedIgnorePathCase.isEqual(parentUri, tmpDirUri)) {
+		return false;
+	}
+	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+	const basename = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
+	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(basename);
+}
+
+/**
  * Immutable snapshot of the active client's contributions at session creation
  * time. Used to detect when the session needs to be refreshed.
  */
@@ -150,7 +176,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[] }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined }>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -206,6 +232,8 @@ export class CopilotAgentSession extends Disposable {
 	private _currentMarkdownPartId: string | undefined;
 	/** Current reasoning response part ID for the active turn. Reset on each new turn. */
 	private _currentReasoningPartId: string | undefined;
+	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
+	private _hasReportedActivity = false;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -587,6 +615,17 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'approve-once' };
 			}
 
+			// Auto-approve reads of large-tool-output temp files written by the
+			// Copilot SDK itself. The SDK spills oversized tool results to
+			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
+			// to read them back in a follow-up turn — no need to confirm.
+			if (request.kind === 'read' && typeof request.path === 'string') {
+				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
+					return { kind: 'approve-once' };
+				}
+			}
+
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
 			const deferred = new DeferredPromise<boolean>();
@@ -612,6 +651,11 @@ export class CopilotAgentSession extends Disposable {
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.toolName ?? request.kind;
+			// Forward the tool's parentToolCallId (if any) so the host can
+			// route the resulting SessionToolCallReady to the correct
+			// subagent session — without it the action would land on the
+			// parent session, which has no matching SessionToolCallStart.
+			const parentToolCallId = this._activeToolCalls.get(toolCallId)?.parentToolCallId;
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				session: this.sessionUri,
@@ -627,6 +671,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				parentToolCallId,
 			});
 
 			const approved = await deferred.p;
@@ -992,6 +1037,21 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
+				// The CLI uses the `report_intent` tool to signal what the
+				// agent is currently doing. Surface this as session activity
+				// so the UI can show a live "what is the agent doing now?"
+				// hint while the turn is in progress.
+				if (e.data.toolName === 'report_intent') {
+					const intent = (e.data.arguments as { intent?: unknown } | undefined)?.intent;
+					if (typeof intent === 'string' && intent.length > 0) {
+						this._hasReportedActivity = true;
+						this._emitAction({
+							type: ActionType.SessionActivityChanged,
+							session: this._protocolSession(),
+							activity: intent,
+						});
+					}
+				}
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
@@ -1007,7 +1067,7 @@ export class CopilotAgentSession extends Disposable {
 				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId: e.data.parentToolCallId });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
@@ -1124,6 +1184,17 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(() => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			// Clear any in-progress activity description set during the
+			// turn (e.g. via the `report_intent` tool) — the agent is no
+			// longer doing anything once the turn completes.
+			if (this._hasReportedActivity) {
+				this._hasReportedActivity = false;
+				this._emitAction({
+					type: ActionType.SessionActivityChanged,
+					session: this._protocolSession(),
+					activity: undefined,
+				});
+			}
 			this._emitAction({
 				type: ActionType.SessionTurnComplete,
 				session: this._protocolSession(),

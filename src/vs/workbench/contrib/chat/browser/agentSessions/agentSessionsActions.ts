@@ -11,6 +11,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -689,6 +690,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const commandService = accessor.get(ICommandService);
 
 		const confirmed = await dialogService.confirm({
 			message: sessions.length === 1
@@ -702,6 +704,8 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
+		const deletedSessionIds: string[] = [];
+
 		for (const session of sessions) {
 
 			// Clear chat widget
@@ -709,6 +713,61 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
 			// Remove from storage
 			await chatService.removeHistoryEntry(session.resource);
+
+			// Track session ID for cloud cleanup
+			const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+			if (sessionId) {
+				deletedSessionIds.push(sessionId);
+			}
+		}
+
+		// Notify extensions to clean up cloud data (best effort)
+		if (deletedSessionIds.length > 0) {
+			commandService.executeCommand('github.copilot.sessionSync.deleteSessionFromCloud', deletedSessionIds).catch(() => { /* best effort */ });
+		}
+	}
+}
+
+export class DeleteAgentSessionInlineAction extends BaseAgentSessionAction {
+
+	constructor() {
+		super({
+			id: 'agentSession.deleteInline',
+			title: localize2('del', "Del"),
+			icon: Codicon.trash,
+			menu: {
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 2,
+				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+			}
+		});
+	}
+
+	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
+		if (sessions.length === 0) {
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const commandService = accessor.get(ICommandService);
+
+		const deletedSessionIds: string[] = [];
+
+		for (const session of sessions) {
+			await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+			await chatService.removeHistoryEntry(session.resource);
+
+			const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+			if (sessionId) {
+				deletedSessionIds.push(sessionId);
+			}
+		}
+
+		// Notify extensions to clean up cloud data (best effort)
+		if (deletedSessionIds.length > 0) {
+			commandService.executeCommand('github.copilot.sessionSync.deleteSessionFromCloud', deletedSessionIds).catch(() => { /* best effort */ });
 		}
 	}
 }

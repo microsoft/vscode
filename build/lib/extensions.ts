@@ -71,24 +71,29 @@ function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boole
 
 	let hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
 
-	// Fallback: check for .esbuild.ts (used by extensions with their own build system, e.g. copilot)
+	// Fallback: check for .esbuild.mts/.esbuild.ts (used by extensions with their own build system, e.g. copilot)
 	if (!hasEsbuild && !forWeb) {
-		esbuildConfigFileName = '.esbuild.ts';
-		hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+		for (const fallback of ['.esbuild.mts', '.esbuild.ts']) {
+			if (fs.existsSync(path.join(extensionPath, fallback))) {
+				esbuildConfigFileName = fallback;
+				hasEsbuild = true;
+				break;
+			}
+		}
 	}
 
 	let input: Stream;
 	let isBundled = false;
 
 	if (hasEsbuild) {
-		const isStandardEsbuild = esbuildConfigFileName.endsWith('.mts');
+		const isStandardEsbuild = !esbuildConfigFileName.startsWith('.');
 		input = isStandardEsbuild
 			? es.merge(
 				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
 				// Standard esbuild extensions need a separate type check step
 				...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
 			)
-			// Extensions with their own build system (e.g. .esbuild.ts) handle type checking internally
+			// Extensions with their own build system (e.g. .esbuild.mts) handle type checking internally
 			: fromLocalEsbuild(extensionPath, esbuildConfigFileName);
 		isBundled = true;
 	} else {

@@ -381,8 +381,10 @@ function findModelIdForRequest(
  * when we encounter a user message with actual text (a new user request).
  *
  * @param session The Claude Code session to convert
+ * @param getModelDetails Optional lookup that returns the display string for a Claude
+ * model id (as it appears on stored assistant messages).
  */
-export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
+export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: (modelId: string) => string | undefined): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
 	const result: (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] = [];
 	const toolContext: ToolContext = {
 		unprocessedToolCalls: new Map(),
@@ -391,6 +393,16 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 	let i = 0;
 	const messages = session.messages;
 	let pendingResponseParts: (vscode.ChatResponseMarkdownPart | vscode.ChatResponseThinkingProgressPart | vscode.ChatToolInvocationPart)[] = [];
+	// Tracks the most recent assistant model id observed in the current pending response
+	// group so we can populate `ChatResponseTurn2.result.details` when finalizing it.
+	let pendingResponseModelId: string | undefined;
+	const makeResponseResult = (modelId: string | undefined): vscode.ChatResult => {
+		if (!modelId || !getModelDetails) {
+			return {};
+		}
+		const details = getModelDetails(modelId);
+		return details ? { details } : {};
+	};
 
 	// Build a map from parentToolUseId to subagent for quick lookup
 	const subagentMap = buildSubagentMap(session.subagents);
@@ -437,8 +449,9 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 			if (commandInfo) {
 				// Finalize any pending response first
 				if (pendingResponseParts.length > 0) {
-					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 					pendingResponseParts = [];
+					pendingResponseModelId = undefined;
 				}
 				// Emit the command as a request turn
 				result.push(new ChatRequestTurn2(commandInfo.commandName, undefined, [], '', [], undefined, currentMessageId, modelId, undefined));
@@ -456,8 +469,9 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 				if (requestTurn) {
 					// Real user message — finalize any pending response first
 					if (pendingResponseParts.length > 0) {
-						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 						pendingResponseParts = [];
+						pendingResponseModelId = undefined;
 					}
 					result.push(requestTurn);
 				}
@@ -471,6 +485,9 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 				const assistantMessage = messages[i].message as AssistantMessageContent;
 				if (assistantMessage.model !== SYNTHETIC_MODEL_ID) {
 					assistantMessages.push(assistantMessage);
+					if (assistantMessage.model) {
+						pendingResponseModelId = assistantMessage.model;
+					}
 				}
 				i++;
 			}
@@ -500,7 +517,7 @@ export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatReque
 
 	// Finalize any remaining pending response
 	if (pendingResponseParts.length > 0) {
-		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 	}
 
 	return result;

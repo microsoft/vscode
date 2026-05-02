@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize2 } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -16,6 +16,8 @@ import { BrowserViewCommandId } from '../../../../platform/browserView/common/br
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { AgentHostChatToolsEnabledSettingId } from './browserViewWorkbenchService.js';
 
 // Context key expression to check if browser editor is active
 export const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -238,7 +240,12 @@ class OpenBrowserSettingsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+		const contextKeyService = accessor.get(IContextKeyService);
+		const ids = ['workbench.browser.*', 'chat.sendElementsToChat.*'];
+		if (IsSessionsWindowContext.getValue(contextKeyService)) {
+			ids.push(AgentHostChatToolsEnabledSettingId);
+		}
+		await preferencesService.openSettings({ query: `@id:${ids.join(',')}` });
 	}
 }
 

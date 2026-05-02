@@ -60,7 +60,7 @@ interface TestServices {
 function createTestServices(): TestServices {
 	return {
 		logService: new TestLogService(),
-		otelService: { startSpan: () => noopSpan } as Pick<IOTelService, 'startSpan'> as IOTelService,
+		otelService: { startSpan: () => noopSpan, config: { maxAttributeSizeChars: 0 } } as unknown as IOTelService,
 		toolsService: { invokeTool: vi.fn() } as Pick<IToolsService, 'invokeTool'> as IToolsService,
 		requestLogger: { logToolCall: vi.fn(), captureInvocation: vi.fn() },
 		sessionStateService: { setPermissionModeForSession: vi.fn(), getCapturingTokenForSession: vi.fn().mockReturnValue(undefined) },

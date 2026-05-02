@@ -104,8 +104,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (config) {
 			this.createSessionCalls.push(config);
 		}
-		const id = `sdk-session-${this._nextId++}`;
-		const session = AgentSession.uri('copilot', id);
+		const session = config?.session ?? AgentSession.uri('copilot', `sdk-session-${this._nextId++}`);
+		const id = AgentSession.id(session);
 		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });
 		// Simulate the server's eager active-client claim: if the caller
 		// provided activeClient, seed the session state so subscribers see it.
@@ -350,7 +350,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }, authServiceOverride?: Partial<IAuthenticationService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -437,13 +437,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
+		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined } }) {
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean } }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
@@ -455,6 +456,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		description: 'Copilot SDK agent running in a dedicated process',
 		connection: agentHostService,
 		connectionAuthority: 'local',
+		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -505,7 +507,7 @@ async function startTurn(
 	}>,
 ) {
 	const agentId = overrides?.agentId ?? 'agent-host-copilot';
-	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/untitled-turntest' });
+	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/new-turntest' });
 	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 	ds.add(toDisposable(() => chatSession.dispose()));
 
@@ -575,7 +577,7 @@ async function startDynamicAgentTurn(
 ) {
 	const registered = chatAgentService.registeredAgents.get(agentId);
 	assert.ok(registered);
-	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/untitled-turntest' });
+	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/new-turntest' });
 	const collected: IChatProgress[][] = [];
 	const seq = { v: 1 };
 
@@ -640,7 +642,7 @@ suite('AgentHostChatContribution', () => {
 		test('fires onWillDispose before session is disposed', async () => {
 			const { sessionHandler } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-dispose-test' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/dispose-test' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 
 			// `onWillDispose` is consumed by `ContributedChatSessionData` in
@@ -785,13 +787,38 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 			assert.strictEqual(listCalls, 2);
 		});
+
+		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const item = await listController.newChatSessionItem({ prompt: 'Hello from controller' }, CancellationToken.None);
+			assert.ok(item);
+			assert.strictEqual(item.resource.scheme, 'agent-host-copilot');
+			assert.ok(!item.resource.path.substring(1).startsWith('untitled-'));
+			assert.strictEqual(listController.isNewSession(item.resource), true);
+			assert.strictEqual(listController.items.some(existing => existing.resource.toString() === item.resource.toString()), false);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Hello from controller',
+				sessionResource: item.resource,
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].session?.toString(), AgentSession.uri('copilot', item.resource.path.substring(1)).toString());
+
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.isNewSession(item.resource), false);
+			assert.strictEqual(listController.items.some(existing => existing.resource.toString() === item.resource.toString()), true);
+		}));
 	});
 
 	// ---- Session ID resolution in _invokeAgent --------------------------
 
 	suite('session ID resolution', () => {
 
-		test('creates new SDK session for untitled resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello' });
@@ -801,13 +828,13 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			assert.strictEqual(agentHostService.turnActions[0].action.type, 'session/turnStarted');
 			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
-			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
+			assert.strictEqual(AgentSession.id(URI.parse(session)), 'new-turntest');
 		}));
 
 		test('reuses SDK session for same resource on second message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-reuse' });
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/new-reuse' });
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -861,19 +888,16 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
 		}));
 
-		test('agent-host scheme with untitled path creates new session via mapping', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('rejects generic contributed-chat untitled resource', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				message: 'Hi',
-				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' }),
-			});
-			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
-			await turnPromise;
-
-			// Should create a new SDK session, not use "untitled-abc123" literally
-			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
-		}));
+			await assert.rejects(
+				() => sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' }), CancellationToken.None),
+				/created by the sessions provider/
+			);
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+			assert.strictEqual(chatAgentService.registeredAgents.has('agent-host-copilot'), true);
+		});
 		test('passes raw model id extracted from language model identifier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -920,7 +944,7 @@ suite('AgentHostChatContribution', () => {
 		test('does not create backend session eagerly for untitled sessions', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-deferred' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-deferred' });
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => session.dispose()));
 
@@ -1074,7 +1098,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-input-request-test' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
@@ -1144,7 +1168,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('input request completion echo applies authoritative answers after local submit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-local-input-request-test' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-local-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
@@ -1200,7 +1224,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('input request cancellation does not show draft answers as submitted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-cancelled-input-request-test' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-cancelled-input-request-test' });
 			chatWidgetService.setWidgetForSession(sessionResource);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
@@ -1703,7 +1727,7 @@ suite('AgentHostChatContribution', () => {
 		test('untitled sessions have empty history', async () => {
 			const { sessionHandler } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-xyz' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-xyz' });
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => session.dispose()));
 
@@ -2896,7 +2920,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			// Create and subscribe a session
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-turn' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-turn' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -2948,7 +2972,7 @@ suite('AgentHostChatContribution', () => {
 		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-progress' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-progress' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -3022,7 +3046,7 @@ suite('AgentHostChatContribution', () => {
 		test('client-dispatched turns are not treated as server-initiated', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-dupe' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-no-dupe' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -3052,7 +3076,7 @@ suite('AgentHostChatContribution', () => {
 		test('server-initiated turn does not duplicate tool calls on repeated state changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-tool-dedup' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-tool-dedup' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -3120,7 +3144,7 @@ suite('AgentHostChatContribution', () => {
 		test('server-initiated turn picks up markdown arriving with turnStarted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-md-initial' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-md-initial' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -3177,7 +3201,7 @@ suite('AgentHostChatContribution', () => {
 		test('removes consumed queued message from chat model when server-initiated turn appears', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-queue-removal' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-queue-removal' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
@@ -3221,7 +3245,7 @@ suite('AgentHostChatContribution', () => {
 		test('removes steering message from chat model when steering id changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-steering-removal' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-steering-removal' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 

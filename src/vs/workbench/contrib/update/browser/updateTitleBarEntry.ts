@@ -16,6 +16,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -35,6 +36,8 @@ const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', fa
 const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
+
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
 
@@ -47,7 +50,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			menu: [{
 				id: MenuId.TitleBarAdjacentCenter,
 				order: 0,
-				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate()),
+				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode')),
 			}]
 		});
 	}
@@ -69,6 +72,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -88,6 +92,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this._register(updateService.onStateChange((state) => {
 			this.state = state;
 			this.onStateChange();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(UPDATE_TITLE_BAR_SETTING)) {
+				this.onStateChange();
+			}
 		}));
 
 		this._register(actionViewItemService.register(
@@ -112,6 +122,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 	private async onStateChange(startup = false) {
 		this.pendingShow.clear();
+
+		if (this.configurationService.getValue<boolean>(UPDATE_TITLE_BAR_SETTING) === false) {
+			this.context.set(false);
+			return;
+		}
+
 		if (ACTIONABLE_STATES.includes(this.state.type)) {
 			await this.setContextWhenChatIdle(true);
 		} else {

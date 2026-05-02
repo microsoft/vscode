@@ -217,7 +217,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
 		}
-		const session = AgentSession.uri(provider, generateUuid());
+		const session = config?.session ?? AgentSession.uri(provider, generateUuid());
 		await this._sendRequest('createSession', {
 			session: session.toString(),
 			provider,
@@ -300,6 +300,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} : {}),
 			summary: s.title,
 			status: s.status,
+			activity: s.activity,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),

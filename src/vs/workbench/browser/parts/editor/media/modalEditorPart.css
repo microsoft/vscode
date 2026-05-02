@@ -94,6 +94,10 @@
 	background-color: var(--vscode-titleBar-activeBackground);
 	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
 
+	&.dragging {
+		cursor: grabbing;
+	}
+
 	/* Modal Editor Sidebar Toggle */
 	.modal-editor-sidebar-toggle {
 		grid-column: 1;

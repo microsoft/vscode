@@ -166,7 +166,7 @@ export class ChatHookService implements IChatHookService {
 					try {
 						// Capture hook input for debug panel resolve
 						try {
-							span.setAttribute(CopilotChatAttr.HOOK_INPUT, truncateForOTel(JSON.stringify(commandInput)));
+							span.setAttribute(CopilotChatAttr.HOOK_INPUT, truncateForOTel(JSON.stringify(commandInput), this._otelService.config.maxAttributeSizeChars));
 						} catch { /* swallow serialization errors */ }
 
 						const sw = StopWatch.create();
@@ -195,7 +195,7 @@ export class ChatHookService implements IChatHookService {
 							try {
 								const output = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
 								if (output) {
-									span.setAttribute(CopilotChatAttr.HOOK_OUTPUT, truncateForOTel(output));
+									span.setAttribute(CopilotChatAttr.HOOK_OUTPUT, truncateForOTel(output, this._otelService.config.maxAttributeSizeChars));
 								}
 							} catch { /* swallow serialization errors */ }
 						}

@@ -12,7 +12,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -562,7 +561,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
-		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
+		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		} else {
 			return this.loadRemoteSession(sessionResource, location, token, debugOwner);
@@ -579,7 +578,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (!await this.chatSessionService.canResolveChatSession(sessionResource.scheme)) {
+		if (!await this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource))) {
 			return undefined;
 		}
 
@@ -1494,7 +1493,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * controls queued-message dequeuing on the server side.
 	 */
 	private _isServerManagedQueue(sessionResource: URI): boolean {
-		return sessionResource.scheme.startsWith('agent-host-');
+		return getChatSessionType(sessionResource).startsWith('agent-host-');
 	}
 
 	/**

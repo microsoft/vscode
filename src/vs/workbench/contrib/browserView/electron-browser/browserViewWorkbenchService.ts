@@ -23,6 +23,14 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
+import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+
+/**
+ * When enabled, integrated browser tools are exposed as client-provided tools
+ * to agent host sessions in the Sessions window. Has no effect outside the
+ * Sessions window or when the agent host is disabled.
+ */
+export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -41,12 +49,19 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
 
-	/** Context expression for whether browser tools / sharing is available. */
 	private static readonly _sharingAvailableContext = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		IsSessionsWindowContext.negate(),
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
 		ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+		// If we're in Sessions Window, we require some additional conditions.
+		ContextKeyExpr.or(
+			IsSessionsWindowContext.negate(),
+			ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				ContextKeyExpr.has(`config.${AgentHostEnabledSettingId}`),
+				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
+			),
+		),
 	)!;
 
 	private _isSharingAvailable: boolean = false;

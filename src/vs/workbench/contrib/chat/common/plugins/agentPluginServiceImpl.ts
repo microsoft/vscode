@@ -147,6 +147,8 @@ type PluginEntry = IAgentPlugin;
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Repository root that serves as the boundary for component path resolution. */
+	readonly repositoryUri?: URI;
 	/** Called when remove is invoked on the plugin */
 	remove(): void;
 }
@@ -203,7 +205,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!seenPluginUris.has(key)) {
 				seenPluginUris.add(key);
 				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(this._toPlugin(source.uri, format, source.fromMarketplace, () => source.remove()));
+				plugins.push(this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, () => source.remove()));
 			}
 		}
 
@@ -222,7 +224,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, removeCallback: () => void): IAgentPlugin {
+	private _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: () => void): IAgentPlugin {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -258,7 +260,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const paths = parseComponentPathConfig(section);
-				const dirs = resolveComponentDirs(uri, defaultPath, paths);
+				const dirs = resolveComponentDirs(uri, defaultPath, paths, repositoryUri);
 				for (const d of dirs) {
 					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
 					reader.store.add(watcher);
@@ -632,9 +634,12 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				continue;
 			}
 
+			const repositoryUri = this._pluginRepositoryService.getRepositoryUri(entry.plugin.marketplaceReference, entry.plugin.marketplaceType);
+
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
+				repositoryUri,
 				remove: () => {
 					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);

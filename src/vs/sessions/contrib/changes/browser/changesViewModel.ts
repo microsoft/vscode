@@ -259,11 +259,25 @@ export class ChangesViewModel extends Disposable {
 		});
 
 		// Uncommitted changes
+		const activeSessionUncommittedChangesCountObs = derived(reader => {
+			const sessionMetadata = this._activeSessionMetadataObs.read(reader);
+			const uncommittedChanges = sessionMetadata?.uncommittedChanges as number | undefined;
+
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const workspace = activeSession?.workspace.read(reader);
+			const workspaceRepository = workspace?.repositories[0];
+
+			return uncommittedChanges ?? workspaceRepository?.uncommittedChanges;
+		});
+
 		this._activeSessionUncommittedChangesPromiseObs = derived(reader => {
 			const repositoryPath = activeSessionRepositoryPathObs.read(reader);
 			if (!repositoryPath) {
 				return constObservable([]);
 			}
+
+			// Re-run when the number of uncommitted changes changes
+			activeSessionUncommittedChangesCountObs.read(reader);
 
 			const diffPromise = this._getRepositoryChanges(repositoryPath, 'HEAD', undefined);
 			return new ObservablePromise(diffPromise).resolvedValue;

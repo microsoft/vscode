@@ -13,6 +13,7 @@ import { localize } from '../../../../../../nls.js';
 import { ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
+import { localChatSessionType } from '../../chatSessionsService.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
@@ -203,17 +204,17 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(baseMessage, node.range);
 	}
 
-	private getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
+	private async getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Promise<Hover | undefined> {
 		const lines: string[] = [];
 		const value = agentAttribute.value;
 		if (value.type === 'scalar' && value.range.containsPosition(position)) {
-			const agent = this.chatModeService.findModeByName(value.value);
+			const agent = (await this.chatModeService.awaitModes(localChatSessionType)).findModeByName(value.value);
 			if (agent) {
 				const description = agent.description.get() || (isBuiltinChatMode(agent) ? localize('promptHeader.prompt.agent.builtInDesc', 'Built-in agent') : localize('promptHeader.prompt.agent.customDesc', 'Custom agent'));
 				lines.push(`\`${agent.name.get()}\`: ${description}`);
 			}
 		} else {
-			const agents = this.chatModeService.getModes();
+			const agents = await this.chatModeService.awaitModes(localChatSessionType);
 			lines.push(baseMessage);
 			lines.push('');
 

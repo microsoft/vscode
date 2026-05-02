@@ -1039,7 +1039,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
 				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
 			}
 		}
 
@@ -1060,8 +1060,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return mapping;
 		};
 
-		const lastResponseDetails = await this.getModelDetailsString(modelId);
-		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, lastResponseDetails);
+		const modelDetailsById = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled)
+			? await this.getModelDetailsById()
+			: undefined;
+		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, modelDetailsById);
 
 		if (legacyMappings.length > 0) {
 			void this._chatSessionMetadataStore.updateRequestDetails(sessionId, legacyMappings).catch(error => {
@@ -1110,16 +1112,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsString(modelId: string | undefined): Promise<string | undefined> {
-		if (!modelId) {
-			return undefined;
-		}
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const modelInfo = models.find(m => m.id === modelId);
-		return modelInfo ? formatModelDetails(modelInfo) : undefined;
+		const detailsById = new Map<string, string>();
+		for (const model of models) {
+			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+		}
+		return detailsById;
 	}
 
 

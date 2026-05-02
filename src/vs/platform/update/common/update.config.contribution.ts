@@ -84,6 +84,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
 			tags: ['usesOnlineServices']
+		},
+		'update.titleBar': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('updateTitleBar', "Show the update indicator in the title bar."),
+			included: !isWeb
 		}
 	}
 });
