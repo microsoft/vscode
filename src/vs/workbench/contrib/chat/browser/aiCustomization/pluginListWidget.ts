@@ -388,7 +388,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 //#region Helpers
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = plugin.label ?? basename(plugin.uri);
+	// Use `||` (not `??`) so an empty `label` also falls back to the URI basename.
+	// The items model's `getPluginCount` dedupes against this same fallback; using
+	// `??` here would silently break dedup for plugins whose label is `''`.
+	const name = plugin.label || basename(plugin.uri);
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };

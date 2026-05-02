@@ -232,7 +232,7 @@ export class AICustomizationItemNormalizer {
 
 	private inferStorageAndGroup(item: ICustomizationItem): { storage: AICustomizationPromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
 		const groupKey = item.groupKey;
-		const hasBuiltinStorage = item.storage === (BUILTIN_STORAGE as unknown as PromptsStorage);
+		const hasBuiltinStorage = item.storage === BUILTIN_STORAGE;
 		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
 		if (hasBuiltinStorage) {
