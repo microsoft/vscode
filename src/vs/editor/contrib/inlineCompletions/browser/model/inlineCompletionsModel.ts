@@ -52,6 +52,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { getInlineCompletionsController } from '../controller/common.js';
 
@@ -121,6 +122,7 @@ export class InlineCompletionsModel extends Disposable {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue, this.primaryPosition));
@@ -468,9 +470,14 @@ export class InlineCompletionsModel extends Disposable {
 			provider.excludesGroupIds?.forEach(p => excludedGroupIds.add(p));
 		}
 
+		const isMetered = this._meteredConnectionService.isConnectionMetered;
+
 		const availableProviders: InlineCompletionsProvider[] = [];
 		for (const provider of unsuppressedProviders) {
 			if (provider.groupId && excludedGroupIds.has(provider.groupId)) {
+				continue;
+			}
+			if (isMetered && provider.usesNetworkRequests) {
 				continue;
 			}
 			availableProviders.push(provider);

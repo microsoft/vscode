@@ -1000,6 +1000,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	excludesGroupIds?: InlineCompletionProviderGroupId[];
 
+	/**
+	 * Whether this provider uses network requests to provide completions.
+	 * When `true`, the provider is disabled when the network connection is metered.
+	 */
+	usesNetworkRequests?: boolean;
+
 	displayName?: string;
 
 	debounceDelayMs?: number;

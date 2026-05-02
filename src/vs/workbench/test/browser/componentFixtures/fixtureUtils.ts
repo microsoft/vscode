@@ -63,6 +63,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -453,6 +454,12 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	// User interaction service with focus simulation enabled (all elements appear focused in fixtures)
 	defineInstance(IUserInteractionService, new MockUserInteractionService(true, false));
+
+	defineInstance(IMeteredConnectionService, {
+		_serviceBrand: undefined,
+		isConnectionMetered: false,
+		onDidChangeIsConnectionMetered: Event.None,
+	});
 
 	defineInstance(IAccessibilitySignalService, {
 		_serviceBrand: undefined,
