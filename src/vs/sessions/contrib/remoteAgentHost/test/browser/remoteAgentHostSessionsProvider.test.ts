@@ -82,6 +82,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._sessions.delete(rawId);
 	}
 
+	public createdSessionUris: URI[] = [];
+	override async createSession(config?: { session?: URI }): Promise<URI> {
+		const uri = config?.session ?? URI.parse('copilotcli:///auto');
+		this.createdSessionUris.push(uri);
+		return uri;
+	}
+
 	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {

@@ -334,6 +334,7 @@ export class ProtocolServerHandler extends Disposable {
 		params: ReconnectParams,
 		canReplay: boolean,
 	): Promise<unknown> {
+		const missing: string[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
 			try {
@@ -342,7 +343,8 @@ export class ProtocolServerHandler extends Disposable {
 				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
 				return snapshot;
 			} catch (err) {
-				this._logService.warn(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
+				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
+				missing.push(sub);
 				return undefined;
 			}
 		}));
@@ -356,7 +358,7 @@ export class ProtocolServerHandler extends Disposable {
 					}
 				}
 			}
-			return { type: 'replay', actions };
+			return { type: 'replay', actions, missing };
 		}
 		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
