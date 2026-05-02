@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -540,25 +540,6 @@ function createUnavailableModelItem(
 	};
 }
 
-/**
- * Returns a shortened model name by stripping the vendor/brand prefix.
- * Handles "Brand Model" (space) and "Brand-Model" (hyphen) patterns.
- * Returns original name if stripping would leave nothing meaningful.
- */
-export function getShortModelName(name: string): string {
-	// Try stripping prefix before hyphen first (e.g., "GPT-4o" → "4o", "GPT-5 mini" → "5 mini")
-	const hyphenMatch = name.match(/^[A-Za-z]+-(.+)$/);
-	if (hyphenMatch && hyphenMatch[1].length > 0) {
-		return hyphenMatch[1];
-	}
-	// Try stripping first word + space (e.g., "Claude Sonnet 4.6" → "Sonnet 4.6")
-	const spaceMatch = name.match(/^\S+\s+(.+)$/);
-	if (spaceMatch && spaceMatch[1].length > 0) {
-		return spaceMatch[1];
-	}
-	return name;
-}
-
 type ModelPickerBadge = 'info' | 'warning';
 
 /**
@@ -585,7 +566,6 @@ export class ModelPickerWidget extends Disposable {
 	private _nameButton: HTMLElement | undefined;
 	private _effortButton: HTMLElement | undefined;
 	private _tokensButton: HTMLElement | undefined;
-	private readonly _pendingOverflowCheck = this._register(new MutableDisposable());
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -823,14 +803,6 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		// Refresh model metadata from the service in case it was updated
-		if (this._selectedModel) {
-			const freshMetadata = this._languageModelsService.lookupLanguageModel(this._selectedModel.identifier);
-			if (freshMetadata) {
-				this._selectedModel = { identifier: this._selectedModel.identifier, metadata: freshMetadata };
-			}
-		}
-
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
 		// --- Name section ---
@@ -839,29 +811,11 @@ export class ModelPickerWidget extends Disposable {
 			nameChildren.push(renderIcon(statusIcon));
 		}
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		const shortLabel = getShortModelName(modelLabel);
-		let fullNameSpan: HTMLElement | undefined;
-		if (shortLabel !== modelLabel) {
-			fullNameSpan = dom.$('span.chat-input-picker-label.model-name-full', undefined, modelLabel);
-			nameChildren.push(fullNameSpan);
-			nameChildren.push(dom.$('span.chat-input-picker-label.model-name-short', undefined, shortLabel));
-		} else {
-			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
-		}
+		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
-
-		// Check overflow after layout and collapse to short name if needed
-		if (fullNameSpan && this._nameButton) {
-			this._nameButton.classList.remove('collapsed');
-			this._pendingOverflowCheck.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._nameButton), () => {
-				if (fullNameSpan && fullNameSpan.scrollWidth > fullNameSpan.clientWidth) {
-					this._nameButton?.classList.add('collapsed');
-				}
-			});
-		}
 
 		// --- Effort section (from configurationSchema group 'navigation') ---
 		const effortConfig = this._getConfigProperty('navigation');

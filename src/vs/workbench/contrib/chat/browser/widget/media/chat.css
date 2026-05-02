@@ -1907,19 +1907,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 }
 
-/* Collapse behavior: short name hidden by default, shown when name is overflowing */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name .model-name-short {
-	display: none;
-}
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name.collapsed .model-name-full {
-	display: none;
-}
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name.collapsed .model-name-short {
-	display: inline;
-}
-
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
 	flex-shrink: 0;
