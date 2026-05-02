@@ -587,7 +587,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 - [ ] **Streaming chat UI rewrite** in `src/vs/sessions/contrib/chat/browser/` (§7.3, §9.5).
   - Text, tool_use, thinking, usage, error all rendered live.
   - Cancel button propagates AbortSignal.
-- [ ] **mcp-gateway tool-result streaming** in `services/mcp-gateway/src/server.ts` (§7.2).
+- [x] **mcp-gateway tool-result streaming** in `services/mcp-gateway/src/server.ts` (§7.2). _(partial: streaming wrapper + types landed, semantic_search migrated as proof of concept; remaining 17 tools migrate in follow-up)_
 - [ ] **Auth wizard MVP** with Claude OAuth only (§9.1).
 
 **Demo:** "Log in with Claude, ask a code-review question, watch tokens stream and tool calls appear inline."

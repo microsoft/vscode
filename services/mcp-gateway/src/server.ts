@@ -15,6 +15,8 @@ import { projectOverview } from './tools/projectOverview';
 import { memoryQuery, memoryRecord, memoryHistory } from './tools/memoryQuery';
 import { specList, specRead, specSyncCheck } from './tools/specPipeline';
 import { buildTargets, buildOrder, environmentRequirements, affectedTargets } from './tools/buildDag';
+import { wrapStreamingTool } from './streaming/streamingTool';
+import type { StreamingToolHandler } from './streaming/types';
 
 export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpServer {
 	const server = new McpServer({
@@ -120,44 +122,48 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 		}
 	);
 
-	// --- semantic_search ---
+	// --- semantic_search (streaming) ---
+	const semanticSearchStreaming: StreamingToolHandler<{
+		query: string;
+		maxResults?: number;
+		language?: string;
+	}> = async function* ({ query, maxResults, language }) {
+		yield { kind: 'progress', message: `Embedding query: "${query.slice(0, 60)}"` };
+
+		// Placeholder embedding function — in production this calls the embedding model.
+		const embedQuery = async (text: string): Promise<number[]> => {
+			let hash = 0;
+			for (let j = 0; j < text.length; j++) {
+				hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
+			}
+			const vector = new Array<number>(384);
+			for (let i = 0; i < 384; i++) {
+				vector[i] = Math.sin(hash + i) * 0.5;
+			}
+			return vector;
+		};
+
+		yield { kind: 'progress', message: 'Searching repository' };
+		const results = await semanticSearch(qdrant, db, { query, maxResults, language }, embedQuery);
+
+		// Stream results in batches of 10 so callers see progress on large result sets.
+		const batchSize = 10;
+		for (let i = 0; i < results.length; i += batchSize) {
+			yield { kind: 'partial', items: results.slice(i, i + batchSize) };
+		}
+
+		yield { kind: 'done', summary: { total: results.length, query, language } };
+	};
+
 	server.tool(
 		'semantic_search',
-		'Search for code semantically using natural language. Results are ranked by a combination of semantic similarity and structural importance (PageRank-style).',
+		'Search for code semantically using natural language. Results are ranked by a combination of semantic similarity and structural importance (PageRank-style). Streams partial results as they are scored.',
 		{
 			query: z.string().describe('Natural language search query'),
 			maxResults: z.number().min(1).max(50).optional().describe('Maximum results to return (default 10)'),
 			language: z.string().optional().describe('Filter results by programming language'),
 		},
-		async ({ query, maxResults, language }) => {
-			try {
-				// Placeholder embedding function — in production this calls the embedding model
-				const embedQuery = async (text: string): Promise<number[]> => {
-					// Generate a deterministic placeholder vector for testing.
-					// In production, replace with a call to an embedding API.
-					// Compute the hash of the text once, then use it to generate all dimensions.
-					let hash = 0;
-					for (let j = 0; j < text.length; j++) {
-						hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
-					}
-					const vector = new Array(384);
-					for (let i = 0; i < 384; i++) {
-						vector[i] = Math.sin(hash + i) * 0.5;
-					}
-					return vector;
-				};
-
-				const results = await semanticSearch(qdrant, db, { query, maxResults, language }, embedQuery);
-				return {
-					content: [{
-						type: 'text' as const,
-						text: JSON.stringify(results, null, 2),
-					}],
-				};
-			} catch (error) {
-				return errorResponse('semantic_search', error);
-			}
-		}
+		wrapStreamingTool('semantic_search', semanticSearchStreaming)
 	);
 
 	// --- file_summary ---
