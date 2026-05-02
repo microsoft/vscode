@@ -129,6 +129,28 @@ suite('aiCustomizationListWidget', () => {
 				undefined
 			);
 		});
+
+		test('extracts extension ID from User/globalStorage path (Copilot Chat ask agent)', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('extracts extension ID from User/globalStorage path on Insiders', () => {
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/Library/Application Support/Code - Insiders/User/globalStorage/github.copilot-chat/ask-agent/Ask.agent.md'),
+				'github.copilot-chat'
+			);
+		});
+
+		test('returns undefined for non-extension entries in globalStorage', () => {
+			// e.g. `state.vscdb` or other workspace storage that lacks a publisher.name pattern
+			assert.strictEqual(
+				extractExtensionIdFromPath('/Users/josh/.vscode-oss-dev/User/globalStorage/state.vscdb'),
+				undefined
+			);
+		});
 	});
 
 	suite('disposed widget', () => {
