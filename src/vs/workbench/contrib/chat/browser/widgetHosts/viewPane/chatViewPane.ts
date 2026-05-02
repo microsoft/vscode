@@ -830,7 +830,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (token.isCancellationRequested) {
-			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms cancelled=true phase=preAcquire`);
+			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
 			return undefined;
 		}
 
@@ -856,19 +856,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				if (token.isCancellationRequested) {
 					newModelRef?.dispose();
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms cancelled=true phase=postAcquire`);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
 					return undefined;
 				}
 
 				const result = await this.showModel(token, newModelRef);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms`);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
 			} catch (err) {
 				clearWidget.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms cancelled=true phase=error`);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
 					return undefined;
 				}
 
@@ -877,7 +877,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
 				const result = await this.showModel(token, undefined);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms error=true`);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
 			} finally {
 				clearWidgetCancellationListener.dispose();

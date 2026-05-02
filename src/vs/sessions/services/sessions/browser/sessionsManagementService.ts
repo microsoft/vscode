@@ -221,13 +221,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// If the chat is untitled (not yet sent), show the new-chat-in-session view
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
 			this._isNewChatInSessionContext.set(true);
-			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms path=untitled`);
+			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
 		this._isNewChatInSessionContext.set(false);
 		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
-		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms`);
+		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
@@ -246,7 +246,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const activeChat = this._activeSession.get()?.activeChat.get();
 		const openUri = activeChat?.resource ?? sessionData.resource;
 		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
-		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms`);
+		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
 	unsetNewSession(): void {
