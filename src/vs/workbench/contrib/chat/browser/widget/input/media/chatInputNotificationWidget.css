@@ -8,8 +8,13 @@
 	display: none;
 }
 
+/* Counteract the `.interactive-input-part` `gap: 4px` so the notification attaches to the input. Add extra -6px to account for rounded corners. */
+.interactive-session .interactive-input-part > .chat-input-notification-container {
+	margin-bottom: -10px;
+}
+
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification {
-	padding: 12px 16px;
+	padding: 18px 16px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
@@ -76,13 +81,12 @@
 	white-space: nowrap;
 }
 
-/* Body row: description + actions inline, wraps at small widths */
+/* Body row: description + actions inline */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
-	flex-wrap: wrap;
 }
 
 /* Description */
@@ -91,7 +95,10 @@
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
-	min-width: 150px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* Actions container */
@@ -110,6 +117,11 @@
 	min-width: unset;
 	width: auto;
 	height: 24px;
+}
+
+/* Remove base button border from secondary (ghost) action buttons */
+.chat-input-notification .chat-input-notification-action-button.secondary {
+	border: none;
 }
 
 /* Dismiss button */

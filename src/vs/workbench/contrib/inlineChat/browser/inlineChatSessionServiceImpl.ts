@@ -20,7 +20,7 @@ import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingSer
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { IInlineChatSession, IInlineChatSessionService, InlineChatSessionTerminationState } from './inlineChatSessionService.js';
 
 export class InlineChatError extends Error {
@@ -175,7 +175,7 @@ export class InlineChatEnabler {
 
 	static Id = 'inlineChat.enabler';
 
-	readonly #ctxHasProvider2: IContextKey<boolean>;
+	readonly #ctxHasProvider: IContextKey<boolean>;
 	readonly #ctxHasNotebookProvider: IContextKey<boolean>;
 	readonly #ctxPossible: IContextKey<boolean>;
 
@@ -187,7 +187,7 @@ export class InlineChatEnabler {
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		this.#ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
+		this.#ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
 		this.#ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
 		this.#ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
@@ -198,9 +198,9 @@ export class InlineChatEnabler {
 		this.#store.add(autorun(r => {
 			const agent = agentObs.read(r);
 			if (!agent) {
-				this.#ctxHasProvider2.reset();
+				this.#ctxHasProvider.reset();
 			} else {
-				this.#ctxHasProvider2.set(true);
+				this.#ctxHasProvider.set(true);
 			}
 		}));
 
@@ -220,7 +220,7 @@ export class InlineChatEnabler {
 
 	dispose() {
 		this.#ctxPossible.reset();
-		this.#ctxHasProvider2.reset();
+		this.#ctxHasProvider.reset();
 		this.#store.dispose();
 	}
 }

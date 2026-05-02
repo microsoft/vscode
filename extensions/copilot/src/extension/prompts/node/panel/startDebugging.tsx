@@ -382,6 +382,7 @@ export class StartDebuggingPrompt extends PromptElement<StartDebuggingPromptProp
 					{state.docSearchResults && state.docSearchResults.length > 0 && <>Below is a list of information from the Visual Studio Code documentation which might be relevant to the question. <br /></>}
 					{state.docSearchResults && state.docSearchResults.map((result) => {
 						if (result?.title && result.contents) {
+							// eslint-disable-next-line local/code-no-unused-expressions
 							<TextChunk>
 								##{result?.title?.trim()} - {result.path}<br />
 								{result.contents}

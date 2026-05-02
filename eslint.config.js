@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import fs from 'fs';
+import { builtinModules } from 'module';
 import path from 'path';
 import tseslint from 'typescript-eslint';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
+import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
+import pluginImport from 'eslint-plugin-import';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -193,6 +196,7 @@ export default tseslint.config(
 			'src/bootstrap-node.ts',
 			'build/lib/extensions.ts',
 			'build/lib/test/render.test.ts',
+			'extensions/copilot/**/*',
 			'extensions/debug-auto-launch/src/extension.ts',
 			'extensions/emmet/src/updateImageSize.ts',
 			'extensions/emmet/src/util.ts',
@@ -1063,7 +1067,7 @@ export default tseslint.config(
 			'local/code-no-static-node-module-import': [
 				'error',
 				// Files that run in separate processes, not on the electron-main startup path
-				'src/vs/platform/agentHost/node/copilot/**/*.ts',
+				'src/vs/platform/agentHost/node/**/*.ts',
 				'src/vs/platform/files/node/watcher/**/*.ts',
 				'src/vs/platform/terminal/node/**/*.ts',
 				// Files that use small, safe modules
@@ -1614,6 +1618,21 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
+					'target': 'src/vs/platform/agentHost/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'tas-client', // node module allowed even in /common/
+						'@microsoft/1ds-core-js', // node module allowed even in /common/
+						'@microsoft/1ds-post-js', // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
+						'@vscode/copilot-api', // used by agentHost for Copilot API requests
+						'@anthropic-ai/sdk' // used by agentHost for Anthropic API requests
 					]
 				},
 				{
@@ -2298,16 +2317,16 @@ export default tseslint.config(
 			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
-	// Extension main sources (excluding tests)
+	// Ban dynamic require() and import() calls in extensions to ensure tree-shaking works
 	{
 		files: [
-			'extensions/**/*.ts',
+			'extensions/**/*.{ts,tsx}',
 		],
 		ignores: [
 			'extensions/**/*.test.ts',
+			'extensions/copilot/**/*',
 		],
 		rules: {
-			// Ban dynamic require() and import() calls in extensions to ensure tree-shaking works
 			'no-restricted-syntax': [
 				'warn',
 				{
@@ -2387,6 +2406,406 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
+		}
+	},
+	// copilot extension - main sources
+	{
+		files: [
+			'extensions/copilot/src/**/*.{ts,tsx}',
+			'extensions/copilot/test/**/*.{ts,tsx}',
+		],
+		ignores: [
+			'extensions/copilot/**/.esbuild.ts',
+			'extensions/copilot/src/extension/completions-core/vscode-node/bridge/src/completionsTelemetryServiceBridge.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'import': pluginImport,
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'local/code-no-dangerous-type-assertions': 'off',
+			'local/code-no-any-casts': 'off',
+			'local/code-no-deep-import-of-internal': 'off',
+			'no-restricted-imports': [
+				'warn',
+				// node: builtins
+				...builtinModules,
+				// node: dependencies
+				'@humanwhocodes/gitignore-to-minimatch',
+				'@vscode/extension-telemetry',
+				'applicationinsights',
+				'ignore',
+				'isbinaryfile',
+				'minimatch',
+				'source-map-support',
+				'vscode-tas-client',
+				'web-tree-sitter'
+			],
+			'import/no-restricted-paths': [
+				'warn',
+				{
+					zones: [
+						{
+							target: '**/common/**',
+							from: [
+								'**/vscode/**',
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode/**',
+							from: [
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/node/**',
+							from: [
+								'**/vscode/**',
+								'**/vscode-node/**',
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode-node/**',
+							from: [
+								'**/worker/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/worker/**',
+							from: [
+								'**/vscode/**',
+								'**/node/**',
+								'**/vscode-node/**',
+								'**/vscode-worker/**'
+							]
+						},
+						{
+							target: '**/vscode-worker/**',
+							from: [
+								'**/node/**',
+								'**/vscode-node/**'
+							]
+						},
+						{
+							target: './extensions/copilot/src/',
+							from: './extensions/copilot/test/'
+						},
+						{
+							target: './extensions/copilot/src/shared-fetch-utils',
+							from: ['./extensions/copilot/src/extension', './extensions/copilot/src/platform', './extensions/copilot/src/util', './extensions/copilot/src/lib']
+						},
+						{
+							target: './extensions/copilot/src/util',
+							from: ['./extensions/copilot/src/platform', './extensions/copilot/src/extension']
+						},
+						{
+							target: './extensions/copilot/src/platform',
+							from: ['./extensions/copilot/src/extension']
+						},
+						{
+							target: ['./extensions/copilot/test', '!./extensions/copilot/test/base/extHostContext/*.ts'],
+							from: ['**/vscode-node/**', '**/vscode-worker/**']
+						},
+						{
+							target: 'extensions/copilot/src/!(lib)/**',
+							from: './extensions/copilot/src/lib'
+						}
+					]
+				}
+			],
+			'copilot-local/no-instanceof-uri': ['warn'],
+			'copilot-local/no-test-imports': ['warn'],
+			'copilot-local/no-runtime-import': [
+				'warn',
+				{
+					test: ['vscode'],
+					'src/**/common/**/*': ['vscode'],
+					'src/**/node/**/*': ['vscode']
+				}
+			],
+			'copilot-local/no-funny-filename': ['warn'],
+			'copilot-local/no-bad-gdpr-comment': ['warn'],
+			'copilot-local/no-gdpr-event-name-mismatch': ['warn'],
+			'copilot-local/no-unlayered-files': ['warn'],
+			'copilot-local/no-restricted-copilot-pr-string': [
+				'warn',
+				{
+					className: 'GitHubPullRequestProviders',
+					string: 'Generate with Copilot'
+				}
+			],
+			'copilot-local/no-nls-localize': ['warn'],
+		}
+	},
+	// copilot extension - allow node imports in node layer
+	{
+		files: [
+			'extensions/copilot/**/{vscode-node,node}/**/*.ts',
+			'extensions/copilot/**/{vscode-node,node}/**/*.tsx',
+		],
+		rules: {
+			'no-restricted-imports': 'off'
+		}
+	},
+	// copilot extension - override files (tests, build, etc.)
+	{
+		files: [
+			'extensions/copilot/test/**',
+			'extensions/copilot/src/vscodeTypes.ts',
+			'extensions/copilot/script/**',
+			'extensions/copilot/src/extension/*.d.ts',
+			'extensions/copilot/build/**',
+		],
+		rules: {
+			'copilot-local/no-unlayered-files': 'off',
+			'no-restricted-imports': 'off'
+		}
+	},
+	// copilot extension - TSX linebreak rule
+	{
+		files: [
+			'extensions/copilot/src/extension/**/*.tsx',
+		],
+		plugins: {
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'copilot-local/no-missing-linebreak': 'warn'
+		}
+	},
+	// copilot extension - test-only rule
+	{
+		files: [
+			'extensions/copilot/**/*.test.ts',
+			'extensions/copilot/**/*.test.tsx',
+		],
+		plugins: {
+			'copilot-local': pluginCopilotLocal,
+		},
+		rules: {
+			'copilot-local/no-test-only': 'warn'
+		}
+	},
+	// copilot extension - no-explicit-any
+	{
+		files: [
+			'extensions/copilot/src/**/*.ts',
+		],
+		ignores: [
+			'extensions/copilot/src/util/vs/**/*.ts',
+			'extensions/copilot/src/**/*.spec.ts',
+			'extensions/copilot/src/extension/agents/copilotcli/node/nodePtyShim.ts',
+			'extensions/copilot/src/extension/byok/common/anthropicMessageConverter.ts',
+			'extensions/copilot/src/extension/byok/common/geminiFunctionDeclarationConverter.ts',
+			'extensions/copilot/src/extension/byok/common/geminiMessageConverter.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/anthropicProvider.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/geminiNativeProvider.ts',
+			'extensions/copilot/src/extension/byok/vscode-node/ollamaProvider.ts',
+			'extensions/copilot/src/extension/chatSessions/vscode-node/copilotCloudSessionContentBuilder.ts',
+			'extensions/copilot/src/extension/chatSessions/vscode-node/copilotCloudSessionsProvider.ts',
+			'extensions/copilot/src/extension/codeBlocks/node/codeBlockProcessor.ts',
+			'extensions/copilot/src/extension/codeBlocks/vscode-node/provider.ts',
+			'extensions/copilot/src/extension/configuration/vscode-node/configurationMigration.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/genericInlineIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/genericPanelIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/inlineFixIntentInvocation.ts',
+			'extensions/copilot/src/extension/context/node/resolvers/promptWorkspaceLabels.ts',
+			'extensions/copilot/src/extension/contextKeys/vscode-node/contextKeys.contribution.ts',
+			'extensions/copilot/src/extension/conversation/vscode-node/userActions.ts',
+			'extensions/copilot/src/extension/extension/vscode/services.ts',
+			'extensions/copilot/src/extension/inlineChat/node/rendererVisualization.ts',
+			'extensions/copilot/src/extension/inlineChat/vscode-node/inlineChatCommands.ts',
+			'extensions/copilot/src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer.ts',
+			'extensions/copilot/src/extension/inlineEdits/vscode-node/parts/vscodeWorkspace.ts',
+			'extensions/copilot/src/extension/intents/node/editCodeIntent.ts',
+			'extensions/copilot/src/extension/intents/node/editCodeStep.ts',
+			'extensions/copilot/src/extension/intents/node/fixIntent.ts',
+			'extensions/copilot/src/extension/intents/node/newIntent.ts',
+			'extensions/copilot/src/extension/intents/node/searchIntent.ts',
+			'extensions/copilot/src/extension/languageContextProvider/vscode-node/languageContextProviderService.ts',
+			'extensions/copilot/src/extension/linkify/common/commands.ts',
+			'extensions/copilot/src/extension/linkify/common/responseStreamWithLinkification.ts',
+			'extensions/copilot/src/extension/linkify/test/node/util.ts',
+			'extensions/copilot/src/extension/log/vscode-node/loggingActions.ts',
+			'extensions/copilot/src/extension/log/vscode-node/requestLogTree.ts',
+			'extensions/copilot/src/extension/mcp/test/vscode-node/util.ts',
+			'extensions/copilot/src/extension/mcp/vscode-node/commands.ts',
+			'extensions/copilot/src/extension/mcp/vscode-node/nuget.ts',
+			'extensions/copilot/src/extension/onboardDebug/node/copilotDebugWorker/rpc.ts',
+			'extensions/copilot/src/extension/onboardDebug/node/parseLaunchConfigFromResponse.ts',
+			'extensions/copilot/src/extension/onboardDebug/vscode-node/copilotDebugCommandHandle.ts',
+			'extensions/copilot/src/extension/prompt/common/toolCallRound.ts',
+			'extensions/copilot/src/extension/prompt/node/chatMLFetcher.ts',
+			'extensions/copilot/src/extension/prompt/node/chatParticipantTelemetry.ts',
+			'extensions/copilot/src/extension/prompt/node/editGeneration.ts',
+			'extensions/copilot/src/extension/prompt/node/intents.ts',
+			'extensions/copilot/src/extension/prompt/node/todoListContextProvider.ts',
+			'extensions/copilot/src/extension/prompt/vscode-node/endpointProviderImpl.ts',
+			'extensions/copilot/src/extension/prompt/vscode-node/requestLoggerImpl.ts',
+			'extensions/copilot/src/extension/prompts/node/agent/promptRegistry.ts',
+			'extensions/copilot/src/extension/prompts/node/base/promptElement.ts',
+			'extensions/copilot/src/extension/prompts/node/base/promptRenderer.ts',
+			'extensions/copilot/src/extension/prompts/node/test/utils.ts',
+			'extensions/copilot/src/extension/replay/common/chatReplayResponses.ts',
+			'extensions/copilot/src/extension/replay/node/replayParser.ts',
+			'extensions/copilot/src/extension/replay/vscode-node/replayDebugSession.ts',
+			'extensions/copilot/src/extension/review/node/githubReviewAgent.ts',
+			'extensions/copilot/src/extension/test/node/services.ts',
+			'extensions/copilot/src/extension/test/vscode-node/extension.test.ts',
+			'extensions/copilot/src/extension/test/vscode-node/sanity.sanity-test.ts',
+			'extensions/copilot/src/extension/test/vscode-node/session.test.ts',
+			'extensions/copilot/src/extension/tools/common/toolSchemaNormalizer.ts',
+			'extensions/copilot/src/extension/tools/common/toolsService.ts',
+			'extensions/copilot/src/extension/typescriptContext/common/serverProtocol.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/baseContextProviders.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/contextProvider.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/protocol.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/typescripts.ts',
+			'extensions/copilot/src/extension/typescriptContext/serverPlugin/src/common/utils.ts',
+			'extensions/copilot/src/extension/typescriptContext/vscode-node/inspector.ts',
+			'extensions/copilot/src/extension/typescriptContext/vscode-node/languageContextService.ts',
+			'extensions/copilot/src/extension/workspaceRecorder/vscode-node/workspaceListenerService.ts',
+			'extensions/copilot/src/extension/workspaceSemanticSearch/node/semanticSearchTextSearchProvider.ts',
+			'extensions/copilot/src/lib/node/chatLibMain.ts',
+			'extensions/copilot/src/platform/authentication/test/node/simulationTestCopilotTokenManager.ts',
+			'extensions/copilot/src/platform/chat/common/blockedExtensionService.ts',
+			'extensions/copilot/src/platform/chunking/common/chunkingEndpointClientImpl.ts',
+			'extensions/copilot/src/platform/commands/common/mockRunCommandExecutionService.ts',
+			'extensions/copilot/src/platform/commands/common/runCommandExecutionService.ts',
+			'extensions/copilot/src/platform/commands/vscode/runCommandExecutionServiceImpl.ts',
+			'extensions/copilot/src/platform/configuration/common/configurationService.ts',
+			'extensions/copilot/src/platform/configuration/common/validator.ts',
+			'extensions/copilot/src/platform/configuration/test/common/inMemoryConfigurationService.ts',
+			'extensions/copilot/src/platform/configuration/vscode/configurationServiceImpl.ts',
+			'extensions/copilot/src/platform/customInstructions/common/customInstructionsService.ts',
+			'extensions/copilot/src/platform/debug/vscode/debugOutputListener.ts',
+			'extensions/copilot/src/platform/diff/node/diffWorkerMain.ts',
+			'extensions/copilot/src/platform/editing/common/notebookDocumentSnapshot.ts',
+			'extensions/copilot/src/platform/editing/common/textDocumentSnapshot.ts',
+			'extensions/copilot/src/platform/embeddings/common/embeddingsGrouper.ts',
+			'extensions/copilot/src/platform/embeddings/common/embeddingsIndex.ts',
+			'extensions/copilot/src/platform/embeddings/common/remoteEmbeddingsComputer.ts',
+			'extensions/copilot/src/platform/endpoint/node/modelMetadataFetcher.ts',
+			'extensions/copilot/src/platform/endpoint/test/node/openaiCompatibleEndpoint.ts',
+			'extensions/copilot/src/platform/env/common/packagejson.ts',
+			'extensions/copilot/src/platform/extensions/common/extensionsService.ts',
+			'extensions/copilot/src/platform/filesystem/common/fileSystemService.ts',
+			'extensions/copilot/src/platform/github/common/githubService.ts',
+			'extensions/copilot/src/platform/github/common/nullOctokitServiceImpl.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/dataTypes/edit.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/dataTypes/textEditLengthHelper/length.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/editReason.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/statelessNextEditProvider.ts',
+			'extensions/copilot/src/platform/inlineEdits/common/utils/observable.ts',
+			'extensions/copilot/src/platform/languages/common/languageDiagnosticsService.ts',
+			'extensions/copilot/src/platform/log/common/logExecTime.ts',
+			'extensions/copilot/src/platform/log/common/logService.ts',
+			'extensions/copilot/src/platform/log/vscode/outputChannelLogTarget.ts',
+			'extensions/copilot/src/platform/nesFetch/common/completionsFetchService.ts',
+			'extensions/copilot/src/platform/nesFetch/node/completionsFetchServiceImpl.ts',
+			'extensions/copilot/src/platform/networking/common/fetch.ts',
+			'extensions/copilot/src/platform/networking/common/fetcherService.ts',
+			'extensions/copilot/src/platform/networking/common/networking.ts',
+			'extensions/copilot/src/platform/networking/common/openai.ts',
+			'extensions/copilot/src/platform/networking/node/baseFetchFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/chatStream.ts',
+			'extensions/copilot/src/platform/networking/node/fetcherFallback.ts',
+			'extensions/copilot/src/platform/networking/node/nodeFetchFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/nodeFetcher.ts',
+			'extensions/copilot/src/platform/networking/node/stream.ts',
+			'extensions/copilot/src/platform/networking/node/test/nodeFetcherService.ts',
+			'extensions/copilot/src/platform/networking/vscode-node/electronFetcher.ts',
+			'extensions/copilot/src/platform/networking/vscode-node/fetcherServiceImpl.ts',
+			'extensions/copilot/src/platform/notification/common/notificationService.ts',
+			'extensions/copilot/src/platform/notification/vscode/notificationServiceImpl.ts',
+			'extensions/copilot/src/platform/openai/node/fetch.ts',
+			'extensions/copilot/src/platform/parser/node/nodes.ts',
+			'extensions/copilot/src/platform/parser/node/parserServiceImpl.ts',
+			'extensions/copilot/src/platform/parser/node/parserWorker.ts',
+			'extensions/copilot/src/platform/parser/node/treeSitterQueries.ts',
+			'extensions/copilot/src/platform/remoteCodeSearch/common/githubCodeSearchService.ts',
+			'extensions/copilot/src/platform/remoteSearch/node/codeOrDocsSearchClientImpl.ts',
+			'extensions/copilot/src/platform/review/vscode/reviewServiceImpl.ts',
+			'extensions/copilot/src/platform/scopeSelection/vscode-node/scopeSelectionImpl.ts',
+			'extensions/copilot/src/platform/snippy/common/snippyTypes.ts',
+			'extensions/copilot/src/platform/survey/vscode/surveyServiceImpl.ts',
+			'extensions/copilot/src/platform/tasks/vscode/tasksService.ts',
+			'extensions/copilot/src/platform/telemetry/common/failingTelemetryReporter.ts',
+			'extensions/copilot/src/platform/telemetry/common/telemetryData.ts',
+			'extensions/copilot/src/platform/telemetry/node/azureInsightsReporter.ts',
+			'extensions/copilot/src/platform/telemetry/node/spyingTelemetryService.ts',
+			'extensions/copilot/src/platform/terminal/common/terminalService.ts',
+			'extensions/copilot/src/platform/terminal/vscode/terminalServiceImpl.ts',
+			'extensions/copilot/src/platform/test/common/endpointTestFixtures.ts',
+			'extensions/copilot/src/platform/test/common/testExtensionsService.ts',
+			'extensions/copilot/src/platform/test/node/extensionContext.ts',
+			'extensions/copilot/src/platform/test/node/fetcher.ts',
+			'extensions/copilot/src/platform/test/node/services.ts',
+			'extensions/copilot/src/platform/test/node/simulationWorkspace.ts',
+			'extensions/copilot/src/platform/test/node/telemetry.ts',
+			'extensions/copilot/src/platform/test/node/testWorkbenchService.ts',
+			'extensions/copilot/src/platform/testing/common/nullWorkspaceMutationManager.ts',
+			'extensions/copilot/src/platform/thinking/common/thinking.ts',
+			'extensions/copilot/src/platform/tokenizer/node/tikTokenizerWorker.ts',
+			'extensions/copilot/src/platform/tokenizer/node/tokenizer.ts',
+			'extensions/copilot/src/platform/workbench/common/workbenchService.ts',
+			'extensions/copilot/src/platform/workbench/vscode/workbenchServiceImpt.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/nullWorkspaceFileIndex.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/tfidfChunkSearch.ts',
+			'extensions/copilot/src/platform/workspaceChunkSearch/node/workspaceFileIndex.ts',
+			'extensions/copilot/src/platform/workspaceRecorder/common/resolvedRecording/resolvedRecording.ts',
+			'extensions/copilot/src/util/common/async.ts',
+			'extensions/copilot/src/util/common/cache.ts',
+			'extensions/copilot/src/util/common/chatResponseStreamImpl.ts',
+			'extensions/copilot/src/util/common/debounce.ts',
+			'extensions/copilot/src/util/common/debugValueEditorGlobals.ts',
+			'extensions/copilot/src/util/common/diff.ts',
+			'extensions/copilot/src/util/common/progress.ts',
+			'extensions/copilot/src/util/common/test/shims/chatTypes.ts',
+			'extensions/copilot/src/util/common/test/shims/editing.ts',
+			'extensions/copilot/src/util/common/test/shims/l10n.ts',
+			'extensions/copilot/src/util/common/test/shims/notebookDocument.ts',
+			'extensions/copilot/src/util/common/test/shims/vscodeTypesShim.ts',
+			'extensions/copilot/src/util/common/test/simpleMock.ts',
+			'extensions/copilot/src/util/common/timeTravelScheduler.ts',
+			'extensions/copilot/src/util/common/types.ts',
+			'extensions/copilot/src/util/node/worker.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/no-explicit-any': [
+				'warn',
+				{
+					'fixToUnknown': true
+				}
+			]
+		}
+	},
+	// copilot extension - chatLibMain exception
+	{
+		files: [
+			'extensions/copilot/src/lib/node/chatLibMain.ts',
+		],
+		rules: {
+			'import/no-restricted-paths': 'off'
 		}
 	},
 	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions

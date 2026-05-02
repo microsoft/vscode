@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+/* eslint-disable local/code-no-unused-expressions */
 import { describe, expect, it } from 'vitest';
 import type { ChatResult } from 'vscode';
 import { ChatVariablesCollection } from '../../common/chatVariablesCollection';

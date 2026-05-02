@@ -86,7 +86,7 @@ export class ClaudeOTelTracker {
 			},
 			parentTraceContext: this._currentTraceContext,
 		});
-		const userContent = truncateForOTel(promptLabel);
+		const userContent = truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars);
 		userMsgSpan.setAttribute(CopilotChatAttr.USER_REQUEST, userContent);
 		userMsgSpan.addEvent('user_message', { content: userContent, [CopilotChatAttr.CHAT_SESSION_ID]: this._sessionId });
 		userMsgSpan.end();
@@ -191,7 +191,7 @@ export class ClaudeOTelTracker {
 			this._currentSpan.setAttribute(CopilotChatAttr.TURN_COUNT, message.num_turns);
 		}
 		if (message.total_cost_usd !== undefined) {
-			this._currentSpan.setAttribute('copilot_chat.total_cost_usd', message.total_cost_usd);
+			this._currentSpan.setAttribute(CopilotChatAttr.TOTAL_COST_USD, message.total_cost_usd);
 		}
 		const responseModel = message.modelUsage ? Object.keys(message.modelUsage)[0] : undefined;
 		if (responseModel) {

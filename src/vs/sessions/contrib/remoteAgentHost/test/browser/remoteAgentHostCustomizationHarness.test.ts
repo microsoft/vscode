@@ -12,7 +12,9 @@ import { type IAgentConnection } from '../../../../../platform/agentHost/common/
 import { ActionType, type ActionEnvelope, type INotification, type StateAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationStatus, type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService, type IFileStatResult } from '../../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { IFileService, type IFileContent, type IFileStat, type IFileStatResult } from '../../../../../platform/files/common/files.js';
+import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -317,6 +319,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 					}
 					return { success: false, stat: undefined } as unknown as IFileStatResult;
 				});
+			}
+			override async readFile(resource: URI): Promise<IFileContent> {
+				if (resource.path.endsWith('/my-skill/SKILL.md')) {
+					const content = '---\n---\n';
+					return { resource, name: 'SKILL.md', value: VSBuffer.fromString(content), mtime: 0, ctime: 0, etag: '', size: content.length, readonly: false, locked: false, executable: false };
+				}
+				throw new Error('ENOENT');
 			}
 		};
 
@@ -639,5 +648,72 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.ok(items.find(i => i.name === 'Client B'), 'should have Client B');
 		const keys = items.map(i => i.itemKey);
 		assert.strictEqual(new Set(keys).size, 2, 'all item keys should be unique');
+	});
+
+	test('provider parses skill metadata, rewrites folder URIs to SKILL.md, and skips unreadable folder skills', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const controller = disposables.add(new RemoteAgentPluginController(
+			'Test Host',
+			'test-authority',
+			connection,
+			{} as IFileDialogService,
+			createNotificationService(),
+			{} as IAICustomizationWorkspaceService,
+		));
+		const plugin: CustomizationRef = { uri: 'file:///plugins/skills-bundle', displayName: 'Skills Bundle' };
+
+		connection.setRootState({ agents: [createAgentInfo([plugin])] });
+
+		// Build a synthetic plugin that contains a `skills/` directory with:
+		//  - `valid-skill/` folder (SKILL.md parses with name + description)
+		//  - `broken-skill/` folder (SKILL.md read fails — entry should be skipped)
+		//  - `legacy.skill.md` flat file (kept as-is, name from filename)
+		const skillsDirChildren: IFileStat[] = [
+			{ name: 'valid-skill', resource: URI.parse('vscode-agent-host://test/plugins/skills-bundle/skills/valid-skill'), isFile: false, isDirectory: true, isSymbolicLink: false, children: undefined },
+			{ name: 'broken-skill', resource: URI.parse('vscode-agent-host://test/plugins/skills-bundle/skills/broken-skill'), isFile: false, isDirectory: true, isSymbolicLink: false, children: undefined },
+			{ name: 'legacy.skill.md', resource: URI.parse('vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md'), isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined },
+		];
+
+		const fileService = new class extends mock<IFileService>() {
+			override async canHandleResource() { return true; }
+			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
+				return toResolve.map(({ resource }) => {
+					if (resource.path.endsWith('/skills')) {
+						return {
+							success: true,
+							stat: { name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren },
+						};
+					}
+					return { success: false };
+				});
+			}
+			override async readFile(resource: URI): Promise<IFileContent> {
+				if (resource.path.endsWith('/valid-skill/SKILL.md')) {
+					const content = '---\nname: Pretty Name\ndescription: A friendly skill description\n---\n\n# Body\n';
+					return { resource, name: 'SKILL.md', value: VSBuffer.fromString(content), mtime: 0, ctime: 0, etag: '', size: content.length, readonly: false, locked: false, executable: false };
+				}
+				throw new Error('ENOENT');
+			}
+		};
+
+		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+			createAgentInfo([plugin]),
+			connection,
+			'test-authority',
+			controller,
+			fileService,
+			new NullLogService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(CancellationToken.None);
+
+		const skillItems = items.filter(i => i.type === PromptsType.skill);
+		assert.deepStrictEqual(
+			skillItems.map(i => ({ name: i.name, description: i.description, uri: i.uri.toString() })).sort((a, b) => a.name.localeCompare(b.name)),
+			[
+				{ name: 'Pretty Name', description: 'A friendly skill description', uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/valid-skill/SKILL.md' },
+				{ name: 'legacy', description: undefined, uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md' },
+			].sort((a, b) => a.name.localeCompare(b.name)),
+		);
 	});
 });

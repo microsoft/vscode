@@ -176,6 +176,33 @@ const toolMessages = [
 	localize('chat.thinking.tool.5', 'Evaluating'),
 ];
 
+/** Easter-egg loading messages, used ~1 in {@link FUN_WORKING_MESSAGE_RATE} picks. */
+const funWorkingMessages = [
+	// Generic
+	localize('chat.working.fun.1', "Bribing the hamster"),
+	localize('chat.working.fun.2', "Reticulating splines"),
+	localize('chat.working.fun.3', "Untangling the spaghetti"),
+
+	// Halo
+	localize('chat.working.fun.halo.1', "Activating Cortana"),
+
+	// Minecraft
+	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
+
+	// Microsoft
+	localize('chat.working.fun.ms.1', "Summoning Clippy"),
+];
+
+const FUN_WORKING_MESSAGE_RATE = 100;
+
+/** Returns an easter-egg message ~1 in {@link FUN_WORKING_MESSAGE_RATE}, else `undefined`. */
+export function maybePickFunWorkingMessage(): string | undefined {
+	if (Math.floor(Math.random() * FUN_WORKING_MESSAGE_RATE) === 0) {
+		return funWorkingMessages[Math.floor(Math.random() * funWorkingMessages.length)];
+	}
+	return undefined;
+}
+
 /**
  * Builds a phrase pool from defaults and user-configured custom phrases.
  * In 'replace' mode, only custom phrases are used; in 'append' mode (default),
@@ -260,6 +287,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
+		const fun = maybePickFunWorkingMessage();
+		if (fun) {
+			return fun;
+		}
+
 		let pool = this.availableMessagesByCategory.get(category);
 		if (!pool || pool.length === 0) {
 			let defaults: string[];

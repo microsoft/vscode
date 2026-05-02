@@ -130,13 +130,10 @@
 	padding: 8px 10px 8px 8px;
 }
 
-.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-bottom: 8px;
-	padding: 0 8px;
-}
-
-.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-header {
-	padding: 8px 10px 8px 8px;
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
+	font-size: 12px;
+	margin-bottom: 0;
+	color: var(--vscode-foreground);
 }
 
 .sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .collapsible-inner {
@@ -144,11 +141,20 @@
 }
 
 .sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .contribution .header {
-	padding: 0 10px 8px 8px;
+	padding: 0 10px 0 8px;
+	margin-bottom: 0;
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip div.header .monaco-action-bar {
+	color: var(--vscode-foreground);
 }
 
 .sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .contribution .body {
-	padding: 0 10px 4px 8px;
+	padding: 0 10px 0 8px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {

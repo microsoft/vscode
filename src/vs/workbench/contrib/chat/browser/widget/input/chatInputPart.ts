@@ -78,11 +78,10 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../service
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
-import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
-import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
@@ -100,7 +99,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessi
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
@@ -428,6 +427,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeCurrentChatMode: Event<void> = this._onDidChangeCurrentChatMode.event;
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
+	private readonly _currentChatModesObservable: ISettableObservable<IChatModes>;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
@@ -440,6 +440,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeObs(): IObservable<IChatMode> {
 		return this._currentModeObservable;
+	}
+
+	public get currentChatModesObs(): IObservable<IChatModes> {
+		return this._currentChatModesObservable;
 	}
 
 	public get currentPermissionLevelObs(): IObservable<ChatPermissionLevel> {
@@ -566,6 +570,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
+		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', this.chatModeService.getModes(localChatSessionType));
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
@@ -697,7 +702,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			this._inputEditor?.updateOptions({ ariaLabel: this._getAriaLabel() });
 		}));
-		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
+		this._register(autorun(reader => {
+			const modes = this._currentChatModesObservable.read(reader);
+			reader.store.add(modes.onDidChange(() => this.validateCurrentChatMode()));
+		}));
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
@@ -919,8 +927,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Set the input model reference for syncing input state
-	 */
-	setInputModel(model: IInputModel, chatSessionIsEmpty: boolean): void {
+	 *
+	 * Note: We have a cyclic ref between ChatInputPart and ChatWidget,
+	 * When we invoke setInputModel, the property _widget is not set. Hence we don't have the SessionResource.
+	 * As a result, in this method when syncFromModel is called, the model state is not applied to the UI.
+	 * Instead, the defaults are computed and the model is updated with default values. Thereby blowing away model information.
+	 * Setting Widget and then calling this doesn't work either because the widget also relies on ChatInputPart (hence cyclic ref).
+	 * Solution is to pass the SessionResource as an argument to this method.
+	*/
+	setInputModel(model: IInputModel, chatSessionIsEmpty: boolean, forSessionResource: URI): void {
 		// Flush current state to the outgoing model before switching,
 		// so it preserves the latest permission level and other picker state.
 		if (this._inputModel) {
@@ -929,6 +944,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputModel = model;
 		this._modelSyncDisposables.clear();
+		this._currentChatModesObservable.set(this.chatModeService.getModes(getChatSessionType(forSessionResource)), undefined);
 		this.selectedToolsModel.resetSessionEnablementState();
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
@@ -943,7 +959,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this._setEmptyModelState();
 				}
 			}));
-			this._modelSyncDisposables.add(this.chatModeService.onDidChangeChatModes(() => {
+			this._modelSyncDisposables.add(this._currentChatModesObservable.get().onDidChange(() => {
 				if (this._chatSessionIsEmpty) {
 					this._setEmptyModelState();
 				}
@@ -957,12 +973,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				state = this._emptyInputState.read(undefined);
 			}
 
-			this._syncFromModel(state);
+			this._syncFromModel(state, forSessionResource);
 		}));
 	}
 
 	private _setEmptyModelState() {
-		this.setPermissionLevel(this.getDefaultPermissionLevel());
+		if (this._inputModel?.state?.get()?.permissionLevel !== this.getDefaultPermissionLevel()) {
+			this.setPermissionLevel(this.getDefaultPermissionLevel());
+		}
 
 		if (this.entitlementService.anonymous) {
 			// Be deterministic for anonymous users to support
@@ -977,9 +995,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const defaultMode = rawDefaultMode.trim();
 			if (defaultMode) {
 				const defaultModeLower = defaultMode.toLowerCase();
-				const resolved = this.chatModeService.findModeById(defaultMode)
-					?? this.chatModeService.findModeByName(defaultMode)
-					?? this.chatModeService.getModes().custom.find(m => m.name.get().toLowerCase() === defaultModeLower);
+				const modes = this._currentChatModesObservable.get();
+				const resolved = modes.findModeById(defaultMode)
+					?? modes.findModeByName(defaultMode)
+					?? modes.custom.find(m => m.name.get().toLowerCase() === defaultModeLower);
 				if (resolved) {
 					this.logService.trace(`[ChatInputPart] Applying default mode from setting: ${defaultMode} -> ${resolved.id}`);
 					this.setChatMode(resolved.id, false);
@@ -992,7 +1011,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync from model to view (when model state changes)
 	 */
-	private _syncFromModel(state: IChatModelInputState | undefined): void {
+	private _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): void {
 		// Prevent circular updates
 		if (this._isSyncingToOrFromInputModel) {
 			return;
@@ -1012,11 +1031,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
-				const sessionType = this.getCurrentSessionType();
+				const sessionType = this.getCurrentSessionType() ?? getChatSessionType(forSessionResource);
 				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
-					isInlineChatV2Enabled: !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2),
 					sessionType,
 				});
 				if (syncResult.action === 'apply') {
@@ -1070,7 +1088,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
 		if (this._chatSessionIsEmpty) {
@@ -1116,7 +1133,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (shouldResetModelToDefault(lm, this.getModels(), {
 			location: this.location,
 			currentModeKind: this.currentModeKind,
-			isInlineChatV2Enabled: !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2),
 			sessionType: this.getCurrentSessionType(),
 		}, allModels)) {
 			this.setCurrentLanguageModelToDefault();
@@ -1131,9 +1147,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const mode2 = this.chatModeService.findModeById(mode) ??
-			this.chatModeService.findModeByName(mode) ??
-			this.chatModeService.findModeById(ChatModeKind.Agent) ??
+		const modes = this._currentChatModesObservable.get();
+		const mode2 = modes.findModeById(mode) ??
+			modes.findModeByName(mode) ??
+			modes.findModeById(ChatModeKind.Agent) ??
 			ChatMode.Ask;
 		this.setChatMode2(mode2, storeSelection);
 	}
@@ -1172,7 +1189,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const models = this.getAllMergedModels();
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
-		return filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location, !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2));
+		return filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
 	}
 
 	/**
@@ -1374,7 +1391,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private validateCurrentChatMode() {
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this.chatModeService.findModeById(currentMode.id);
+		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
@@ -2349,6 +2366,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
+						currentChatModes: this._currentChatModesObservable,
 						sessionResource: () => this._widget?.viewModel?.sessionResource,
 						customAgentTarget: () => {
 							const sessionResource = this._widget?.viewModel?.model.sessionResource;
@@ -2757,6 +2775,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
+			} else if (isBrowserViewVariableEntry(attachment)) {
+				attachmentWidget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
 			} else {
 				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container)
 					?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);

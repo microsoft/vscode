@@ -10,11 +10,12 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { createBrowserPageLink, DEFAULT_ELEMENT_LABEL, errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const DragElementToolData: IToolData = {
 	id: 'drag_element',
-	toolReferenceName: 'dragElement',
+	toolReferenceName: BrowserChatToolReferenceName.DragElement,
 	displayName: localize('dragElementTool.displayName', 'Drag Element'),
 	userDescription: localize('dragElementTool.userDescription', 'Drag an element over another element'),
 	modelDescription: 'Drag an element over another element in a browser page.',

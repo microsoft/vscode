@@ -395,7 +395,10 @@ function createTurnFromVSCodeChatHistoryTurns(
 		{ message: chatRequestTurn.prompt, type: 'user' },
 		new ChatVariablesCollection(chatRequestTurn.references),
 		chatRequestTurn.toolReferences.map(InternalToolReference.from),
-		chatRequestAsTurn2.editedFileEvents
+		chatRequestAsTurn2.editedFileEvents,
+		undefined,
+		false,
+		chatRequestAsTurn2.modeInstructions2,
 	);
 
 	// Take just the content messages

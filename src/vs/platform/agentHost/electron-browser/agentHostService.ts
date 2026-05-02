@@ -22,6 +22,8 @@ import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, Reso
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
+import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -71,6 +73,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -103,7 +106,14 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		this._logService.info('[AgentHost:renderer] MessagePort acquired, creating client...');
 
 		const store = this._register(new DisposableStore());
-		const client = store.add(new MessagePortClient(port, `agentHost:window`));
+		// Use clientId as the IPC ctx so the agent host can route reverse-RPC
+		// calls (vscode-agent-client filesystem reads) back to this renderer
+		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
+		const client = store.add(new MessagePortClient(port, this.clientId));
+		// Serve filesystem reverse-RPCs from the local file service. The
+		// agent host registers an authority on its
+		// AgentHostClientFileSystemProvider that calls back through this channel.
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService));
 		this._clientEventually.complete(client);
 
 		store.add(this._proxy.onDidAction(e => {
@@ -154,11 +164,11 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
-	subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource);
+	private subscribe(resource: URI): Promise<IStateSnapshot> {
+		return this._proxy.subscribe(resource, this.clientId);
 	}
-	unsubscribe(resource: URI): void {
-		this._proxy.unsubscribe(resource);
+	private unsubscribe(resource: URI): void {
+		this._proxy.unsubscribe(resource, this.clientId);
 	}
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);

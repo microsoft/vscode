@@ -12,7 +12,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -31,7 +30,6 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatDebugService } from '../chatDebugService.js';
-import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
@@ -43,15 +41,16 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService, localChatSessionType } from '../chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
@@ -117,6 +116,9 @@ class CancellableRequest implements IDisposable {
 		this._yieldRequested.set(false, undefined);
 	}
 }
+
+const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
+const EMPTY_TOOL_ENABLEMENT_MAP: IToolAndToolSetEnablementMap = new Map();
 
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
@@ -559,7 +561,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
-		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
+		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		} else {
 			return this.loadRemoteSession(sessionResource, location, token, debugOwner);
@@ -576,7 +578,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (!await this.chatSessionService.canResolveChatSession(sessionResource.scheme)) {
+		if (!await this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource))) {
 			return undefined;
 		}
 
@@ -656,6 +658,36 @@ export class ChatService extends Disposable implements IChatService {
 			providedSession.dispose();
 		}));
 
+		const isAgentHostSession = isAgentHostTarget(chatSessionType);
+		const requestParser = isAgentHostSession ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
+		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
+			if (requestParser) {
+				try {
+					const sessionCapabilities = this.chatSessionService.getCapabilitiesForSessionType(chatSessionType);
+					const parsed = requestParser.parseChatRequestWithReferences(
+						EMPTY_REFERENCES,
+						EMPTY_TOOL_ENABLEMENT_MAP,
+						text,
+						location,
+						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities: sessionCapabilities ?? agent?.capabilities },
+					);
+					if (parsed.parts.length > 0) {
+						return parsed;
+					}
+				} catch (e) {
+					this.logService.warn(`ChatService#loadRemoteSession: failed to re-parse historical prompt for ${chatSessionType}`, e);
+				}
+			}
+			return {
+				text,
+				parts: [new ChatRequestTextPart(
+					new OffsetRange(0, text.length),
+					{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: text.length + 1 },
+					text
+				)]
+			};
+		};
+
 		let lastRequest: ChatRequestModel | undefined;
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
@@ -664,19 +696,11 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				const requestText = message.prompt;
-
-				const parsedRequest: IParsedChatRequest = {
-					text: requestText,
-					parts: [new ChatRequestTextPart(
-						new OffsetRange(0, requestText.length),
-						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-						requestText
-					)]
-				};
 				const agent =
 					message.participant
 						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
 						: this.chatAgentService.getAgent(chatSessionType);
+				const parsedRequest = parseAgentHostHistoryPrompt(requestText, agent);
 				const modeInfo = message.modeInstructions ? {
 					kind: ChatModeKind.Agent,
 					isBuiltin: message.modeInstructions.isBuiltin ?? false,
@@ -755,16 +779,8 @@ export class ChatService extends Disposable implements IChatService {
 					}
 
 					// Create a new request in the model
-					const requestText = prompt;
-					const parsedRequest: IParsedChatRequest = {
-						text: requestText,
-						parts: [new ChatRequestTextPart(
-							new OffsetRange(0, requestText.length),
-							{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-							requestText
-						)]
-					};
 					const agent = this.chatAgentService.getAgent(chatSessionType);
+					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
 					lastRequest = model.addRequest(parsedRequest, { variables: [] }, 0, undefined, agent);
 
 					// Reset progress tracking for the new turn
@@ -1120,7 +1136,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentName) {
 					try {
 						const agents = await this.promptsService.getCustomAgents(token);
-						const customAgent = agents.find(a => a.name === agentName);
+						const customAgent = agents.find(a => a.name === agentName && a.enabled);
 						if (customAgent?.hooks) {
 							collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
 						}
@@ -1280,7 +1296,7 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
-						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
+						location !== ChatAgentLocation.EditorInline &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent
@@ -1477,7 +1493,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * controls queued-message dequeuing on the server side.
 	 */
 	private _isServerManagedQueue(sessionResource: URI): boolean {
-		return sessionResource.scheme.startsWith('agent-host-');
+		return getChatSessionType(sessionResource).startsWith('agent-host-');
 	}
 
 	/**
