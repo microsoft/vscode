@@ -197,6 +197,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _hasAnySubmenuActions: boolean,
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
+		private readonly _hideDefaultKeybindingTooltip: boolean,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -350,6 +351,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
+		} else if (this._hideDefaultKeybindingTooltip) {
+			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
@@ -492,6 +495,13 @@ export interface IActionListOptions {
 	 * Defaults to true for alignment consistency.
 	 */
 	readonly reserveSubmenuSpace?: boolean;
+
+	/**
+	 * When true, items without an explicit `tooltip` or `hover` do not get a
+	 * default "{keybinding} to Apply" tooltip. Useful for non-code-action lists
+	 * where this hint is misleading.
+	 */
+	readonly hideDefaultKeybindingTooltip?: boolean;
 }
 
 /**
@@ -592,7 +602,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
