@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getModelPickerAccessibilityProvider, getShortModelName } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -742,10 +742,72 @@ suite('buildModelPickerItems', () => {
 	test('model description combines detail and pricing', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		assert.strictEqual(gptItem.item?.description, 'High · 3x');
+	});
+
+	test('model description hides non-multiplier pricing from description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'Provider', pricing: 'In: 2.04 · Out: 4.34 AICs/1M tokens' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Non-multiplier pricing should not appear in description
+		assert.strictEqual(gptItem.item?.description, 'Provider');
+	});
+
+	test('model description shows multiplier pricing in description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('claude', 'Claude');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const claudeItem = getActionItems(items).find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, '15x');
+	});
+
+	test('model with no pricing and no detail has undefined description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+	});
+});
+
+suite('getShortModelName', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('strips space-separated brand prefix', () => {
+		assert.strictEqual(getShortModelName('Claude Sonnet 4.6'), 'Sonnet 4.6');
+		assert.strictEqual(getShortModelName('Gemini 2.5 Pro'), '2.5 Pro');
+		assert.strictEqual(getShortModelName('Grok 3'), '3');
+	});
+
+	test('strips hyphen-separated brand prefix', () => {
+		assert.strictEqual(getShortModelName('GPT-4o'), '4o');
+		assert.strictEqual(getShortModelName('GPT-5.4'), '5.4');
+	});
+
+	test('returns single-word names unchanged', () => {
+		assert.strictEqual(getShortModelName('Auto'), 'Auto');
+	});
+
+	test('handles names with parentheses', () => {
+		assert.strictEqual(getShortModelName('Claude Opus 4.7 (Internal only)'), 'Opus 4.7 (Internal only)');
+	});
+
+	test('handles unknown brands', () => {
+		assert.strictEqual(getShortModelName('NewBrand SuperModel'), 'SuperModel');
+	});
+
+	test('hyphen-separated takes priority over space for hyphenated brands', () => {
+		assert.strictEqual(getShortModelName('GPT-5 mini'), '5 mini');
 	});
 });

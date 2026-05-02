@@ -533,27 +533,37 @@ function createUnavailableModelItem(
 }
 
 /**
- * Returns a shortened model name by stripping the vendor prefix.
+ * Returns a shortened model name by stripping the vendor/brand prefix.
+ * Handles "Brand Model" (space) and "Brand-Model" (hyphen) patterns.
+ * Returns original name if stripping would leave nothing meaningful.
  */
-function getShortModelName(name: string): string {
-	const prefixes = [/^Claude\s+/i, /^GPT-/i, /^Gemini\s+/i, /^Grok\s+/i];
-	for (const prefix of prefixes) {
-		if (prefix.test(name)) {
-			return name.replace(prefix, '');
-		}
+export function getShortModelName(name: string): string {
+	// Try stripping prefix before hyphen first (e.g., "GPT-4o" → "4o", "GPT-5 mini" → "5 mini")
+	const hyphenMatch = name.match(/^[A-Za-z]+-(.+)$/);
+	if (hyphenMatch && hyphenMatch[1].length > 0) {
+		return hyphenMatch[1];
+	}
+	// Try stripping first word + space (e.g., "Claude Sonnet 4.6" → "Sonnet 4.6")
+	const spaceMatch = name.match(/^\S+\s+(.+)$/);
+	if (spaceMatch && spaceMatch[1].length > 0) {
+		return spaceMatch[1];
 	}
 	return name;
 }
 
-function getShortEffortLabel(value: string): string {
-	switch (value.toLowerCase()) {
-		case 'low': return 'Low';
-		case 'medium': return 'Med';
-		case 'high': return 'High';
-		case 'xhigh': return 'XHigh';
-		case 'none': return 'None';
-		default: return value.charAt(0).toUpperCase() + value.slice(1);
+/**
+ * Shortens a localized effort label for compact display.
+ * e.g. "Medium" → "Med". Leaves short labels as-is.
+ */
+function shortenEffortLabel(label: string): string {
+	if (label.length <= 4) {
+		return label;
 	}
+	// Shorten known long labels
+	if (/^medium$/i.test(label)) {
+		return label.slice(0, 3); // "Med" / "med"
+	}
+	return label;
 }
 
 type ModelPickerBadge = 'info' | 'warning';
@@ -878,10 +888,15 @@ export class ModelPickerWidget extends Disposable {
 		// --- Effort section (from configurationSchema group 'navigation') ---
 		const effortConfig = this._getConfigProperty('navigation');
 		if (effortConfig && this._effortButton) {
-			const effortLabel = getShortEffortLabel(String(effortConfig.value));
+			// Use the localized enumItemLabel from the schema, falling back to the raw value
+			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
+			const localizedLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
+				? effortConfig.schema.enumItemLabels[enumIndex]
+				: String(effortConfig.value);
+			const effortLabel = shortenEffortLabel(localizedLabel);
 			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
 			this._effortButton.style.display = '';
-			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
+			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", localizedLabel);
 		} else if (this._effortButton) {
 			this._effortButton.style.display = 'none';
 		}
