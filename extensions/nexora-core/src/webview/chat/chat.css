@@ -32,6 +32,15 @@
 	--nx-inputFg: var(--vscode-input-foreground);
 	--nx-inputBorder: var(--vscode-input-border);
 	--nx-codeBg: var(--vscode-textCodeBlock-background);
+	--nx-ddMenuBg: var(--vscode-dropdown-background, var(--nx-inputBg));
+	--nx-ddMenuFg: var(--vscode-dropdown-foreground, var(--nx-inputFg));
+	--nx-ddMenuBorder: var(--vscode-dropdown-border, var(--nx-border));
+	--nx-ddListHover: var(--vscode-list-hoverBackground, color-mix(in srgb, var(--nx-fg) 8%, transparent));
+	--nx-ddListActiveBg: var(--vscode-list-activeSelectionBackground, var(--nx-primary));
+	--nx-ddListActiveFg: var(--vscode-list-activeSelectionForeground, var(--nx-primaryFg));
+	--nx-ddListFocusBg: var(--vscode-list-focusBackground, color-mix(in srgb, var(--nx-primary) 28%, transparent));
+	--nx-ddListFocusFg: var(--vscode-list-focusForeground, var(--nx-fg));
+	--nx-ddShadow: 0 4px 16px color-mix(in srgb, #000 45%, transparent);
 }
 
 *
@@ -52,6 +61,7 @@ body
 	font-family: var(--nx-font-ui);
 	color: var(--nx-fg);
 	background: var(--nx-bg);
+	overflow-x: hidden;
 }
 
 .nx-root
@@ -59,17 +69,76 @@ body
 	height: 100vh;
 	display: grid;
 	grid-template-rows: auto 1fr auto;
+	width: 100%;
+	max-width: 100%;
+	overflow-x: hidden;
 }
 
 /* Header */
 .nx-header
 {
 	display: grid;
-	grid-template-columns: 1fr auto;
+	grid-template-columns: 1fr auto auto;
 	gap: var(--nx-space-3);
 	padding: var(--nx-space-2) var(--nx-space-4);
 	border-bottom: 1px solid var(--nx-border);
 	background: var(--nx-surface-2);
+}
+
+.nx-sessions
+{
+	display: flex;
+	align-items: center;
+	gap: var(--nx-space-2);
+}
+
+.nx-sessionSelect
+{
+	max-width: 140px;
+	padding: 4px 8px;
+	border: 1px solid var(--vscode-input-border, var(--nx-border));
+	border-radius: var(--nx-radius-2);
+	background: var(--vscode-input-background, var(--nx-surface-1));
+	color: var(--vscode-input-foreground, var(--nx-fg));
+	font-size: 12px;
+}
+
+.nx-sessionSelect:focus
+{
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.nx-sessionNew
+{
+	width: 26px;
+	height: 26px;
+	border-radius: var(--nx-radius-2);
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--nx-border));
+	background: var(--vscode-button-secondaryBackground, var(--nx-surface-1));
+	color: var(--vscode-button-secondaryForeground, var(--nx-fg));
+	cursor: pointer;
+}
+
+.nx-sessionNew:hover
+{
+	background: var(--vscode-button-secondaryHoverBackground, var(--nx-surface-2));
+}
+
+.nx-sessionDelete
+{
+	width: 26px;
+	height: 26px;
+	border-radius: var(--nx-radius-2);
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--nx-border));
+	background: var(--vscode-button-secondaryBackground, var(--nx-surface-1));
+	color: var(--vscode-button-secondaryForeground, var(--nx-fg));
+	cursor: pointer;
+}
+
+.nx-sessionDelete:hover
+{
+	background: var(--vscode-button-secondaryHoverBackground, var(--nx-surface-2));
 }
 
 .nx-status
@@ -169,6 +238,57 @@ body
 	height: 100%;
 	padding: var(--nx-space-4);
 	overflow: auto;
+	overflow-x: hidden;
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+
+.nx-messages.nx-scrollShow
+{
+	scrollbar-color: color-mix(in srgb, var(--vscode-scrollbarSlider-background, var(--nx-muted)) 80%, transparent) transparent;
+}
+
+.nx-messages::-webkit-scrollbar
+{
+	width: 8px;
+}
+
+.nx-messages::-webkit-scrollbar-corner
+{
+	background: transparent;
+}
+
+.nx-messages::-webkit-scrollbar-track
+{
+	background: transparent;
+	border: none;
+}
+
+.nx-messages::-webkit-scrollbar-button
+{
+	display: none;
+	width: 0;
+	height: 0;
+}
+
+.nx-messages::-webkit-scrollbar-thumb
+{
+	background: transparent;
+	border-radius: 8px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.nx-messages.nx-scrollShow::-webkit-scrollbar-thumb
+{
+	background: color-mix(in srgb, var(--vscode-scrollbarSlider-background, var(--nx-muted)) 75%, transparent);
+	background-clip: content-box;
+}
+
+.nx-messages.nx-scrollShow::-webkit-scrollbar-thumb:hover
+{
+	background: color-mix(in srgb, var(--vscode-scrollbarSlider-hoverBackground, var(--vscode-scrollbarSlider-background, var(--nx-muted))) 88%, transparent);
+	background-clip: content-box;
 }
 
 /* Welcome screen */
@@ -217,34 +337,45 @@ body
 
 .nx-quickBtn
 {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	gap: var(--nx-space-2);
-	padding: var(--nx-space-2) var(--nx-space-3);
-	border: 1px solid var(--nx-border);
-	border-radius: var(--nx-radius-1);
-	background: var(--nx-surface);
+	gap: 8px;
+	padding: 7px 10px;
+	border: 1px solid color-mix(in srgb, var(--nx-border) 75%, transparent);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--nx-surface) 88%, transparent);
 	color: var(--nx-fg);
 	font-size: 12px;
 	cursor: pointer;
-	transition: all 0.15s ease;
+	transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
 .nx-quickBtn:hover
 {
-	background: var(--nx-surface-2);
-	border-color: var(--nx-primary);
+	background: color-mix(in srgb, var(--nx-surface-2) 92%, transparent);
+	border-color: color-mix(in srgb, var(--nx-focus) 35%, var(--nx-border));
+	transform: translateY(-0.5px);
 }
 
 .nx-quickBtn:focus
 {
-	outline: 2px solid var(--nx-focus);
-	outline-offset: 1px;
+	outline: 1px solid color-mix(in srgb, var(--nx-focus) 70%, transparent);
+	outline-offset: 2px;
 }
 
 .nx-quickIcon
 {
-	font-size: 14px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 6px;
+	border: 1px solid color-mix(in srgb, var(--nx-border) 80%, transparent);
+	background: color-mix(in srgb, var(--nx-surface-2) 65%, transparent);
+	color: var(--nx-muted);
+	font-size: 12px;
+	line-height: 1;
 }
 
 /* Messages */
@@ -279,6 +410,8 @@ body
 	padding: var(--nx-space-2) var(--nx-space-4) var(--nx-space-3) var(--nx-space-4);
 	font-size: 13px;
 	line-height: 1.6;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .nx-msgLoading
@@ -344,100 +477,231 @@ body
 	line-height: 1.45;
 }
 
-/* Footer */
+/* Footer / composer (Copilot-ish: single card + toolbar) */
 .nx-footer
 {
-	border-top: 1px solid var(--nx-border);
-	background: var(--nx-surface-2);
-	padding: var(--nx-space-3) var(--nx-space-4);
+	position: relative;
+	border-top: 1px solid color-mix(in srgb, var(--nx-border) 70%, transparent);
+	background: color-mix(in srgb, var(--nx-bg) 55%, var(--nx-surface-2));
+	padding: 10px 12px 12px;
 }
 
-.nx-composerTop
+.nx-composerCard
 {
-	margin-bottom: var(--nx-space-2);
+	position: relative;
+	z-index: 2;
+	border: 1px solid color-mix(in srgb, var(--nx-inputBorder) 80%, transparent);
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--nx-inputBg) 92%, var(--nx-surface-2));
+	overflow: visible;
+	box-shadow:
+		0 10px 28px color-mix(in srgb, #000 22%, transparent),
+		0 1px 0 color-mix(in srgb, var(--nx-fg) 6%, transparent);
+}
+
+.nx-composerCard:focus-within
+{
+	border-color: color-mix(in srgb, var(--nx-focus) 55%, var(--nx-inputBorder));
+	box-shadow:
+		0 0 0 1px color-mix(in srgb, var(--nx-focus) 35%, transparent),
+		0 14px 34px color-mix(in srgb, #000 26%, transparent);
+}
+
+.nx-composerInputRow
+{
+	padding: 12px 12px 10px;
 }
 
 .nx-input
 {
 	width: 100%;
-	padding: 10px 12px;
-	border-radius: var(--nx-radius-1);
-	border: 1px solid var(--nx-inputBorder);
-	background: var(--nx-inputBg);
+	padding: 0;
+	border-radius: 0;
+	border: 0;
+	background: transparent;
 	color: var(--nx-inputFg);
 	font-size: 13px;
+	line-height: 1.45;
 }
 
 .nx-input:focus
 {
-	outline: 2px solid var(--nx-focus);
-	outline-offset: 1px;
+	outline: none;
 }
 
-.nx-composerBottom
+.nx-composerToolbar
 {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	gap: var(--nx-space-3);
+	gap: var(--nx-space-2);
+	padding: 8px 10px 9px;
+	border-top: 1px solid color-mix(in srgb, var(--nx-border) 55%, transparent);
+	background: color-mix(in srgb, var(--nx-surface-2) 52%, transparent);
 }
 
 .nx-modeSelector
 {
 	display: flex;
-	gap: var(--nx-space-2);
+	gap: 8px;
 	align-items: center;
+	min-width: 0;
+	flex: 1;
 }
 
-.nx-modeSelect,
-.nx-modelSelect
+/* Custom listboxes (mode / model): VS Code-style trigger + menu - native <select> cannot style the open panel */
+.nx-dd
 {
-	padding: 6px 10px;
-	border-radius: var(--nx-radius-1);
-	border: 1px solid var(--nx-inputBorder);
-	background: var(--nx-inputBg);
-	color: var(--nx-inputFg);
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	max-width: 48%;
+	font-family: var(--nx-font-ui);
 	font-size: 12px;
+	line-height: 1.35;
+}
+
+.nx-ddTrigger
+{
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	min-height: 28px;
+	padding: 6px 12px 6px 14px;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--nx-inputBorder) 65%, transparent);
+	background: color-mix(in srgb, var(--nx-inputBg) 70%, var(--nx-surface));
+	color: var(--nx-inputFg);
 	cursor: pointer;
+	font: inherit;
+	text-align: left;
+	-webkit-font-smoothing: antialiased;
 }
 
-.nx-modeSelect:focus,
-.nx-modelSelect:focus
+.nx-ddTrigger:hover
 {
-	outline: 2px solid var(--nx-focus);
-	outline-offset: 1px;
+	background: color-mix(in srgb, var(--nx-inputBg) 88%, var(--nx-surface-2));
+	border-color: color-mix(in srgb, var(--nx-inputBorder) 85%, transparent);
 }
 
-.nx-modeSelect
+.nx-ddTrigger:focus
 {
-	min-width: 110px;
+	outline: none;
 }
 
-.nx-modelSelect
+.nx-ddTrigger:focus-visible
 {
-	min-width: 140px;
+	border-color: var(--nx-focus);
+	box-shadow: 0 0 0 1px var(--nx-focus);
+}
+
+.nx-ddOpen .nx-ddTrigger
+{
+	border-color: var(--nx-focus);
+	box-shadow: 0 0 0 1px var(--nx-focus);
+}
+
+.nx-ddTriggerText
+{
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+.nx-ddChevron
+{
+	flex-shrink: 0;
+	display: inline-flex;
+	color: color-mix(in srgb, var(--nx-muted) 80%, var(--nx-fg));
+	opacity: 0.92;
+}
+
+.nx-ddMenu
+{
+	position: fixed;
+	margin: 0;
+	padding: 4px 0;
+	min-width: 0;
+	max-height: min(240px, calc(100vh - 16px));
+	overflow-x: hidden;
+	overflow-y: auto;
+	list-style: none;
+	border-radius: var(--nx-radius-1);
+	border: 1px solid color-mix(in srgb, var(--nx-ddMenuBorder) 90%, transparent);
+	background: var(--nx-ddMenuBg);
+	color: var(--nx-ddMenuFg);
+	box-shadow: var(--nx-ddShadow);
+	z-index: 2147483646;
+}
+
+.nx-ddItem
+{
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 8px 14px;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 12px;
+	line-height: 1.4;
+	text-align: left;
+	cursor: pointer;
+	-webkit-font-smoothing: antialiased;
+}
+
+.nx-ddItem:hover
+{
+	background: var(--nx-ddListHover);
+}
+
+.nx-ddItem.nx-ddItemSelected
+{
+	background: var(--nx-ddListActiveBg);
+	color: var(--nx-ddListActiveFg);
+}
+
+.nx-ddItem.nx-ddItemKeyboard
+{
+	background: var(--nx-ddListFocusBg);
+	color: var(--nx-ddListFocusFg);
+}
+
+.nx-ddItem.nx-ddItemSelected.nx-ddItemKeyboard
+{
+	background: var(--nx-ddListActiveBg);
+	color: var(--nx-ddListActiveFg);
+	outline: 1px solid color-mix(in srgb, var(--nx-focus) 55%, transparent);
+	outline-offset: -1px;
 }
 
 .nx-sendActions
 {
 	display: flex;
 	gap: var(--nx-space-2);
+	flex-shrink: 0;
 }
 
 .nx-btn
 {
-	padding: 8px 14px;
+	padding: 8px 12px;
 	border: 1px solid transparent;
-	border-radius: var(--nx-radius-1);
+	border-radius: 999px;
 	cursor: pointer;
 	font-size: 12px;
-	font-weight: 500;
+	font-weight: 600;
 	letter-spacing: 0.01em;
 	background: var(--nx-secondary);
 	color: var(--nx-secondaryFg);
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	gap: var(--nx-space-2);
+	justify-content: center;
 }
 
 .nx-btn:hover
@@ -455,6 +719,8 @@ body
 {
 	background: var(--nx-primary);
 	color: var(--nx-primaryFg);
+	border-color: color-mix(in srgb, var(--nx-primary) 35%, transparent);
+	min-width: 0;
 }
 
 .nx-btnPrimary:hover
@@ -462,24 +728,78 @@ body
 	background: var(--nx-primaryHover);
 }
 
-.nx-sendIcon
+.nx-sendBtn.nx-btnPrimary
 {
-	opacity: 0.7;
-	font-size: 14px;
+	border: none;
+	background: color-mix(in srgb, var(--nx-fg) 16%, var(--nx-bg));
+	color: color-mix(in srgb, var(--nx-fg) 94%, white);
+}
+
+.nx-sendBtn
+{
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 42px;
+	padding: 0;
+	border-radius: 999px;
+	box-shadow:
+		0 2px 12px color-mix(in srgb, #000 32%, transparent),
+		0 1px 4px color-mix(in srgb, #000 22%, transparent);
+}
+
+.nx-sendBtn.nx-btnPrimary:hover
+{
+	background: color-mix(in srgb, var(--nx-fg) 24%, var(--nx-bg));
+	box-shadow:
+		0 4px 16px color-mix(in srgb, #000 38%, transparent),
+		0 2px 6px color-mix(in srgb, #000 26%, transparent);
+}
+
+.nx-sendGlyph
+{
+	display: inline-flex;
+	line-height: 0;
+}
+
+.nx-sendGlyph svg
+{
+	display: block;
+	transform: rotate(46deg);
+	transform-origin: center;
+}
+
+.nx-sendBtnSr
+{
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 
 .nx-modeHint
 {
-	margin-top: var(--nx-space-2);
-	padding: var(--nx-space-2);
-	background: color-mix(in srgb, var(--nx-primary) 8%, transparent);
-	border-radius: var(--nx-radius-1);
+	position: relative;
+	z-index: 0;
+	margin-top: 10px;
+	padding: 8px 10px;
+	background: transparent;
+	border-radius: 10px;
+	border: 1px solid color-mix(in srgb, var(--nx-border) 55%, transparent);
 }
 
 .nx-hintText
 {
 	font-size: 11px;
-	color: var(--nx-muted);
+	color: color-mix(in srgb, var(--nx-muted) 92%, var(--nx-fg));
+	line-height: 1.35;
 }
 
 /* Plan Approval Card */
@@ -829,4 +1149,98 @@ body
 .nx-cancelBtn:hover
 {
 	background: color-mix(in srgb, var(--nx-surface) 85%, white);
+}
+
+/* Chat activity (honest backend / memory steps) */
+.nx-activityCard
+{
+	margin: var(--nx-space-2) 0 var(--nx-space-2) 0;
+	border: 1px solid var(--nx-border);
+	border-radius: var(--nx-radius-1);
+	background: var(--nx-surface-2);
+	overflow: hidden;
+	max-width: 100%;
+}
+
+.nx-activityCardHeader
+{
+	display: flex;
+	align-items: center;
+	gap: var(--nx-space-2);
+	width: 100%;
+	padding: var(--nx-space-2) var(--nx-space-3);
+	margin: 0;
+	border: none;
+	background: transparent;
+	color: var(--nx-muted);
+	font-family: var(--nx-font-mono);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	font-variant: small-caps;
+	text-align: left;
+	cursor: pointer;
+}
+
+.nx-activityCardHeader:hover
+{
+	color: var(--nx-fg);
+	background: color-mix(in srgb, var(--nx-fg) 6%, transparent);
+}
+
+.nx-activityChevron
+{
+	display: inline-block;
+	width: 1em;
+	flex-shrink: 0;
+	opacity: 0.85;
+}
+
+.nx-activityCardTitle
+{
+	flex: 1;
+}
+
+.nx-activityCardBody
+{
+	padding: 0 var(--nx-space-3) var(--nx-space-2) var(--nx-space-3);
+}
+
+.nx-activityCard.nx-activityCardCollapsed .nx-activityCardBody
+{
+	display: none;
+}
+
+.nx-activityRow
+{
+	display: flex;
+	align-items: flex-start;
+	gap: var(--nx-space-2);
+	font-family: var(--nx-font-mono);
+	font-size: 11px;
+	line-height: 1.35;
+	color: var(--nx-muted);
+	padding: 2px 0;
+}
+
+.nx-activityRowDone
+{
+	color: var(--nx-fg);
+}
+
+.nx-activityMark
+{
+	flex-shrink: 0;
+	width: 1em;
+	opacity: 0.9;
+}
+
+.nx-activityRowDone .nx-activityMark
+{
+	color: var(--vscode-charts-green, #3fb950);
+}
+
+.nx-activityLabel
+{
+	word-break: break-word;
 }

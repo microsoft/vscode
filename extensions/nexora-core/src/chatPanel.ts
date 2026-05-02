@@ -4,10 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { promises as fs } from 'fs';
 import { getBackendClient } from './services/backendClient';
 import { getChatWebviewHtml } from './webview/chat';
-import type { ChatInitialState, WebviewInboundMessage } from './webview/chat/types';
+import type { ChatActivityItem, ChatInitialState, WebviewInboundMessage } from './webview/chat/types';
 import { getOrchestrationWebSocket, type WebSocketMessage } from './services/websocketClient';
+
+type ChatSessionRecord = {
+	id: string;
+	name: string;
+	messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+	createdAt: number;
+	memoryWorkspaceId?: string;
+	memoryWorkspacePath?: string;
+};
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'nexora.chatPanel';
@@ -15,7 +26,123 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	private _wsUnsubscribe?: () => void;
 	private _currentPlanId?: string;
 
-	constructor(private readonly _extensionUri: vscode.Uri) { }
+	private readonly _context: vscode.ExtensionContext;
+	private _sessions: ChatSessionRecord[] = [];
+	private _activeSessionId: string = '';
+
+	constructor(private readonly _extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
+		this._context = context;
+		this._loadSessions();
+	}
+
+	private _loadSessions(): void {
+		const storedSessions = this._context.globalState.get<any[]>('nexora.chatSessions', []);
+		const storedActive = this._context.globalState.get<string>('nexora.activeSessionId', '');
+
+		this._sessions = Array.isArray(storedSessions) ? storedSessions.map(s => this._coerceSession(s)) : [];
+		this._activeSessionId = typeof storedActive === 'string' ? storedActive : '';
+
+		if (this._sessions.length === 0) {
+			const id = `s-${Date.now()}`;
+			this._sessions = [{
+				id,
+				name: 'Chat 1',
+				messages: [],
+				createdAt: Date.now()
+			}];
+			this._activeSessionId = id;
+			void this._persistSessions();
+		} else if (!this._activeSessionId || !this._sessions.some(s => s.id === this._activeSessionId)) {
+			this._activeSessionId = this._sessions[0].id;
+			void this._persistSessions();
+		}
+	}
+
+	private _coerceSession(raw: any): ChatSessionRecord {
+		const messages = Array.isArray(raw?.messages) ? raw.messages : [];
+		return {
+			id: String(raw?.id || `s-${Date.now()}`),
+			name: String(raw?.name || 'Chat'),
+			messages,
+			createdAt: typeof raw?.createdAt === 'number' ? raw.createdAt : Date.now(),
+			memoryWorkspaceId: typeof raw?.memoryWorkspaceId === 'string' ? raw.memoryWorkspaceId : undefined,
+			memoryWorkspacePath: typeof raw?.memoryWorkspacePath === 'string' ? raw.memoryWorkspacePath : undefined
+		};
+	}
+
+	private async _persistSessions(): Promise<void> {
+		await this._context.globalState.update('nexora.chatSessions', this._sessions);
+		await this._context.globalState.update('nexora.activeSessionId', this._activeSessionId);
+	}
+
+	private _getActiveSession() {
+		return this._sessions.find(s => s.id === this._activeSessionId);
+	}
+
+	private _sessionSummaries() {
+		return this._sessions.map(s => ({ id: s.id, name: s.name }));
+	}
+
+	private async _broadcastSessions(): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+		this._view.webview.postMessage({
+			type: 'updateSessions',
+			sessions: this._sessionSummaries(),
+			activeSessionId: this._activeSessionId
+		});
+	}
+
+	/** Re-sync webview message list from in-memory session (e.g. after sidebar visibility changes). */
+	private _pushActiveSessionToWebview(): void {
+		const session = this._getActiveSession();
+		if (!this._view || !session) {
+			return;
+		}
+		this._view.webview.postMessage({
+			type: 'loadSession',
+			sessionId: session.id,
+			messages: session.messages ? [...session.messages] : []
+		});
+	}
+
+	private _emitChatActivity(items: ChatActivityItem[]): void {
+		if (!this._view) {
+			return;
+		}
+		this._view.webview.postMessage({ type: 'chatActivity', items });
+	}
+
+	private _clearChatActivity(): void {
+		if (!this._view) {
+			return;
+		}
+		this._view.webview.postMessage({ type: 'chatActivityClear' });
+	}
+
+	private async _appendAssistantToSession(content: string): Promise<void> {
+		const session = this._getActiveSession();
+		if (!session) {
+			return;
+		}
+		session.messages.push({ role: 'assistant', content });
+		await this._persistSessions();
+	}
+
+	private _mapUiModelToLiteLlm(model?: string): string | undefined {
+		const modelMap: Record<string, string> = {
+			'claude-haiku': 'anthropic/claude-3-haiku-20240307',
+			'claude-sonnet': 'anthropic/claude-3-5-sonnet-20241022',
+			'gpt-4o-mini': 'openai/gpt-4o-mini',
+			'gpt-4o': 'openai/gpt-4o'
+		};
+		const raw = (model || '').trim();
+		if (!raw) {
+			return undefined;
+		}
+		return modelMap[raw] || raw;
+	}
 
 	public resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -24,14 +151,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 	) {
 		this._view = webviewView;
 
-		webviewView.webview.options = {
+		// `retainContextWhenHidden` keeps the webview alive when switching Activity Bar views.
+		// Some @types versions don't include it on `WebviewOptions`, but VS Code supports it at runtime.
+		const webviewOpts: vscode.WebviewOptions & { retainContextWhenHidden?: boolean } = {
 			enableScripts: true,
-			localResourceRoots: [this._extensionUri]
+			localResourceRoots: [this._extensionUri],
+			retainContextWhenHidden: true
 		};
+		webviewView.webview.options = webviewOpts;
 
 		const initialState: ChatInitialState = {
 			connected: false,
-			auth: { github: false, vercel: false }
+			auth: { github: false, vercel: false },
+			messages: this._getActiveSession()?.messages || [],
+			sessions: this._sessionSummaries(),
+			activeSessionId: this._activeSessionId
 		};
 
 		webviewView.webview.html = getChatWebviewHtml(
@@ -40,9 +174,30 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			initialState
 		);
 
+		webviewView.onDidChangeVisibility(() => {
+			if (!webviewView.visible) {
+				return;
+			}
+			this._pushActiveSessionToWebview();
+			void this._broadcastSessions();
+		});
+
 		webviewView.webview.onDidReceiveMessage(async (data: WebviewInboundMessage) => {
+			if (data.type === 'chatWebviewReady') {
+				this._pushActiveSessionToWebview();
+				void this._broadcastSessions();
+				return;
+			}
 			if (data.type === 'sendMessage') {
 				await this._handleUserMessage(data.message, data.model);
+			} else if (data.type === 'askWorkspace') {
+				await this._handleAskWorkspaceMessage(data.message, data.model);
+			} else if (data.type === 'newSession') {
+				await this._handleNewSession();
+			} else if (data.type === 'switchSession') {
+				await this._handleSwitchSession(data.sessionId);
+			} else if (data.type === 'deleteSession') {
+				await this._handleDeleteSession(data.sessionId);
 			} else if (data.type === 'checkBackend') {
 				await this._checkBackendStatus();
 			} else if (data.type === 'generateCode') {
@@ -56,7 +211,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			} else if (data.type === 'checkAuthStatus') {
 				await this._checkAuthStatus();
 			} else if (data.type === 'generatePlan') {
-				await this._handlePlanGeneration(data.request);
+				await this._handlePlanGeneration(data.request, data.model);
 			} else if (data.type === 'approvePlan') {
 				await this._handleApprovePlan(data.planId);
 			} else if (data.type === 'cancelPlan') {
@@ -74,15 +229,87 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			} else if (data.type === 'indexWorkspace') {
 				await this._handleIndexWorkspace();
 			} else if (data.type === 'executeRequest') {
-				await this._handleExecuteRequest(data.request);
+				await this._handleExecuteRequest(data.request, data.model);
 			} else if (data.type === 'runAgent') {
-				await this._handleRunAgent(data.request);
+				await this._handleRunAgent(data.request, data.model);
 			}
 		});
 
 		this._checkBackendStatus();
 		this._checkAuthStatus();
 		this._setupWebSocketListener();
+		void this._broadcastSessions();
+	}
+
+	private async _handleNewSession(): Promise<void> {
+		const nextIndex = this._sessions.length + 1;
+		const id = `s-${Date.now()}`;
+		this._sessions.unshift({
+			id,
+			name: `Chat ${nextIndex}`,
+			messages: [],
+			createdAt: Date.now()
+		});
+		this._activeSessionId = id;
+		await this._persistSessions();
+		await this._broadcastSessions();
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'loadSession',
+				sessionId: id,
+				messages: []
+			});
+		}
+	}
+
+	private async _handleSwitchSession(sessionId: string): Promise<void> {
+		if (!sessionId || !this._sessions.some(s => s.id === sessionId)) {
+			return;
+		}
+		this._activeSessionId = sessionId;
+		await this._persistSessions();
+		await this._broadcastSessions();
+		const session = this._getActiveSession();
+		if (this._view && session) {
+			this._view.webview.postMessage({
+				type: 'loadSession',
+				sessionId: session.id,
+				messages: session.messages || []
+			});
+		}
+	}
+
+	private async _handleDeleteSession(sessionId: string): Promise<void> {
+		if (!sessionId || !this._sessions.some(s => s.id === sessionId)) {
+			return;
+		}
+
+		this._sessions = this._sessions.filter(s => s.id !== sessionId);
+
+		if (this._sessions.length === 0) {
+			const id = `s-${Date.now()}`;
+			this._sessions = [{
+				id,
+				name: 'Chat 1',
+				messages: [],
+				createdAt: Date.now()
+			}];
+			this._activeSessionId = id;
+		} else if (this._activeSessionId === sessionId) {
+			this._activeSessionId = this._sessions[0].id;
+		}
+
+		await this._persistSessions();
+		await this._broadcastSessions();
+
+		const session = this._getActiveSession();
+		if (this._view && session) {
+			this._view.webview.postMessage({
+				type: 'loadSession',
+				sessionId: session.id,
+				messages: session.messages || []
+			});
+		}
 	}
 
 	private _setupWebSocketListener(): void {
@@ -158,6 +385,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		const session = this._getActiveSession();
+		if (session) {
+			session.messages.push({ role: 'user', content: message });
+			await this._persistSessions();
+		}
+
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
@@ -165,11 +398,17 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			isLoading: true
 		});
 
+		this._emitChatActivity([
+			{ id: 'backend', label: 'Checking Nexora backend...', done: false },
+			{ id: 'model', label: 'Calling chat model...', done: false }
+		]);
+
 		try {
 			const client = getBackendClient();
 			const isConnected = await client.checkHealth();
 
 			if (!isConnected) {
+				this._clearChatActivity();
 				this._view.webview.postMessage({
 					type: 'addMessage',
 					role: 'assistant',
@@ -179,24 +418,29 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				return;
 			}
 
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'model', label: 'Calling chat model...', done: false }
+			]);
+
 			// Get workspace path for context
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			const workspacePath = workspaceFolders && workspaceFolders.length > 0
 				? workspaceFolders[0].uri.fsPath
 				: undefined;
 
-			// Map UI model selection to LiteLLM model names
-			const modelMap: Record<string, string> = {
-				'claude-haiku': 'anthropic/claude-3-haiku-20240307',
-				'claude-sonnet': 'anthropic/claude-3-5-sonnet-20241022',
-				'gpt-4o-mini': 'openai/gpt-4o-mini',
-				'gpt-4o': 'openai/gpt-4o'
-			};
-			const llmModel = model ? modelMap[model] || model : undefined;
+			const llmModel = this._mapUiModelToLiteLlm(model);
 
 			// Simple chat - no task decomposition
 			const chatResponse = await client.chat(message, workspacePath, llmModel);
 
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: chatResponse.response });
+				await this._persistSessions();
+			}
+
+			this._clearChatActivity();
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
@@ -205,13 +449,410 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			});
 
 		} catch (error) {
+			const errText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: errText });
+				await this._persistSessions();
+			}
+			this._clearChatActivity();
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: errText,
 				isLoading: false
 			});
 		}
+	}
+
+	private async _handleAskWorkspaceMessage(message: string, model?: string): Promise<void> {
+		if (!this._view) {
+			return;
+		}
+
+		const session = this._getActiveSession();
+		if (session) {
+			session.messages.push({ role: 'user', content: message });
+			await this._persistSessions();
+		}
+
+		this._view.webview.postMessage({
+			type: 'addMessage',
+			role: 'assistant',
+			content: 'Searching workspace memory...',
+			isLoading: true
+		});
+
+		this._emitChatActivity([{ id: 'backend', label: 'Checking Nexora backend...', done: false }]);
+
+		try {
+			const client = getBackendClient();
+			const isConnected = await client.checkHealth();
+			if (!isConnected) {
+				this._clearChatActivity();
+				const offline = `Backend is offline. Your question: "${message}"\n\nPlease start the backend server and try again.`;
+				const s0 = this._getActiveSession();
+				if (s0) {
+					s0.messages.push({ role: 'assistant', content: offline });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: offline,
+					isLoading: false
+				});
+				return;
+			}
+
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: false }
+			]);
+
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				this._clearChatActivity();
+				const noFolder = 'No workspace folder open. Open a folder, then use **Index Workspace** before Ask mode.';
+				const s1 = this._getActiveSession();
+				if (s1) {
+					s1.messages.push({ role: 'assistant', content: noFolder });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: noFolder,
+					isLoading: false
+				});
+				return;
+			}
+
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: true },
+				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: false }
+			]);
+
+			const workspacePath = workspaceFolders[0].uri.fsPath;
+			const active = this._getActiveSession();
+
+			let workspaceId = active?.memoryWorkspaceId;
+			if (!workspaceId) {
+				const mapped = await client.getWorkspaceIdForPath(workspacePath).catch(() => undefined);
+				workspaceId = mapped?.workspace_id;
+				if (active && workspaceId) {
+					active.memoryWorkspaceId = workspaceId;
+					active.memoryWorkspacePath = workspacePath;
+					await this._persistSessions();
+				}
+			}
+
+			if (!workspaceId) {
+				this._clearChatActivity();
+				const notIndexed =
+					'This workspace is not indexed yet (no `workspace_id` found).\n\n' +
+					'Click **Index Workspace** in the welcome screen, then try Ask mode again.';
+				const s2 = this._getActiveSession();
+				if (s2) {
+					s2.messages.push({ role: 'assistant', content: notIndexed });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: notIndexed,
+					isLoading: false
+				});
+				return;
+			}
+
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: true },
+				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
+				{ id: 'memory', label: 'Querying workspace memory...', done: false }
+			]);
+
+			let mem: any;
+			try {
+				mem = await client.queryMemory(workspaceId, message, 8);
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				const qErr =
+					`Could not query workspace memory for \`${workspaceId}\`.\n\n` +
+					`Details: ${msg}\n\n` +
+					'Most commonly this means the `.mv2` file is missing - click **Index Workspace** and try again.';
+				const s3 = this._getActiveSession();
+				if (s3) {
+					s3.messages.push({ role: 'assistant', content: qErr });
+					await this._persistSessions();
+				}
+				this._clearChatActivity();
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: qErr,
+					isLoading: false
+				});
+				return;
+			}
+			let entries: any[] = Array.isArray(mem?.entries) ? mem.entries : [];
+			let contextSource = 'memvid_query';
+
+			if (entries.length === 0) {
+				const altQueries = this._buildAskMemoryQueries(message);
+				for (const q of altQueries) {
+					if (!q || q === message) {
+						continue;
+					}
+					try {
+						const m2 = await client.queryMemory(workspaceId, q, 10);
+						const e2 = Array.isArray(m2?.entries) ? m2.entries : [];
+						if (e2.length > 0) {
+							entries = e2;
+							contextSource = `memvid_query_retry:${q}`;
+							break;
+						}
+					} catch {
+						// ignore and continue fallbacks
+					}
+				}
+			}
+
+			if (entries.length === 0) {
+				try {
+					const tc = await client.getTaskContext(workspaceId, message);
+					const snippets = Array.isArray(tc?.code_snippets) ? tc.code_snippets : [];
+					const files = Array.isArray(tc?.relevant_files) ? tc.relevant_files : [];
+					if (snippets.length > 0) {
+						let ctx = '';
+						for (let i = 0; i < snippets.length; i++) {
+							const fp = files[i] || 'unknown';
+							const snip = String(snippets[i] || '').slice(0, 900);
+							ctx += `\n### Context ${i + 1}: ${fp}\n${snip}\n`;
+						}
+						entries = [{ metadata: { file_path: 'task_context' }, content: ctx }];
+						contextSource = 'memvid_task_context';
+					}
+				} catch {
+					// ignore
+				}
+			}
+
+			let diskReadNote = '';
+			if (entries.length === 0) {
+				const names = this._extractLikelyFilenames(message);
+				if (names.length === 1) {
+					const read = await this._readWorkspaceFileByName(workspacePath, names[0]!);
+					const readAmb = read !== null ? (read as { ambiguous?: string[] }).ambiguous : undefined;
+					if (read !== null && Array.isArray(readAmb)) {
+						const listed = readAmb.map(p => `- \`${p}\``).join('\n');
+						const ambMsg =
+							`I found multiple files named like \`${names[0]}\`. Which one did you mean?\n\n${listed}\n\n` +
+							`Reply with the full relative path (from the workspace root).`;
+						const sAmb = this._getActiveSession();
+						if (sAmb) {
+							sAmb.messages.push({ role: 'assistant', content: ambMsg });
+							await this._persistSessions();
+						}
+						this._clearChatActivity();
+						this._view.webview.postMessage({
+							type: 'addMessage',
+							role: 'assistant',
+							content: ambMsg,
+							isLoading: false
+						});
+						return;
+					}
+					const readRes = read !== null ? (read as { resolvedPath?: string; contents?: string }) : undefined;
+					if (
+						readRes &&
+						typeof readRes.resolvedPath === 'string' &&
+						typeof readRes.contents === 'string'
+					) {
+						entries = [{
+							metadata: { file_path: readRes.resolvedPath },
+							content: readRes.contents
+						}];
+						contextSource = 'workspace_file_read';
+						diskReadNote =
+							`\nNOTE: Memvid returned 0 lexical hits for the original question, so the extension read this file directly from disk:\n` +
+							`- \`${readRes.resolvedPath}\`\n`;
+					}
+				}
+			}
+
+			if (entries.length === 0) {
+				const noHits =
+					'No matches were found in indexed memory for that question (Memvid lexical search returned 0 hits).\n\n' +
+					'Try asking with a **filename** (e.g. `app/main.py`) or a **symbol name** from the code. If you changed files, click **Index Workspace** again.';
+				const s4 = this._getActiveSession();
+				if (s4) {
+					s4.messages.push({ role: 'assistant', content: noHits });
+					await this._persistSessions();
+				}
+				this._clearChatActivity();
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: noHits,
+					isLoading: false
+				});
+				return;
+			}
+
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: true },
+				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
+				{ id: 'memory', label: 'Querying workspace memory...', done: true },
+				{ id: 'model', label: 'Calling chat model...', done: false }
+			]);
+
+			let context = '';
+			for (let i = 0; i < entries.length; i++) {
+				const e = entries[i];
+				const fp = e?.metadata?.file_path || 'unknown';
+				const maxSnip = contextSource === 'workspace_file_read' ? 12000 : 900;
+				const snip = String(e?.content || '').slice(0, maxSnip);
+				context += `\n### Hit ${i + 1}: ${fp}\n${snip}\n`;
+			}
+
+			const composed =
+				`You are Nexora. Answer the user's question using ONLY the retrieved workspace snippets below.\n` +
+				`If the snippets are insufficient, say what is missing and which files/paths you would need.\n` +
+				`Cite paths when you use them.\n\n` +
+				`USER QUESTION:\n${message}\n\n` +
+				`CONTEXT SOURCE: ${contextSource}\n` +
+				diskReadNote +
+				`RETRIEVED WORKSPACE SNIPPETS:\n${context}`;
+
+			const llmModel = this._mapUiModelToLiteLlm(model);
+			const chatResponse = await client.chat(composed, workspacePath, llmModel);
+
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: chatResponse.response });
+				await this._persistSessions();
+			}
+
+			this._clearChatActivity();
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: chatResponse.response,
+				isLoading: false
+			});
+		} catch (error) {
+			const errText = `Ask mode error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: errText });
+				await this._persistSessions();
+			}
+			this._clearChatActivity();
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: errText,
+				isLoading: false
+			});
+		}
+	}
+
+	private _buildAskMemoryQueries(message: string): string[] {
+		const normalized = String(message || '').replace(/\s+\./g, '.');
+		const tokens = normalized
+			.split(/[^a-zA-Z0-9_.\/-]+/g)
+			.map(t => t.trim())
+			.filter(Boolean);
+
+		const uniq: string[] = [];
+		const push = (q: string) => {
+			const s = String(q || '').trim();
+			if (!s) {
+				return;
+			}
+			if (!uniq.includes(s)) {
+				uniq.push(s);
+			}
+		};
+
+		for (const t of tokens) {
+			if (t.length >= 3) {
+				push(t);
+			}
+		}
+
+		for (const t of tokens) {
+			if (t.includes('.')) {
+				push(path.basename(t));
+				push(path.basename(t).replace(/\.[^.]+$/, ''));
+			}
+		}
+
+		return uniq.slice(0, 12);
+	}
+
+	private _extractLikelyFilenames(message: string): string[] {
+		const text = String(message || '').replace(/\s+\./g, '.');
+		const exts = ['py', 'ts', 'tsx', 'js', 'jsx', 'java', 'go', 'rs', 'cs', 'cpp', 'c', 'h', 'md', 'json', 'yml', 'yaml', 'toml'];
+		const extRe = exts.join('|');
+		const re = new RegExp(`([\\w .-]+?\\.(?:${extRe}))`, 'gi');
+		const out: string[] = [];
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(text)) !== null) {
+			const name = m[1].replace(/\s+/g, ' ').trim();
+			if (name && !out.includes(name)) {
+				out.push(name);
+			}
+		}
+		return out.slice(0, 3);
+	}
+
+	private _isPathInsideWorkspaceRoot(workspaceRoot: string, candidatePath: string): boolean {
+		const root = path.resolve(workspaceRoot);
+		const cand = path.resolve(candidatePath);
+		if (process.platform === 'win32') {
+			return cand.toLowerCase().startsWith(root.toLowerCase() + path.sep) || cand.toLowerCase() === root.toLowerCase();
+		}
+		return cand.startsWith(root + path.sep) || cand === root;
+	}
+
+	private async _readWorkspaceFileByName(
+		workspaceRoot: string,
+		filename: string
+	): Promise<{ resolvedPath: string; contents: string } | { ambiguous: string[] } | null> {
+		const direct = path.resolve(workspaceRoot, filename);
+		if (this._isPathInsideWorkspaceRoot(workspaceRoot, direct)) {
+			try {
+				const stat = await fs.stat(direct);
+				if (stat.isFile()) {
+					const buf = await fs.readFile(direct);
+					const contents = buf.toString('utf8');
+					return { resolvedPath: direct, contents };
+				}
+			} catch {
+				// fall through to search
+			}
+		}
+
+		const base = path.basename(filename);
+		const matches = await vscode.workspace.findFiles(`**/${base}`, '**/node_modules/**', 25);
+		const underRoot = matches
+			.map(u => u.fsPath)
+			.filter(p => this._isPathInsideWorkspaceRoot(workspaceRoot, p));
+
+		if (underRoot.length === 1) {
+			const p = underRoot[0];
+			const buf = await fs.readFile(p);
+			return { resolvedPath: p, contents: buf.toString('utf8') };
+		}
+		if (underRoot.length > 1) {
+			return { ambiguous: underRoot };
+		}
+		return null;
 	}
 
 	private async _handleCodeGeneration(prompt: string, connector: string): Promise<void> {
@@ -490,7 +1131,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handlePlanGeneration(request: string): Promise<void> {
+	private async _handlePlanGeneration(request: string, model?: string): Promise<void> {
 		if (!this._view) {
 			return;
 		}
@@ -509,7 +1150,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				? workspaceFolders[0].uri.fsPath
 				: undefined;
 
-			const plan = await client.generatePlan(request, 'default', workspacePath);
+			const llmModel = this._mapUiModelToLiteLlm(model);
+			const plan = await client.generatePlan(request, 'default', workspacePath, llmModel);
 
 			// Store current plan ID and subscribe to WebSocket updates
 			this._currentPlanId = plan.plan_id;
@@ -832,10 +1474,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
 		const workspaceFolders = vscode.workspace.workspaceFolders;
 		if (!workspaceFolders || workspaceFolders.length === 0) {
+			const noOpen = 'No workspace folder open. Please open a folder first.';
+			await this._appendAssistantToSession(noOpen);
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: 'No workspace folder open. Please open a folder first.',
+				content: noOpen,
 				isLoading: false
 			});
 			return;
@@ -854,11 +1498,23 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			const client = getBackendClient();
 			const result = await client.indexWorkspace(workspacePath);
 
+			const wid =
+				(typeof result?.workspace_id === 'string' && result.workspace_id) ? result.workspace_id :
+					(typeof result?.workspace_context?.workspace_id === 'string' ? result.workspace_context.workspace_id : undefined);
+
+			const active = this._getActiveSession();
+			if (active && wid) {
+				active.memoryWorkspaceId = wid;
+				active.memoryWorkspacePath = workspacePath;
+				await this._persistSessions();
+			}
+
 			let response = `**Workspace Indexed**\n\n`;
-			response += `- **Workspace ID:** ${result.workspace_id}\n`;
+			response += `- **Workspace ID:** ${wid || 'unknown'}\n`;
 			response += `- **Files indexed:** ${result.files_indexed || 'N/A'}\n`;
 			response += `- **Status:** ${result.status || 'completed'}\n`;
 
+			await this._appendAssistantToSession(response);
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
@@ -867,16 +1523,18 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			});
 
 		} catch (error) {
+			const errMsg = `Error indexing workspace: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			await this._appendAssistantToSession(errMsg);
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error indexing workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: errMsg,
 				isLoading: false
 			});
 		}
 	}
 
-	private async _handleExecuteRequest(request: string): Promise<void> {
+	private async _handleExecuteRequest(request: string, model?: string): Promise<void> {
 		if (!this._view) {
 			return;
 		}
@@ -896,7 +1554,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				: undefined;
 
 			// Generate plan
-			const plan = await client.generatePlan(request, 'default', workspacePath);
+			const llmModel = this._mapUiModelToLiteLlm(model);
+			const plan = await client.generatePlan(request, 'default', workspacePath, llmModel);
 
 			// Subscribe to WebSocket
 			const wsClient = getOrchestrationWebSocket('default');
@@ -937,7 +1596,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async _handleRunAgent(request: string): Promise<void> {
+	private async _handleRunAgent(request: string, model?: string): Promise<void> {
 		if (!this._view) {
 			return;
 		}
@@ -958,7 +1617,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				? workspaceFolders[0].uri.fsPath
 				: undefined;
 
-			const plan = await client.generatePlan(request, 'default', workspacePath);
+			const llmModel = this._mapUiModelToLiteLlm(model);
+			const plan = await client.generatePlan(request, 'default', workspacePath, llmModel);
 
 			const wsClient = getOrchestrationWebSocket('default');
 			if (!wsClient.isConnected()) {

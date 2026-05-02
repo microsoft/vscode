@@ -18,13 +18,15 @@ export function createMemoryApi(transport: Transport) {
 		},
 
 		queryMemory: async (workspaceId: string, query: string, limit: number = 5): Promise<any> => {
-			try {
-				return await transport.get(
-					`/api/memory/query?workspace_id=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(query)}&limit=${limit}`
-				);
-			} catch {
-				return { entries: [], total: 0 };
-			}
+			return await transport.get(
+				`/api/memory/query?workspace_id=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(query)}&limit=${limit}`
+			);
+		},
+
+		getWorkspaceIdForPath: async (workspacePath: string): Promise<{ workspace_path: string; workspace_id: string }> => {
+			return await transport.get(
+				`/api/memory/workspace-id?workspace_path=${encodeURIComponent(workspacePath)}`
+			);
 		},
 
 		getTaskContext: async (workspaceId: string, task: string): Promise<any> => {

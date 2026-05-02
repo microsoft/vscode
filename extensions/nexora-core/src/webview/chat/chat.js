@@ -14,20 +14,32 @@
 	const sendBtnText = document.getElementById('sendBtnText');
 	const modeSelect = document.getElementById('modeSelect');
 	const modelSelect = document.getElementById('modelSelect');
+	const modeDdRoot = document.getElementById('modeDd');
+	const modelDdRoot = document.getElementById('modelDd');
 	const modeHint = document.getElementById('modeHint');
 	const statusDot = document.getElementById('statusDot');
 	const statusText = document.getElementById('statusText');
 	const githubBadge = document.getElementById('githubBadge');
 	const vercelBadge = document.getElementById('vercelBadge');
 	const welcome = document.getElementById('welcome');
+	const sessionSelect = document.getElementById('sessionSelect');
+	const newSessionBtn = document.getElementById('newSessionBtn');
+	const deleteSessionBtn = document.getElementById('deleteSessionBtn');
 
 	let lastLoadingMessage = null;
+	let chatActivityCard = null;
 	let currentPlan = null;
 	let planCardElement = null;
 	let currentMode = 'chat';
+	let activeSessionId = null;
+	let openDdRoot = null;
+	let ddKbIndex = 0;
+	let ddGlobalsBound = false;
+	let messagesScrollBarTimer = null;
 
 	const modeHints = {
 		'chat': 'Chat mode: Have a conversation, ask questions, get explanations',
+		'ask': 'Ask mode: Answer using indexed workspace memory (.mv2). Index the workspace first if needed.',
 		'plan': 'Plan mode: Generate an execution plan with cost estimation before executing',
 		'execute': 'Execute mode: Directly execute tasks with real-time progress',
 		'agent': 'Agent mode: Autonomous AI agent that plans and executes multi-step tasks'
@@ -35,10 +47,277 @@
 
 	const buttonLabels = {
 		'chat': 'Send',
+		'ask': 'Ask',
 		'plan': 'Generate Plan',
 		'execute': 'Execute',
 		'agent': 'Run Agent'
 	};
+
+	function getDdOptions(menu) {
+		return Array.prototype.slice.call(menu.querySelectorAll('[role="option"]'));
+	}
+
+	function syncOneDd(root) {
+		const hidden = root.querySelector('input[type="hidden"]');
+		const textEl = root.querySelector('.nx-ddTriggerText');
+		const menu = root.querySelector('.nx-ddMenu');
+		if (!hidden || !textEl || !menu) {
+			return;
+		}
+		const val = hidden.value;
+		const opt = menu.querySelector('[role="option"][data-value="' + val + '"]');
+		if (opt) {
+			textEl.textContent = (opt.textContent || '').trim();
+		}
+		getDdOptions(menu).forEach(function (o) {
+			const on = o.getAttribute('data-value') === val;
+			o.classList.toggle('nx-ddItemSelected', on);
+			o.setAttribute('aria-selected', on ? 'true' : 'false');
+		});
+	}
+
+	function positionDdMenu(root) {
+		const trigger = root.querySelector('.nx-ddTrigger');
+		const menu = root.querySelector('.nx-ddMenu');
+		if (!trigger || !menu) {
+			return;
+		}
+		const rect = trigger.getBoundingClientRect();
+		const gap = 4;
+		const cap = 240;
+		const minW = Math.max(rect.width, 148);
+		let left = rect.left;
+		if (left + minW > window.innerWidth - 6) {
+			left = window.innerWidth - 6 - minW;
+		}
+		menu.style.left = Math.max(4, left) + 'px';
+		menu.style.minWidth = minW + 'px';
+		menu.style.maxHeight = '';
+
+		const spaceBelow = window.innerHeight - rect.bottom - gap;
+		const spaceAbove = rect.top - gap;
+		let h = menu.getBoundingClientRect().height;
+
+		function applyMax(px) {
+			const m = Math.max(40, Math.min(cap, Math.floor(Math.max(0, px))));
+			menu.style.maxHeight = m + 'px';
+			return menu.getBoundingClientRect().height;
+		}
+
+		let topPx;
+		if (h <= spaceBelow) {
+			topPx = rect.bottom + gap;
+		} else if (h <= spaceAbove) {
+			topPx = rect.top - gap - h;
+		} else if (spaceAbove >= spaceBelow) {
+			h = applyMax(spaceAbove);
+			topPx = Math.max(gap, rect.top - gap - h);
+		} else {
+			h = applyMax(spaceBelow);
+			topPx = rect.bottom + gap;
+			if (topPx + h > window.innerHeight - gap) {
+				topPx = Math.max(gap, window.innerHeight - gap - h);
+			}
+		}
+		menu.style.top = topPx + 'px';
+	}
+
+	function setDdKeyboardHighlight(menu, index) {
+		const items = getDdOptions(menu);
+		items.forEach(function (el, i) {
+			el.classList.toggle('nx-ddItemKeyboard', i === index);
+		});
+		ddKbIndex = index;
+	}
+
+	function closeDd(root) {
+		if (!root) {
+			return;
+		}
+		const trigger = root.querySelector('.nx-ddTrigger');
+		const menu = root.querySelector('.nx-ddMenu');
+		if (trigger) {
+			trigger.setAttribute('aria-expanded', 'false');
+		}
+		if (menu) {
+			menu.hidden = true;
+			menu.style.top = '';
+			menu.style.left = '';
+			menu.style.minWidth = '';
+			menu.style.maxHeight = '';
+			getDdOptions(menu).forEach(function (o) {
+				o.classList.remove('nx-ddItemKeyboard');
+			});
+		}
+		root.classList.remove('nx-ddOpen');
+		if (openDdRoot === root) {
+			openDdRoot = null;
+		}
+	}
+
+	function openDd(root) {
+		if (openDdRoot && openDdRoot !== root) {
+			closeDd(openDdRoot);
+		}
+		const trigger = root.querySelector('.nx-ddTrigger');
+		const menu = root.querySelector('.nx-ddMenu');
+		const hidden = root.querySelector('input[type="hidden"]');
+		if (!trigger || !menu || !hidden) {
+			return;
+		}
+		openDdRoot = root;
+		root.classList.add('nx-ddOpen');
+		trigger.setAttribute('aria-expanded', 'true');
+		menu.hidden = false;
+		const items = getDdOptions(menu);
+		const idx = Math.max(0, items.findIndex(function (i) {
+			return i.getAttribute('data-value') === hidden.value;
+		}));
+		setDdKeyboardHighlight(menu, idx);
+		positionDdMenu(root);
+		requestAnimationFrame(function () {
+			if (openDdRoot === root) {
+				positionDdMenu(root);
+			}
+		});
+		try {
+			menu.focus({ preventScroll: true });
+		} catch (_e) {
+			menu.focus();
+		}
+	}
+
+	function applyDdSelection(root, value) {
+		const hidden = root.querySelector('input[type="hidden"]');
+		if (!hidden) {
+			return;
+		}
+		hidden.value = value;
+		syncOneDd(root);
+		closeDd(root);
+		if (root.getAttribute('data-dd-kind') === 'mode') {
+			updateModeUI();
+		}
+	}
+
+	function wireDd(root) {
+		if (!root || root.dataset.nxDdWired) {
+			return;
+		}
+		root.dataset.nxDdWired = '1';
+		const trigger = root.querySelector('.nx-ddTrigger');
+		const menu = root.querySelector('.nx-ddMenu');
+		if (!trigger || !menu) {
+			return;
+		}
+		menu.setAttribute('tabindex', '-1');
+
+		trigger.addEventListener('click', function () {
+			if (root.classList.contains('nx-ddOpen')) {
+				closeDd(root);
+			} else {
+				openDd(root);
+			}
+		});
+
+		trigger.addEventListener('keydown', function (e) {
+			if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !root.classList.contains('nx-ddOpen')) {
+				e.preventDefault();
+				openDd(root);
+			}
+		});
+
+		menu.addEventListener('click', function (e) {
+			const opt = e.target.closest('[role="option"]');
+			if (!opt || !menu.contains(opt)) {
+				return;
+			}
+			applyDdSelection(root, opt.getAttribute('data-value'));
+			trigger.focus();
+		});
+
+		menu.addEventListener('keydown', function (e) {
+			const items = getDdOptions(menu);
+			if (!items.length) {
+				return;
+			}
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				const next = Math.min(items.length - 1, ddKbIndex + 1);
+				setDdKeyboardHighlight(menu, next);
+				items[next].scrollIntoView({ block: 'nearest' });
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				const prev = Math.max(0, ddKbIndex - 1);
+				setDdKeyboardHighlight(menu, prev);
+				items[prev].scrollIntoView({ block: 'nearest' });
+			} else if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				const pick = items[ddKbIndex];
+				if (pick) {
+					applyDdSelection(root, pick.getAttribute('data-value'));
+					trigger.focus();
+				}
+			}
+		});
+	}
+
+	function wireMessagesScrollbarFlash() {
+		if (!messages) {
+			return;
+		}
+		function showThumb() {
+			messages.classList.add('nx-scrollShow');
+			window.clearTimeout(messagesScrollBarTimer);
+			messagesScrollBarTimer = window.setTimeout(function () {
+				messages.classList.remove('nx-scrollShow');
+			}, 900);
+		}
+		messages.addEventListener('scroll', showThumb, { passive: true });
+		messages.addEventListener('wheel', showThumb, { passive: true });
+	}
+
+	function wireComposerDropdowns() {
+		if (modeDdRoot) {
+			wireDd(modeDdRoot);
+		}
+		if (modelDdRoot) {
+			wireDd(modelDdRoot);
+		}
+		if (ddGlobalsBound) {
+			return;
+		}
+		ddGlobalsBound = true;
+		document.addEventListener('mousedown', function (e) {
+			if (!openDdRoot || !e.target || !e.target.closest) {
+				return;
+			}
+			if (openDdRoot.contains(e.target)) {
+				return;
+			}
+			closeDd(openDdRoot);
+		}, true);
+		document.addEventListener('keydown', function (e) {
+			if (e.key !== 'Escape' || !openDdRoot) {
+				return;
+			}
+			const tr = openDdRoot.querySelector('.nx-ddTrigger');
+			closeDd(openDdRoot);
+			if (tr) {
+				tr.focus();
+			}
+		});
+		window.addEventListener('resize', function () {
+			if (openDdRoot) {
+				positionDdMenu(openDdRoot);
+			}
+		});
+		window.addEventListener('scroll', function () {
+			if (openDdRoot) {
+				positionDdMenu(openDdRoot);
+			}
+		}, true);
+	}
 
 	function updateStatus(connected) {
 		statusDot.classList.remove('nx-dotOk', 'nx-dotBad');
@@ -60,8 +339,24 @@
 	}
 
 	function updateModeUI() {
+		if (!modeSelect) {
+			return;
+		}
+		if (modeDdRoot) {
+			syncOneDd(modeDdRoot);
+		}
+		if (modelDdRoot) {
+			syncOneDd(modelDdRoot);
+		}
 		currentMode = modeSelect.value;
-		sendBtnText.textContent = buttonLabels[currentMode] || 'Send';
+		const label = buttonLabels[currentMode] || 'Send';
+		if (sendBtnText) {
+			sendBtnText.textContent = label;
+		}
+		if (sendBtn) {
+			sendBtn.title = `${label} (Enter)`;
+			sendBtn.setAttribute('aria-label', `${label}, press Enter`);
+		}
 		
 		const hintEl = modeHint.querySelector('.nx-hintText');
 		if (hintEl) {
@@ -97,6 +392,75 @@
 		html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 		html = html.replace(/\n/g, '<br/>');
 		return html;
+	}
+
+	function clearChatActivityCard() {
+		if (chatActivityCard && chatActivityCard.parentNode) {
+			chatActivityCard.remove();
+		}
+		chatActivityCard = null;
+	}
+
+	function renderChatActivity(items) {
+		if (!messages) {
+			return;
+		}
+		const list = Array.isArray(items) ? items : [];
+		if (!chatActivityCard) {
+			const card = document.createElement('div');
+			card.className = 'nx-activityCard';
+			const headerBtn = document.createElement('button');
+			headerBtn.type = 'button';
+			headerBtn.className = 'nx-activityCardHeader';
+			headerBtn.setAttribute('aria-expanded', 'true');
+			const chev = document.createElement('span');
+			chev.className = 'nx-activityChevron';
+			chev.setAttribute('aria-hidden', 'true');
+			chev.textContent = 'v';
+			const title = document.createElement('span');
+			title.className = 'nx-activityCardTitle';
+			title.textContent = 'Activity';
+			headerBtn.appendChild(chev);
+			headerBtn.appendChild(title);
+			const body = document.createElement('div');
+			body.className = 'nx-activityCardBody';
+			card.appendChild(headerBtn);
+			card.appendChild(body);
+			headerBtn.addEventListener('click', function () {
+				const collapsed = card.classList.toggle('nx-activityCardCollapsed');
+				headerBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+				const c = headerBtn.querySelector('.nx-activityChevron');
+				if (c) {
+					c.textContent = collapsed ? '>' : 'v';
+				}
+			});
+			chatActivityCard = card;
+		}
+		const bodyEl = chatActivityCard.querySelector('.nx-activityCardBody');
+		if (!bodyEl) {
+			return;
+		}
+		bodyEl.innerHTML = '';
+		list.forEach(function (it) {
+			const row = document.createElement('div');
+			row.className = 'nx-activityRow' + (it.done ? ' nx-activityRowDone' : '');
+			row.setAttribute('data-activity-id', it.id);
+			const mark = document.createElement('span');
+			mark.className = 'nx-activityMark';
+			mark.textContent = it.done ? '+' : '.';
+			const lab = document.createElement('span');
+			lab.className = 'nx-activityLabel';
+			lab.textContent = it.label || '';
+			row.appendChild(mark);
+			row.appendChild(lab);
+			bodyEl.appendChild(row);
+		});
+		if (lastLoadingMessage && lastLoadingMessage.parentNode === messages) {
+			messages.insertBefore(chatActivityCard, lastLoadingMessage);
+		} else if (!chatActivityCard.parentNode) {
+			messages.appendChild(chatActivityCard);
+		}
+		messages.scrollTop = messages.scrollHeight;
 	}
 
 	function addMessage(role, content, isLoading) {
@@ -136,6 +500,50 @@
 			lastLoadingMessage.remove();
 			lastLoadingMessage = null;
 		}
+	}
+
+	function clearMessagesUi() {
+		if (!messages) {
+			return;
+		}
+		// Clear everything except the welcome block (so it can be shown for empty sessions)
+		Array.from(messages.children).forEach((child) => {
+			if (welcome && child === welcome) {
+				return;
+			}
+			child.remove();
+		});
+		lastLoadingMessage = null;
+		clearChatActivityCard();
+		currentPlan = null;
+		planCardElement = null;
+	}
+
+	function renderSessions(sessions, activeId) {
+		if (!sessionSelect) {
+			return;
+		}
+		sessionSelect.innerHTML = '';
+		(sessions || []).forEach(s => {
+			const opt = document.createElement('option');
+			opt.value = s.id;
+			opt.textContent = s.name || 'Chat';
+			sessionSelect.appendChild(opt);
+		});
+		if (activeId) {
+			sessionSelect.value = activeId;
+			activeSessionId = activeId;
+		}
+	}
+
+	function loadSessionMessages(sessionId, msgs) {
+		activeSessionId = sessionId;
+		clearMessagesUi();
+		const arr = (msgs || []);
+		if (welcome) {
+			welcome.style.display = arr.length === 0 ? 'flex' : 'none';
+		}
+		arr.forEach(m => addMessage(m.role, m.content, false));
 	}
 
 	function createPlanApprovalCard(plan) {
@@ -280,7 +688,7 @@
 
 			actionsEl.innerHTML = `
 				<div class="nx-planResult ${isSuccess ? 'nx-planSuccess' : 'nx-planFailed'}">
-					<span class="nx-resultIcon">${isSuccess ? '✓' : '!'}</span>
+					<span class="nx-resultIcon">${isSuccess ? 'ok' : '!'}</span>
 					<span class="nx-resultText">
 						${isSuccess ? 'Completed' : 'Completed with issues'}
 						${successCount > 0 ? ` • ${successCount} succeeded` : ''}
@@ -315,6 +723,9 @@
 			case 'chat':
 				vscode.postMessage({ type: 'sendMessage', message: text, model: model });
 				break;
+			case 'ask':
+				vscode.postMessage({ type: 'askWorkspace', message: text, model: model });
+				break;
 			case 'plan':
 				vscode.postMessage({ type: 'generatePlan', request: text, model: model });
 				break;
@@ -341,7 +752,28 @@
 		}
 	};
 
-	modeSelect.onchange = updateModeUI;
+	wireComposerDropdowns();
+	wireMessagesScrollbarFlash();
+	if (sessionSelect) {
+		sessionSelect.onchange = () => {
+			const id = sessionSelect.value;
+			if (id) {
+				vscode.postMessage({ type: 'switchSession', sessionId: id });
+			}
+		};
+	}
+	if (newSessionBtn) {
+		newSessionBtn.onclick = () => vscode.postMessage({ type: 'newSession' });
+	}
+	if (deleteSessionBtn) {
+		deleteSessionBtn.onclick = () => {
+			const id = (sessionSelect && sessionSelect.value) ? sessionSelect.value : activeSessionId;
+			if (!id) {
+				return;
+			}
+			vscode.postMessage({ type: 'deleteSession', sessionId: id });
+		};
+	}
 
 	githubBadge.onclick = () => vscode.postMessage({ type: 'connectGitHub' });
 	vercelBadge.onclick = () => vscode.postMessage({ type: 'connectVercel' });
@@ -416,6 +848,14 @@
 				addMessage(data.role, data.content, data.isLoading);
 				break;
 
+			case 'chatActivity':
+				renderChatActivity(data.items);
+				break;
+
+			case 'chatActivityClear':
+				clearChatActivityCard();
+				break;
+
 			case 'backendStatus':
 				updateStatus(data.connected);
 				break;
@@ -426,6 +866,14 @@
 
 			case 'showPlanApproval':
 				createPlanApprovalCard(data.plan);
+				break;
+
+			case 'updateSessions':
+				renderSessions(data.sessions, data.activeSessionId);
+				break;
+
+			case 'loadSession':
+				loadSessionMessages(data.sessionId, data.messages);
 				break;
 
 			case 'taskUpdate':
@@ -455,6 +903,12 @@
 	updateStatus(!!initial.connected);
 	updateAuthStatus(!!initial.auth.github, !!initial.auth.vercel);
 
+	if (initial.sessions && initial.activeSessionId) {
+		renderSessions(initial.sessions, initial.activeSessionId);
+		loadSessionMessages(initial.activeSessionId, initial.messages || []);
+	}
+
 	vscode.postMessage({ type: 'checkBackend' });
 	vscode.postMessage({ type: 'checkAuthStatus' });
+	vscode.postMessage({ type: 'chatWebviewReady' });
 }());

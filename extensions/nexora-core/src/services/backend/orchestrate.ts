@@ -67,12 +67,14 @@ export function createOrchestrateApi(transport: Transport) {
 		generatePlan: async (
 			request: string,
 			userId: string = 'default',
-			workspacePath?: string
+			workspacePath?: string,
+			model?: string
 		): Promise<PlanResponse> => {
 			return await transport.post('/api/orchestrate/plan', {
 				request,
 				user_id: userId,
-				workspace_path: workspacePath
+				workspace_path: workspacePath,
+				model
 			});
 		},
 

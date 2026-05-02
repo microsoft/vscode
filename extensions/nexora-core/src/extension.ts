@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const chatProvider = new ChatPanelProvider(context.extensionUri);
+	const chatProvider = new ChatPanelProvider(context.extensionUri, context);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider('nexora.chatPanel', chatProvider)
 	);
@@ -42,6 +42,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('nexora.openChat', () => {
 			vscode.commands.executeCommand('nexora.chatPanel.focus');
+		}),
+		vscode.commands.registerCommand('nexora.openTaskPlan', () => {
+			vscode.commands.executeCommand('nexora.taskTree.focus');
+		}),
+		vscode.commands.registerCommand('nexora.openPlatformBrowser', () => {
+			vscode.commands.executeCommand('nexora.platformBrowser.focus');
 		}),
 		vscode.commands.registerCommand('nexora.refreshPlatforms', async () => {
 			await platformProvider.refresh();

@@ -48,6 +48,11 @@ export function getChatWebviewHtml(
 				<span class="nx-dot" id="statusDot" aria-hidden="true"></span>
 				<span class="nx-statusText" id="statusText">Checking backend...</span>
 			</div>
+			<div class="nx-sessions" aria-label="Chat sessions">
+				<select class="nx-sessionSelect" id="sessionSelect" title="Select chat session"></select>
+				<button class="nx-sessionNew" id="newSessionBtn" type="button" title="New chat">+</button>
+				<button class="nx-sessionDelete" id="deleteSessionBtn" type="button" title="Delete chat">Del</button>
+			</div>
 			<div class="nx-auth" aria-label="Authentication status">
 				<button class="nx-badge" id="githubBadge" type="button" title="Click to connect GitHub">
 					<span class="nx-badgeLabel">GH</span>
@@ -75,15 +80,15 @@ export function getChatWebviewHtml(
 					
 					<div class="nx-quickActions">
 						<button class="nx-quickBtn" data-action="platforms">
-							<span class="nx-quickIcon" aria-hidden="true">[P]</span>
+							<span class="nx-quickIcon" aria-hidden="true">#</span>
 							Browse Platforms
 						</button>
 						<button class="nx-quickBtn" data-action="history">
-							<span class="nx-quickIcon" aria-hidden="true">[H]</span>
+							<span class="nx-quickIcon" aria-hidden="true">H</span>
 							View History
 						</button>
 						<button class="nx-quickBtn" data-action="memory">
-							<span class="nx-quickIcon" aria-hidden="true">[M]</span>
+							<span class="nx-quickIcon" aria-hidden="true">I</span>
 							Index Workspace
 						</button>
 					</div>
@@ -92,29 +97,46 @@ export function getChatWebviewHtml(
 		</main>
 
 		<footer class="nx-footer">
-			<div class="nx-composerTop">
-				<input class="nx-input" type="text" id="input" placeholder="Ask a question, describe what to build, or give a command..." />
-			</div>
-			<div class="nx-composerBottom">
-				<div class="nx-modeSelector">
-					<select class="nx-modeSelect" id="modeSelect" title="Select interaction mode">
-						<option value="chat">Chat</option>
-						<option value="plan">Plan</option>
-						<option value="execute">Execute</option>
-						<option value="agent">Agent</option>
-					</select>
-					<select class="nx-modelSelect" id="modelSelect" title="Select AI model">
-						<option value="gpt-4o-mini">GPT-4o Mini</option>
-						<option value="gpt-4o">GPT-4o</option>
-						<option value="claude-haiku">Claude 3 Haiku</option>
-						<option value="claude-sonnet">Claude 3 Sonnet</option>
-					</select>
+			<div class="nx-composerCard" id="composerCard">
+				<div class="nx-composerInputRow">
+					<input class="nx-input" type="text" id="input" placeholder="Ask a question, describe what to build, or give a command..." />
 				</div>
-				<div class="nx-sendActions">
-					<button class="nx-btn nx-btnPrimary" id="sendBtn" type="button">
-						<span id="sendBtnText">Send</span>
-						<span class="nx-sendIcon" aria-hidden="true">Enter</span>
-					</button>
+				<div class="nx-composerToolbar">
+					<div class="nx-modeSelector">
+						<div class="nx-dd" id="modeDd" data-dd-kind="mode">
+							<button type="button" class="nx-ddTrigger" id="modeDdTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="modeDdMenu" title="Select interaction mode">
+								<span class="nx-ddTriggerText" id="modeDdText">Chat</span>
+								<span class="nx-ddChevron" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 3.5 5 6 7.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+							</button>
+							<div class="nx-ddMenu" id="modeDdMenu" role="listbox" aria-labelledby="modeDdTrigger" hidden>
+								<button type="button" class="nx-ddItem" role="option" data-value="chat">Chat</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="ask">Ask (workspace)</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="plan">Plan</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="execute">Execute</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="agent">Agent</button>
+							</div>
+							<input type="hidden" id="modeSelect" value="chat" />
+						</div>
+						<div class="nx-dd" id="modelDd" data-dd-kind="model">
+							<button type="button" class="nx-ddTrigger" id="modelDdTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="modelDdMenu" title="Select AI model">
+								<span class="nx-ddTriggerText" id="modelDdText">GPT-4o Mini</span>
+								<span class="nx-ddChevron" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 3.5 5 6 7.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+							</button>
+							<div class="nx-ddMenu" id="modelDdMenu" role="listbox" aria-labelledby="modelDdTrigger" hidden>
+								<button type="button" class="nx-ddItem" role="option" data-value="gpt-4o-mini">GPT-4o Mini</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="gpt-4o">GPT-4o</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="claude-haiku">Claude 3 Haiku</button>
+								<button type="button" class="nx-ddItem" role="option" data-value="claude-sonnet">Claude 3 Sonnet</button>
+							</div>
+							<input type="hidden" id="modelSelect" value="gpt-4o-mini" />
+						</div>
+					</div>
+					<div class="nx-sendActions">
+						<button class="nx-btn nx-btnPrimary nx-sendBtn" id="sendBtn" type="button" title="Send (Enter)" aria-label="Send, press Enter">
+							<span class="nx-sendGlyph" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 2 11 13" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+							<span class="nx-sendBtnSr" id="sendBtnText">Send</span>
+						</button>
+					</div>
 				</div>
 			</div>
 			<div class="nx-modeHint" id="modeHint">

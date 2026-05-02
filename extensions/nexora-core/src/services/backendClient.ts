@@ -81,6 +81,10 @@ export class BackendClient {
 		return createMemoryApi(this.transport).queryMemory(workspaceId, query, limit);
 	}
 
+	async getWorkspaceIdForPath(workspacePath: string): Promise<{ workspace_path: string; workspace_id: string }> {
+		return createMemoryApi(this.transport).getWorkspaceIdForPath(workspacePath);
+	}
+
 	/**
 	 * Get relevant context for a task from workspace memory.
 	 * Used before intent classification for context-aware processing.
@@ -334,9 +338,10 @@ export class BackendClient {
 	async generatePlan(
 		request: string,
 		userId: string = 'default',
-		workspacePath?: string
+		workspacePath?: string,
+		model?: string
 	): Promise<any> {
-		return createOrchestrateApi(this.transport).generatePlan(request, userId, workspacePath);
+		return createOrchestrateApi(this.transport).generatePlan(request, userId, workspacePath, model);
 	}
 
 	/**
