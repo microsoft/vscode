@@ -6,15 +6,25 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { getBackendClient } from './services/backendClient';
+import { getBackendClient, type AgentMessage, type ToolCall, type AgentMode } from './services/backendClient';
 import { getChatWebviewHtml } from './webview/chat';
 import type { ChatActivityItem, ChatInitialState, WebviewInboundMessage } from './webview/chat/types';
 import { getOrchestrationWebSocket, type WebSocketMessage } from './services/websocketClient';
+import { executeToolCalls, formatToolResultsAsMessages } from './services/tools';
+
+type ChatMode = 'chat' | 'ask' | 'plan' | 'execute' | 'agent';
+
+type ChatSessionMessage = {
+	role: 'user' | 'assistant';
+	content: string;
+	mode?: ChatMode;
+	timestamp?: number;
+};
 
 type ChatSessionRecord = {
 	id: string;
 	name: string;
-	messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+	messages: ChatSessionMessage[];
 	createdAt: number;
 	memoryWorkspaceId?: string;
 	memoryWorkspacePath?: string;
@@ -479,7 +489,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
-			content: 'Searching workspace memory...',
+			content: 'Analyzing workspace...',
 			isLoading: true
 		});
 
@@ -571,169 +581,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
 				{ id: 'folder', label: 'Checking workspace folder...', done: true },
 				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
-				{ id: 'memory', label: 'Querying workspace memory...', done: false }
+				{ id: 'agent', label: 'Running agent loop...', done: false }
 			]);
 
-			let mem: any;
-			try {
-				mem = await client.queryMemory(workspaceId, message, 8);
-			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				const qErr =
-					`Could not query workspace memory for \`${workspaceId}\`.\n\n` +
-					`Details: ${msg}\n\n` +
-					'Most commonly this means the `.mv2` file is missing - click **Index Workspace** and try again.';
-				const s3 = this._getActiveSession();
-				if (s3) {
-					s3.messages.push({ role: 'assistant', content: qErr });
-					await this._persistSessions();
-				}
-				this._clearChatActivity();
-				this._view.webview.postMessage({
-					type: 'addMessage',
-					role: 'assistant',
-					content: qErr,
-					isLoading: false
-				});
-				return;
-			}
-			let entries: any[] = Array.isArray(mem?.entries) ? mem.entries : [];
-			let contextSource = 'memvid_query';
-
-			if (entries.length === 0) {
-				const altQueries = this._buildAskMemoryQueries(message);
-				for (const q of altQueries) {
-					if (!q || q === message) {
-						continue;
-					}
-					try {
-						const m2 = await client.queryMemory(workspaceId, q, 10);
-						const e2 = Array.isArray(m2?.entries) ? m2.entries : [];
-						if (e2.length > 0) {
-							entries = e2;
-							contextSource = `memvid_query_retry:${q}`;
-							break;
-						}
-					} catch {
-						// ignore and continue fallbacks
-					}
-				}
-			}
-
-			if (entries.length === 0) {
-				try {
-					const tc = await client.getTaskContext(workspaceId, message);
-					const snippets = Array.isArray(tc?.code_snippets) ? tc.code_snippets : [];
-					const files = Array.isArray(tc?.relevant_files) ? tc.relevant_files : [];
-					if (snippets.length > 0) {
-						let ctx = '';
-						for (let i = 0; i < snippets.length; i++) {
-							const fp = files[i] || 'unknown';
-							const snip = String(snippets[i] || '').slice(0, 900);
-							ctx += `\n### Context ${i + 1}: ${fp}\n${snip}\n`;
-						}
-						entries = [{ metadata: { file_path: 'task_context' }, content: ctx }];
-						contextSource = 'memvid_task_context';
-					}
-				} catch {
-					// ignore
-				}
-			}
-
-			let diskReadNote = '';
-			if (entries.length === 0) {
-				const names = this._extractLikelyFilenames(message);
-				if (names.length === 1) {
-					const read = await this._readWorkspaceFileByName(workspacePath, names[0]!);
-					const readAmb = read !== null ? (read as { ambiguous?: string[] }).ambiguous : undefined;
-					if (read !== null && Array.isArray(readAmb)) {
-						const listed = readAmb.map(p => `- \`${p}\``).join('\n');
-						const ambMsg =
-							`I found multiple files named like \`${names[0]}\`. Which one did you mean?\n\n${listed}\n\n` +
-							`Reply with the full relative path (from the workspace root).`;
-						const sAmb = this._getActiveSession();
-						if (sAmb) {
-							sAmb.messages.push({ role: 'assistant', content: ambMsg });
-							await this._persistSessions();
-						}
-						this._clearChatActivity();
-						this._view.webview.postMessage({
-							type: 'addMessage',
-							role: 'assistant',
-							content: ambMsg,
-							isLoading: false
-						});
-						return;
-					}
-					const readRes = read !== null ? (read as { resolvedPath?: string; contents?: string }) : undefined;
-					if (
-						readRes &&
-						typeof readRes.resolvedPath === 'string' &&
-						typeof readRes.contents === 'string'
-					) {
-						entries = [{
-							metadata: { file_path: readRes.resolvedPath },
-							content: readRes.contents
-						}];
-						contextSource = 'workspace_file_read';
-						diskReadNote =
-							`\nNOTE: Memvid returned 0 lexical hits for the original question, so the extension read this file directly from disk:\n` +
-							`- \`${readRes.resolvedPath}\`\n`;
-					}
-				}
-			}
-
-			if (entries.length === 0) {
-				const noHits =
-					'No matches were found in indexed memory for that question (Memvid lexical search returned 0 hits).\n\n' +
-					'Try asking with a **filename** (e.g. `app/main.py`) or a **symbol name** from the code. If you changed files, click **Index Workspace** again.';
-				const s4 = this._getActiveSession();
-				if (s4) {
-					s4.messages.push({ role: 'assistant', content: noHits });
-					await this._persistSessions();
-				}
-				this._clearChatActivity();
-				this._view.webview.postMessage({
-					type: 'addMessage',
-					role: 'assistant',
-					content: noHits,
-					isLoading: false
-				});
-				return;
-			}
-
-			this._emitChatActivity([
-				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
-				{ id: 'folder', label: 'Checking workspace folder...', done: true },
-				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
-				{ id: 'memory', label: 'Querying workspace memory...', done: true },
-				{ id: 'model', label: 'Calling chat model...', done: false }
-			]);
-
-			let context = '';
-			for (let i = 0; i < entries.length; i++) {
-				const e = entries[i];
-				const fp = e?.metadata?.file_path || 'unknown';
-				const maxSnip = contextSource === 'workspace_file_read' ? 12000 : 900;
-				const snip = String(e?.content || '').slice(0, maxSnip);
-				context += `\n### Hit ${i + 1}: ${fp}\n${snip}\n`;
-			}
-
-			const composed =
-				`You are Nexora. Answer the user's question using ONLY the retrieved workspace snippets below.\n` +
-				`If the snippets are insufficient, say what is missing and which files/paths you would need.\n` +
-				`Cite paths when you use them.\n\n` +
-				`USER QUESTION:\n${message}\n\n` +
-				`CONTEXT SOURCE: ${contextSource}\n` +
-				diskReadNote +
-				`RETRIEVED WORKSPACE SNIPPETS:\n${context}`;
-
+			// Run agent loop with tools
 			const llmModel = this._mapUiModelToLiteLlm(model);
-			const chatResponse = await client.chat(composed, workspacePath, llmModel);
+			const finalAnswer = await this._runAgentLoop(
+				message,
+				workspaceId,
+				workspacePath,
+				llmModel
+			);
 
 			const sessionAfter = this._getActiveSession();
 			if (sessionAfter) {
-				sessionAfter.messages.push({ role: 'assistant', content: chatResponse.response });
+				sessionAfter.messages.push({ role: 'assistant', content: finalAnswer });
 				await this._persistSessions();
 			}
 
@@ -741,7 +603,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: chatResponse.response,
+				content: finalAnswer,
 				isLoading: false
 			});
 		} catch (error) {
@@ -758,6 +620,116 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				content: errText,
 				isLoading: false
 			});
+		}
+	}
+
+	/**
+	 * Run the agent loop with tool calling.
+	 * Calls backend for LLM + Memvid tools, executes file tools locally.
+	 */
+	private async _runAgentLoop(
+		userMessage: string,
+		workspaceId: string,
+		workspacePath: string,
+		model?: string
+	): Promise<string> {
+		const client = getBackendClient();
+		const maxTurns = 10;
+		let turn = 0;
+
+		// Build initial messages
+		const messages: AgentMessage[] = [
+			{ role: 'user', content: userMessage }
+		];
+
+		// Track activity items for UI
+		const activityItems: ChatActivityItem[] = [
+			{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+			{ id: 'folder', label: 'Checking workspace folder...', done: true },
+			{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
+			{ id: 'agent', label: 'Running agent loop...', done: false }
+		];
+
+		while (turn < maxTurns) {
+			turn++;
+
+			// Call backend agent turn
+			const response = await client.agentTurn(messages, workspaceId, workspacePath, model);
+
+			if (response.type === 'final') {
+				// Agent is done, return the answer
+				activityItems.find(a => a.id === 'agent')!.done = true;
+				this._emitChatActivity(activityItems);
+				return response.content || 'No response generated.';
+			}
+
+			// Handle tool calls
+			if (response.type === 'tool_calls' && response.tool_calls) {
+				// Update activity with tool names
+				for (const tc of response.tool_calls) {
+					const toolLabel = this._formatToolLabel(tc.name, tc.arguments);
+					const existingTool = activityItems.find(a => a.id === `tool-${tc.id}`);
+					if (!existingTool) {
+						activityItems.push({ id: `tool-${tc.id}`, label: toolLabel, done: false });
+					}
+				}
+				this._emitChatActivity(activityItems);
+
+				// Execute tools (file tools run locally, search_codebase pre-executed on backend)
+				const executed = await executeToolCalls(response.tool_calls, workspacePath);
+
+				// Mark tools as done in activity
+				for (const ex of executed) {
+					const item = activityItems.find(a => a.id === `tool-${ex.id}`);
+					if (item) {
+						item.done = true;
+					}
+				}
+				this._emitChatActivity(activityItems);
+
+				// Add assistant message with tool_calls
+				messages.push({
+					role: 'assistant',
+					content: '',
+					tool_calls: response.tool_calls.map(tc => ({
+						id: tc.id,
+						type: 'function',
+						function: {
+							name: tc.name,
+							arguments: JSON.stringify(tc.arguments)
+						}
+					}))
+				});
+
+				// Add tool result messages
+				const toolMessages = formatToolResultsAsMessages(executed);
+				for (const tm of toolMessages) {
+					messages.push(tm);
+				}
+			}
+		}
+
+		return 'Agent reached maximum turns without completing. Try a more specific question.';
+	}
+
+	private _formatToolLabel(toolName: string, args: Record<string, any>): string {
+		switch (toolName) {
+			case 'search_codebase':
+				return `search_codebase: ${args.query || ''}`.slice(0, 60);
+			case 'read_file':
+				return `read_file: ${args.path || ''}`.slice(0, 60);
+			case 'grep':
+				return `grep: ${args.pattern || ''}`.slice(0, 60);
+			case 'list_files':
+				return `list_files: ${args.glob || '**/*'}`.slice(0, 60);
+			case 'write_file':
+				return `write_file: ${args.path || ''}`.slice(0, 60);
+			case 'apply_patch':
+				return `apply_patch: ${args.path || ''}`.slice(0, 60);
+			case 'insert_lines':
+				return `insert_lines: ${args.path || ''}:${args.line_number || ''}`.slice(0, 60);
+			default:
+				return `${toolName}`.slice(0, 60);
 		}
 	}
 
@@ -1136,6 +1108,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		// Persist user message with mode
+		const session = this._getActiveSession();
+		if (session) {
+			session.messages.push({ role: 'user', content: request, mode: 'plan', timestamp: Date.now() });
+			await this._persistSessions();
+		}
+
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
@@ -1160,6 +1139,14 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				wsClient.subscribeToPlan(plan.plan_id);
 			}
 
+			// Persist plan response
+			const planSummary = `**Execution Plan** (${plan.plan_id})\n\nTasks: ${plan.tasks?.length || 0}\nEstimated cost: $${plan.estimated_cost?.toFixed(4) || '0.0000'}`;
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: planSummary, mode: 'plan', timestamp: Date.now() });
+				await this._persistSessions();
+			}
+
 			// Send plan to webview with approval UI
 			this._view.webview.postMessage({
 				type: 'showPlanApproval',
@@ -1167,10 +1154,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			});
 
 		} catch (error) {
+			const errMsg = `Error generating plan: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			const sessionErr = this._getActiveSession();
+			if (sessionErr) {
+				sessionErr.messages.push({ role: 'assistant', content: errMsg, mode: 'plan', timestamp: Date.now() });
+				await this._persistSessions();
+			}
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error generating plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: errMsg,
 				isLoading: false
 			});
 		}
@@ -1539,6 +1532,72 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		// Persist user message with mode
+		const session = this._getActiveSession();
+		if (session) {
+			session.messages.push({ role: 'user', content: request, mode: 'execute', timestamp: Date.now() });
+			await this._persistSessions();
+		}
+
+		// Check if there's an existing approved plan to execute
+		if (this._currentPlanId) {
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: `Executing approved plan (${this._currentPlanId})...`,
+				isLoading: true
+			});
+
+			try {
+				const client = getBackendClient();
+				const wsClient = getOrchestrationWebSocket('default');
+				if (!wsClient.isConnected()) {
+					await wsClient.connect();
+				}
+				wsClient.subscribeToPlan(this._currentPlanId);
+
+				this._view.webview.postMessage({
+					type: 'planExecutionStarted',
+					planId: this._currentPlanId
+				});
+
+				const result = await client.approvePlan(this._currentPlanId);
+
+				const resultMsg = `**Execution Complete**\n\nStatus: ${result.status}\nCost: $${result.actual_cost?.toFixed(4) || '0.0000'}`;
+				const sessionAfter = this._getActiveSession();
+				if (sessionAfter) {
+					sessionAfter.messages.push({ role: 'assistant', content: resultMsg, mode: 'execute', timestamp: Date.now() });
+					await this._persistSessions();
+				}
+
+				this._view.webview.postMessage({
+					type: 'planExecutionComplete',
+					planId: this._currentPlanId,
+					status: result.status,
+					tasks: result.tasks,
+					actualCost: result.actual_cost
+				});
+
+				this._currentPlanId = undefined;
+				return;
+			} catch (error) {
+				const errMsg = `Error executing plan: ${error instanceof Error ? error.message : 'Unknown error'}`;
+				const sessionErr = this._getActiveSession();
+				if (sessionErr) {
+					sessionErr.messages.push({ role: 'assistant', content: errMsg, mode: 'execute', timestamp: Date.now() });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: errMsg,
+					isLoading: false
+				});
+				return;
+			}
+		}
+
+		// No approved plan - generate and execute immediately
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
@@ -1578,6 +1637,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
 			const result = await client.approvePlan(plan.plan_id);
 
+			const resultMsg = `**Execution Complete**\n\nStatus: ${result.status}\nCost: $${result.actual_cost?.toFixed(4) || '0.0000'}`;
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: resultMsg, mode: 'execute', timestamp: Date.now() });
+				await this._persistSessions();
+			}
+
 			this._view.webview.postMessage({
 				type: 'planExecutionComplete',
 				planId: plan.plan_id,
@@ -1587,10 +1653,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			});
 
 		} catch (error) {
+			const errMsg = `Error executing request: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			const sessionErr = this._getActiveSession();
+			if (sessionErr) {
+				sessionErr.messages.push({ role: 'assistant', content: errMsg, mode: 'execute', timestamp: Date.now() });
+				await this._persistSessions();
+			}
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error executing request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: errMsg,
 				isLoading: false
 			});
 		}
@@ -1601,60 +1673,226 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		// Persist user message with mode
+		const session = this._getActiveSession();
+		if (session) {
+			session.messages.push({ role: 'user', content: request, mode: 'agent', timestamp: Date.now() });
+			await this._persistSessions();
+		}
+
 		this._view.webview.postMessage({
 			type: 'addMessage',
 			role: 'assistant',
-			content: `**Agent Mode**\n\nAnalyzing request and planning autonomous execution...\n\n*"${request}"*`,
+			content: '**Agent Mode**\n\nAnalyzing workspace and preparing to make changes...',
 			isLoading: true
 		});
 
-		// For now, agent mode uses the same flow as execute but with different messaging
-		// In future, this could use a more autonomous agent loop
+		this._emitChatActivity([{ id: 'backend', label: 'Checking Nexora backend...', done: false }]);
+
 		try {
 			const client = getBackendClient();
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			const workspacePath = workspaceFolders && workspaceFolders.length > 0
-				? workspaceFolders[0].uri.fsPath
-				: undefined;
-
-			const llmModel = this._mapUiModelToLiteLlm(model);
-			const plan = await client.generatePlan(request, 'default', workspacePath, llmModel);
-
-			const wsClient = getOrchestrationWebSocket('default');
-			if (!wsClient.isConnected()) {
-				await wsClient.connect();
+			const isConnected = await client.checkHealth();
+			if (!isConnected) {
+				this._clearChatActivity();
+				const offline = `Backend is offline. Your request: "${request}"\n\nPlease start the backend server and try again.`;
+				const s0 = this._getActiveSession();
+				if (s0) {
+					s0.messages.push({ role: 'assistant', content: offline, mode: 'agent', timestamp: Date.now() });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: offline,
+					isLoading: false
+				});
+				return;
 			}
-			wsClient.subscribeToPlan(plan.plan_id);
 
-			this._view.webview.postMessage({
-				type: 'showPlanApproval',
-				plan: plan
-			});
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: false }
+			]);
 
-			// In agent mode, auto-approve
-			this._view.webview.postMessage({
-				type: 'planExecutionStarted',
-				planId: plan.plan_id
-			});
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				this._clearChatActivity();
+				const noFolder = 'No workspace folder open. Open a folder to use Agent mode.';
+				const s1 = this._getActiveSession();
+				if (s1) {
+					s1.messages.push({ role: 'assistant', content: noFolder, mode: 'agent', timestamp: Date.now() });
+					await this._persistSessions();
+				}
+				this._view.webview.postMessage({
+					type: 'addMessage',
+					role: 'assistant',
+					content: noFolder,
+					isLoading: false
+				});
+				return;
+			}
 
-			const result = await client.approvePlan(plan.plan_id);
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: true },
+				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: false }
+			]);
 
-			this._view.webview.postMessage({
-				type: 'planExecutionComplete',
-				planId: plan.plan_id,
-				status: result.status,
-				tasks: result.tasks,
-				actualCost: result.actual_cost
-			});
+			const workspacePath = workspaceFolders[0].uri.fsPath;
+			const active = this._getActiveSession();
 
-		} catch (error) {
+			let workspaceId = active?.memoryWorkspaceId;
+			if (!workspaceId) {
+				const mapped = await client.getWorkspaceIdForPath(workspacePath).catch(() => undefined);
+				workspaceId = mapped?.workspace_id;
+				if (active && workspaceId) {
+					active.memoryWorkspaceId = workspaceId;
+					active.memoryWorkspacePath = workspacePath;
+					await this._persistSessions();
+				}
+			}
+
+			// For agent mode, we can work even without indexed workspace
+			// (write tools don't need Memvid, they work with filesystem)
+			if (!workspaceId) {
+				workspaceId = `temp_${Date.now()}`;
+			}
+
+			this._emitChatActivity([
+				{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+				{ id: 'folder', label: 'Checking workspace folder...', done: true },
+				{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
+				{ id: 'agent', label: 'Running agent with edit tools...', done: false }
+			]);
+
+			// Run agent loop with write tools (mode='agent')
+			const llmModel = this._mapUiModelToLiteLlm(model);
+			const finalAnswer = await this._runAgentLoopWithMode(
+				request,
+				workspaceId,
+				workspacePath,
+				llmModel,
+				'agent'
+			);
+
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: finalAnswer, mode: 'agent', timestamp: Date.now() });
+				await this._persistSessions();
+			}
+
+			this._clearChatActivity();
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Agent error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: finalAnswer,
+				isLoading: false
+			});
+		} catch (error) {
+			const errText = `Agent error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+			const sessionAfter = this._getActiveSession();
+			if (sessionAfter) {
+				sessionAfter.messages.push({ role: 'assistant', content: errText, mode: 'agent', timestamp: Date.now() });
+				await this._persistSessions();
+			}
+			this._clearChatActivity();
+			this._view.webview.postMessage({
+				type: 'addMessage',
+				role: 'assistant',
+				content: errText,
 				isLoading: false
 			});
 		}
+	}
+
+	/**
+	 * Run the agent loop with specified mode.
+	 * mode='ask' for read-only, mode='agent' for read+write.
+	 */
+	private async _runAgentLoopWithMode(
+		userMessage: string,
+		workspaceId: string,
+		workspacePath: string,
+		model: string | undefined,
+		mode: AgentMode
+	): Promise<string> {
+		const client = getBackendClient();
+		const maxTurns = 10;
+		let turn = 0;
+
+		// Build initial messages
+		const messages: AgentMessage[] = [
+			{ role: 'user', content: userMessage }
+		];
+
+		// Track activity items for UI
+		const activityItems: ChatActivityItem[] = [
+			{ id: 'backend', label: 'Checking Nexora backend...', done: true },
+			{ id: 'folder', label: 'Checking workspace folder...', done: true },
+			{ id: 'workspaceId', label: 'Resolving workspace memory id...', done: true },
+			{ id: 'agent', label: mode === 'agent' ? 'Running agent with edit tools...' : 'Running agent loop...', done: false }
+		];
+
+		while (turn < maxTurns) {
+			turn++;
+
+			// Call backend agent turn with mode
+			const response = await client.agentTurn(messages, workspaceId, workspacePath, model, mode);
+
+			if (response.type === 'final') {
+				// Agent is done, return the answer
+				activityItems.find(a => a.id === 'agent')!.done = true;
+				this._emitChatActivity(activityItems);
+				return response.content || 'No response generated.';
+			}
+
+			// Handle tool calls
+			if (response.type === 'tool_calls' && response.tool_calls) {
+				// Update activity with tool names
+				for (const tc of response.tool_calls) {
+					const toolLabel = this._formatToolLabel(tc.name, tc.arguments);
+					const existingTool = activityItems.find(a => a.id === `tool-${tc.id}`);
+					if (!existingTool) {
+						activityItems.push({ id: `tool-${tc.id}`, label: toolLabel, done: false });
+					}
+				}
+				this._emitChatActivity(activityItems);
+
+				// Execute tools (file tools run locally, search_codebase pre-executed on backend)
+				const executed = await executeToolCalls(response.tool_calls, workspacePath);
+
+				// Mark tools as done in activity
+				for (const ex of executed) {
+					const item = activityItems.find(a => a.id === `tool-${ex.id}`);
+					if (item) {
+						item.done = true;
+					}
+				}
+				this._emitChatActivity(activityItems);
+
+				// Add assistant message with tool_calls
+				messages.push({
+					role: 'assistant',
+					content: '',
+					tool_calls: response.tool_calls.map(tc => ({
+						id: tc.id,
+						type: 'function',
+						function: {
+							name: tc.name,
+							arguments: JSON.stringify(tc.arguments)
+						}
+					}))
+				});
+
+				// Add tool result messages
+				const toolMessages = formatToolResultsAsMessages(executed);
+				for (const tm of toolMessages) {
+					messages.push(tm);
+				}
+			}
+		}
+
+		return 'Agent reached maximum turns without completing. Try a more specific request.';
 	}
 
 	private _getHtmlContent(): string {

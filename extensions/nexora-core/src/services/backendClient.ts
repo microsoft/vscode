@@ -15,6 +15,9 @@ import { createCognitiveApi } from './backend/cognitive';
 import { createAuthApi } from './backend/auth';
 import { createOrchestrateApi } from './backend/orchestrate';
 import { createHistoryApi, type HistoryItem, type RollbackableItem, type RollbackInfo, type RollbackResponse, type HistoryStats } from './backend/history';
+import { createAgentApi, type AgentMessage, type AgentTurnResponse, type ToolCall, type AgentMode } from './backend/agent';
+
+export type { AgentMessage, AgentTurnResponse, ToolCall, AgentMode };
 
 export class BackendClient {
 	private config: BackendConfig;
@@ -126,6 +129,33 @@ export class BackendClient {
 			workspace_path: workspacePath,
 			model
 		});
+	}
+
+	/**
+	 * Execute one turn of the agent loop with tool calling.
+	 * Returns either tool calls to execute or a final answer.
+	 * 
+	 * @param messages Conversation messages so far
+	 * @param workspaceId Workspace ID for memory queries
+	 * @param workspacePath Optional workspace path for file operations
+	 * @param model Optional model to use
+	 * @returns Agent turn response with tool calls or final answer
+	 */
+	async agentTurn(
+		messages: AgentMessage[],
+		workspaceId: string,
+		workspacePath?: string,
+		model?: string,
+		mode: AgentMode = 'ask'
+	): Promise<AgentTurnResponse> {
+		return createAgentApi(this.transport).agentTurn(messages, workspaceId, workspacePath, model, mode);
+	}
+
+	/**
+	 * Get list of available agent tools.
+	 */
+	async getAgentTools(): Promise<{ tools: any[]; total: number }> {
+		return createAgentApi(this.transport).getTools();
 	}
 
 	/**
