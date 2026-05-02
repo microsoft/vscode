@@ -584,7 +584,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 - [x] **AnthropicOAuth adapter** in `services/model-router/src/providers/anthropic-oauth.ts` (§5.1).
   - PKCE flow.
   - `cache_control` preserved end-to-end.
-- [ ] **Streaming chat UI rewrite** in `src/vs/sessions/contrib/chat/browser/` (§7.3, §9.5).
+- [x] **Streaming chat UI rewrite** in `src/vs/sessions/contrib/chat/browser/` (§7.3, §9.5).
   - Text, tool_use, thinking, usage, error all rendered live.
   - Cancel button propagates AbortSignal.
 - [x] **mcp-gateway tool-result streaming** in `services/mcp-gateway/src/server.ts` (§7.2). _(partial: streaming wrapper + types landed, semantic_search migrated as proof of concept; remaining 17 tools migrate in follow-up)_
