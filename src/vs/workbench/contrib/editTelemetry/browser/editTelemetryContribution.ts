@@ -63,7 +63,7 @@ export class EditTelemetryContribution extends Disposable {
 			if (addAICoAuthor.read(r) === 'off') {
 				return;
 			}
-			r.store.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments.read(r)));
+			r.store.add(instantiationService.createInstance(AiContributionFeature, workspace.read(r)));
 		}));
 	}
 }

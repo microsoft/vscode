@@ -3,113 +3,181 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, mapObservableArrayCached, runOnChange } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { AnnotatedDocument, IAnnotatedDocuments } from './helpers/annotatedDocuments.js';
-import { createDocWithJustReason } from './helpers/documentWithAnnotatedEdits.js';
-import { DocumentEditSourceTracker } from './telemetry/editTracker.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { EditSourceBase } from './helpers/documentWithAnnotatedEdits.js';
+import { ObservableWorkspace } from './helpers/observableWorkspace.js';
 
 export type AiContributionLevel = 'chatAndAgent' | 'all';
 
-interface TrackerEntry {
-	readonly trackerStore: DisposableStore;
-	readonly tracker: DocumentEditSourceTracker;
-}
+const STORAGE_KEY = 'aiEdits.contributions';
+const SAVE_DEBOUNCE_MS = 250;
 
 /**
- * Tracks AI-generated edits across open documents using the edit telemetry pipeline.
+ * Tracks which URIs have received AI-generated edits, so the git extension
+ * can add a `Co-authored-by: Copilot` trailer to commits that touch them.
+ *
+ * Attribution is recorded per URI: once an AI edit lands in a file, the
+ * file is considered AI-contributed until explicitly cleared. State is
+ * persisted per workspace so the trailer is still applied after a window
+ * reload, after the file is closed, or for files that the agent edited
+ * without the user ever opening them in an editor.
  */
 export class AiContributionFeature extends Disposable {
 
-	private readonly _trackers = new ResourceMap<TrackerEntry>();
-	private readonly _documentsByUri = new ResourceMap<AnnotatedDocument>();
+	private readonly _contributions = new ResourceMap<AiContributionLevel>();
+
+	private readonly _saveScheduler: RunOnceScheduler;
+	private _dirty = false;
 
 	constructor(
-		annotatedDocuments: IAnnotatedDocuments,
+		workspace: ObservableWorkspace,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			const docs = annotatedDocuments.documents.read(reader);
-			const activeUris = new ResourceMap<boolean>();
+		this._loadFromStorage();
 
-			for (const doc of docs) {
-				const uri = doc.document.uri;
-				activeUris.set(uri, true);
-				this._documentsByUri.set(uri, doc);
-
-				if (!this._trackers.has(uri)) {
-					this._trackers.set(uri, this._createTrackerEntry(doc));
-				}
-			}
-
-			for (const [uri, entry] of this._trackers) {
-				if (!activeUris.has(uri)) {
-					entry.trackerStore.dispose();
-					this._trackers.delete(uri);
-					this._documentsByUri.delete(uri);
-				}
+		this._saveScheduler = this._register(new RunOnceScheduler(() => this._saveToStorage(), SAVE_DEBOUNCE_MS));
+		this._register(this._storageService.onWillSaveState(() => {
+			if (this._dirty) {
+				this._saveScheduler.cancel();
+				this._saveToStorage();
 			}
 		}));
 
-		this._register(CommandsRegistry.registerCommand('_aiEdits.hasAiContributions', (_accessor, resources: UriComponents[], level: AiContributionLevel) => {
-			return this._hasAiContributions(resources, level);
-		}));
+		// Track every loaded document, regardless of editor visibility: the
+		// trailer must apply to agent-only edits and survive closing the file.
+		const trackedDocs = mapObservableArrayCached(this, workspace.documents, (doc, store) => {
+			store.add(runOnChange(doc.value, (_val, _prev, edits) => {
+				for (const e of edits) {
+					const source = EditSourceBase.create(e.reason);
+					if (source.category !== 'ai') {
+						continue;
+					}
+					const level: AiContributionLevel = source.feature === 'chat' ? 'chatAndAgent' : 'all';
+					this._record(doc.uri, level);
+				}
+			}));
+		});
 
-		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAiContributions', (_accessor, resources: UriComponents[]) => {
-			this._clearAiContributions(resources);
-		}));
+		// Force the cached array so per-document subscriptions get wired up.
+		this._register(autorun(reader => { trackedDocs.read(reader); }));
 
-		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAllAiContributions', () => {
-			this._clearAiContributions();
-		}));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.hasAiContributions',
+			(_acc, resources: UriComponents[], level: AiContributionLevel) => this._hasAiContributions(resources, level)));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAiContributions',
+			(_acc, resources: UriComponents[]) => this._clearAiContributions(resources)));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAllAiContributions',
+			() => this._clearAiContributions()));
 	}
 
-	override dispose(): void {
-		for (const [, entry] of this._trackers) {
-			entry.trackerStore.dispose();
-		}
+	public override dispose(): void {
+		this._saveScheduler.cancel();
 		super.dispose();
+		if (this._dirty) {
+			this._saveToStorage();
+		}
 	}
 
-	private _createTrackerEntry(doc: AnnotatedDocument): TrackerEntry {
-		const trackerStore = new DisposableStore();
-		const docWithJustReason = createDocWithJustReason(doc.documentWithAnnotations, trackerStore);
-		const tracker = trackerStore.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
-		return { trackerStore, tracker };
+	private _record(uri: URI, level: AiContributionLevel): void {
+		const existing = this._contributions.get(uri);
+		// `chatAndAgent` is the stronger attribution; never downgrade to `all`.
+		if (existing === 'chatAndAgent' || existing === level) {
+			return;
+		}
+		this._contributions.set(uri, level);
+		this._markDirty();
+	}
+
+	private _markDirty(): void {
+		this._dirty = true;
+		this._saveScheduler.schedule();
 	}
 
 	private _hasAiContributions(resources: UriComponents[], level: AiContributionLevel): boolean {
-		for (const resource of resources) {
-			const entry = this._trackers.get(URI.revive(resource));
-			if (entry) {
-				for (const edit of entry.tracker.getTrackedRanges()) {
-					if (edit.source.category === 'ai' && (level === 'all' || edit.source.feature === 'chat')) {
-						return true;
-					}
-				}
+		for (const r of resources) {
+			const recorded = this._contributions.get(URI.from(r, true));
+			if (recorded === undefined) {
+				continue;
+			}
+			if (level === 'all' || recorded === 'chatAndAgent') {
+				return true;
 			}
 		}
 		return false;
 	}
 
 	private _clearAiContributions(resources?: UriComponents[]): void {
-		const uris = resources ? resources.map(r => URI.revive(r)) : [...this._trackers.keys()];
-		for (const uri of uris) {
-			const entry = this._trackers.get(uri);
-			if (entry) {
-				entry.trackerStore.dispose();
-				const doc = this._documentsByUri.get(uri);
-				if (doc) {
-					this._trackers.set(uri, this._createTrackerEntry(doc));
-				} else {
-					this._trackers.delete(uri);
-					this._documentsByUri.delete(uri);
+		let changed = false;
+		if (!resources) {
+			if (this._contributions.size > 0) {
+				this._contributions.clear();
+				changed = true;
+			}
+		} else {
+			for (const r of resources) {
+				if (this._contributions.delete(URI.from(r, true))) {
+					changed = true;
 				}
 			}
+		}
+		if (changed) {
+			this._markDirty();
+		}
+	}
+
+	private _loadFromStorage(): void {
+		const raw = this._storageService.get(STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(raw);
+		} catch {
+			return;
+		}
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			return;
+		}
+		for (const [uriString, value] of Object.entries(parsed as Record<string, unknown>)) {
+			if (value !== 'chatAndAgent' && value !== 'all') {
+				continue;
+			}
+			let uri: URI;
+			try {
+				uri = URI.parse(uriString);
+			} catch {
+				continue;
+			}
+			this._contributions.set(uri, value);
+		}
+	}
+
+	private _saveToStorage(): void {
+		// Only clear `_dirty` after a successful write so retries can flush
+		// pending state on the next save attempt.
+		try {
+			if (this._contributions.size === 0) {
+				this._storageService.remove(STORAGE_KEY, StorageScope.WORKSPACE);
+			} else {
+				const obj: Record<string, AiContributionLevel> = Object.create(null);
+				for (const [uri, level] of this._contributions) {
+					obj[uri.toString()] = level;
+				}
+				// MACHINE: attribution is tied to on-disk content of this
+				// workspace, which differs per machine.
+				this._storageService.store(STORAGE_KEY, JSON.stringify(obj), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+			this._dirty = false;
+		} catch {
+			// Keep `_dirty` so the next save can retry.
 		}
 	}
 }
