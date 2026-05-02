@@ -5,13 +5,29 @@
 
 import { localize } from '../../../../nls.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+
+export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
+	if (provider.connect) {
+		await provider.connect();
+	} else if (provider.remoteAddress) {
+		remoteAgentHostService.reconnect(provider.remoteAddress);
+	}
+}
+
+export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
+	if (provider.disconnect) {
+		await provider.disconnect();
+	} else if (provider.remoteAddress) {
+		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+	}
+}
 
 export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	switch (status) {
@@ -65,6 +81,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	}
 
 	const quickInputService = accessor.get(IQuickInputService);
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const clipboardService = accessor.get(IClipboardService);
 	const preferencesService = accessor.get(IPreferencesService);
 	const outputService = accessor.get(IOutputService);
@@ -120,10 +137,10 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	switch (result.id) {
 		case 'reconnect':
-			await provider.connect?.();
+			await reconnectRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'remove':
-			await provider.disconnect?.();
+			await removeRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'copy':
 			await clipboardService.writeText(address);

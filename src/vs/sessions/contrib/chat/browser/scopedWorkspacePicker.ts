@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -38,6 +39,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
@@ -53,6 +55,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
+			remoteAgentHostService,
 			configurationService,
 			commandService,
 			workspacesService,

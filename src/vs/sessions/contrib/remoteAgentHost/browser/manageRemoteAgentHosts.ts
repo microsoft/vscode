@@ -12,14 +12,14 @@ import { Action2, IMenuService, MenuItemAction, registerAction2 } from '../../..
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getStatusLabel, showRemoteHostOptions } from './remoteHostOptions.js';
+import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
@@ -48,6 +48,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const menuService = accessor.get(IMenuService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
@@ -141,7 +142,7 @@ registerAction2(class extends Action2 {
 
 			store.add(picker.onDidTriggerItemButton(async e => {
 				if (e.item.kind === 'remote' && e.button === removeButton) {
-					await e.item.provider.disconnect?.();
+					await removeRemoteHost(e.item.provider, remoteAgentHostService);
 					// onDidChangeProviders will refresh
 				}
 			}));

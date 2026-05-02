@@ -108,7 +108,7 @@ export interface IActionListItem<T> {
 	 * Optional callback invoked when the item is removed via the built-in remove button.
 	 * When set, a close button is automatically added to the item toolbar.
 	 */
-	readonly onRemove?: () => void;
+	readonly onRemove?: () => void | Promise<void>;
 }
 
 interface IActionMenuTemplateData {
@@ -368,8 +368,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				id: 'actionList.remove',
 				label: localize('actionList.remove', "Remove"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => {
-					element.onRemove!();
+				run: async () => {
+					await element.onRemove!();
 					this._onRemoveItem?.(element);
 				},
 			}));
