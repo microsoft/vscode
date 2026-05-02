@@ -206,35 +206,28 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
 
-		let path = 'normal';
-		let error = true;
-		try {
-			// Find the chat and update active chat
-			let chat: IChat | undefined;
-			if (this._activeChatObservable) {
-				const activeSession = this._activeSession.get();
-				if (activeSession) {
-					chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
-					if (chat) {
-						this._activeChatObservable.set(chat, undefined);
-					}
+		// Find the chat and update active chat
+		let chat: IChat | undefined;
+		if (this._activeChatObservable) {
+			const activeSession = this._activeSession.get();
+			if (activeSession) {
+				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
+				if (chat) {
+					this._activeChatObservable.set(chat, undefined);
 				}
 			}
-
-			// If the chat is untitled (not yet sent), show the new-chat-in-session view
-			if (chat && chat.status.get() === SessionStatus.Untitled) {
-				this._isNewChatInSessionContext.set(true);
-				path = 'untitled';
-				error = false;
-				return;
-			}
-
-			this._isNewChatInSessionContext.set(false);
-			await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
-			error = false;
-		} finally {
-			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms path=${path}${error ? ' error=true' : ''}`);
 		}
+
+		// If the chat is untitled (not yet sent), show the new-chat-in-session view
+		if (chat && chat.status.get() === SessionStatus.Untitled) {
+			this._isNewChatInSessionContext.set(true);
+			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms path=untitled`);
+			return;
+		}
+
+		this._isNewChatInSessionContext.set(false);
+		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
+		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms`);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
@@ -249,16 +242,11 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
 
-		let error = true;
-		try {
-			// Open the active chat (which may have been restored to the last active chat)
-			const activeChat = this._activeSession.get()?.activeChat.get();
-			const openUri = activeChat?.resource ?? sessionData.resource;
-			await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
-			error = false;
-		} finally {
-			this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms${error ? ' error=true' : ''}`);
-		}
+		// Open the active chat (which may have been restored to the last active chat)
+		const activeChat = this._activeSession.get()?.activeChat.get();
+		const openUri = activeChat?.resource ?? sessionData.resource;
+		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms`);
 	}
 
 	unsetNewSession(): void {
