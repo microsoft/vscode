@@ -2679,6 +2679,18 @@
 				"enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
 			},
 			{
+				"command": "github.copilot.sessionSync.deleteSessions",
+				"title": "%github.copilot.command.sessionSync.deleteSessions%",
+				"category": "Chat",
+				"enablement": "github.copilot.sessionSearch.enabled && config.chat.sessionSync.enabled"
+			},
+			{
+				"command": "github.copilot.chronicle.reindex",
+				"title": "%github.copilot.command.chronicle.reindex%",
+				"category": "Chat",
+				"enablement": "github.copilot.sessionSearch.enabled"
+			},
+			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
 				"category": "Copilot"
@@ -4493,16 +4505,6 @@
 							"experimental"
 						]
 					},
-					"github.copilot.chat.agentHistorySummarizationInline": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.useResponsesApiTruncation": {
 						"type": "boolean",
 						"default": false,
@@ -4668,6 +4670,14 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.agent.modelDetails.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.chat.agent.modelDetails.enabled%",
 						"tags": [
 							"advanced"
 						]

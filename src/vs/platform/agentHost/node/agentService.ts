@@ -7,6 +7,7 @@ import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -70,6 +71,17 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
+
+	/**
+	 * Authoritative server-side per-resource subscription refcount, keyed by
+	 * resource URI string and valued by the set of subscribed protocol
+	 * client IDs. Populated by {@link subscribe} (or {@link addSubscriber}
+	 * for handshake fast-paths) and drained by {@link unsubscribe}. When a
+	 * resource's set becomes empty, the resource is dropped from the map and
+	 * {@link _maybeEvictIdleSession} is invoked to release any cached state
+	 * for it.
+	 */
+	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
 
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
@@ -136,16 +148,32 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		for (const provider of this._providers.values()) {
-			const resources = provider.getProtectedResources();
-			if (resources.some(r => r.resource === params.resource)) {
-				const accepted = await provider.authenticate(params.resource, params.token);
-				if (accepted) {
-					return { authenticated: true };
-				}
+		// Multiple providers may share the same protected resource (e.g.
+		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// Fan out to every matching provider in parallel; the request is
+		// considered authenticated if at least one accepts. Provider
+		// failures are isolated — one provider rejecting (e.g. proxy
+		// server bind failure) MUST NOT prevent another provider from
+		// accepting the same token.
+		const matching = [...this._providers.values()].filter(
+			p => p.getProtectedResources().some(r => r.resource === params.resource),
+		);
+		const settled = await Promise.allSettled(
+			matching.map(p => p.authenticate(params.resource, params.token)),
+		);
+		let authenticated = false;
+		for (let i = 0; i < settled.length; i++) {
+			const result = settled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				this._logService.error(
+					result.reason,
+					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
+				);
 			}
 		}
-		return { authenticated: false };
+		return { authenticated };
 	}
 
 	// ---- session management -------------------------------------------------
@@ -417,50 +445,125 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-
-		// Check for terminal state
-		const terminalState = this._terminalManager.getTerminalState(resourceStr);
-		if (terminalState) {
-			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
-		}
-
-		let snapshot = this._stateManager.getSnapshot(resourceStr);
-		if (!snapshot) {
-			// Try subagent restore before regular session restore
-			const parsed = parseSubagentSessionUri(resourceStr);
-			if (parsed) {
-				await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
-			} else {
-				await this.restoreSession(resource);
+		// Register the subscriber up front so a concurrent unsubscribe cannot
+		// evict the session state while we are awaiting restore. On any failure
+		// path below we must roll the registration back, otherwise the leaked
+		// refcount would permanently pin (or block eviction of) the resource.
+		this.addSubscriber(resource, clientId);
+		try {
+			// Check for terminal state
+			const terminalState = this._terminalManager.getTerminalState(resourceStr);
+			if (terminalState) {
+				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
-			snapshot = this._stateManager.getSnapshot(resourceStr);
-		}
-		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
-		}
 
-		// Ensure git state has been computed for this session. When the snapshot
-		// already existed (e.g. seeded by list query, or restored earlier), the
-		// restore path that normally calls `_attachGitState` is skipped — so
-		// trigger it lazily here for the first subscriber. `_attachGitState`
-		// is async and updates `_meta.git` once ready, which clients see via
-		// the normal state-update stream.
-		const sessionState = this._stateManager.getSessionState(resourceStr);
-		if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
-			const wd = sessionState.summary?.workingDirectory;
-			this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
-		}
+			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			if (!snapshot) {
+				// Try subagent restore before regular session restore
+				const parsed = parseSubagentSessionUri(resourceStr);
+				if (parsed) {
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+				} else {
+					await this.restoreSession(resource);
+				}
+				snapshot = this._stateManager.getSnapshot(resourceStr);
+			}
+			if (!snapshot) {
+				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
+			}
 
-		return snapshot;
+			// Ensure git state has been computed for this session. When the snapshot
+			// already existed (e.g. seeded by list query, or restored earlier), the
+			// restore path that normally calls `_attachGitState` is skipped — so
+			// trigger it lazily here for the first subscriber. `_attachGitState`
+			// is async and updates `_meta.git` once ready, which clients see via
+			// the normal state-update stream.
+			const sessionState = this._stateManager.getSessionState(resourceStr);
+			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
+				const wd = sessionState.summary?.workingDirectory;
+				this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
+			}
+
+			return snapshot;
+		} catch (err) {
+			this.unsubscribe(resource, clientId);
+			throw err;
+		}
 	}
 
-	unsubscribe(resource: URI): void {
-		this._logService.trace(`[AgentService] unsubscribe: ${resource.toString()}`);
-		// Server-side tracking of per-client subscriptions will be added
-		// in Phase 4 (multi-client). For now this is a no-op.
+	addSubscriber(resource: URI, clientId: string): void {
+		let set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			set = new Set();
+			this._resourceSubscribers.set(resource, set);
+		}
+		set.add(clientId);
+	}
+
+	unsubscribe(resource: URI, clientId: string): void {
+		const set = this._resourceSubscribers.get(resource);
+		if (!set) {
+			return;
+		}
+		set.delete(clientId);
+		if (set.size > 0) {
+			return;
+		}
+		this._resourceSubscribers.delete(resource);
+		this._maybeEvictIdleSession(resource);
+	}
+
+	/**
+	 * If `resource` names an idle session and no client is still subscribed to
+	 * it (or, for a subagent URI, no sibling subagent under the same parent is
+	 * still subscribed), drop its cached state from the state manager. Subagent
+	 * URIs evict the parent session entry; the parent owns the materialized
+	 * turn tree that backs every subagent view. The next subscribe will
+	 * rehydrate the session via {@link restoreSession}.
+	 */
+	private _maybeEvictIdleSession(resource: URI): void {
+		const key = resource.toString();
+		if (this._resourceSubscribers.has(resource)) {
+			return;
+		}
+		const parsed = parseSubagentSessionUri(key);
+		let evictionTarget: string;
+		if (parsed) {
+			evictionTarget = parsed.parentSession;
+			if (this._resourceSubscribers.has(URI.parse(evictionTarget))) {
+				return;
+			}
+			const parentPrefix = parsed.parentSession + '/subagent/';
+			for (const subscribedUri of this._resourceSubscribers.keys()) {
+				if (subscribedUri.toString().startsWith(parentPrefix)) {
+					return;
+				}
+			}
+		} else {
+			evictionTarget = key;
+			const subagentPrefix = key + '/subagent/';
+			for (const subscribedUri of this._resourceSubscribers.keys()) {
+				if (subscribedUri.toString().startsWith(subagentPrefix)) {
+					return;
+				}
+			}
+		}
+		const targetState = this._stateManager.getSessionState(evictionTarget);
+		if (!targetState || targetState.activeTurn !== undefined) {
+			return;
+		}
+		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTarget} (triggered by unsubscribe of ${key})`);
+		// Also evict any sibling subagent entries cached under the parent: their
+		// authoritative state is the parent's turn tree, and dropping the parent
+		// would leave them orphaned.
+		const subagentPrefix = evictionTarget + '/subagent/';
+		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
+			this._stateManager.removeSession(cachedKey);
+		}
+		this._stateManager.removeSession(evictionTarget);
 	}
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -506,19 +609,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
 
-		// Verify the session actually exists on the backend to avoid
-		// creating phantom sessions for made-up URIs.
-		let allSessions;
-		try {
-			allSessions = await agent.listSessions();
-		} catch (err) {
-			if (err instanceof ProtocolError) {
-				throw err;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
-		}
-		const meta = allSessions.find(s => s.session.toString() === sessionStr);
+		const meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
 		}
@@ -628,6 +719,48 @@ export class AgentService extends Disposable implements IAgentService {
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
 		this._attachGitState(session, meta.workingDirectory);
+	}
+
+	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		if (agent.getSessionMetadata) {
+			try {
+				return await agent.getSessionMetadata(session);
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
+				try {
+					return await this._getSessionMetadataFromCatalog(agent, session);
+				} catch (fallbackErr) {
+					if (fallbackErr instanceof ProtocolError) {
+						const message = err instanceof Error ? err.message : String(err);
+						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
+					}
+					throw fallbackErr;
+				}
+			}
+		}
+
+		// Older providers only expose catalog enumeration. Keep the fallback so
+		// restore remains compatible, but providers with a direct lookup avoid
+		// blocking session open on a full catalog refresh.
+		return this._getSessionMetadataFromCatalog(agent, session);
+	}
+
+	private async _getSessionMetadataFromCatalog(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionStr = session.toString();
+		let allSessions;
+		try {
+			allSessions = await agent.listSessions();
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${sessionStr}: ${message}`);
+		}
+		return allSessions.find(s => s.session.toString() === sessionStr);
 	}
 
 	async resourceRead(uri: URI): Promise<ResourceReadResult> {

@@ -727,6 +727,7 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
+	getLastResponseModelId(): string | undefined;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -762,6 +763,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _lastUsedModel: string | undefined;
 	private _permissionLevel: string | undefined;
+	private _lastResponseModelId: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
@@ -1008,6 +1010,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
+		this._lastResponseModelId = undefined;
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1112,7 +1115,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
-				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1268,6 +1270,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sdkRequestId = sdkRequestId ?? event.id;
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
+				this._lastResponseModelId = event.data.model;
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
@@ -1714,7 +1717,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Step 4: Create Mission Control session
 			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-			this.logService.info('[CopilotCLISession] Creating MC session');
+			this.logService.trace('[CopilotCLISession] Creating MC session');
 
 			let mcData: McSessionCreateResult;
 			try {
@@ -1748,7 +1751,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
 			};
 			mcStateBySessionId.set(this.sessionId, sharedState);
-			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+			this.logService.trace(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
 
 			// Step 6: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1798,7 +1801,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					replayed++;
 				}
 			}
-			this.logService.info(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
+			this.logService.trace(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
 
 			await this._flushMcEvents();
 
@@ -1848,7 +1851,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Step 8: Construct and display the frontend URL
 			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
 			sharedState.mcFrontendUrl = frontendUrl;
-			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
+			this.logService.trace(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
 			await this._showRemoteControlEnabled(frontendUrl);
 
@@ -2364,6 +2367,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public getSelectedModelId() {
 		return this._sdkSession.getSelectedModel();
+	}
+
+	public getLastResponseModelId(): string | undefined {
+		return this._lastResponseModelId;
 	}
 
 	private _logRequest(userPrompt: string, modelId: string, attachments: Attachment[], startTimeMs: number): void {

@@ -23,6 +23,7 @@ import { SessionIndexingPreference } from '../../chronicle/common/sessionIndexin
 import { CloudSessionStoreClient } from '../../chronicle/node/cloudSessionStoreClient';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { IToolsService } from '../../tools/common/toolsService';
 import { ToolName } from '../../tools/common/toolNames';
 import { Conversation } from '../../prompt/common/conversation';
@@ -51,7 +52,8 @@ export class ChronicleIntent implements IIntent {
 	readonly id = ChronicleIntent.ID;
 	readonly description = l10n.t('Session history tools and insights (standup, tips, improve)');
 	get locations(): ChatLocation[] {
-		return this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService) ? [ChatLocation.Panel] : [];
+		const enabled = this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService);
+		return enabled ? [ChatLocation.Panel] : [];
 	}
 
 	readonly commandInfo: IIntentSlashCommandInfo = {
@@ -69,6 +71,7 @@ export class ChronicleIntent implements IIntent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IFetcherService private readonly _fetcherService: IFetcherService,
+		@IRunCommandExecutionService private readonly _commandService: IRunCommandExecutionService,
 		@IChatDebugFileLoggerService private readonly _debugLogService: IChatDebugFileLoggerService,
 	) {
 		this._indexingPreference = new SessionIndexingPreference(this._configService);
@@ -89,10 +92,14 @@ export class ChronicleIntent implements IIntent {
 		location: ChatLocation,
 		chatTelemetry: ChatTelemetryBuilder,
 	): Promise<vscode.ChatResult> {
-		if (!this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService)) {
+		const localEnabled = this._configService.getExperimentBasedConfig(ConfigKey.LocalIndexEnabled, this._expService);
+		if (!localEnabled) {
 			stream.markdown(l10n.t('Session search is not available yet.'));
 			return {};
 		}
+
+		// Nudge user to enable session sync (non-blocking, once per session)
+		this._commandService.executeCommand('github.copilot.sessionSync.suggest').catch(() => { /* command not available */ });
 
 		// Route by command name (e.g. 'chronicle:standup') or fall back to parsing the prompt
 		const { subcommand, rest } = this._resolveSubcommand(request);
@@ -168,7 +175,7 @@ export class ChronicleIntent implements IIntent {
 		if (result.cancelled) {
 			lines.push(l10n.t('Reindex cancelled.'));
 		} else {
-			lines.push(l10n.t('Reindex complete.'));
+			lines.push(l10n.t('Local reindex complete.'));
 		}
 
 		lines.push('');
@@ -183,6 +190,41 @@ export class ChronicleIntent implements IIntent {
 
 		stream.markdown(lines.join('\n'));
 
+		// ── Cloud reindex phase ─────────────────────────────────────────
+		// Runs after local reindex, gated by the reindex command in RemoteSessionExporter
+		// which checks cloud sync enabled + consent + repo.
+		let cloudSessionCount = 0;
+		if (!result.cancelled && !token.isCancellationRequested) {
+			try {
+				stream.progress(l10n.t('Starting cloud session sync...'));
+				const cloudResult = await this._commandService.executeCommand(
+					'github.copilot.sessionSync.reindex',
+					(msg: string) => stream.progress(msg),
+					token,
+				) as { created: number; eventsUploaded: number; failed: number; backfillQueued: number; backfillFailed?: boolean } | undefined;
+
+				if (cloudResult) {
+					cloudSessionCount = cloudResult.created;
+					const cloudLines: string[] = [];
+					if (cloudResult.created > 0 || cloudResult.eventsUploaded > 0) {
+						cloudLines.push('');
+						cloudLines.push(l10n.t('**Cloud sync:** {0} session(s) created, {1} event(s) uploaded.', cloudResult.created, cloudResult.eventsUploaded));
+					}
+					if (cloudResult.failed > 0) {
+						cloudLines.push(l10n.t('⚠ {0} session(s) failed cloud sync.', cloudResult.failed));
+					}
+					if (cloudResult.backfillFailed) {
+						cloudLines.push(l10n.t('⚠ Cloud indexing request failed.'));
+					}
+					if (cloudLines.length > 0) {
+						stream.markdown(cloudLines.join('\n'));
+					}
+				}
+			} catch {
+				// Cloud phase failure is non-fatal — local reindex already succeeded
+			}
+		}
+
 		const durationMs = Date.now() - startTime;
 		/* __GDPR__
 			"chronicle.reindex" : {
@@ -194,6 +236,7 @@ export class ChronicleIntent implements IIntent {
 				"processed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions successfully reindexed." },
 				"skipped": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions skipped (already indexed)." },
 				"totalSessions": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total session count on disk." },
+				"cloudSessionCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions created in cloud during reindex." },
 				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Total reindex duration in ms." }
 			}
 		*/
@@ -205,6 +248,7 @@ export class ChronicleIntent implements IIntent {
 			processed: result.processed,
 			skipped: result.skipped,
 			totalSessions: result.processed + result.skipped,
+			cloudSessionCount,
 			durationMs,
 		});
 

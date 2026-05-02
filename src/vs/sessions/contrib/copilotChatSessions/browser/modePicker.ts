@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -53,6 +53,8 @@ export class ModePicker extends Disposable {
 		return this._selectedMode;
 	}
 
+	private readonly _chatModes: IChatModes;
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
@@ -63,7 +65,9 @@ export class ModePicker extends Disposable {
 	) {
 		super();
 
-		this._register(this.chatModeService.onDidChangeChatModes(() => {
+		this._chatModes = this.chatModeService.getModes(CopilotCLISessionType.id);
+
+		this._register(this._chatModes.onDidChange(() => {
 			// Refresh the trigger label when available chat modes change
 			if (this._triggerElement) {
 				this._updateTriggerLabel();
@@ -116,13 +120,12 @@ export class ModePicker extends Disposable {
 	private _getAvailableModes(): IChatMode[] {
 		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
-		const modes = this.chatModeService.getModes();
 
 		// Always include the default Agent mode
 		const result: IChatMode[] = [ChatMode.Agent];
 
 		// Add custom modes matching the target and visible to users
-		for (const mode of modes.custom) {
+		for (const mode of this._chatModes.custom) {
 			const target = mode.target.get();
 			if (target === effectiveTarget || target === Target.Undefined) {
 				const visibility = mode.visibility?.get();

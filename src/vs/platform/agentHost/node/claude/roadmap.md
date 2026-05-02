@@ -65,7 +65,8 @@ roadmap.
   settings/tools change, MCP gateway with idle timer, restart-on-toggle for
   customizations. **Caveats:**
     - Uses `_abortController.abort()` (line 719), not `Query.interrupt()` —
-      verify in Phase 3 spike which mechanism actually cancels the SDK turn.
+      Phase 9 should mirror this. `Query.interrupt()` exists in 0.2.112 but
+      is not used by the production reference.
     - Uses `mcpServers` config for HTTP-based MCP (lines 391–416) — does
       **not** use `createSdkMcpServer` + `tool()`. The in-process tool path
       lives in `extensions/copilot/src/extension/chatSessions/claude/common/mcpServers/ideMcpServer.ts`.
@@ -223,42 +224,127 @@ Exit criteria: `curl` against the proxy with `Bearer <nonce>.test` returns the
 same payload shape Anthropic would, and `ICopilotApiService` sees the right
 calls.
 
-### Phase 3 — Claude Agent SDK integration spike
+### Phase 3 — Ground the SDK contract in the production reference ✅ **DONE**
 
-A throw-away spike that proves the SDK can be pointed at `IClaudeProxyService`
-and complete a tool-using turn end-to-end. **Not** an `IAgent` implementation
-yet.
+The Copilot extension already ships a working integration of
+`@anthropic-ai/claude-agent-sdk` 0.2.112 with a local proxy. That implementation
+is our highest-fidelity evidence for what the SDK does and does not need; an
+ad-hoc spike cannot beat a production user.
+
+**Reference files** (read these before touching Phase 4):
+
+- [`extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeAgent.ts`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeAgent.ts)
+  — `ClaudeCodeSession` builds the SDK `Options` and runs the message loop.
+- [`extensions/copilot/src/extension/chatSessions/claude/node/claudeLanguageModelServer.ts`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeLanguageModelServer.ts)
+  — `ClaudeLanguageModelServer`, the extension's analogue of our
+  `ClaudeProxyService`. Implements `/v1/messages` (only), filters
+  `anthropic-beta` to a whitelist (`interleaved-thinking`,
+  `context-management`, `advanced-tool-use`), and intentionally ignores
+  `x-api-key` to prevent personal-key leakage.
+- [`extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeSdkService.ts`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeSdkService.ts)
+  — DI wrapper around the SDK with lazy `import()`.
+
+**Use the extension as a reference, not a blueprint.** It has accreted ~20
+concerns (MCP gateway, plugins, edit tracker, settings change tracker, OTel
+forwarding, hook events, debug file logger, ripgrep PATH munging, runtime data
+caching, folder MRU, …) that are *layered on top of* the core SDK ↔ proxy
+contract. Phase 4 should start with the smallest `Options` that produces a
+working turn, and pull in each additional concern only when a phase actually
+needs it. Adopting the full extension shape on day one would obscure which
+pieces are essential and make incremental review impossible.
 
 **SDK version:** pin `@anthropic-ai/claude-agent-sdk` at **`0.2.112`** — the
-same version currently in `extensions/copilot/package.json`. Do **not**
-upgrade yet; versions > 0.2.112 introduce native binary dependencies that
-require additional build infrastructure (see Phase 15).
+same version `extensions/copilot/package.json` ships. Versions > 0.2.112 add
+native binary dependencies that require build-infra changes (see Phase 15).
 
-Goals:
+#### Required for Phase 4 to function at all
 
-- Confirm the SDK actually routes every messages call through
-  `ANTHROPIC_BASE_URL` (no leaks to api.anthropic.com).
-- Confirm the SSE event sequence the proxy emits is byte-compatible with what
-  the SDK expects.
-- Confirm model-ID resolution works end-to-end.
-- **Validate which abort mechanism actually works:** `Query.interrupt()` vs.
-  AbortController on the underlying fetch. The reference uses the
-  AbortController approach; verify whether `Query.interrupt()` even exists
-  on the SDK version we pin.
-- **Validate `enableFileCheckpointing` and `Query.rewindFiles()` exist** in
-  the SDK version we pin (they're not in the reference; may be newer-only).
-  If absent, Phase 8 needs a different mechanism.
-- Smoke `Query.setModel()`, `Query.setPermissionMode()`, `Query.streamInput()`.
-- Identify any SDK behaviors not anticipated.
+These are non-negotiable: omit any of them and either the SDK errors out, the
+proxy can't authenticate, the agent host has no cancellation contract, or
+egress leaks. Each row cites the production reference so future readers can
+see why it's required.
 
-Deliverable: a `node/claude/scripts/spike.ts` plus a short findings note
-appended to this roadmap. **Code thrown away**, learnings captured. Spike
-findings update Phase 6/8/9 plans.
+| `Options` field | Value (Phase 4 start) | Why required | Reference |
+|---|---|---|---|
+| `cwd` | session workspace folder | SDK validates and forwards to tools (Read/Write/Bash). | `claudeCodeAgent.ts` `_doStartSession` |
+| `executable` | `process.execPath as 'node'` | Force the SDK to fork the agent host's node process; otherwise it tries to find its own runtime. | `claudeCodeAgent.ts` line 437 |
+| `abortController` | per-session `AbortController` | The mechanism the extension actually uses to cancel a turn. `Query.interrupt()` exists but is not used in production. Phase 6 should mirror this. | `claudeCodeAgent.ts` line 138, 274, 435 |
+| `allowDangerouslySkipPermissions` | `true` | Disables the SDK's built-in approval UI so we can drive permissions ourselves via `canUseTool`. The two are a *pair* — one without the other is broken. | `claudeCodeAgent.ts` line 433 |
+| `canUseTool` | callback into `IClaudeToolPermissionService`-equivalent | Real per-tool permission UX. Phase 4 may stub to `{ behavior: 'allow' }` and defer the real UX to Phase 9. | `claudeCodeAgent.ts` line 463 |
+| `model` | `<sdkModelId>` from session state | Required for any meaningful turn. Resolve the canonical Anthropic ID via the model registry. | `claudeCodeAgent.ts` line 442 |
+| `permissionMode` | session permission mode | Required (default `'acceptEdits'` in the extension). | `claudeCodeAgent.ts` line 444 |
+| `systemPrompt` | `{ type: 'preset', preset: 'claude_code' }` | Without this the SDK has no system prompt at all and behavior degrades. | `claudeCodeAgent.ts` line 482 |
+| `settings.env.ANTHROPIC_BASE_URL` | `http://localhost:${proxy.port}` | Routes all CAPI traffic through our proxy. **Note:** under `settings.env`, NOT top-level `Options.env`. | `claudeCodeAgent.ts` line 454 |
+| `settings.env.ANTHROPIC_AUTH_TOKEN` | `${proxy.nonce}.${sessionId}` | Per-session bearer; proxy splits at `.` to recover session id. | `claudeCodeAgent.ts` line 455 |
+| `settings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `'1'` | Disables Anthropic-direct telemetry/feature flags. Required for our leak-tightness guarantees. | `claudeCodeAgent.ts` line 456 |
+| `disallowedTools` | `['WebSearch']` | CAPI doesn't support WebSearch; the SDK will error if invoked. | `claudeCodeAgent.ts` line 440 |
+| `stderr` | wire to `ILogService.error` | Without it, SDK errors are invisible. | `claudeCodeAgent.ts` line 487 |
 
-Exit criteria: an SDK-driven session completes one turn through the proxy,
-including at least one tool call round-trip, with no traffic to anthropic.com.
+#### Deferred to later phases
+
+Each of these has a clear home; pulling them in earlier than necessary just
+expands the Phase 4 surface area for no review benefit.
+
+| Concern | Phase | Production reference |
+|---|---|---|
+| `settingSources` (load CLAUDE.md / hooks / agents from disk) | Phase 9 (settings/permissions UX). Phase 4 starts with `[]` for SDK isolation. | `claudeCodeAgent.ts` line 486 |
+| `mcpServers` (per-session MCP gateway) | Phase 7 (tool integration) | `claudeCodeAgent.ts` line 472 |
+| `plugins` (skill plugin locations) | Defer until skills are in scope | `claudeCodeAgent.ts` line 473 |
+| `additionalDirectories` (multi-root) | When multi-root support is needed | `claudeCodeAgent.ts` line 432 |
+| `effort` (reasoning controls) | When reasoning effort UX exists | `claudeCodeAgent.ts` line 436 |
+| `resume` / `sessionId` | Phase 5 (persistence) | `claudeCodeAgent.ts` lines 446–448 |
+| `includeHookEvents: true` | When hooks are exposed | `claudeCodeAgent.ts` line 471 |
+| OTel env (`deriveClaudeOTelEnv`) | When OTel is wired in agent host | `claudeCodeAgent.ts` line 460 |
+| Bundled ripgrep on `PATH` + `USE_BUILTIN_RIPGREP=0` | When bundled ripgrep is needed | `claudeCodeAgent.ts` lines 457–458 |
+| `enableFileCheckpointing` + `Query.rewindFiles()` | Phase 8 (checkpoints). Type definitions confirm both exist in 0.2.112; the extension does not use them, so Phase 8 must validate them itself. | `sdk.d.ts` lines 1105, 1280 |
+| Edit tracker, settings change tracker, runtime data cache, folder MRU, debug file logger | Workbench-side concerns; out of scope for the agent host core | `claudeCodeAgent.ts` (assorted) |
+
+#### One genuine open question
+
+**Byte-equivalence between our `ClaudeProxyService` and the extension's
+`ClaudeLanguageModelServer`.** The extension can't answer this for us; both
+proxies must produce streams the SDK accepts, but they're different
+implementations and could diverge on edge cases (`input_json_delta` shape,
+`message_delta.usage`, error-frame format). Closing path:
+
+- Phase 4 lands a unit test that points the SDK (with a stubbed CAPI) at
+  `ClaudeProxyService` and asserts the same `system/init → assistant →
+  user(tool_result) → assistant → result` sequence the extension's tests
+  assert. Lives in the repo and runs in CI.
+- No throw-away spike required.
+
+#### Notes on items the extension does differently from our Phase 2 design
+
+These are not bugs — just places the extension and our proxy currently
+diverge. Phase 4 should decide whether to converge.
+
+- **`/v1/models`:** the extension's proxy 404s it; ours forwards to
+  `ICopilotApiService.models()`. Either is fine in practice; the SDK does
+  not require `/v1/models` to function. Keeping ours is harmless.
+- **`/v1/messages/count_tokens`:** the extension's proxy 404s it; ours
+  returns 501. The SDK does not call `count_tokens` during a normal turn,
+  so neither matters in practice. If a future SDK version starts calling
+  it, both proxies will need real support.
+- **`anthropic-beta` whitelist:** the extension whitelists
+  `interleaved-thinking`, `context-management`, `advanced-tool-use`. Our
+  Phase 2 design only mentioned `interleaved-thinking`. Phase 4 should
+  widen the whitelist to match.
+- **`x-api-key` header:** the extension intentionally ignores it to prevent
+  the user's personal Anthropic key from leaking through our proxy. Our
+  Phase 2 design already enforces nonce-only auth; matching the
+  "explicitly ignore" behavior is a defense-in-depth improvement.
+
+Exit criteria: this section captures (a) the required `Options` shape for
+Phase 4, (b) the deferred-concerns map for later phases, and (c) the one
+remaining open question (byte-equivalence) with a concrete plan to close it
+in Phase 4. No throw-away code committed.
 
 ### Phase 4 — `ClaudeAgent` skeleton implementing `IAgent`
+
+> **Implementation contract: [phase4-plan.md](./phase4-plan.md).** That file
+> is the source of truth for the Phase 4 PR — code skeleton, registration
+> sites, full test list, acceptance checklist, and live-system smoke. The
+> summary below stays high-level for roadmap continuity.
 
 A registered `IAgent` whose lifecycle methods are wired but minimal. Mirror
 the pattern in `node/copilot/copilotAgent.ts`.
@@ -283,8 +369,12 @@ Scope (just enough surface for the agent to be discoverable):
   declares.
 - `authenticate(resource, token)` — store the GitHub token, push it into the
   proxy's GitHub-token slot.
-- **Spin up the `IClaudeProxyService` once at agent construction time** (one
-  proxy per agent, shared across sessions).
+- **Lazily acquire `IClaudeProxyService` handle inside `authenticate()`** (not
+  in the constructor). `IClaudeProxyService.start()` requires a non-empty
+  github token (`claudeProxyService.ts:61`), so eager construction is
+  impossible. The handle is refcounted; one outstanding handle per agent is
+  the right shared-proxy pattern. See [phase4-plan.md](./phase4-plan.md) §3.3
+  for the acquire-then-dispose-old ordering.
 - **Strip `ANTHROPIC_API_KEY`** from any spawned SDK subprocess env.
 - `models` observable — derived from `ICopilotApiService.models()`, filtered
   to Claude-family models.
@@ -404,8 +494,11 @@ SDK options pinned in this phase (matching the reference):
   Phase 11 customization-hooks wiring depends on receiving these events.
 - `spawnClaudeCodeProcess`: **not overridden** (Agent Host is the isolation
   boundary).
-- `enableFileCheckpointing: true` if the spike confirms it exists; otherwise
-  defer to Phase 8 to find an alternative.
+- `enableFileCheckpointing: true` — type definitions confirm it exists in
+  0.2.112 (`sdk.d.ts:1105`). The production reference does not use it, so
+  Phase 8 must validate the actual checkpointing/rewind behavior before
+  committing to it. If it doesn't behave as advertised, fall back to the
+  in-agent edit-history mechanism described in Phase 8.
 - **`systemPrompt: { type: 'preset', preset: 'claude_code' }`** — match
   `claudeCodeAgent.ts:478`. **Not** `tools: { type: 'preset' }` (that was a
   v1 roadmap error).
@@ -467,12 +560,14 @@ Build the Claude analog of `fileEditTracker.ts` from `node/copilot/`.
   client can render diffs, accept/reject per-file, and undo.
 - Per-file undo: client-driven, **not** part of `truncateSession`.
 - **Undo mechanism:**
-  - **If Phase 3 spike confirms `enableFileCheckpointing` + `Query.rewindFiles`
-    exist:** use them, but the surface stays per-file (the SDK rewinds all
-    files; we apply that selectively).
-  - **If they don't exist:** record file-edit history in the agent itself
-    and restore via direct file writes. Document this as a fallback in the
-    Phase 3 findings.
+  - **Preferred:** `enableFileCheckpointing` + `Query.rewindFiles()` (both
+    exist in 0.2.112 per `sdk.d.ts:1105, 1280`). Surface stays per-file —
+    the SDK rewinds all tracked files; we apply that selectively to honor
+    per-file accept/reject.
+  - **Fallback if rewind misbehaves:** record file-edit history in the
+    agent itself and restore via direct file writes. The production
+    reference does not exercise SDK rewind, so Phase 8 owns the
+    validation step.
 - **Known gap:** Bash-tool edits (`sed -i`, `cat > file`) aren't tracked by
   the SDK. Document; consider a file-watcher diff fallback in a follow-up.
 
@@ -484,9 +579,11 @@ works.
 
 ### Phase 9 — Abort + steering + model change + shutdown polish
 
-- **`abortSession`** — cancel the underlying SDK turn. The reference uses
-  `_abortController.abort()`; if Phase 3 spike confirms `Query.interrupt()`
-  also works, prefer it (cleaner). Propagates through SDK → proxy →
+- **`abortSession`** — cancel the underlying SDK turn via
+  `_abortController.abort()`, matching the production reference. Phase 9
+  may experiment with `Query.interrupt()` if the abort path turns out to
+  orphan the subprocess, but the default plan is the AbortController route
+  the extension already proves works. Propagates through SDK → proxy →
   `ICopilotApiService`.
 - **Steering / `setPendingMessages`** — use `Query.streamInput()` to push
   additional `SDKUserMessage`s mid-turn.
@@ -659,9 +756,9 @@ in place.
 - Audit the native dependency: determine the addon's platform matrix, verify
   the agent-host build pipeline can package and code-sign it for all
   supported targets (win32-x64, darwin-x64, darwin-arm64, linux-x64).
-- Validate the upgraded SDK against the full Phase 3 spike test matrix
-  (`Query.*` API surface, `enableFileCheckpointing`, `Query.rewindFiles`,
-  `Query.interrupt`).
+- Validate the upgraded SDK against the full Phase 6–13 integration test
+  matrix (`Query.*` API surface, `enableFileCheckpointing`,
+  `Query.rewindFiles`, `Query.interrupt`).
 - Update `agentHost/package.json` (or the shared platform `package.json`)
   to the new version and update any API callsites that changed between
   0.2.112 and the target version.
@@ -680,10 +777,14 @@ native dependency is packaged in all production builds.
   signature.
 - **Model ID translation location** — tentatively the proxy. Confirm in
   Phase 1.5.
-- **`Query.interrupt()` vs `_abortController.abort()`** — which actually
-  cancels a turn? Phase 3 spike answers.
-- **`enableFileCheckpointing` / `Query.rewindFiles()` SDK availability** —
-  Phase 3 spike answers; Phase 8 plan branches.
+- **`Query.interrupt()` vs `_abortController.abort()`** — the production
+  reference uses `_abortController.abort()`; Phase 9 starts there. If the
+  abort path orphans the subprocess in practice, Phase 9 evaluates
+  `Query.interrupt()` as a follow-up.
+- **`enableFileCheckpointing` / `Query.rewindFiles()` runtime behavior** —
+  type definitions confirm both exist in 0.2.112; the production
+  reference does not exercise them. Phase 8 owns the validation step
+  before committing to the rewind-based undo path.
 - **ZodSchema generation strategy for client tools** — Phase 10.
 - **MCP gateway idle timeout default** — Phase 10.
 - **Transcript cache invalidation key** —

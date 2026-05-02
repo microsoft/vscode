@@ -11,6 +11,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isMobile, isWeb, OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -25,6 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
+import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -41,6 +43,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -271,6 +274,27 @@ export class SessionsView extends ViewPane {
 				}
 			},
 		}));
+
+		// Agent Host toolbar (bottom, below customizations). Only rendered
+		// in the sessions window on desktop layouts: electron has no host
+		// picker today (gated out at the menu level), phone layout uses
+		// the mobile titlebar pill instead, and auxiliary windows do not
+		// contribute any host actions — without this gate they would show
+		// an empty toolbar shell.
+		if (this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			IsPhoneLayoutContext.negate(),
+		))) {
+			this._register(this.instantiationService.createInstance(AgentHostShortcutsWidget, sessionsContainer, {
+				onDidChangeLayout: () => {
+					if (this.viewPaneContainer) {
+						const { offsetHeight, offsetWidth } = this.viewPaneContainer;
+						this.layoutBody(offsetHeight, offsetWidth);
+					}
+				},
+			}));
+		}
 	}
 
 	private createNewSessionButton(container: HTMLElement): void {
