@@ -247,9 +247,12 @@ function createGitIndexVinyls(paths) {
 					return e(err);
 				}
 
+				// Staged blob from `git show` can be larger than the working-tree file (e.g. different stage vs disk).
+				// Using only stat.size causes RangeError: maxBuffer length exceeded on precommit.
+				const indexMaxBuffer = Math.max(stat.size + 4 * 1024 * 1024, 64 * 1024 * 1024);
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer: indexMaxBuffer, encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
