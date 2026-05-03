@@ -22,7 +22,6 @@ import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/b
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -45,7 +44,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -64,7 +62,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			container.classList.add('collapsed');
 		}
 
-		// Header (clickable to toggle)
+		// Header
 		const header = DOM.append(container, $('.ai-customization-header'));
 		header.classList.toggle('collapsed', isCollapsed);
 
@@ -151,7 +149,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				} else if (config.isMcp) {
 					total += this.mcpService.servers.read(reader).length;
 				} else if (config.isPlugins) {
-					total += this.agentPluginService.plugins.read(reader).length;
+					total += this.itemsModel.getPluginCount().read(reader);
 				}
 			}
 			return total;

@@ -212,29 +212,32 @@ export class ChatEndpoint implements IChatEndpoint {
 		const headers: Record<string, string> = { ...this.modelMetadata.requestHeaders };
 
 		if (this.useMessagesApi) {
-
 			const modelProviderPreference = this._configurationService.getConfig(ConfigKey.TeamInternal.ModelProviderPreference);
 			if (modelProviderPreference) {
 				headers['X-Model-Provider-Preference'] = modelProviderPreference;
 			}
-
-			const betas: string[] = [];
-
-			if (!this.supportsAdaptiveThinking) {
-				betas.push('interleaved-thinking-2025-05-14');
-			}
-			if (this.supportsToolSearch) {
-				betas.push('advanced-tool-use-2025-11-20');
-			}
-			if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
-				betas.push('context-management-2025-06-27');
-			}
-			if (betas.length > 0) {
-				headers['anthropic-beta'] = betas.join(',');
-			}
 		}
 
+		Object.assign(headers, this.getAnthropicBetaHeader());
+
 		return headers;
+	}
+
+	protected getAnthropicBetaHeader(): Record<string, string> {
+		if (!this.useMessagesApi) {
+			return {};
+		}
+		const betas: string[] = [];
+		if (!this.supportsAdaptiveThinking) {
+			betas.push('interleaved-thinking-2025-05-14');
+		}
+		if (this.supportsToolSearch) {
+			betas.push('advanced-tool-use-2025-11-20');
+		}
+		if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
+			betas.push('context-management-2025-06-27');
+		}
+		return betas.length > 0 ? { 'anthropic-beta': betas.join(',') } : {};
 	}
 
 	public get modelMaxPromptTokens(): number {

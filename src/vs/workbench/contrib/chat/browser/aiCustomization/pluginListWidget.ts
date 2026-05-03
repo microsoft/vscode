@@ -37,7 +37,7 @@ import { pluginIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { ICustomizationHarnessService, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -389,7 +389,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 //#region Helpers
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = plugin.label ?? basename(plugin.uri);
+	// Use `||` (not `??`) so an empty `label` also falls back to the URI basename.
+	// The items model's `getPluginCount` dedupes against this same fallback; using
+	// `??` here would silently break dedup for plugins whose label is `''`.
+	const name = plugin.label || basename(plugin.uri);
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
@@ -942,7 +945,7 @@ export class PluginListWidget extends Disposable {
 		try {
 			const provided = await provider.provideChatSessionCustomizations(CancellationToken.None) ?? [];
 			return provided.filter(item =>
-				item.type === 'plugin'
+				isPluginCustomizationItem(item)
 				&& (!query
 					|| item.name.toLowerCase().includes(query)
 					|| item.description?.toLowerCase().includes(query)
@@ -1022,11 +1025,15 @@ export class PluginListWidget extends Disposable {
 		const entries: IPluginListEntry[] = [];
 		let isFirst = true;
 
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteGroups = new Map<string, IPluginRemoteItemEntry[]>();
 		for (const item of this.remoteItems) {
 			const key = item.groupKey ?? 'remote-host';
 			if (key === 'remote-client') {
 				continue; // client-synced items are already shown in "Enabled Locally"
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				continue; // plugin is also locally installed; show it once in "Enabled Locally"
 			}
 			let group = remoteGroups.get(key);
 			if (!group) {
@@ -1077,7 +1084,17 @@ export class PluginListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.remoteItems.length + this.installedItems.length;
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
+		const uniqueRemote = this.remoteItems.filter(item => {
+			if (item.groupKey === 'remote-client') {
+				return false;
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				return false;
+			}
+			return true;
+		});
+		return uniqueRemote.length + this.installedItems.length;
 	}
 
 	/**
