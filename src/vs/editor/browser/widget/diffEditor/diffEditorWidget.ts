@@ -403,10 +403,17 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			if (!model) { return; }
 			for (const m of [model.model.original, model.model.modified]) {
 				store.add(m.onWillDispose(e => {
-					// Recover from external TextModel disposal (e.g. textModelResolverService dropping the
-					// last reference) racing ahead of the widget's own teardown. setModel(null) clears
-					// _diffModelSrc and unwires the inner editors before any further reads observe a
-					// disposed model. Race is intrinsic to TextModel ref-counting; do not report.
+					// Recover from external TextModel disposal (e.g. textModelResolverService
+					// dropping the last reference in its reference-counted resolver collection)
+					// racing ahead of the widget's own teardown. setModel(null) clears
+					// _diffModelSrc and unwires the inner editors before any further reads
+					// observe a disposed model. The race is intrinsic to the resolver's
+					// reference-counted lifetime, not a bug; do not report.
+					// Guard against firing twice per view-model (original + modified can dispose
+					// in the same tick) and against a stale callback after setModel(null).
+					// onWillDispose fires asynchronously outside the autorun's reactive frame;
+					// read untracked rather than re-subscribing.
+					if (this._diffModel.read(undefined) !== model) { return; }
 					console.warn('TextModel got disposed before DiffEditorWidget model got reset; recovering via setModel(null).');
 					this.setModel(null);
 				}));
