@@ -114,7 +114,7 @@ function logToConsole(method: ConsoleMethod, ...args: unknown[]): void {
 	}
 	isLogServiceConsoleEcho = true;
 	try {
-		getConsoleMethod(method)(...args);
+		getConsoleMethod(method).apply(console, args);
 	} finally {
 		isLogServiceConsoleEcho = false;
 	}
@@ -141,7 +141,7 @@ export function registerDevConsoleLogForwarder(logService: ILogService): IDispos
 			}
 		}
 
-		originalConsoleMethods[method](...args);
+		originalConsoleMethods[method].apply(console, args);
 	};
 
 	const wrappers: Record<ConsoleMethod, ConsoleMethodFn> = {

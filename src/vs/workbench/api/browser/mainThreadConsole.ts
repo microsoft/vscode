@@ -23,8 +23,9 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
-		this._logAllExtensionHostConsole = devOpts.isExtensionDevTestFromCli || (!this._environmentService.isBuilt && isDevConsoleLogForwardingEnabled);
-		this._logExtensionHostConsoleToLocalConsole = !devOpts.isExtensionDevTestFromCli;
+		const isDevConsoleLogForwardingActive = !this._environmentService.isBuilt && isDevConsoleLogForwardingEnabled;
+		this._logAllExtensionHostConsole = devOpts.isExtensionDevTestFromCli || isDevConsoleLogForwardingActive;
+		this._logExtensionHostConsoleToLocalConsole = !devOpts.isExtensionDevTestFromCli && !isDevConsoleLogForwardingActive;
 	}
 
 	dispose(): void {
