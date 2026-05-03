@@ -1816,8 +1816,7 @@ begin
 #ifdef AppxPackageName
     // Remove the appx package when user has forced Windows 10 context menus via
     // registry. This handles the case where the user previously had the appx
-    // installed but now the user wants the classic context menu style or it is
-    // disabled.
+    // installed but now wants the classic context menu style or it is disabled.
     if IsWindows10ContextMenuForced() or not ShouldInstallAppxPackage() then begin
       RemoveAppxPackage();
     end;
