@@ -16,6 +16,7 @@ import { ILanguageDiagnosticsService } from '../../../platform/languages/common/
 import { ILogger } from '../../../platform/log/common/logService';
 import { OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -44,6 +45,7 @@ export class XtabNextCursorPredictor {
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
 		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
+		@IProxyModelsService private readonly proxyModelsService: IProxyModelsService,
 	) {
 		this.isDisabled = false;
 	}
@@ -161,7 +163,8 @@ export class XtabNextCursorPredictor {
 
 		telemetryBuilder?.setCursorJumpPrompt(messages);
 
-		const modelName = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService);
+		const modelName = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService)
+			?? this.proxyModelsService.cursorJumpModels?.[0]?.name;
 		if (modelName === undefined) {
 			tracer.trace('Model name for cursor prediction is not defined; skipping prediction');
 			return Result.fromString('modelNameNotDefined');
