@@ -204,7 +204,9 @@ import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contri
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
+import './contrib/sessions/browser/multiSessionListView.contribution.js';
 import './contrib/accounts/browser/accounts.contribution.js';
+import './contrib/routing/browser/routing.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changesView/browser/changesView.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';

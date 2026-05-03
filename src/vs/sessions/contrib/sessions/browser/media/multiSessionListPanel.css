@@ -1,0 +1,175 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.multi-session-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 12px;
+	box-sizing: border-box;
+}
+
+.multi-session-panel-header h2 {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.multi-session-panel-subtitle {
+	margin: 4px 0 0 0;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.multi-session-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.multi-session-panel-empty {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	padding: 8px 12px;
+	border: 1px dashed var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+}
+
+.multi-session-panel-empty.hidden {
+	display: none;
+}
+
+/* ── Row ── */
+
+.multi-session-panel-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 10px;
+	padding-left: calc(10px + var(--multi-session-depth, 0) * 14px);
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: var(--vscode-editor-background);
+	cursor: pointer;
+	transition: background-color 80ms ease-out, border-color 80ms ease-out;
+}
+
+.multi-session-panel-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.multi-session-panel-row:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.multi-session-panel-row.active {
+	background: var(--vscode-list-activeSelectionBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.multi-session-panel-row.active .multi-session-panel-row-label,
+.multi-session-panel-row.active .multi-session-panel-row-description {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* ── Status icon ── */
+
+.multi-session-panel-row-status {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	margin-top: 1px;
+}
+
+.multi-session-panel-row-status .codicon {
+	font-size: 14px;
+}
+
+.multi-session-panel-row.status-in-progress .multi-session-panel-row-status .codicon {
+	color: var(--vscode-progressBar-background, var(--vscode-foreground));
+	animation: multi-session-spin 1.4s linear infinite;
+}
+
+.multi-session-panel-row.status-completed .multi-session-panel-row-status .codicon {
+	color: var(--vscode-charts-green, var(--vscode-foreground));
+}
+
+.multi-session-panel-row.status-failed .multi-session-panel-row-status .codicon {
+	color: var(--vscode-errorForeground);
+}
+
+.multi-session-panel-row.status-needs-input .multi-session-panel-row-status .codicon {
+	color: var(--vscode-charts-orange, var(--vscode-foreground));
+}
+
+@keyframes multi-session-spin {
+	0% { transform: rotate(0deg); }
+	100% { transform: rotate(360deg); }
+}
+
+/* ── Body ── */
+
+.multi-session-panel-row-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.multi-session-panel-row-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.multi-session-panel-row-label {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.multi-session-panel-row-provider {
+	font-size: 10px;
+	padding: 0 4px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	white-space: nowrap;
+}
+
+.multi-session-panel-row-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.multi-session-panel-row-description.hidden {
+	display: none;
+}
+
+/* ── Elapsed ── */
+
+.multi-session-panel-row-elapsed {
+	flex: 0 0 auto;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	margin-left: 4px;
+	margin-top: 1px;
+}
