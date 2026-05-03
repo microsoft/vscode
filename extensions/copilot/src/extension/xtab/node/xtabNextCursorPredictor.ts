@@ -261,6 +261,8 @@ export class XtabNextCursorPredictor {
 	}
 
 	private determineModelName(): string {
+		// Priority: experiment-configured model name, then the first `CursorJumpChat`
+		// model advertised by the `/models` endpoint, then a hard-coded fallback.
 		return this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService)
 			?? this.proxyModelsService.cursorJumpModels?.[0]?.name
 			?? DEFAULT_CURSOR_JUMP_MODEL_NAME;
