@@ -294,6 +294,15 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		const confirm = await vscode.window.showWarningMessage(
+			'Delete this chat session? This cannot be undone.',
+			{ modal: true },
+			'Delete'
+		);
+		if (confirm !== 'Delete') {
+			return;
+		}
+
 		this._sessions = this._sessions.filter(s => s.id !== sessionId);
 
 		if (this._sessions.length === 0) {
@@ -338,16 +347,19 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
 			// Forward task updates to webview
 			if (message.type === 'task_running' || message.type === 'task_success' || message.type === 'task_failed' || message.type === 'task_skipped') {
+				const status = message.type.replace('task_', '');
 				this._view.webview.postMessage({
 					type: 'taskUpdate',
 					planId: message.plan_id,
 					taskId: message.task_id,
 					taskName: message.task_name,
-					status: message.type.replace('task_', ''),
+					status: status,
 					result: message.result,
 					error: message.error,
 					cost: message.cost
 				});
+				// Also update the task tree sidebar
+				vscode.commands.executeCommand('nexora.updateTaskStatus', message.task_id, status);
 			}
 
 			// Forward plan completion to webview
@@ -1153,6 +1165,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				plan: plan
 			});
 
+			// Update task tree sidebar with plan data
+			vscode.commands.executeCommand('nexora.updateTaskTreeFromPlan', plan);
+
 		} catch (error) {
 			const errMsg = `Error generating plan: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			const sessionErr = this._getActiveSession();
@@ -1628,6 +1643,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				type: 'showPlanApproval',
 				plan: plan
 			});
+
+			// Update task tree sidebar with plan data
+			vscode.commands.executeCommand('nexora.updateTaskTreeFromPlan', plan);
 
 			// Immediately approve and execute
 			this._view.webview.postMessage({

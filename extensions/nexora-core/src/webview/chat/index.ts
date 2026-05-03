@@ -51,7 +51,7 @@ export function getChatWebviewHtml(
 			<div class="nx-sessions" aria-label="Chat sessions">
 				<select class="nx-sessionSelect" id="sessionSelect" title="Select chat session"></select>
 				<button class="nx-sessionNew" id="newSessionBtn" type="button" title="New chat">+</button>
-				<button class="nx-sessionDelete" id="deleteSessionBtn" type="button" title="Delete chat">Del</button>
+				<button class="nx-sessionDelete" id="deleteSessionBtn" type="button" title="Delete chat session">-</button>
 			</div>
 			<div class="nx-auth" aria-label="Authentication status">
 				<button class="nx-badge" id="githubBadge" type="button" title="Click to connect GitHub">

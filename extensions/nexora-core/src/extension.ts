@@ -103,6 +103,15 @@ export function activate(context: vscode.ExtensionContext) {
 			if (result && result.tasks && result.tasks.length > 0) {
 				taskTreeProvider.setDecomposition(result);
 			}
+		}),
+		vscode.commands.registerCommand('nexora.updateTaskTreeFromPlan', (plan: any) => {
+			if (plan && plan.tasks && plan.tasks.length > 0) {
+				taskTreeProvider.setPlan(plan);
+				vscode.commands.executeCommand('nexora.taskTree.focus');
+			}
+		}),
+		vscode.commands.registerCommand('nexora.updateTaskStatus', (taskId: string, status: string) => {
+			taskTreeProvider.updateTaskStatus(taskId, status);
 		})
 	);
 

@@ -358,6 +358,10 @@
 			sendBtn.setAttribute('aria-label', `${label}, press Enter`);
 		}
 		
+		if (modeHint) {
+			modeHint.setAttribute('data-mode', currentMode);
+		}
+		
 		const hintEl = modeHint.querySelector('.nx-hintText');
 		if (hintEl) {
 			hintEl.textContent = modeHints[currentMode] || '';

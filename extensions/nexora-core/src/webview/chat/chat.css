@@ -305,9 +305,21 @@ body
 
 .nx-welcomeIcon
 {
-	color: var(--nx-muted);
 	margin-bottom: var(--nx-space-4);
-	opacity: 0.7;
+	background: linear-gradient(135deg, var(--vscode-charts-blue, #58a6ff) 0%, var(--vscode-charts-purple, #a371f7) 50%, var(--vscode-charts-green, #3fb950) 100%);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.nx-welcomeIcon svg
+{
+	stroke: url(#nexora-gradient);
+}
+
+.nx-welcomeIcon svg path
+{
+	stroke: var(--vscode-charts-blue, #58a6ff);
 }
 
 .nx-welcomeTitle
@@ -789,10 +801,36 @@ body
 	position: relative;
 	z-index: 0;
 	margin-top: 10px;
-	padding: 8px 10px;
+	padding: 8px 12px;
 	background: transparent;
 	border-radius: 10px;
 	border: 1px solid color-mix(in srgb, var(--nx-border) 55%, transparent);
+	transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.nx-modeHint[data-mode="chat"]
+{
+	border-color: color-mix(in srgb, var(--vscode-charts-blue, #58a6ff) 25%, var(--nx-border));
+}
+
+.nx-modeHint[data-mode="ask"]
+{
+	border-color: color-mix(in srgb, var(--vscode-charts-purple, #a371f7) 25%, var(--nx-border));
+}
+
+.nx-modeHint[data-mode="plan"]
+{
+	border-color: color-mix(in srgb, var(--vscode-charts-orange, #d29922) 25%, var(--nx-border));
+}
+
+.nx-modeHint[data-mode="execute"]
+{
+	border-color: color-mix(in srgb, var(--vscode-charts-green, #3fb950) 25%, var(--nx-border));
+}
+
+.nx-modeHint[data-mode="agent"]
+{
+	border-color: color-mix(in srgb, var(--vscode-charts-red, #f85149) 25%, var(--nx-border));
 }
 
 .nx-hintText
@@ -800,6 +838,38 @@ body
 	font-size: 11px;
 	color: color-mix(in srgb, var(--nx-muted) 92%, var(--nx-fg));
 	line-height: 1.35;
+}
+
+.nx-hintText::before
+{
+	content: '';
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	margin-right: 8px;
+	vertical-align: middle;
+	background: var(--vscode-charts-blue, #58a6ff);
+}
+
+.nx-modeHint[data-mode="ask"] .nx-hintText::before
+{
+	background: var(--vscode-charts-purple, #a371f7);
+}
+
+.nx-modeHint[data-mode="plan"] .nx-hintText::before
+{
+	background: var(--vscode-charts-orange, #d29922);
+}
+
+.nx-modeHint[data-mode="execute"] .nx-hintText::before
+{
+	background: var(--vscode-charts-green, #3fb950);
+}
+
+.nx-modeHint[data-mode="agent"] .nx-hintText::before
+{
+	background: var(--vscode-charts-red, #f85149);
 }
 
 /* Plan Approval Card */

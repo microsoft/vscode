@@ -16,8 +16,10 @@ import { createAuthApi } from './backend/auth';
 import { createOrchestrateApi } from './backend/orchestrate';
 import { createHistoryApi, type HistoryItem, type RollbackableItem, type RollbackInfo, type RollbackResponse, type HistoryStats } from './backend/history';
 import { createAgentApi, type AgentMessage, type AgentTurnResponse, type ToolCall, type AgentMode } from './backend/agent';
+import { createSessionsApi, type ChatSession, type ChatMessage, type SessionSummary, type SessionListResponse } from './backend/sessions';
 
 export type { AgentMessage, AgentTurnResponse, ToolCall, AgentMode };
+export type { ChatSession, ChatMessage, SessionSummary, SessionListResponse };
 
 export class BackendClient {
 	private config: BackendConfig;
@@ -490,6 +492,69 @@ export class BackendClient {
 	 */
 	async getHistoryStats(userId: string = 'default'): Promise<HistoryStats> {
 		return createHistoryApi(this.transport).getStats(userId);
+	}
+
+	// ============================================================================
+	// Sessions API (FYP Integration)
+	// ============================================================================
+
+	/**
+	 * Create a new chat session.
+	 */
+	async createSession(name: string = 'New Chat', userId: string = 'default'): Promise<ChatSession> {
+		return createSessionsApi(this.transport).createSession(name, userId);
+	}
+
+	/**
+	 * List all sessions for a user.
+	 */
+	async listSessions(userId: string = 'default', limit: number = 50, offset: number = 0): Promise<SessionListResponse> {
+		return createSessionsApi(this.transport).listSessions(userId, limit, offset);
+	}
+
+	/**
+	 * Load a session with all messages.
+	 */
+	async loadSession(sessionId: string, userId: string = 'default'): Promise<ChatSession> {
+		return createSessionsApi(this.transport).loadSession(sessionId, userId);
+	}
+
+	/**
+	 * Save/update a session.
+	 */
+	async saveSession(session: {
+		id: string;
+		name: string;
+		messages: ChatMessage[];
+		workspace_id?: string;
+		workspace_path?: string;
+	}, userId: string = 'default'): Promise<ChatSession> {
+		return createSessionsApi(this.transport).saveSession(session, userId);
+	}
+
+	/**
+	 * Add a message to a session.
+	 */
+	async addSessionMessage(
+		sessionId: string,
+		message: { role: string; content: string; mode?: string },
+		userId: string = 'default'
+	): Promise<ChatSession> {
+		return createSessionsApi(this.transport).addMessage(sessionId, message, userId);
+	}
+
+	/**
+	 * Delete a session.
+	 */
+	async deleteSession(sessionId: string, userId: string = 'default'): Promise<{ status: string; session_id: string }> {
+		return createSessionsApi(this.transport).deleteSession(sessionId, userId);
+	}
+
+	/**
+	 * Search across sessions.
+	 */
+	async searchSessions(query: string, userId: string = 'default', limit: number = 10): Promise<SessionListResponse> {
+		return createSessionsApi(this.transport).searchSessions(query, userId, limit);
 	}
 
 	private _getMockResponse(endpoint: string): any {

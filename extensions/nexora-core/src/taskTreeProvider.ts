@@ -23,6 +23,25 @@ interface DecompositionResult {
 	execution_order: string[];
 }
 
+interface ExecutionTask {
+	task_id: string;
+	name: string;
+	description?: string;
+	platform: string;
+	operation?: string;
+	dependencies: string[];
+	status?: string;
+	estimated_cost: number;
+	actual_cost?: number;
+}
+
+interface PlanResult {
+	plan_id: string;
+	tasks: ExecutionTask[];
+	estimated_cost: number;
+	status?: string;
+}
+
 export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<TaskItem | undefined | null>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -30,11 +49,43 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 	private tasks: DecomposedTask[] = [];
 	private dag: Record<string, string[]> = {};
 	private executionOrder: string[] = [];
+	private taskStatuses: Map<string, string> = new Map();
 
 	setDecomposition(result: DecompositionResult): void {
 		this.tasks = result.tasks;
 		this.dag = result.dag;
 		this.executionOrder = result.execution_order;
+		this.taskStatuses.clear();
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	setPlan(plan: PlanResult): void {
+		this.tasks = plan.tasks.map(t => ({
+			id: t.task_id,
+			name: t.name,
+			description: t.description || '',
+			type: t.operation || 'TASK',
+			depends_on: t.dependencies || [],
+			selected_platform: t.platform,
+			estimated_duration: null,
+			estimated_cost: t.estimated_cost || 0
+		}));
+		this.dag = {};
+		for (const task of plan.tasks) {
+			this.dag[task.task_id] = task.dependencies || [];
+		}
+		this.executionOrder = plan.tasks.map(t => t.task_id);
+		this.taskStatuses.clear();
+		for (const task of plan.tasks) {
+			if (task.status) {
+				this.taskStatuses.set(task.task_id, task.status);
+			}
+		}
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	updateTaskStatus(taskId: string, status: string): void {
+		this.taskStatuses.set(taskId, status);
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
@@ -74,7 +125,7 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 	private createTaskItem(task: DecomposedTask, step: number, total: number): TaskItem {
 		const depHint =
 			task.depends_on.length > 0 ? `after ${task.depends_on.join(', ')}` : 'no deps';
-		const platform = task.selected_platform || task.type;
+		const status = this.taskStatuses.get(task.id) || 'pending';
 
 		return new TaskItem(
 			task.id,
@@ -87,6 +138,7 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TaskItem> {
 			step,
 			total,
 			depHint,
+			status,
 			vscode.TreeItemCollapsibleState.None
 		);
 	}
@@ -108,15 +160,36 @@ class TaskItem extends vscode.TreeItem {
 		public readonly step: number,
 		public readonly total: number,
 		public readonly depHint: string,
+		public readonly status: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState
 	) {
 		super(`${taskId}: ${name}`, collapsibleState);
 
 		const platformLabel = platform || taskType;
-		this.description = `${step}/${total} · ${platformLabel} · ${depHint}`;
+		const statusLabel = this.getStatusLabel(status);
+		this.description = `${step}/${total} | ${platformLabel} | ${statusLabel}`;
 		this.tooltip = this.buildTooltip();
-		this.iconPath = this.getIconForTaskType(taskType);
+		this.iconPath = this.getIconForStatus(status, taskType);
 		this.contextValue = 'nexoraTask';
+	}
+
+	private getStatusLabel(status: string): string {
+		switch (status) {
+			case 'pending':
+				return '[ ] pending';
+			case 'running':
+				return '[*] running';
+			case 'success':
+				return '[+] done';
+			case 'failed':
+				return '[x] failed';
+			case 'skipped':
+				return '[/] skipped';
+			case 'cancelled':
+				return '[/] cancelled';
+			default:
+				return status;
+		}
 	}
 
 	private buildTooltip(): string {
@@ -124,6 +197,7 @@ class TaskItem extends vscode.TreeItem {
 			`Execution step: ${this.step} of ${this.total}`,
 			`Task: ${this.name}`,
 			`ID: ${this.taskId}`,
+			`Status: ${this.status}`,
 			`Type: ${this.taskType}`,
 			`Platform: ${this.platform || 'Not selected'}`,
 			`Dependencies: ${this.depHint}`
@@ -136,13 +210,26 @@ class TaskItem extends vscode.TreeItem {
 			lines.push(`Duration: ${this.duration}`);
 		}
 		if (this.cost > 0) {
-			lines.push(`Cost: $${this.cost.toFixed(2)}`);
+			lines.push(`Cost: $${this.cost.toFixed(4)}`);
 		}
 
 		return lines.join('\n');
 	}
 
-	private getIconForTaskType(taskType: string): vscode.ThemeIcon {
+	private getIconForStatus(status: string, taskType: string): vscode.ThemeIcon {
+		if (status === 'running') {
+			return new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.blue'));
+		}
+		if (status === 'success') {
+			return new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
+		}
+		if (status === 'failed') {
+			return new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'));
+		}
+		if (status === 'skipped' || status === 'cancelled') {
+			return new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('disabledForeground'));
+		}
+
 		const iconMap: Record<string, string> = {
 			'UI_GENERATION': 'layout',
 			'CODE_GENERATION': 'code',
@@ -153,7 +240,14 @@ class TaskItem extends vscode.TreeItem {
 			'DEPLOYMENT': 'cloud-upload',
 			'TESTING': 'beaker',
 			'CONFIGURATION': 'settings-gear',
-			'FILE_OPERATION': 'file'
+			'FILE_OPERATION': 'file',
+			'generate': 'sparkle',
+			'setup': 'gear',
+			'deploy': 'cloud-upload',
+			'configure': 'settings-gear',
+			'test': 'beaker',
+			'file_op': 'file',
+			'execute': 'play'
 		};
 
 		const iconName = iconMap[taskType] || 'circle-outline';
