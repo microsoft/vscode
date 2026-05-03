@@ -33,6 +33,16 @@ function dontShowAgainKey(level: ChatPermissionLevel): string | undefined {
 	return undefined;
 }
 
+/**
+ * Clears the in-process suppression set so that previously accepted (but not
+ * persistently dismissed) warnings will be shown again within this session.
+ * Call this alongside removing the persisted storage keys when implementing a
+ * "reset" developer action.
+ */
+export function resetShownWarnings(): void {
+	shownWarnings.clear();
+}
+
 export function hasShownElevatedWarning(level: ChatPermissionLevel, storageService: IStorageService): boolean {
 	if (shownWarnings.has(level)) {
 		return true;
