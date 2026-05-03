@@ -185,6 +185,7 @@ suite('RunInTerminalTool', () => {
 		terminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command: string, requestUnsandboxedExecution?: boolean) => ({
 				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 				isSandboxWrapped: !requestUnsandboxedExecution,
@@ -2414,6 +2415,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const terminalSandboxService: ITerminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command: string) => ({
 				command: `sandbox:${command}`,
 				isSandboxWrapped: true,

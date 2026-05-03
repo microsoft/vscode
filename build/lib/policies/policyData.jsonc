@@ -330,6 +330,10 @@
                     {
                         "key": "agentSandbox.enabledSetting.onDescription",
                         "value": "Enable sandboxing for agent mode tools."
+                    },
+                    {
+                        "key": "agentSandbox.enabledSetting.allowNetworkDescription",
+                        "value": "Enable sandboxing for agent mode tools, but do not block commands based on configured network domains."
                     }
                 ]
             },
@@ -337,7 +341,8 @@
             "default": "off",
             "enum": [
                 "off",
-                "on"
+                "on",
+                "allowNetwork"
             ],
             "included": true
         },
