@@ -1187,7 +1187,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Subagent-initiated terminals cannot receive steering messages; the subagent
 		// runs in its own tool-calling loop and should poll with get_terminal_output.
 		const shouldSendNotifications = !invocation.subAgentInvocationId;
-		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		let command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
 			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
@@ -1204,6 +1204,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
 		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		// When sandbox is not wrapping the command, apply the session CWD override
+		// by prepending a cd command. The sandbox wrapper handles this internally
+		// when sandboxing is enabled.
+		if (!didSandboxWrapCommand && toolSpecificData.cwd) {
+			const cwdPath = URI.revive(toolSpecificData.cwd).fsPath;
+			const os = await this._osBackend;
+			if (os === OperatingSystem.Windows) {
+				command = `cd /d "${cwdPath}" && ${command}`;
+			} else {
+				command = `cd "${cwdPath}" && ${command}`;
+			}
+		}
 		const commandLineForMetadata = isSandboxEnabled
 			? toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.original
 			: undefined;
