@@ -280,7 +280,7 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Space) {
+			if (event.equals(KeyCode.Space) && !dom.isEditableElement(e.target as HTMLElement)) {
 				const focused = this.tree.getFocus();
 				if (focused.length > 0) {
 					const element = focused[0];
