@@ -106,6 +106,7 @@ interface ICustomizationCounts {
 	readonly instructions?: number;
 	readonly prompts?: number;
 	readonly hooks?: number;
+	readonly plugins?: number;
 }
 
 function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationItemsModel {
@@ -119,6 +120,7 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		[AICustomizationManagementSection.Prompts, observableValue('promptsItems', fakeItems(counts?.prompts ?? 0))],
 		[AICustomizationManagementSection.Hooks, observableValue('hooksItems', fakeItems(counts?.hooks ?? 0))],
 	]);
+	const pluginCount = observableValue('pluginsCount', counts?.plugins ?? 0);
 
 	return new class extends mock<IAICustomizationItemsModel>() {
 		override getItems(section: ItemsModelSection) {
@@ -127,6 +129,9 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		override getCount(section: ItemsModelSection): IObservable<number> {
 			const items = sectionItems.get(section)!;
 			return observableValue(`${section}-count`, items.get().length);
+		}
+		override getPluginCount(): IObservable<number> {
+			return pluginCount;
 		}
 	}();
 }

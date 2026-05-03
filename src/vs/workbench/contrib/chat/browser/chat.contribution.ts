@@ -686,7 +686,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled and reduced motion is not enabled, this overrides {0} to be off. Has no effect when reduced motion is enabled.", '`#chat.persistentProgress.enabled#`'),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
@@ -1611,6 +1611,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
 			default: true,
+		},
+		[ChatConfiguration.UseChatSessionCustomizationsForCustomAgents]: {
+			type: 'boolean',
+			description: nls.localize('chat.customizations.useChatSessionCustomizationsForCustomAgents', "When enabled, custom agents shown in the chat mode picker are sourced from the customization harness service (scoped per session type) instead of the prompts service."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 	}
 });

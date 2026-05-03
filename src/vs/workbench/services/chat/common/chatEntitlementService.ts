@@ -551,6 +551,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			changed: {
 				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
 				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
+					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
 			}
 		};
 	}

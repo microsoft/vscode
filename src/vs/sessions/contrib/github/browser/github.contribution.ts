@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,34 +27,55 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		super();
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			return this._sessionsManagementService.activeSession.read(reader)?.resource;
-		});
-
-		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals }, reader => {
-			const gitHubInfo = this._sessionsManagementService.activeSession.read(reader)?.gitHubInfo.read(reader);
-			if (!gitHubInfo?.pullRequest) {
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			if (!activeSession || !activeSession.resource || activeSession.isArchived.read(reader)) {
 				return undefined;
 			}
 
-			return {
-				owner: gitHubInfo.owner,
-				repo: gitHubInfo.repo,
-				pullRequestNumber: gitHubInfo.pullRequest.number,
-			};
+			return activeSession.resource;
 		});
 
+		// Pull request model
 		this._register(autorun(reader => {
 			const activeSessionResource = activeSessionResourceObs.read(reader);
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			if (!activeSessionResource || !activeSession || activeSession.isArchived.read(reader)) {
+			if (!activeSessionResource) {
 				return;
 			}
-			const gitHubInfo = gitHubInfoObs.read(reader);
-			if (!gitHubInfo) {
+
+			const model = this._gitHubService.activeSessionPullRequestObs.read(reader);
+			model?.refresh();
+		}));
+
+		// Pull request CI model
+		this._register(autorun(reader => {
+			const activeSessionResource = activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
 				return;
 			}
-			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequestNumber);
-			prModel.refresh();
+
+			const model = this._gitHubService.activeSessionPullRequestCIObs.read(reader);
+			if (!model) {
+				return;
+			}
+
+			model.refresh();
+			reader.store.add(model.startPolling());
+		}));
+
+		// Pull request review threads model
+		this._register(autorun(reader => {
+			const activeSessionResource = activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				return;
+			}
+
+			const model = this._gitHubService.activeSessionPullRequestReviewThreadsObs.read(reader);
+			if (!model) {
+				return;
+			}
+
+			model.refresh();
+			reader.store.add(model.startPolling());
 		}));
 
 		this._sessionsManagementService.onDidChangeSessions(this._onDidChangeSessions, this, this._store);
@@ -101,8 +121,13 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			return;
 		}
 
-		const model = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		this._pullRequests.set(key, model.startPolling());
+		const disposables = new DisposableStore();
+		const modelRef = this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+
+		disposables.add(modelRef);
+		disposables.add(modelRef.object.startPolling());
+
+		this._pullRequests.set(key, disposables);
 	}
 
 	private _disposePolling(session: ISession): void {

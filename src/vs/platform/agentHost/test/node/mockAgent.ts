@@ -95,6 +95,13 @@ export class MockAgent implements IAgent {
 		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		if (!this._sessions.has(AgentSession.id(session))) {
+			return undefined;
+		}
+		return { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides };
+	}
+
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
@@ -286,6 +293,19 @@ export class ScriptedMockAgent implements IAgent {
 			project: mockProject(this.id),
 			summary: s.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		}));
+	}
+
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		if (!this._sessions.has(AgentSession.id(session))) {
+			return undefined;
+		}
+		return {
+			session,
+			startTime: Date.now(),
+			modifiedTime: Date.now(),
+			project: mockProject(this.id),
+			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
+		};
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {

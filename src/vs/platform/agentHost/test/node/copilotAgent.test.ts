@@ -131,6 +131,8 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 
 class TestCopilotClient implements ICopilotClient {
 	readonly rpc: ICopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
+	listSessionCallCount = 0;
+	readonly getSessionMetadataCalls: string[] = [];
 
 	constructor(
 		private readonly _sessions: Awaited<ReturnType<ICopilotClient['listSessions']>>,
@@ -138,9 +140,15 @@ class TestCopilotClient implements ICopilotClient {
 
 	async start(): Promise<void> { }
 	async stop(): ReturnType<ICopilotClient['stop']> { return []; }
-	async listSessions(): ReturnType<ICopilotClient['listSessions']> { return this._sessions; }
+	async listSessions(): ReturnType<ICopilotClient['listSessions']> {
+		this.listSessionCallCount++;
+		return this._sessions;
+	}
 	async listModels(): ReturnType<ICopilotClient['listModels']> { return []; }
-	async getSessionMetadata(): ReturnType<ICopilotClient['getSessionMetadata']> { return undefined; }
+	async getSessionMetadata(sessionId: string): ReturnType<ICopilotClient['getSessionMetadata']> {
+		this.getSessionMetadataCalls.push(sessionId);
+		return this._sessions.find(s => s.sessionId === sessionId);
+	}
 	createSession: ICopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ICopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
 }
@@ -418,6 +426,51 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('getSessionMetadata reads one SDK session and stored metadata without listing sessions', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'target');
+		const db = sessionDataService.openDatabase(session);
+		await db.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+		db.dispose();
+
+		const client = new TestCopilotClient([sdkSession('target')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			const metadata = await agent.getSessionMetadata(session);
+			assert.ok(metadata);
+			assert.deepStrictEqual(withoutUndefinedProperties(metadata), {
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'SDK target',
+				workingDirectory: URI.file('/workspace'),
+			});
+			assert.deepStrictEqual(client.getSessionMetadataCalls, ['target']);
+			assert.strictEqual(client.listSessionCallCount, 0);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('getSessionMetadata only returns sessions with a database', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'external');
+		const client = new TestCopilotClient([sdkSession('external', '/workspace')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			assert.strictEqual(await agent.getSessionMetadata(session), undefined);
+			assert.deepStrictEqual(client.getSessionMetadataCalls, []);
+			assert.strictEqual(client.listSessionCallCount, 0);
+			assert.deepStrictEqual(sessionDataService.openedSessions, []);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('listSessions does not create databases for unowned SDK sessions', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([sdkSession('external', '/workspace')]) });
@@ -446,29 +499,27 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
-			// Fail fast inside the SDK factory so we don't need to wire up a
-			// real raw session. The seeding of activeClient and the plugin
-			// sync both happen before `client.createSession` is invoked.
-			client.createSession = async () => { throw new Error('sentinel'); };
+			// `createSession` now creates a provisional record without
+			// touching the SDK; activeClient seeding and plugin sync happen
+			// inline before the provisional record is stored.
+			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
 
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const customizations: CustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
-				await assert.rejects(
-					agent.createSession({
-						session: AgentSession.uri('copilotcli', 'test-session'),
-						workingDirectory: URI.file('/workspace'),
-						activeClient: {
-							clientId: 'client-1',
-							tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-							customizations,
-						},
-					}),
-					(err: Error) => /sentinel/.test(err.message),
-				);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'test-session'),
+					workingDirectory: URI.file('/workspace'),
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+						customizations,
+					},
+				});
 
+				assert.strictEqual(result.provisional, true);
 				assert.deepStrictEqual(pluginManager.calls, [{ clientId: 'client-1', customizations }]);
 			} finally {
 				await disposeAgent(agent);
@@ -479,25 +530,84 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
-			client.createSession = async () => { throw new Error('sentinel'); };
+			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
 
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				await assert.rejects(
-					agent.createSession({
-						session: AgentSession.uri('copilotcli', 'test-session-2'),
-						workingDirectory: URI.file('/workspace'),
-					}),
-					(err: Error) => /sentinel/.test(err.message),
-				);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'test-session-2'),
+					workingDirectory: URI.file('/workspace'),
+				});
 
+				assert.strictEqual(result.provisional, true);
 				assert.deepStrictEqual(pluginManager.calls, []);
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
+	});
+
+	suite('provisional sessions', () => {
+
+		test('createSession does not call client.createSession or create worktrees', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const gitService = new TestAgentHostGitService();
+			let clientCreateCalls = 0;
+			let worktreeCalls = 0;
+			client.createSession = async () => { clientCreateCalls++; throw new Error('SDK not expected'); };
+			const origAddWorktree = gitService.addWorktree.bind(gitService);
+			gitService.addWorktree = async (...args) => { worktreeCalls++; return origAddWorktree(...args); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, gitService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-1'),
+					workingDirectory: URI.file('/workspace'),
+					config: { isolation: 'worktree', branch: 'main' },
+				});
+
+				assert.strictEqual(result.provisional, true);
+				assert.strictEqual(clientCreateCalls, 0, 'client.createSession should not be called for provisional sessions');
+				assert.strictEqual(worktreeCalls, 0, 'no worktree should be created for provisional sessions');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession on provisional session does not touch SDK or worktree', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const gitService = new TestAgentHostGitService();
+			let removeWorktreeCalls = 0;
+			const origRemoveWorktree = gitService.removeWorktree.bind(gitService);
+			gitService.removeWorktree = async (...args) => { removeWorktreeCalls++; return origRemoveWorktree(...args); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, gitService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-2'),
+					workingDirectory: URI.file('/workspace'),
+				});
+
+				await agent.disposeSession(result.session);
+
+				assert.strictEqual(removeWorktreeCalls, 0, 'no worktree to remove for provisional');
+				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		// Forking a provisional session is no longer a special case: the agent
+		// service drops `config.fork` for sources with no turns, so the call
+		// reduces to a plain new-session create.
 	});
 
 	suite('onClientToolCallComplete', () => {

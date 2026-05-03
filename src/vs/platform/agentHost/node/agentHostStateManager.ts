@@ -33,6 +33,7 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Last summary sent to clients (via sessionAdded or sessionSummaryChanged). */
 	private readonly _lastNotifiedSummaries = new Map<string, SessionSummary>();
+
 	/** Sessions whose summary changed since the last flush. */
 	private readonly _dirtySummaries = new Set<string>();
 	private readonly _summaryNotifyScheduler = this._register(new RunOnceScheduler(() => this._flushSummaryNotifications(), 100));
@@ -133,8 +134,17 @@ export class AgentHostStateManager extends Disposable {
 	/**
 	 * Creates a new session in state with `lifecycle: 'creating'`.
 	 * Returns the initial session state.
+	 *
+	 * By default a {@link NotificationType.SessionAdded} notification is
+	 * emitted so clients see the new session immediately. Pass
+	 * `options.emitNotification: false` to defer the notification — a typical
+	 * use is for **provisional** sessions that exist on the server but should
+	 * not appear in client session lists until they have been persisted by
+	 * the agent (e.g. on the first message that materializes an SDK session
+	 * and writes its on-disk metadata). Call {@link markSessionPersisted}
+	 * afterwards to fire the deferred notification.
 	 */
-	createSession(summary: SessionSummary): SessionState {
+	createSession(summary: SessionSummary, options?: { readonly emitNotification?: boolean }): SessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[AgentHostStateManager] Session already exists: ${key}`);
@@ -146,13 +156,55 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
 
+		if (options?.emitNotification !== false) {
+			// Recording the summary in `_lastNotifiedSummaries` is what makes
+			// `_flushSummaryNotifications` later emit incremental updates and
+			// what makes `markSessionPersisted` a no-op. Provisional sessions
+			// intentionally skip both until they are persisted.
+			this._lastNotifiedSummaries.set(key, summary);
+			this._onDidEmitNotification.fire({
+				type: NotificationType.SessionAdded,
+				summary,
+			});
+		}
+
+		return state;
+	}
+
+	/**
+	 * Fire a {@link NotificationType.SessionAdded} notification for a session
+	 * whose creation was deferred via `createSession({ emitNotification: false })`.
+	 *
+	 * Atomically writes the supplied summary into `state.summary` so
+	 * subscribers reading state directly stay consistent with what was
+	 * announced. No-ops for sessions that were already announced
+	 * (idempotent).
+	 */
+	markSessionPersisted(session: URI, summary: SessionSummary): void {
+		const key = session.toString();
+		const state = this._sessionStates.get(key);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
+			return;
+		}
+		// `_lastNotifiedSummaries` is set whenever a session has been announced
+		// to clients (either through `createSession` or here); using it as the
+		// idempotency check keeps us from firing `SessionAdded` twice for a
+		// session whose creation was not deferred.
+		if (this._lastNotifiedSummaries.has(key)) {
+			return;
+		}
+		// Update the in-memory summary so subscribers calling
+		// `getSessionState` see the same fields the notification carries.
+		// We don't need to schedule a `SessionSummaryChanged` flush because
+		// the upcoming `SessionAdded` notification carries the complete
+		// summary already.
+		state.summary = summary;
 		this._lastNotifiedSummaries.set(key, summary);
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionAdded,
 			summary,
 		});
-
-		return state;
 	}
 
 	/**
@@ -210,13 +262,22 @@ export class AgentHostStateManager extends Disposable {
 	 * Permanently deletes a session from state and emits a
 	 * {@link NotificationType.SessionRemoved} notification so that clients
 	 * know the session is no longer accessible.
+	 *
+	 * Sessions whose creation was deferred via
+	 * `createSession({ emitNotification: false })` and never persisted via
+	 * {@link markSessionPersisted} are removed silently — no client knows
+	 * about them, so a `SessionRemoved` would be noise (or worse, would
+	 * cause clients to drop a session URI they had eagerly subscribed to).
 	 */
 	deleteSession(session: URI): void {
+		const wasAnnounced = this._lastNotifiedSummaries.has(session);
 		this.removeSession(session);
-		this._onDidEmitNotification.fire({
-			type: NotificationType.SessionRemoved,
-			session,
-		});
+		if (wasAnnounced) {
+			this._onDidEmitNotification.fire({
+				type: NotificationType.SessionRemoved,
+				session,
+			});
+		}
 	}
 
 	// ---- Session meta -------------------------------------------------------
