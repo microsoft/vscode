@@ -22,6 +22,7 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -199,8 +200,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -402,14 +404,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-		if (this._currentNewSession) {
-			this._clearNewSessionConfig(this._currentNewSession.sessionId);
-			this._currentNewSession = undefined;
+		if (this._newSession) {
+			// Setter on the MutableDisposable handles disposal of the old value.
+			this._newSession = undefined;
 		}
-		this._currentNewSessionStatus = undefined;
-		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionLoading = undefined;
-		this._selectedModelId = undefined;
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];

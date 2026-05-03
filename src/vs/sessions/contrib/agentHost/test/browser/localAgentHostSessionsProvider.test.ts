@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
@@ -31,6 +31,7 @@ import { ISessionChangeEvent } from '../../../../services/sessions/common/sessio
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -51,6 +52,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -86,7 +88,34 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessions.delete(rawId);
 	}
 
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+	public createdSessionUris: URI[] = [];
+	/**
+	 * Per-call hook used by tests to interleave operations across the
+	 * `createSession` await — e.g. to verify that no subscription is opened
+	 * before the create completes, or to simulate a workspace switch landing
+	 * mid-call. Cleared after the next createSession call invokes it.
+	 */
+	public onCreateSession: ((uri: URI) => void | Promise<void>) | undefined;
+	/**
+	 * Ordered log of wire-level operations: useful for asserting that
+	 * `createSession` strictly precedes `subscribe` for a given session URI.
+	 * Each entry is `${op}:${uri}`.
+	 */
+	public wireOps: string[] = [];
+	override async createSession(config?: { session?: URI }): Promise<URI> {
+		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
+		this.wireOps.push(`createSession:${uri.toString()}`);
+		this.createdSessionUris.push(uri);
+		const hook = this.onCreateSession;
+		this.onCreateSession = undefined;
+		if (hook) {
+			await hook(uri);
+		}
+		return uri;
+	}
+
+	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
+		this.resolveSessionConfigRequests.push(request);
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -116,6 +145,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
+		this.wireOps.push(`subscribe:${key}`);
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
@@ -192,11 +222,11 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService());
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
@@ -216,6 +246,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
 	});
+	instantiationService.stub(ILogService, new NullLogService());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -601,6 +632,62 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
+	test('createNewSession seeds autoApprove from chat.permissions.default and forwards it to resolveSessionConfig', async () => {
+		const config = new TestConfigurationService();
+		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove', 'autopilot'], title: 'Auto-approve' } } },
+			values: { autoApprove: 'autoApprove' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, c => c?.values.autoApprove === 'autoApprove');
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			seededImmediately: 'autoApprove',
+			forwardedToAgentHost: 'autoApprove',
+		});
+	});
+
+	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			initialValues: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedAutoApprove: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			initialValues: {},
+			forwardedAutoApprove: undefined,
+		});
+	});
+
+	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.tools.global.autoApprove') {
+					return { ...base, policyValue: false as unknown as T };
+				}
+				return base;
+			}
+		}();
+		await config.setUserConfiguration('chat.permissions.default', 'autopilot');
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			seededImmediately: 'default',
+			forwardedToAgentHost: 'default',
+		});
+	});
+
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
 		const workspaceUri = URI.parse('file:///home/user/my-project');
@@ -616,6 +703,135 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resolvedResource: session.resource.toString(),
 			resolvedWorkspaceLabel: 'my-project [Local]',
 		});
+	});
+
+	test('createNewSession eagerly creates the backend session with the client-allocated URI', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const workspaceUri = URI.parse('file:///home/user/my-project');
+		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
+		await timeout(0); // let the eager createSession promise resolve
+
+		const rawId = session.resource.path.substring(1);
+		const expectedBackendUri = AgentSession.uri(provider.sessionTypes[0].id, rawId);
+		assert.deepStrictEqual(
+			agentHost.createdSessionUris.map(u => u.toString()),
+			[expectedBackendUri.toString()],
+			'eager createSession should be invoked with the client-allocated URI',
+		);
+		assert.strictEqual(
+			agentHost.sessionSubscribeCounts.get(expectedBackendUri.toString()),
+			1,
+			'a state subscription should be held while the new session view is active',
+		);
+	});
+
+	test('createNewSession disposes the previous eager backend session on workspace switch', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+
+		const first = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		await timeout(0);
+		const firstRawId = first.resource.path.substring(1);
+		const firstBackendUri = AgentSession.uri(sessionTypeId, firstRawId);
+
+		// Switch workspace: should dispose the first backend session and
+		// release its subscription before creating the second.
+		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		await timeout(0);
+		const secondRawId = second.resource.path.substring(1);
+		const secondBackendUri = AgentSession.uri(sessionTypeId, secondRawId);
+
+		assert.deepStrictEqual(
+			agentHost.disposedSessions.map(u => u.toString()),
+			[firstBackendUri.toString()],
+			'first backend session should be disposed when the workspace switches',
+		);
+		assert.deepStrictEqual(
+			agentHost.createdSessionUris.map(u => u.toString()),
+			[firstBackendUri.toString(), secondBackendUri.toString()],
+			'a fresh backend session should be created for the new workspace',
+		);
+	});
+
+	test('eager createSession completes on the wire before getSubscription opens', async () => {
+		// This guards against a regression where the order was flipped:
+		// `getSubscription` first → server saw `subscribe` for an unknown
+		// session → returned `AHP_SESSION_NOT_FOUND` → the client subscription
+		// entered an error state → the chat handler later treated the session
+		// as missing and re-issued `createSession`, producing a duplicate.
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		const rawId = session.resource.path.substring(1);
+		const backendKey = AgentSession.uri(provider.sessionTypes[0].id, rawId).toString();
+		const ops = agentHost.wireOps.filter(op => op.endsWith(backendKey));
+		assert.deepStrictEqual(
+			ops,
+			[`createSession:${backendKey}`, `subscribe:${backendKey}`],
+			'createSession must complete before subscribe is issued',
+		);
+	});
+
+	test('no subscription is opened if eager createSession fails', async () => {
+		const provider = createProvider(disposables, agentHost);
+		// Replace the next createSession call with a rejecting one. The mock's
+		// onCreateSession hook runs after the URI is logged, so we throw from
+		// the hook to model an auth-required / network error response.
+		agentHost.onCreateSession = async () => { throw new Error('auth required'); };
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		const rawId = session.resource.path.substring(1);
+		const backendKey = AgentSession.uri(provider.sessionTypes[0].id, rawId).toString();
+		assert.strictEqual(
+			agentHost.sessionSubscribeCounts.get(backendKey),
+			undefined,
+			'no subscription should be opened when createSession rejects',
+		);
+	});
+
+	test('workspace switch mid-createSession does not open a stale subscription', async () => {
+		// Models the race where the user switches workspaces while the eager
+		// `createSession` for the previous workspace is still in flight on
+		// the wire. Once that create eventually resolves, we must not open
+		// a subscription for it — it has already been disposed.
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+
+		const firstCreateGate = new DeferredPromise<void>();
+		agentHost.onCreateSession = () => firstCreateGate.p;
+
+		const first = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		// Yield once so the eager createSession promise starts and parks at
+		// the gate; nothing else has happened yet.
+		await timeout(0);
+
+		// Switch workspace while the first createSession is still parked.
+		// Disposing the first NewSession should clear its backend URI
+		// before the second eager-create runs.
+		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		await timeout(0);
+
+		// Now release the first createSession. The async IIFE in
+		// `NewSession.eagerCreate` should observe that the backend URI no
+		// longer matches and bail without subscribing.
+		firstCreateGate.complete();
+		await timeout(0);
+
+		const firstBackendKey = AgentSession.uri(sessionTypeId, first.resource.path.substring(1)).toString();
+		const secondBackendKey = AgentSession.uri(sessionTypeId, second.resource.path.substring(1)).toString();
+		assert.strictEqual(
+			agentHost.sessionSubscribeCounts.get(firstBackendKey),
+			undefined,
+			'no subscription should be opened for the abandoned first session',
+		);
+		assert.strictEqual(
+			agentHost.sessionSubscribeCounts.get(secondBackendKey),
+			1,
+			'second session should still get its eager subscription',
+		);
 	});
 
 	// ---- Session actions -------

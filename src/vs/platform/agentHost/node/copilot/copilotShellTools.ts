@@ -8,7 +8,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import * as platform from '../../../../base/common/platform.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
@@ -64,6 +64,8 @@ export class ShellManager {
 
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
+	/** Set of shell ids currently executing a command and unsafe to share. */
+	private readonly _busyShellIds = new Set<string>();
 
 	private readonly _onDidAssociateTerminal = new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>();
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
@@ -75,21 +77,36 @@ export class ShellManager {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	/**
+	 * Acquire a shell of the given type for executing a single command. The
+	 * returned reference holds the shell exclusively — its terminal will not
+	 * be handed out to another concurrent caller until the reference is
+	 * disposed. If no idle shell of the requested type exists, a new one is
+	 * created.
+	 */
 	async getOrCreateShell(
 		shellType: ShellType,
 		turnId: string,
 		toolCallId: string,
 		cwd?: string,
-	): Promise<IManagedShell> {
+	): Promise<IReference<IManagedShell>> {
 		for (const shell of this._shells.values()) {
-			if (shell.shellType === shellType && this._terminalManager.hasTerminal(shell.terminalUri)) {
-				const exitCode = this._terminalManager.getExitCode(shell.terminalUri);
-				if (exitCode === undefined) {
-					this._trackToolCall(toolCallId, shell.id);
-					return shell;
-				}
-				this._shells.delete(shell.id);
+			if (shell.shellType !== shellType || !this._terminalManager.hasTerminal(shell.terminalUri)) {
+				continue;
 			}
+			const exitCode = this._terminalManager.getExitCode(shell.terminalUri);
+			if (exitCode !== undefined) {
+				this._shells.delete(shell.id);
+				continue;
+			}
+			if (this._busyShellIds.has(shell.id)) {
+				// Skip — a command is already running on this terminal. Sharing
+				// it would interleave input/output and garble both commands.
+				continue;
+			}
+			this._busyShellIds.add(shell.id);
+			this._trackToolCall(toolCallId, shell.id);
+			return this._makeReference(shell);
 		}
 
 		const id = generateUuid();
@@ -113,9 +130,24 @@ export class ShellManager {
 
 		const shell: IManagedShell = { id, terminalUri, shellType };
 		this._shells.set(id, shell);
+		this._busyShellIds.add(id);
 		this._trackToolCall(toolCallId, id);
 		this._logService.info(`[ShellManager] Created ${shellType} shell ${id} (terminal=${terminalUri})`);
-		return shell;
+		return this._makeReference(shell);
+	}
+
+	private _makeReference(shell: IManagedShell): IReference<IManagedShell> {
+		let disposed = false;
+		return {
+			object: shell,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this._busyShellIds.delete(shell.id);
+			},
+		};
 	}
 
 	private _trackToolCall(toolCallId: string, shellId: string): void {
@@ -156,6 +188,7 @@ export class ShellManager {
 		}
 		this._terminalManager.disposeTerminal(shell.terminalUri);
 		this._shells.delete(id);
+		this._busyShellIds.delete(id);
 		this._logService.info(`[ShellManager] Shut down shell ${id}`);
 		return true;
 	}
@@ -168,6 +201,7 @@ export class ShellManager {
 		}
 		this._shells.clear();
 		this._toolCallShells.clear();
+		this._busyShellIds.clear();
 	}
 }
 
@@ -456,13 +490,17 @@ export function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		handler: async (args, invocation) => {
-			const shell = await shellManager.getOrCreateShell(
+			const timeoutMs = args.timeout ?? DEFAULT_TIMEOUT_MS;
+			const ref = await shellManager.getOrCreateShell(
 				shellType,
 				invocation.toolCallId,
 				invocation.toolCallId,
 			);
-			const timeoutMs = args.timeout ?? DEFAULT_TIMEOUT_MS;
-			return executeCommandInShell(shell, args.command, timeoutMs, terminalManager, logService);
+			try {
+				return await executeCommandInShell(ref.object, args.command, timeoutMs, terminalManager, logService);
+			} finally {
+				ref.dispose();
+			}
 		},
 	};
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--enable-claude-agent] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -32,7 +32,11 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { ClaudeAgent } from './claude/claudeAgent.js';
+import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { AgentService } from './agentService.js';
+import { AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -66,6 +70,7 @@ interface IServerOptions {
 	readonly port: number;
 	readonly host: string | undefined;
 	readonly enableMockAgent: boolean;
+	readonly enableClaudeAgent: boolean;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
@@ -79,6 +84,10 @@ function parseServerOptions(): IServerOptions {
 	const hostIdx = argv.indexOf('--host');
 	const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
 	const enableMockAgent = argv.includes('--enable-mock-agent');
+	// Claude agent registration is opt-in: enable via either the CLI flag or the
+	// shared env var (the env var is what the agent host starters use when the
+	// `chat.agentHost.claudeAgent.enabled` workbench setting is on).
+	const enableClaudeAgent = argv.includes('--enable-claude-agent') || process.env[AgentHostEnableClaudeEnvVar] === '1';
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -121,7 +130,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, quiet, connectionToken };
+	return { port, host, enableMockAgent, enableClaudeAgent, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -191,9 +200,20 @@ async function main(): Promise<void> {
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostGitService, gitService);
+		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
+		// the proxy service constructor requires it.
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		diServices.set(ICopilotApiService, copilotApiService);
+		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		diServices.set(IClaudeProxyService, claudeProxyService);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
+		if (options.enableClaudeAgent) {
+			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+			agentService.registerProvider(claudeAgent);
+			log('ClaudeAgent registered');
+		}
 	}
 
 	if (options.enableMockAgent) {

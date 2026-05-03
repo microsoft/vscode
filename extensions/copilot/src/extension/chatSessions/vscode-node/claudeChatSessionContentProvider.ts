@@ -81,6 +81,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
 		@IClaudeCodeModels private readonly claudeModels: IClaudeCodeModels,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -161,7 +162,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			// Clear usage handler after request completes
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
 
-			const details = endpoint ? formatClaudeModelDetails(endpoint) : undefined;
+			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+			const details = modelDetailsEnabled && endpoint ? formatClaudeModelDetails(endpoint) : undefined;
 			return {
 				...(details ? { details } : {}),
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
@@ -173,7 +175,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 
 	async provideChatSessionContent(sessionResource: vscode.Uri, token: vscode.CancellationToken, context?: { readonly inputState: vscode.ChatSessionInputState }): Promise<vscode.ChatSession> {
 		const existingSession = await this.sessionService.getSession(sessionResource, token);
-		const detailsByModelId = existingSession ? await this._buildModelDetailsLookup(existingSession, token) : undefined;
+		const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+		const detailsByModelId = existingSession && modelDetailsEnabled ? await this._buildModelDetailsLookup(existingSession, token) : undefined;
 		const history = existingSession ?
 			buildChatHistory(existingSession, detailsByModelId ? id => detailsByModelId.get(id) : undefined) :
 			[];

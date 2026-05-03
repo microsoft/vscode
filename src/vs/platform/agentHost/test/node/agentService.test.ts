@@ -13,6 +13,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -514,6 +515,71 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(result, { authenticated: false });
 			assert.strictEqual(copilotAgent.authenticateCalls.length, 0);
 		});
+
+		test('fans out to every provider that owns the resource', async () => {
+			// Two providers share the same protected resource (the real
+			// motivating example: both Copilot CLI and Claude consume the
+			// GitHub Copilot token). Both must see the token — the
+			// previous for-loop short-circuit only delivered to the first.
+			const claudeAgent = new MockAgent('claude');
+			claudeAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			disposables.add(toDisposable(() => claudeAgent.dispose()));
+			service.registerProvider(copilotAgent);
+			service.registerProvider(claudeAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual({
+				result,
+				copilotCalls: copilotAgent.authenticateCalls,
+				claudeCalls: claudeAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				copilotCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+				claudeCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+			});
+		});
+
+		test('isolates a provider that throws — others still authenticate', async () => {
+			// Regression: if any provider's authenticate() rejects, the
+			// fan-out must NOT sink the others. Previously the call used
+			// Promise.all, which propagated the first rejection.
+			const flakyAgent = new MockAgent('claude');
+			flakyAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyAgent.authenticate = async () => { throw new Error('proxy bind failed'); };
+			disposables.add(toDisposable(() => flakyAgent.dispose()));
+			service.registerProvider(copilotAgent);
+			service.registerProvider(flakyAgent);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual({
+				result,
+				copilotCalls: copilotAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				copilotCalls: [{ resource: 'https://api.github.com', token: 'tok' }],
+			});
+		});
+
+		test('reports not authenticated when every matching provider rejects', async () => {
+			// All matching providers fail — the result must be
+			// { authenticated: false } rather than a thrown error.
+			const flakyA = new MockAgent('claude');
+			const flakyB = new MockAgent('mock');
+			flakyA.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyB.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			flakyA.authenticate = async () => { throw new Error('A'); };
+			flakyB.authenticate = async () => { throw new Error('B'); };
+			disposables.add(toDisposable(() => flakyA.dispose()));
+			disposables.add(toDisposable(() => flakyB.dispose()));
+			service.registerProvider(flakyA);
+			service.registerProvider(flakyB);
+
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
+
+			assert.deepStrictEqual(result, { authenticated: false });
+		});
 	});
 
 	// ---- shutdown -------------------------------------------------------
@@ -649,6 +715,59 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('restores known session without listing all provider sessions', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				throw new Error('restoreSession should not enumerate sessions');
+			};
+
+			await service.restoreSession(session);
+
+			assert.strictEqual(listSessionsCalled, false);
+			assert.ok(service.stateManager.getSessionState(session.toString()));
+		});
+
+		test('falls back to listing sessions when direct metadata restore fails', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			copilotAgent.getSessionMetadata = async () => {
+				throw new Error('direct metadata unavailable');
+			};
+			const originalListSessions = copilotAgent.listSessions.bind(copilotAgent);
+			let listSessionsCalled = false;
+			copilotAgent.listSessions = async () => {
+				listSessionsCalled = true;
+				return originalListSessions();
+			};
+
+			await service.restoreSession(session);
+
+			assert.deepStrictEqual({
+				listSessionsCalled,
+				restored: !!service.stateManager.getSessionState(session.toString()),
+			}, {
+				listSessionsCalled: true,
+				restored: true,
+			});
+		});
+
 		test('restores a session with subagent tool calls', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
@@ -766,14 +885,17 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('subscriber refcount eviction', () => {
 
-		test('an idle session created in this lifetime is evicted when subscribers drop', async () => {
+		test('an empty session created in this lifetime stays observable until GC fires', async () => {
 			service.registerProvider(copilotAgent);
 			const sessionResource = await service.createSession({ provider: 'copilot' });
 
 			service.addSubscriber(sessionResource, 'client-1');
 			service.unsubscribe(sessionResource, 'client-1');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'idle created session should be evicted; next subscribe will rehydrate from the agent');
+			// Empty sessions are routed to the GC pipeline rather than the
+			// eviction pipeline, so their state stays observable in the
+			// grace window for a re-subscribe to find.
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'empty created session must remain observable for the GC grace window');
 		});
 
 		test('a session with an active turn is NOT evicted when its last subscriber drops', async () => {
@@ -864,6 +986,111 @@ suite('AgentService (node dispatcher)', () => {
 			service.unsubscribe(childUri, 'client-child');
 			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'parent evicted after subagent drops');
 			assert.strictEqual(service.stateManager.getSessionState(childUri.toString()), undefined, 'child also evicted with parent');
+		});
+	});
+
+	// ---- empty-session GC ----------------------------------------------
+
+	suite('empty-session GC', () => {
+
+		test('an empty unsubscribed session is disposed after the grace period', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Before the grace period, dispose has not been called.
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'no GC before grace expires');
+
+				// After the grace period, the session is disposed entirely.
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.deepStrictEqual(
+					copilotAgent.disposeSessionCalls.map(u => u.toString()),
+					[sessionResource.toString()],
+					'GC fired after grace period',
+				);
+			});
+		});
+
+		test('a session with at least one turn is not GC-disposed', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+					'client-1', 1,
+				);
+				service.dispatchAction(
+					{ type: ActionType.SessionTurnComplete, session: sessionResource.toString(), turnId: 'turn-1' },
+					'client-1', 2,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'session with turns must not be GC-disposed');
+			});
+		});
+
+		test('resubscribe within the grace period cancels GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				// Resubscribe before the timer fires.
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.addSubscriber(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'GC must be cancelled after resubscribe');
+			});
+		});
+
+		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Old timer was cancelled; a fresh 30s timer is now armed.
+				await new Promise(resolve => setTimeout(resolve, 29_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'rearmed timer not yet fired');
+				await new Promise(resolve => setTimeout(resolve, 2_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 1, 'rearmed timer fires after fresh 30s');
+			});
+		});
+
+		test('createSession on the same URI cancels a pending GC', () => {
+			// Models the reconnect path: client subscribes to a session,
+			// drops the subscription (GC armed), then re-issues
+			// `createSession` for the same URI before the grace expires.
+			// Without explicit cancellation, the timer would fire and
+			// dispose the just-revived session.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Re-issue createSession mid-grace.
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+
+				// Wait past the original grace window. If GC wasn't
+				// cancelled by createSession, dispose would have fired.
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+			});
 		});
 	});
 
