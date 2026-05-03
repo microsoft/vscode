@@ -562,6 +562,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
+				this._workingDirectoryResolver.clearSessionWorkingDirectory(sessionResource);
 				this._releaseSessionSubscription(resolvedSession.toString());
 			},
 			() => {

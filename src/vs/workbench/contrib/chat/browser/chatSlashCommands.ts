@@ -12,6 +12,7 @@ import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
@@ -50,6 +51,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -88,7 +90,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				}
 
 				progress.report({
-					content: new MarkdownString(nls.localize('cwd.current', "Current working directory: `{0}`", cwd.fsPath)),
+					content: new MarkdownString(nls.localize('cwd.current', "Current working directory: `{0}`", labelService.getUriLabel(cwd))),
 					kind: 'markdownContent'
 				});
 				return;
@@ -96,7 +98,11 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 			let resolvedUri: URI | undefined;
 			if (isAbsolute(requestedPath)) {
-				resolvedUri = URI.file(requestedPath);
+				if (workspaceFolder) {
+					resolvedUri = workspaceFolder.uri.with({ path: requestedPath });
+				} else {
+					resolvedUri = URI.file(requestedPath);
+				}
 			} else if (workspaceFolder) {
 				resolvedUri = workspaceFolder.toResource(requestedPath);
 			}
@@ -111,7 +117,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 			workingDirectoryResolver.setSessionWorkingDirectory(sessionResource, resolvedUri);
 			progress.report({
-				content: new MarkdownString(nls.localize('cwd.updated', "Working directory set to `{0}`", resolvedUri.fsPath)),
+				content: new MarkdownString(nls.localize('cwd.updated', "Working directory set to `{0}`", labelService.getUriLabel(resolvedUri))),
 				kind: 'markdownContent'
 			});
 		}));
