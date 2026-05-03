@@ -1,0 +1,191 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quota-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 16px;
+	box-sizing: border-box;
+}
+
+/* ── Header ── */
+
+.quota-panel-header {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.quota-panel-header h2 {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.quota-panel-subtitle {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+/* ── Summary chip ── */
+
+.quota-panel-summary {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	padding: 6px 10px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background);
+}
+
+/* ── Spend cap warning ── */
+
+.quota-panel-spend-cap-warning {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px 10px;
+	border: 1px solid var(--vscode-errorForeground);
+	border-radius: 4px;
+	background: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.08));
+	color: var(--vscode-errorForeground);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.quota-panel-spend-cap-warning.hidden {
+	display: none;
+}
+
+.quota-panel-spend-cap-icon .codicon {
+	font-size: 14px;
+	flex-shrink: 0;
+	margin-top: 1px;
+}
+
+/* ── Section ── */
+
+.quota-panel-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.quota-panel-section-header {
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.quota-panel-section-title {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.quota-panel-empty {
+	font-size: 12px;
+	color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+	font-style: italic;
+}
+
+/* ── Tables (by-model, by-tool) ── */
+
+.quota-panel-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.quota-panel-table th {
+	text-align: left;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	padding: 2px 8px 4px 0;
+}
+
+.quota-panel-table td {
+	padding: 3px 8px 3px 0;
+	vertical-align: top;
+}
+
+.quota-panel-model-label,
+.quota-panel-tool-name {
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.quota-panel-tokens {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.quota-panel-cost,
+.quota-panel-call-count {
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── Provider quota rows ── */
+
+.quota-panel-quota-row {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.quota-panel-quota-row:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.quota-panel-quota-name {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.quota-panel-quota-detail {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.quota-panel-quota-reset {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* ── Progress bar ── */
+
+.quota-panel-quota-bar {
+	height: 4px;
+	border-radius: 2px;
+	background: var(--vscode-progressBar-background, rgba(128, 128, 128, 0.2));
+	overflow: hidden;
+	margin-top: 2px;
+}
+
+.quota-panel-quota-bar-fill {
+	height: 100%;
+	border-radius: 2px;
+	background: var(--vscode-progressBar-foreground, var(--vscode-charts-blue, #1e88e5));
+	transition: width 0.2s ease;
+}
+
+.quota-panel-quota-bar-fill.quota-panel-quota-bar-warning {
+	background: var(--vscode-charts-orange, #f59e0b);
+}
