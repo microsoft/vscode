@@ -599,7 +599,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 - [x] **ChatGPTOAuth adapter** with event normaliser (§5.2). Captured-SSE fixture suite.
 - [x] **Copilot adapter** using existing GH auth flow (§5.3).
 - [x] **Connected accounts panel** (§9.2).
-- [ ] **Per-agent provider selection UI** (§9.3) with `.son-of-anton/routing.json`.
+- [x] **Per-agent provider selection UI** (§9.3) with `.son-of-anton/routing.json`.
 - [ ] **Multi-session UI** (§9.6, F-14). Sessions list, nesting, parallel execution.
 - [ ] **Cost / quota panel** (§9.4, F-15).
 - [ ] **Error UX** (§9.10, F-16). Inline errors with retry-on-other-provider.
