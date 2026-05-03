@@ -34,6 +34,8 @@ export type CursorJumpPrediction =
 	| { readonly kind: 'sameFile'; readonly lineNumber: number }
 	| { readonly kind: 'differentFile'; readonly filePath: string; readonly lineNumber: number };
 
+const DEFAULT_CURSOR_JUMP_MODEL_NAME = 'copilot-suggestions-himalia-001';
+
 export class XtabNextCursorPredictor {
 
 	private isDisabled: boolean;
@@ -163,12 +165,7 @@ export class XtabNextCursorPredictor {
 
 		telemetryBuilder?.setCursorJumpPrompt(messages);
 
-		const modelName = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService)
-			?? this.proxyModelsService.cursorJumpModels?.[0]?.name;
-		if (modelName === undefined) {
-			tracer.trace('Model name for cursor prediction is not defined; skipping prediction');
-			return Result.fromString('modelNameNotDefined');
-		}
+		const modelName = this.determineModelName();
 		telemetryBuilder?.setCursorJumpModelName(modelName);
 
 		const resolvedEndpoint = await this.resolveEndpoint(modelName, tracer);
@@ -261,6 +258,12 @@ export class XtabNextCursorPredictor {
 			}),
 			usesResponsesApi: false,
 		};
+	}
+
+	private determineModelName(): string {
+		return this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService)
+			?? this.proxyModelsService.cursorJumpModels?.[0]?.name
+			?? DEFAULT_CURSOR_JUMP_MODEL_NAME;
 	}
 
 	private determineLintOptions(): xtabPromptOptions.LintOptions | undefined {
