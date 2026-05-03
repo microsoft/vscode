@@ -517,7 +517,7 @@ suite('RunInTerminalTool', () => {
 			await assertAutomaticUnsandboxRetryElicitation(runInTerminalTool, sessionResource, 'echo hello', 'bash', undefined);
 		});
 
-		test('should show retry elicitation when prepared invocation was session auto-approved', async () => {
+		test('should auto-retry without elicitation when session is in auto-approve permission level', async () => {
 			const sessionResource = LocalChatSessionUri.forSession('auto-retry-approval-session');
 			instantiationService.stub(IChatWidgetService, {
 				getWidgetBySessionResource: (() => ({ input: { currentModeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove } } })) as unknown as IChatWidgetService['getWidgetBySessionResource'],
@@ -537,7 +537,11 @@ suite('RunInTerminalTool', () => {
 
 			assertAutoApproved(preparedInvocation);
 
-			await assertAutomaticUnsandboxRetryElicitation(autoApproveRunInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined);
+			const model = createChatModelWithRequest(sessionResource);
+			const shouldRetry = await confirmAutomaticUnsandboxRetry(autoApproveRunInTerminalTool, sessionResource, 'rm dangerous-file.txt', 'bash', undefined);
+			strictEqual(shouldRetry, true, 'Expected auto-approve session to retry without prompting');
+			const elicitation = model.getRequests().at(-1)?.response?.response.value.find(part => part.kind === 'elicitation2');
+			ok(!elicitation, 'Expected no elicitation in auto-approve session');
 		});
 
 		test('should show retry elicitation when prepared invocation required confirmation', async () => {
