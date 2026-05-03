@@ -6,12 +6,14 @@
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
@@ -23,6 +25,7 @@ import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from '.
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
@@ -42,9 +45,11 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IChatService chatService: IChatService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -58,6 +63,57 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			agentSessionsService.getSession(sessionResource)?.setArchived(true);
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'cwd',
+			detail: nls.localize('cwd', "Display or change the working directory for this session"),
+			sortText: 'z3_cwd',
+			executeImmediately: false,
+			locations: [ChatAgentLocation.Chat],
+		}, async (prompt, progress, _history, _location, sessionResource) => {
+			const requestedPath = prompt.trim();
+			const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
+
+			if (!requestedPath) {
+				const cwd = workingDirectoryResolver.getSessionWorkingDirectory(sessionResource)
+					?? workingDirectoryResolver.resolve(sessionResource)
+					?? workspaceFolder?.uri;
+
+				if (!cwd) {
+					progress.report({
+						content: new MarkdownString(nls.localize('cwd.none', "Current working directory is not set.")),
+						kind: 'markdownContent'
+					});
+					return;
+				}
+
+				progress.report({
+					content: new MarkdownString(nls.localize('cwd.current', "Current working directory: `{0}`", cwd.fsPath)),
+					kind: 'markdownContent'
+				});
+				return;
+			}
+
+			let resolvedUri: URI | undefined;
+			if (isAbsolute(requestedPath)) {
+				resolvedUri = URI.file(requestedPath);
+			} else if (workspaceFolder) {
+				resolvedUri = workspaceFolder.toResource(requestedPath);
+			}
+
+			if (!resolvedUri) {
+				progress.report({
+					content: new MarkdownString(nls.localize('cwd.cannotResolveRelative', "Cannot resolve relative path `{0}` because no workspace folder is open.", requestedPath)),
+					kind: 'markdownContent'
+				});
+				return;
+			}
+
+			workingDirectoryResolver.setSessionWorkingDirectory(sessionResource, resolvedUri);
+			progress.report({
+				content: new MarkdownString(nls.localize('cwd.updated', "Working directory set to `{0}`", resolvedUri.fsPath)),
+				kind: 'markdownContent'
+			});
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'hooks',
