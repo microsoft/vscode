@@ -6,6 +6,7 @@
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName } from '../../../platform/otel/common/genAiAttributes';
 import type { ICompletedSpanData } from '../../../platform/otel/common/otelService';
+import type { IDebugLogEntry } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import type { SessionEvent, WorkingDirectoryContext } from './cloudSessionTypes';
 
 // ── Content size limits (bytes) ─────────────────────────────────────────────────
@@ -192,6 +193,111 @@ export function makeShutdownEvent(state: SessionTranslationState): SessionEvent 
 	return makeEvent(state, 'session.shutdown', {});
 }
 
+// ── Debug log entry → cloud event translation ───────────────────────────────────
+
+/**
+ * Translate a JSONL debug log entry into zero or more cloud SessionEvents.
+ *
+ * Used by the cloud reindex phase to upload historical sessions that were
+ * never live-synced. Mirrors the event types produced by {@link translateSpan}
+ * so the cloud sees a consistent format regardless of how events were captured.
+ *
+ * Mutates `state` to maintain parentId chaining across entries.
+ */
+export function translateDebugLogEntry(
+	entry: IDebugLogEntry,
+	sessionId: string,
+	state: SessionTranslationState,
+): SessionEvent[] {
+	const events: SessionEvent[] = [];
+	const ts = new Date(entry.ts).toISOString();
+
+	switch (entry.type) {
+		case 'session_start': {
+			if (!state.started) {
+				state.started = true;
+				events.push(makeEventAt(state, ts, 'session.start', {
+					sessionId,
+					version: 1,
+					producer: 'vscode-copilot-chat',
+					copilotVersion: typeof entry.attrs.copilotVersion === 'string' ? entry.attrs.copilotVersion : '1.0.0',
+					startTime: ts,
+					context: {
+						cwd: typeof entry.attrs.cwd === 'string' ? entry.attrs.cwd : undefined,
+						repository: typeof entry.attrs.repository === 'string' ? entry.attrs.repository : undefined,
+						hostType: 'github',
+						branch: typeof entry.attrs.branch === 'string' ? entry.attrs.branch : undefined,
+					},
+				}));
+			}
+			break;
+		}
+
+		case 'user_message':
+		case 'turn_start': {
+			const content = typeof entry.attrs.content === 'string'
+				? entry.attrs.content
+				: typeof entry.attrs.userRequest === 'string'
+					? entry.attrs.userRequest
+					: undefined;
+			if (content) {
+				events.push(makeEventAt(state, ts, 'user.message', {
+					content: truncate(content, MAX_USER_MESSAGE_SIZE),
+					source: 'chat',
+					agentMode: 'interactive',
+				}));
+			}
+			break;
+		}
+
+		case 'agent_response': {
+			const response = typeof entry.attrs.response === 'string' ? entry.attrs.response : undefined;
+			if (response) {
+				events.push(makeEventAt(state, ts, 'assistant.message', {
+					messageId: generateUuid(),
+					content: truncate(response, MAX_ASSISTANT_MESSAGE_SIZE),
+				}));
+			}
+			break;
+		}
+
+		case 'tool_call': {
+			const toolName = entry.name;
+			if (toolName) {
+				const toolCallId = entry.spanId || generateUuid();
+				const resultText = typeof entry.attrs.result === 'string' ? entry.attrs.result : undefined;
+				const success = entry.status === 'ok';
+				const truncatedResult = resultText ? truncate(resultText, MAX_TOOL_RESULT_SIZE) : '';
+
+				events.push(makeEventAt(state, ts, 'tool.execution_complete', {
+					toolCallId,
+					toolName,
+					success,
+					result: success ? {
+						content: truncatedResult,
+						detailedContent: truncatedResult,
+					} : undefined,
+					error: !success ? {
+						message: truncatedResult || (typeof entry.attrs.error === 'string' ? entry.attrs.error : 'Tool execution failed'),
+						code: 'failure',
+					} : undefined,
+				}));
+			}
+			break;
+		}
+	}
+
+	// Filter out oversized events
+	return events.filter(event => {
+		const size = estimateEventSize(event);
+		if (size > MAX_EVENT_SIZE) {
+			state.droppedCount++;
+			return false;
+		}
+		return true;
+	});
+}
+
 // ── Internal helpers ────────────────────────────────────────────────────────────
 
 function makeEvent(
@@ -200,10 +306,20 @@ function makeEvent(
 	data: Record<string, unknown>,
 	ephemeral?: boolean,
 ): SessionEvent {
+	return makeEventAt(state, new Date().toISOString(), type, data, ephemeral);
+}
+
+function makeEventAt(
+	state: SessionTranslationState,
+	timestamp: string,
+	type: string,
+	data: Record<string, unknown>,
+	ephemeral?: boolean,
+): SessionEvent {
 	const id = generateUuid();
 	const event: SessionEvent = {
 		id,
-		timestamp: new Date().toISOString(),
+		timestamp,
 		parentId: state.lastEventId,
 		type,
 		data,

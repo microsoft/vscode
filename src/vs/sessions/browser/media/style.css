@@ -13,13 +13,13 @@
 	background-color: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background {
+.agent-sessions-workbench.shell-gradient-background {
 	position: relative;
 	isolation: isolate;
 	background: var(--vscode-agents-background);
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.agent-sessions-workbench.shell-gradient-background::before {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -29,7 +29,7 @@
 }
 
 @supports (background: color-mix(in srgb, black 0%, white)) {
-	.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -41,7 +41,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
 				to bottom right,
@@ -53,7 +53,7 @@
 			var(--vscode-agents-background);
 	}
 
-	.monaco-workbench.vs-dark.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
 		background: linear-gradient(
 			to bottom right,
 			var(--vscode-agents-background) 0%,
@@ -64,8 +64,8 @@
 	}
 }
 
-.monaco-workbench.hc-black.agent-sessions-workbench.experimental-shell-gradient-background::before,
-.monaco-workbench.hc-light.agent-sessions-workbench.experimental-shell-gradient-background::before {
+.monaco-workbench.hc-black.agent-sessions-workbench.shell-gradient-background::before,
+.monaco-workbench.hc-light.agent-sessions-workbench.shell-gradient-background::before {
 	display: none;
 }
 
@@ -105,7 +105,7 @@
 	bottom: auto;
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
+.agent-sessions-workbench.shell-gradient-background > .monaco-grid-view {
 	position: relative;
 	z-index: 1;
 	background: transparent;
@@ -125,14 +125,14 @@
  *   Panel:          bottom=18, left=16, right=16
  */
 
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .sessions-titlebar-container,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .composite.title,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .sidebar-footer {
+.agent-sessions-workbench.shell-gradient-background .part.titlebar,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.titlebar > .sessions-titlebar-container,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .composite.title,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .sidebar-footer {
 	background: transparent !important;
 }
 
@@ -150,8 +150,8 @@
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
-	background: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
@@ -267,6 +267,31 @@
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
+}
+
+/* Allow tabs to shrink in narrow viewports so the close button stays reachable.
+ * The default `sizing-fit` rule sets `min-width: fit-content; flex-shrink: 0;`
+ * which prevents the tab from shrinking below its label width and pushes the
+ * close button out of view. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
+	min-width: 0 !important;
+	flex-shrink: 1 !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
+.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+/* Keep the close button reserved within the tab so it remains accessible when
+ * the tab shrinks. Without this the action sits in an `overflow: hidden`
+ * container that only reveals on hover, which combined with the smaller tab
+ * makes the close target hard to hit. */
+.agent-sessions-workbench .part.editor .tabs-container > .tab > .tab-actions {
+	flex: 0 0 auto;
+	overflow: visible;
 }
 
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
@@ -686,10 +711,22 @@
 
 /* ---- Phone Layout: Touch Target Sizing ---- */
 
-/* Ensure interactive elements meet 44px minimum touch target */
+/* Ensure interactive elements meet 44px minimum touch target.
+	Excludes:
+	- Quick pick toolbars: 44x44 icons crowd the small popup header.
+	- Chat input toolbars: a dense row of picker buttons (Local, Auto,
+	agent, model, tools, send...). Enforcing 44px makes items 50px tall
+	and shows a huge hover/active background next to smaller adjacent
+	labels, making the bar feel unbalanced. */
 .agent-sessions-workbench.phone-layout .action-item > .action-label {
 	min-height: 44px;
 	min-width: 44px;
+}
+
+.agent-sessions-workbench.phone-layout .quick-input-widget .action-item > .action-label,
+.agent-sessions-workbench.phone-layout .chat-input-toolbars .action-item > .action-label {
+	min-height: 0;
+	min-width: 0;
 }
 
 /* Touch action for tap responsiveness */
@@ -711,48 +748,25 @@
 
 /* ---- Phone Layout: Mobile Quick Picks ---- */
 
-/* Transform quick pick into full-width bottom sheet on phone */
+/* On phone, expand quick picks to use the viewport with safe-area gutters
+	rather than the desktop-default narrow popup near the trigger. Position
+	is left untouched so the picker stays anchored where the user invoked
+	it (avoids feeling modal/jumpy). */
 .agent-sessions-workbench.phone-layout .quick-input-widget {
-	top: auto !important;
-	bottom: 0 !important;
-	left: 0 !important;
-	right: 0 !important;
-	width: 100% !important;
-	max-width: 100% !important;
-	border-radius: 16px 16px 0 0;
-	padding-bottom: env(safe-area-inset-bottom);
+	left: 8px !important;
+	right: 8px !important;
+	width: auto !important;
+	max-width: none !important;
 }
 
-.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list {
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree {
 	max-height: 50vh;
 }
 
-.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row {
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-list .monaco-list-row,
+.agent-sessions-workbench.phone-layout .quick-input-widget .quick-input-tree .monaco-list-row {
 	min-height: 44px;
-}
-
-/* ---- Phone Layout: Mobile Context Menus ---- */
-
-/* Transform context menus into bottom action sheets on phone */
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu {
-	position: fixed !important;
-	bottom: 0 !important;
-	left: 0 !important;
-	right: 0 !important;
-	top: auto !important;
-	width: 100% !important;
-	max-width: 100% !important;
-	border-radius: 16px 16px 0 0;
-	padding-bottom: env(safe-area-inset-bottom);
-}
-
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu .monaco-action-bar .action-item {
-	min-height: 44px;
-}
-
-.agent-sessions-workbench.phone-layout .context-view .monaco-menu .monaco-action-bar .action-label {
-	font-size: 16px;
-	padding: 8px 16px;
 }
 
 /* ---- Phone Layout: Mobile Dialogs ---- */

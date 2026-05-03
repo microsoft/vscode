@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, INotification, isSessionAction, isTerminalAction, type RootAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	AHP_AUTH_REQUIRED,
@@ -31,12 +31,14 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, SessionStatus } from '../common/state/sessionState.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
+
+const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
 /** Build a JSON-RPC success response suitable for transport.send(). */
 function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
@@ -100,6 +102,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private readonly _clients = new Map<string, IConnectedClient>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private readonly _clientToolCallDisconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -155,13 +158,19 @@ export class ProtocolServerHandler extends Disposable {
 					return;
 				}
 				if (!client && msg.method === 'reconnect') {
+					let responsePromise: Promise<unknown>;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						responsePromise = result.responsePromise;
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
+						return;
 					}
+					responsePromise.then(
+						response => transport.send(jsonRpcSuccess(msg.id, response)),
+						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+					);
 					return;
 				}
 
@@ -175,14 +184,19 @@ export class ProtocolServerHandler extends Disposable {
 				switch (msg.method) {
 					case 'unsubscribe':
 						if (client) {
-							client.subscriptions.delete(msg.params.resource);
+							const resource = msg.params.resource;
+							if (client.subscriptions.delete(resource)) {
+								this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+							}
 						}
 						break;
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as RootAction | SessionAction | TerminalAction;
-							this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
+							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+							}
 						}
 						break;
 				}
@@ -202,8 +216,16 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
+				// Treat disconnect as an implicit unsubscribe of every resource the
+				// client held, so the server-side refcount can drop to zero and any
+				// idle restored session state can be evicted.
+				for (const resource of client.subscriptions) {
+					this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+				}
+				client.subscriptions.clear();
 				this._clients.delete(client.clientId);
 				this._rejectPendingReverseRequests(client.clientId);
+				this._handleClientDisconnected(client.clientId);
 				this._onDidChangeConnectionCount.fire(this._clients.size);
 			}
 			disposables.dispose();
@@ -253,7 +275,10 @@ export class ProtocolServerHandler extends Disposable {
 				const snapshot = this._stateManager.getSnapshot(uri);
 				if (snapshot) {
 					snapshots.push(snapshot);
-					client.subscriptions.add(uri.toString());
+					const key = uri.toString();
+					client.subscriptions.add(key);
+					this._agentService.addSubscriber(URI.parse(key), client.clientId);
+					this._clearClientToolCallDisconnectTimeout(params.clientId, key);
 				}
 			}
 		}
@@ -273,9 +298,12 @@ export class ProtocolServerHandler extends Disposable {
 		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; responsePromise: Promise<unknown> } {
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 
+		// Synchronously install the client so messages arriving on this transport
+		// while we restore subscriptions can find a valid client object. The
+		// reconnect response is only sent once `responsePromise` resolves below.
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
@@ -289,11 +317,40 @@ export class ProtocolServerHandler extends Disposable {
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
+		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
+		return { client, responsePromise };
+	}
+
+	/**
+	 * Re-establish each of the client's prior subscriptions on the server side.
+	 * Uses {@link IAgentService.subscribe} (rather than a bare `addSubscriber`
+	 * + `getSnapshot`) so any session state that was evicted while the client
+	 * was disconnected is restored. Returns the appropriate reconnect response
+	 * payload — `replay` actions when the client's last-seen seq is still in
+	 * the buffer, otherwise fresh `snapshot`s.
+	 */
+	private async _restoreReconnectSubscriptions(
+		client: IConnectedClient,
+		params: ReconnectParams,
+		canReplay: boolean,
+	): Promise<unknown> {
+		const missing: string[] = [];
+		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
+			const key = sub.toString();
+			try {
+				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
+				client.subscriptions.add(key);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
+				return snapshot;
+			} catch (err) {
+				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
+				missing.push(sub);
+				return undefined;
+			}
+		}));
+
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
-			for (const sub of params.subscriptions) {
-				client.subscriptions.add(sub.toString());
-			}
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
 					if (this._isRelevantToClient(client, envelope)) {
@@ -301,17 +358,103 @@ export class ProtocolServerHandler extends Disposable {
 					}
 				}
 			}
-			return { client, response: { type: 'replay', actions } };
-		} else {
-			const snapshots: IStateSnapshot[] = [];
-			for (const sub of params.subscriptions) {
-				const snapshot = this._stateManager.getSnapshot(sub);
-				if (snapshot) {
-					snapshots.push(snapshot);
-					client.subscriptions.add(sub);
-				}
+			return { type: 'replay', actions, missing };
+		}
+		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
+	}
+
+	private _handleClientDisconnected(clientId: string): void {
+		for (const session of this._stateManager.getSessionUris()) {
+			const state = this._stateManager.getSessionState(session);
+			const ownsPendingToolCall = state ? this._hasPendingClientToolCall(state, clientId) : false;
+			if (state?.activeClient?.clientId === clientId) {
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionActiveClientChanged,
+					session,
+					activeClient: null,
+				});
 			}
-			return { client, response: { type: 'snapshot', snapshots } };
+			if (state?.activeClient?.clientId === clientId || ownsPendingToolCall) {
+				this._startClientToolCallDisconnectTimeout(clientId, session);
+			}
+		}
+	}
+
+	private _hasPendingClientToolCall(state: ReturnType<AgentHostStateManager['getSessionState']>, clientId: string): boolean {
+		const activeTurn = state?.activeTurn;
+		if (!activeTurn) {
+			return false;
+		}
+		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
+			&& part.toolCall.toolClientId === clientId
+			&& (part.toolCall.status === ToolCallStatus.Streaming || part.toolCall.status === ToolCallStatus.Running || part.toolCall.status === ToolCallStatus.PendingConfirmation));
+	}
+
+	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
+		const activeClient = state.activeClient;
+		return activeClient !== undefined
+			&& activeClient.clientId !== clientId
+			&& activeClient.tools.some(tool => tool.name === toolName);
+	}
+
+	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, session);
+		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
+		this._clientToolCallDisconnectTimeouts.set(key, setTimeout(() => {
+			this._clientToolCallDisconnectTimeouts.delete(key);
+			this._completeDisconnectedClientToolCalls(clientId, session);
+		}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+	}
+
+	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
+		const timeout = this._clientToolCallDisconnectTimeouts.get(key);
+		if (timeout) {
+			clearTimeout(timeout);
+			this._clientToolCallDisconnectTimeouts.delete(key);
+		}
+	}
+
+	private _clientToolCallDisconnectTimeoutKey(clientId: string, session: string): string {
+		return `${clientId}\n${session}`;
+	}
+
+	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const activeTurn = state?.activeTurn;
+		if (!activeTurn) {
+			return;
+		}
+		for (const part of activeTurn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				continue;
+			}
+			const toolCall = part.toolCall;
+			if (toolCall.toolClientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
+				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
+				if (toolCall.status === ToolCallStatus.Streaming) {
+					this._stateManager.dispatchServerAction({
+						type: ActionType.SessionToolCallReady,
+						session,
+						turnId: activeTurn.id,
+						toolCallId: toolCall.toolCallId,
+						invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					});
+				}
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionToolCallComplete,
+					session,
+					turnId: activeTurn.id,
+					toolCallId: toolCall.toolCallId,
+					result: {
+						success: false,
+						pastTenseMessage: `${toolCall.displayName} failed`,
+						...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
+						error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
+					},
+				});
+			}
 		}
 	}
 
@@ -324,8 +467,9 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.resource));
+				const snapshot = await this._agentService.subscribe(URI.parse(params.resource), client.clientId);
 				client.subscriptions.add(params.resource);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, params.resource);
 				return { snapshot };
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -404,6 +548,7 @@ export class ProtocolServerHandler extends Disposable {
 					provider,
 					title: s.summary ?? 'Session',
 					status,
+					activity: s.activity,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
@@ -604,6 +749,10 @@ export class ProtocolServerHandler extends Disposable {
 			pending.reject(new Error('ProtocolServerHandler disposed'));
 		}
 		this._pendingReverseRequests.clear();
+		for (const timeout of this._clientToolCallDisconnectTimeouts.values()) {
+			clearTimeout(timeout);
+		}
+		this._clientToolCallDisconnectTimeouts.clear();
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}

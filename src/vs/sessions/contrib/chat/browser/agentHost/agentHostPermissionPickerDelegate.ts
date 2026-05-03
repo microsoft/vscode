@@ -15,6 +15,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
+const REQUIRED_MODE_VALUE = 'interactive';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -136,4 +137,23 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			}));
 		}
 	}
+}
+
+/**
+ * Returns `true` when a `mode` session-config property uses the shape the
+ * dedicated agent-host mode picker expects: a string enum that contains
+ * at least `interactive`.
+ *
+ * Callers use this to decide whether to render the dedicated mode picker
+ * (with mode-specific icons and behavior) or fall back to the generic
+ * per-property picker.
+ */
+export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_MODE_VALUE)) {
+		return false;
+	}
+	return true;
 }

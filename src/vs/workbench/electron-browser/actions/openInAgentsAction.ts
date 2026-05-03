@@ -9,6 +9,7 @@ import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDel
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { localize, localize2 } from '../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
@@ -23,7 +24,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { IWorkspaceContextService, WorkbenchState } from '../../../platform/workspace/common/workspace.js';
 import { ToggleTitleBarConfigAction, TitleBarLeadingActionsGroup } from '../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../common/contributions.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../common/contextkeys.js';
+import { InEditorZenModeContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../common/contextkeys.js';
 import { workbenchConfigurationNodeBase } from '../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { ChatEntitlementContextKeys } from '../../services/chat/common/chatEntitlementService.js';
@@ -48,6 +49,7 @@ const OpenInAgentsVisibility = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${OpenInAgentsEnabledSetting}`, true),
 	IsSessionsWindowContext.toNegated(),
 	IsAuxiliaryWindowContext.toNegated(),
+	InEditorZenModeContext.negate(),
 	// Hide whenever the user has signaled (or policy/workspace trust dictates)
 	// that AI features should not be shown in this window/workspace.
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
@@ -80,13 +82,6 @@ class OpenInAgentsAction extends Action2 {
 				// when layout controls are toggled off).
 				id: MenuId.TitleBar,
 				group: TitleBarLeadingActionsGroup,
-				order: -1000,
-				when: OpenInAgentsVisibility,
-			}, {
-				// Also surface inside the "Customize Layout..." submenu so users
-				// can toggle the entry on/off from the layout customization UI.
-				id: MenuId.LayoutControlMenuSubmenu,
-				group: '0_workbench_layout',
 				order: -1000,
 				when: OpenInAgentsVisibility,
 			}]
@@ -122,9 +117,11 @@ class OpenInAgentsAction extends Action2 {
 		);
 
 		// In built builds with a sibling Agents app available, launch it.
-		// Otherwise (dev / OSS / no sibling), open a new agents window of
-		// the current Electron app.
-		const mode: OpenInAgentsMode = environmentService.isBuilt && hasSibling ? 'siblingApp' : 'newWindow';
+		// Otherwise (dev / OSS / unsupported platform / no sibling), open a new agents window of
+		// the current Electron app. `launchSiblingApp` is only implemented for macOS/Windows
+		// (see `src/vs/platform/native/node/siblingApp.ts`), so gate on actual platform support.
+		const canLaunchSiblingApp = isMacintosh || isWindows;
+		const mode: OpenInAgentsMode = environmentService.isBuilt && hasSibling && canLaunchSiblingApp ? 'siblingApp' : 'newWindow';
 		telemetryService.publicLog2<OpenInAgentsEvent, OpenInAgentsClassification>('vscode.openInAgents', { mode });
 
 		if (mode === 'siblingApp') {
@@ -144,7 +141,6 @@ class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
-		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
@@ -155,7 +151,6 @@ class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
 
 		container.classList.add('open-in-agents-titlebar-widget');
 		container.setAttribute('role', 'button');
-		container.setAttribute('data-product-quality', this.productService.quality ?? 'stable');
 
 		const label = this.action.label || localize('openInAgentsLabel', "Open in Agents");
 		container.setAttribute('aria-label', label);

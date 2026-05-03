@@ -260,7 +260,7 @@ export type ISessionOptions = {
 	mcpServerMappings?: McpServerMappings;
 	additionalWorkspaces?: IWorkspaceInfo[];
 	sessionParentId?: string;
-}
+};
 export type IGetSessionOptions = ISessionOptions & { sessionId: string };
 export type ICreateSessionOptions = ISessionOptions & { sessionId?: string };
 
@@ -578,10 +578,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	 * Precedence:
 	 *   1. Explicit renamed title — active wrapper title, SDK `name`, or legacy custom title.
 	 *   2. Cached derived label in `_sessionLabels` (from a previous history scan).
-	 *   3. Pending prompt for in-flight new sessions.
-	 *   4. Clean metadata `summary` (rejected if it looks truncated).
-	 *   5. First user message from session history (cached on success).
-	 *   6. Raw metadata `summary` as a display-only last resort (not cached).
+	 *   3. Clean metadata `summary` (rejected if it looks truncated).
+	 *   4. First user message from session history (cached on success).
+	 *   5. Raw metadata `summary` as a display-only last resort (not cached).
+	 *
+	 * Pending prompts are intentionally excluded here for established sessions.
+	 * They are only used for brand-new sessions that have not been persisted yet
+	 * via the wrapper-only fallback in `_getAllSessions()` / `constructSessionItemFromWrappedSession()`.
 	 */
 	private async getSessionTitleImpl(sessionId: string, metadata: LocalSessionMetadata | undefined, token: CancellationToken): Promise<string> {
 		const explicitTitle =
@@ -595,11 +598,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const cached = this._sessionLabels.get(sessionId);
 		if (cached) {
 			return cached;
-		}
-
-		const pendingLabel = labelFromPrompt(this._sessionWrappers.get(sessionId)?.object.pendingPrompt ?? '');
-		if (pendingLabel) {
-			return pendingLabel;
 		}
 
 		const summarizedTitle = labelFromPrompt(metadata?.summary ?? '');
@@ -1041,7 +1039,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
 				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
 			}
 		}
 
@@ -1062,8 +1060,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return mapping;
 		};
 
-		const lastResponseDetails = await this.getModelDetailsString(modelId);
-		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, lastResponseDetails);
+		const modelDetailsById = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled)
+			? await this.getModelDetailsById()
+			: undefined;
+		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, modelDetailsById);
 
 		if (legacyMappings.length > 0) {
 			void this._chatSessionMetadataStore.updateRequestDetails(sessionId, legacyMappings).catch(error => {
@@ -1078,7 +1078,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
 		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
 		for (const agent of agents) {
-			if (!isEnabledForCopilotCLI(agent)) {
+			if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
 				continue;
 			}
 			const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
@@ -1112,16 +1112,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		};
 	}
 
-	private async getModelDetailsString(modelId: string | undefined): Promise<string | undefined> {
-		if (!modelId) {
-			return undefined;
-		}
+	private async getModelDetailsById(): Promise<ReadonlyMap<string, string>> {
 		const models = await this._copilotCLIModels.getModels().catch(ex => {
 			this.logService.error(ex, 'Failed to get models');
 			return [];
 		});
-		const modelInfo = models.find(m => m.id === modelId);
-		return modelInfo ? formatModelDetails(modelInfo) : undefined;
+		const detailsById = new Map<string, string>();
+		for (const model of models) {
+			detailsById.set(model.id.trim().toLowerCase(), formatModelDetails(model));
+		}
+		return detailsById;
 	}
 
 
@@ -1237,6 +1237,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager): RefCountedSession {
+		sdkSession.setPermissionsRequired(true);
 		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, []);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);

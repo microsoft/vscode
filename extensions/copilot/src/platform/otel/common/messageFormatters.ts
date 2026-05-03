@@ -10,21 +10,27 @@
  */
 
 /**
- * Maximum size (in characters) for a single OTel span/log attribute value.
- * Aligned with common backend limits (Jaeger 64KB, Tempo 100KB).
- * Matches gemini-cli's approach of capping content to prevent OTLP batch failures.
- */
-const MAX_OTEL_ATTRIBUTE_LENGTH = 64_000;
-
-/**
  * Truncate a string to fit within OTel attribute size limits.
  * Returns the original string if within bounds, otherwise truncates with a suffix.
+ *
+ * @param value The string to truncate.
+ * @param maxLength The maximum length in characters. A value of `0` (the
+ * default) or any non-positive number disables truncation entirely, matching
+ * the OTel spec's `AttributeValueLengthLimit` default of `Infinity` for string
+ * attributes (see https://opentelemetry.io/docs/specs/otel/common/#attribute-limits).
+ * Production call sites should pass `OTelConfig.maxAttributeSizeChars` so
+ * users can configure truncation to match their backend's per-attribute limit.
  */
-export function truncateForOTel(value: string, maxLength: number = MAX_OTEL_ATTRIBUTE_LENGTH): string {
-	if (value.length <= maxLength) {
+export function truncateForOTel(value: string, maxLength: number = 0): string {
+	if (maxLength <= 0 || value.length <= maxLength) {
 		return value;
 	}
 	const suffix = `...[truncated, original ${value.length} chars]`;
+	// If maxLength is too small to fit the suffix, fall back to a hard cut so
+	// the result is always <= maxLength.
+	if (maxLength <= suffix.length) {
+		return value.substring(0, maxLength);
+	}
 	return value.substring(0, maxLength - suffix.length) + suffix;
 }
 
@@ -220,21 +226,45 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 }
 
 /**
- * Convert tool definitions to OTel tool definition format.
+ * Convert tool definitions to OTel `gen_ai.tool.definitions` format.
+ *
+ * Accepts the variants emitted by the different request bodies/providers:
+ * - OpenAI Chat Completions: `{ type: 'function', function: { name, description, parameters } }`
+ * - OpenAI Responses API:    `{ type: 'function', name, description, parameters }`
+ * - Anthropic Messages API:  `{ name, description, input_schema }`
+ * - VS Code tool info:       `{ name, description, inputSchema }`
+ *
+ * Tools without a name (e.g. OpenAI client-side `tool_search`) are skipped
+ * because OTel `gen_ai.tool.definitions` requires a name per entry.
+ *
+ * @see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/#gen-ai-tool-definitions
  */
 export function toToolDefinitions(tools: ReadonlyArray<{
 	type?: string;
-	function?: { name: string; description?: string; parameters?: unknown };
+	name?: string;
+	description?: string;
+	parameters?: unknown;
+	input_schema?: unknown;
+	inputSchema?: unknown;
+	function?: { name?: string; description?: string; parameters?: unknown };
 }> | undefined): OTelToolDefinition[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
-	return tools
-		.filter((t): t is typeof t & { function: NonNullable<typeof t['function']> } => !!t.function)
-		.map(t => ({
-			type: 'function' as const,
-			name: t.function.name,
-			description: t.function.description,
-			parameters: t.function.parameters,
-		}));
+	const out: OTelToolDefinition[] = [];
+	for (const t of tools) {
+		const name = t.function?.name ?? t.name;
+		if (!name) {
+			continue;
+		}
+		const description = t.function?.description ?? t.description;
+		const parameters = t.function?.parameters ?? t.parameters ?? t.input_schema ?? t.inputSchema;
+		out.push({
+			type: 'function',
+			name,
+			description,
+			parameters,
+		});
+	}
+	return out.length > 0 ? out : undefined;
 }

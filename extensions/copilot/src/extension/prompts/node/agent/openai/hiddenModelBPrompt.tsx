@@ -15,6 +15,7 @@ import { Tag } from '../../base/tag';
 import { DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructionsOptimized } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
+import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
 
 class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
@@ -34,7 +35,7 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				You bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than premature certainty. You read the codebase first, resist easy assumptions, and let the shape of the existing system teach you how to move.<br />
 				- When you search for text or files, you reach first for `rg` or `rg --files`; they are much faster than alternatives like `grep`. If `rg` is unavailable, you use the next best tool without fuss.<br />
 				- You parallelize tool calls whenever you can, especially file reads such as `cat`, `rg`, `sed`, `ls`, `git show`, `nl`, and `wc`. You use `multi_tool_use.parallel` for that parallelism, and only that. Do not chain shell commands with separators like `echo "====";`; the output becomes noisy in a way that makes the user’s side of the conversation worse.<br />
-				{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>- For efficient codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 			</Tag>
 			<Tag name='engineering_judgment'>
 				When the user leaves implementation details open, you choose conservatively and in sympathy with the codebase already in front of you:<br />
@@ -175,6 +176,7 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<Tag name='toolUseInstructions'>
 					Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br />
 				</Tag></>}
+			<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} />
 			<FileLinkificationInstructionsOptimized />
 			<ResponseTranslationRules />
 		</InstructionMessage >;
@@ -208,6 +210,7 @@ class HiddenModelBPromptResolver implements IAgentPrompt {
 
 export class HiddenModelBReminderInstructions extends PromptElement<ReminderInstructionsProps> {
 	async render(state: void, sizing: PromptSizing) {
+		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
 		return <>
 			You are an agent—keep going until the user's query is completely resolved before ending your turn. ONLY stop if solved or genuinely blocked.<br />
 			Take action when possible; the user expects you to do useful work without unnecessary questions.<br />
@@ -217,6 +220,10 @@ export class HiddenModelBReminderInstructions extends PromptElement<ReminderInst
 			Progress cadence: After 3 to 5 tool calls, or when you create/edit &gt; ~3 files in a burst, report progress.<br />
 			Requirements coverage: Read the user's ask in full and think carefully. Do not omit a requirement. If something cannot be done with available tools, note why briefly and propose a viable alternative.<br />
 			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
+			{toolSearchEnabled && <>
+				<br />
+				IMPORTANT: Before calling any deferred tool that was not previously returned by {CUSTOM_TOOL_SEARCH_NAME}, you MUST first use {CUSTOM_TOOL_SEARCH_NAME} to load it. Calling a deferred tool without first loading it will fail. Tools returned by {CUSTOM_TOOL_SEARCH_NAME} are automatically expanded and immediately available - do not search for them again.<br />
+			</>}
 		</>;
 	}
 }

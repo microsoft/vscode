@@ -48,13 +48,13 @@ export interface IAgentFeedbackContext {
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {
-		return change.uri.fsPath === resourceUri.fsPath
-			|| change.modifiedUri?.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
+		return isEqual(change.uri, resourceUri)
+			|| isEqual(change.modifiedUri, resourceUri)
+			|| isEqual(change.originalUri, resourceUri);
 	}
 
-	return change.modifiedUri.fsPath === resourceUri.fsPath
-		|| change.originalUri?.fsPath === resourceUri.fsPath;
+	return isEqual(change.modifiedUri, resourceUri)
+		|| isEqual(change.originalUri, resourceUri);
 }
 
 export function getSessionChangeForResource(

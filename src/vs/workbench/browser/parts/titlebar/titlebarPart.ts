@@ -698,13 +698,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
-			// --- Leading Global Actions (rendered before layout controls; opt-in via TitleBarLeadingActionsGroup)
+			// --- Leading Global Actions (rendered before layout controls; opt-in via TitleBarLeadingActionsGroup).
+			// Use a scratch bucket so non-leading actions don't leak into the shared `secondary` (overflow) list here;
+			// they are added by the trailing global-actions pass below.
 			if (this.globalToolbarMenu) {
+				const leading: IToolbarActions = { primary: [], secondary: [] };
 				fillInActionBarActions(
 					this.globalToolbarMenu.getActions(),
-					actions,
+					leading,
 					actionGroup => actionGroup === TitleBarLeadingActionsGroup
 				);
+				actions.primary.push(...leading.primary);
 			}
 
 			// --- Layout Actions
@@ -716,12 +720,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				);
 			}
 
-			// --- Global Actions (after layout so e.g. notification bell appears to the right of layout controls)
+			// --- Global Actions (after layout so e.g. notification bell appears to the right of layout controls).
+			// Filter out the leading group up front so it isn't duplicated into the overflow `secondary` bucket.
 			if (this.globalToolbarMenu) {
+				const trailingGroups = this.globalToolbarMenu.getActions().filter(([group]) => group !== TitleBarLeadingActionsGroup);
 				fillInActionBarActions(
-					this.globalToolbarMenu.getActions(),
-					actions,
-					actionGroup => actionGroup !== TitleBarLeadingActionsGroup // already rendered before layout controls
+					trailingGroups,
+					actions
 				);
 			}
 

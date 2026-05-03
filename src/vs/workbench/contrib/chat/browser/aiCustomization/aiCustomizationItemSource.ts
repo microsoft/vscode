@@ -29,7 +29,7 @@ import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { storageToIcon } from './aiCustomizationIcons.js';
-import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { type AICustomizationPromptsStorage, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { extractExtensionIdFromPath } from './aiCustomizationListWidgetUtils.js';
 
 // #region Interfaces
@@ -44,7 +44,7 @@ export interface IAICustomizationListItem {
 	readonly filename: string;
 	readonly description?: string;
 	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
-	readonly storage?: PromptsStorage;
+	readonly storage?: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
 	/** When set, overrides `storage` for display grouping purposes. */
@@ -62,7 +62,7 @@ export interface IAICustomizationListItem {
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
-	readonly extensionLabel?: string;
+	readonly extensionId?: string;
 	/** Server-reported loading/sync status for remote customizations. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -157,7 +157,8 @@ export async function expandHookFileItems(
 							groupKey: item.groupKey,
 							storage: item.storage,
 							extensionId: item.extensionId,
-							pluginUri: item.pluginUri
+							pluginUri: item.pluginUri,
+							userInvocable: item.userInvocable,
 						});
 					}
 				}
@@ -199,7 +200,7 @@ export class AICustomizationItemNormalizer {
 	}
 
 	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
-		const { storage, groupKey, isBuiltin, extensionLabel } = this.resolveSource(item);
+		const { storage, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
@@ -217,64 +218,59 @@ export class AICustomizationItemNormalizer {
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
-			pluginUri: storage === PromptsStorage.plugin ? this.findPluginUri(item.uri) : undefined,
+			pluginUri,
 			displayName: item.name,
 			badge: item.badge,
 			badgeTooltip: item.badgeTooltip,
 			typeIcon: promptType === PromptsType.instructions && storage ? storageToIcon(storage) : undefined,
 			isBuiltin,
-			extensionLabel,
+			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
 		};
 	}
 
-	private resolveSource(item: ICustomizationItem): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		const inferred = this.inferStorageAndGroup(item.uri);
+	private inferStorageAndGroup(item: ICustomizationItem): { storage: AICustomizationPromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
+		const groupKey = item.groupKey;
+		const hasBuiltinStorage = item.storage === BUILTIN_STORAGE;
+		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
-		// Use provider-supplied values when available; otherwise fall back to URI inference.
-		const storage = item.storage ?? inferred.storage;
-		const extensionLabel = item.extensionLabel ?? inferred.extensionLabel;
-
-		if (!item.groupKey) {
-			return { ...inferred, storage, extensionLabel };
+		if (hasBuiltinStorage) {
+			return { storage: BUILTIN_STORAGE, groupKey: groupKey ?? BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
 		}
-
-		switch (item.groupKey) {
-			case BUILTIN_STORAGE: {
-				// Preserve a provider-supplied BUILTIN_STORAGE so the management
-				// editor's "edit built-in and save as user/workspace copy" flow
-				// activates. Otherwise fall back to extension storage (the
-				// historical source of built-in items).
-				const builtinStorage = (item.storage as PromptsStorage | typeof BUILTIN_STORAGE | undefined) === BUILTIN_STORAGE
-					? (BUILTIN_STORAGE as unknown as PromptsStorage)
-					: PromptsStorage.extension;
-				return { storage: builtinStorage, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionLabel };
+		if (item.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
+		if (item.extensionId) {
+			const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
+			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
 			}
-			default:
-				return { storage, groupKey: item.groupKey, extensionLabel };
+			return { storage: PromptsStorage.extension, extensionId: item.extensionId, groupKey, isBuiltin };
 		}
-	}
+		if (item.pluginUri) {
+			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
+		if (item.storage) {
+			return { storage: item.storage, groupKey, isBuiltin };
+		}
 
-	private inferStorageAndGroup(uri: URI): { storage?: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionLabel?: string } {
-		if (uri.scheme !== Schemas.file) {
-			return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
-		}
+		const uri = item.uri;
 
 		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
 		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
-			return { storage: PromptsStorage.local };
+			return { storage: PromptsStorage.local, groupKey, isBuiltin };
 		}
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			if (isEqualOrParent(uri, folder.uri)) {
-				return { storage: PromptsStorage.local };
+				return { storage: PromptsStorage.local, groupKey, isBuiltin };
 			}
 		}
 
 		for (const plugin of this.agentPluginService.plugins.get()) {
 			if (isEqualOrParent(uri, plugin.uri)) {
-				return { storage: PromptsStorage.plugin };
+				return { storage: PromptsStorage.plugin, pluginUri: plugin.uri, groupKey, isBuiltin };
 			}
 		}
 
@@ -282,22 +278,13 @@ export class AICustomizationItemNormalizer {
 		if (extensionId) {
 			const extensionIdentifier = new ExtensionIdentifier(extensionId);
 			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
-				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true };
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE, isBuiltin: true, extensionId };
 			}
-			return { storage: PromptsStorage.extension, extensionLabel: extensionIdentifier.value };
+			return { storage: PromptsStorage.extension, extensionId, groupKey, isBuiltin };
 		}
-
-		return { storage: PromptsStorage.user };
+		return { storage: PromptsStorage.user, groupKey, isBuiltin };
 	}
 
-	private findPluginUri(itemUri: URI): URI | undefined {
-		for (const plugin of this.agentPluginService.plugins.get()) {
-			if (isEqualOrParent(itemUri, plugin.uri)) {
-				return plugin.uri;
-			}
-		}
-		return undefined;
-	}
 }
 
 // #endregion
@@ -452,7 +439,8 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 				badge: uiTooltip ? uiIntegrationBadge : undefined,
 				badgeTooltip: uiTooltip,
 				extensionId: undefined,
-				pluginUri: undefined
+				pluginUri: undefined,
+				userInvocable: true,
 			};
 			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
 		}
@@ -480,25 +468,34 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			return [];
 		}
 
-		const providerItems: ICustomizationItem[] = files
-			.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
-			.map(file => ({
-				uri: file.uri,
-				type: promptType,
-				name: getFriendlyName(basename(file.uri)),
-				groupKey: 'sync-local',
-				enabled: true,
-				extensionId: undefined,
-				pluginUri: undefined
-			}));
+		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
+			uri: file.uri,
+			type: promptType,
+			name: getFriendlyName(basename(file.uri)),
+			groupKey: 'sync-local',
+			enabled: true,
+			extensionId: file.extension?.id,
+			pluginUri: file.pluginUri,
+			userInvocable: undefined
+		});
 
-		return this.itemNormalizer.normalizeItems(providerItems, promptType)
+		// Local/user files are sync-eligible (the user picks individual items
+		// to push to the remote agent host). Locally-installed plugin files
+		// always show up but are not individually syncable — the plugin is
+		// the unit of sync.
+		const syncEligibleFiles = files.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user);
+		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
+
+		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
 			.map(item => ({
 				...item,
 				id: `sync-${item.id}`,
 				syncable: true,
-				synced: syncProvider.isSelected(item.uri),
+				synced: !syncProvider.isDisabled(item.uri),
 			}));
+		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
+
+		return [...syncEligibleItems, ...pluginItems];
 	}
 }
 

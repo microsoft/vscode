@@ -21,6 +21,7 @@ export const GenAiProviderName = {
 	OPENAI: 'openai',
 	ANTHROPIC: 'anthropic',
 	AZURE_AI_OPENAI: 'azure.ai.openai',
+	GEMINI: 'gemini',
 } as const;
 
 // gen_ai.token.type values
@@ -117,6 +118,8 @@ export const CopilotChatAttr = {
 	REASONING_CONTENT: 'copilot_chat.reasoning_content',
 	/** User's actual typed message text, extracted from prompt context */
 	USER_REQUEST: 'copilot_chat.user_request',
+	/** Cache-relevant request options as a JSON blob (tool_choice, reasoning_effort, thinking, response_format, etc.). Used by Cache Explorer. */
+	REQUEST_OPTIONS: 'copilot_chat.request.options',
 	/** Resolved context section (code snippets, file contents, etc.) */
 	PROMPT_CONTEXT: 'copilot_chat.prompt_context',
 	/** Custom instructions section */
@@ -147,6 +150,18 @@ export const CopilotChatAttr = {
 	REPO_REMOTE_URL: 'copilot_chat.repo.remote_url',
 	/** File path relative to the repository root */
 	FILE_RELATIVE_PATH: 'copilot_chat.file.relative_path',
+	/** Hook type / event name (e.g. PreToolUse, PostToolUse, Stop) */
+	HOOK_TYPE: 'copilot_chat.hook_type',
+	/** Serialized hook command input (truncated; emitters may or may not gate on captureContent — used by the Agent Debug Log panel) */
+	HOOK_INPUT: 'copilot_chat.hook_input',
+	/** Serialized hook command output (truncated; emitters may or may not gate on captureContent — used by the Agent Debug Log panel) */
+	HOOK_OUTPUT: 'copilot_chat.hook_output',
+	/** Hook result kind: 'success', 'error', or 'non_blocking_error' */
+	HOOK_RESULT_KIND: 'copilot_chat.hook_result_kind',
+	/** Custom chat mode name (when a custom mode is active) */
+	MODE_NAME: 'copilot_chat.mode_name',
+	/** Aggregated session cost in USD (Claude agent) */
+	TOTAL_COST_USD: 'copilot_chat.total_cost_usd',
 } as const;
 
 export type EditSource = 'inline_chat' | 'chat_editing' | 'chat_editing_hunk' | 'apply_patch' | 'replace_string' | 'code_mapper';
@@ -159,4 +174,14 @@ export const StdAttr = {
 	ERROR_TYPE: 'error.type',
 	SERVER_ADDRESS: 'server.address',
 	SERVER_PORT: 'server.port',
+} as const;
+
+/**
+ * Attribute keys emitted by the Copilot CLI SDK's native OTel instrumentation
+ * (read by the bridge processor and the debug panel; the extension itself does
+ * not produce these).
+ */
+export const CopilotCliSdkAttr = {
+	HOOK_TYPE: 'github.copilot.hook.type',
+	HOOK_INVOCATION_ID: 'github.copilot.hook.invocation_id',
 } as const;

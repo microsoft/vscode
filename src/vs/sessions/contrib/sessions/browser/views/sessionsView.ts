@@ -11,6 +11,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isMobile, isWeb, OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -25,6 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
+import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -38,6 +40,10 @@ import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js'
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
+import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
+import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -143,23 +149,39 @@ export class SessionsView extends ViewPane {
 		// Header row: "Sessions" label (left) + compact "New" button (right)
 		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
-		headerLabel.textContent = localize('sessionsHeader', "Sessions");
 
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
-		// Header actions (visual order: New, Filter, Search)
-		this.createNewSessionButton(headerActions);
+		// On phone, the desktop header content (label + new button + filter/find toolbar)
+		// is hidden in favor of the mobile filter chip row + the (+) button in the
+		// MobileTitlebarPart. We still create the row container because the find
+		// widget mounts inside it.
+		const phoneLayout = isPhoneLayout(this.layoutService);
+		if (!phoneLayout) {
+			headerLabel.textContent = localize('sessionsHeader', "Sessions");
 
-		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'sessionsView.header',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
+			// Header actions (visual order: New, Filter, Search)
+			this.createNewSessionButton(headerActions);
+
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				telemetrySource: 'sessionsView.header',
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+		} else {
+			headerRow.classList.add('phone-layout-empty');
+		}
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
+
+		// Reserve DOM slot for mobile filter chips (phone layout only).
+		// The actual widget is created after sessionsControl is available.
+		const filterChipsContainer = isPhoneLayout(this.layoutService)
+			? DOM.append(sessionsContent, $('.mobile-session-filter-chips-slot'))
+			: undefined;
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -231,6 +253,18 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
+		// Mobile filter chips (phone layout only) — created after sessionsControl
+		// so we can wire it as the filter host.
+		if (filterChipsContainer) {
+			const chips = this._register(new MobileSessionFilterChips(filterChipsContainer, sessionsControl));
+			this._register(chips.onDidRequestSortGroup(() => {
+				this.openSortGroupSheet();
+			}));
+			this._register(chips.onDidRequestFind(() => {
+				this.openFind();
+			}));
+		}
+
 		// AI Customization toolbar (bottom, fixed height)
 		this._customizationsWidget = this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
 			onDidChangeLayout: () => {
@@ -240,6 +274,27 @@ export class SessionsView extends ViewPane {
 				}
 			},
 		}));
+
+		// Agent Host toolbar (bottom, below customizations). Only rendered
+		// in the sessions window on desktop layouts: electron has no host
+		// picker today (gated out at the menu level), phone layout uses
+		// the mobile titlebar pill instead, and auxiliary windows do not
+		// contribute any host actions — without this gate they would show
+		// an empty toolbar shell.
+		if (this.scopedContextKeyService.contextMatchesRules(ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			IsPhoneLayoutContext.negate(),
+		))) {
+			this._register(this.instantiationService.createInstance(AgentHostShortcutsWidget, sessionsContainer, {
+				onDidChangeLayout: () => {
+					if (this.viewPaneContainer) {
+						const { offsetHeight, offsetWidth } = this.viewPaneContainer;
+						this.layoutBody(offsetHeight, offsetWidth);
+					}
+				},
+			}));
+		}
 	}
 
 	private createNewSessionButton(container: HTMLElement): void {
@@ -505,6 +560,13 @@ export class SessionsView extends ViewPane {
 			return;
 		}
 
+		// On phone the desktop header content is hidden; the row is only
+		// visible when the find widget is open (so the user can search).
+		if (isPhoneLayout(this.layoutService)) {
+			this.headerRow.classList.toggle('phone-layout-empty', !this.isFindWidgetOpen);
+			return;
+		}
+
 		if (this.isFindWidgetOpen) {
 			this.headerLabel.style.display = 'none';
 			this.headerActions.style.display = 'none';
@@ -513,6 +575,57 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+	}
+
+	/**
+	 * Phone-only: present a bottom sheet with the four sort/group toggles.
+	 * Filtering on phone is performed via the status filter chips, so the
+	 * sheet intentionally omits "Filter", "Show Recent/All Sessions", and
+	 * "Collapse All Groups" actions found in the desktop submenu.
+	 */
+	private openSortGroupSheet(): void {
+		const sortTitle = localize('sortGroupSheet.sort', "Sort");
+		const groupTitle = localize('sortGroupSheet.group', "Group");
+
+		const items: IMobileSortGroupSheetItem[] = [
+			{
+				id: SessionsSorting.Created,
+				label: localize('sortByCreated', "Sort by Created"),
+				checked: this.currentSorting === SessionsSorting.Created,
+				group: 'sort',
+				groupTitle: sortTitle,
+			},
+			{
+				id: SessionsSorting.Updated,
+				label: localize('sortByUpdated', "Sort by Updated"),
+				checked: this.currentSorting === SessionsSorting.Updated,
+				group: 'sort',
+			},
+			{
+				id: SessionsGrouping.Workspace,
+				label: localize('groupByWorkspace', "Group by Workspace"),
+				checked: this.currentGrouping === SessionsGrouping.Workspace,
+				group: 'group',
+				groupTitle: groupTitle,
+			},
+			{
+				id: SessionsGrouping.Date,
+				label: localize('groupByTime', "Group by Time"),
+				checked: this.currentGrouping === SessionsGrouping.Date,
+				group: 'group',
+			},
+		];
+
+		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
+			if (!selectedId) {
+				return;
+			}
+			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
+				this.setSorting(selectedId);
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Date) {
+				this.setGrouping(selectedId);
+			}
+		});
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

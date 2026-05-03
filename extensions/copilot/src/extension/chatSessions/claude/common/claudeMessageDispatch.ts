@@ -10,7 +10,7 @@ import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -37,6 +37,10 @@ export interface MessageHandlerState {
 	readonly unprocessedToolCalls: Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
+	readonly parentTraceContext?: TraceContext;
+	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
+	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
+	readonly subagentTraceContexts: Map<string, TraceContext>;
 }
 
 export interface MessageHandlerResult {
@@ -148,6 +152,13 @@ export function handleAssistantMessage(
 	const { stream } = request;
 	const { otelToolSpans, unprocessedToolCalls } = state;
 
+	// Resolve the OTel parent context for spans in this message.
+	// If the message is from a subagent (parent_tool_use_id is set), parent spans
+	// under the Agent tool's execute_tool span. Otherwise, use the root invoke_agent context.
+	const spanParentContext = (message.parent_tool_use_id
+		? state.subagentTraceContexts.get(message.parent_tool_use_id)
+		: undefined) ?? state.parentTraceContext;
+
 	for (const item of message.message.content) {
 		if (item.type === 'text') {
 			stream.markdown(item.text);
@@ -164,6 +175,7 @@ export function handleAssistantMessage(
 					[GenAiAttr.TOOL_CALL_ID]: item.id,
 					[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
 				},
+				parentTraceContext: spanParentContext,
 			});
 			if (item.input !== undefined) {
 				try {
@@ -175,6 +187,15 @@ export function handleAssistantMessage(
 				}
 			}
 			otelToolSpans.set(item.id, toolSpan);
+
+			// For Agent/Task (subagent) tool calls, store the span's trace context so that
+			// child messages (with parent_tool_use_id = this tool's id) are parented here.
+			if (item.name === ClaudeToolNames.Task || item.name === 'Agent') {
+				const toolSpanCtx = toolSpan.getSpanContext();
+				if (toolSpanCtx) {
+					state.subagentTraceContexts.set(item.id, toolSpanCtx);
+				}
+			}
 
 			if (request.editTracker && claudeEditTools.includes(item.name)) {
 				try {
@@ -222,6 +243,7 @@ function logToolResult(
 	requestLogger: IRequestLogger,
 	otelToolSpans: Map<string, ISpanHandle>,
 	capturingToken: CapturingToken | undefined,
+	maxAttributeSizeChars: number,
 ): void {
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
@@ -229,13 +251,13 @@ function logToolResult(
 		if (toolResult.is_error) {
 			const errContent = typeof toolResult.content === 'string' ? toolResult.content : 'tool error';
 			toolSpan.setStatus(SpanStatusCode.ERROR, errContent);
-			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`));
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`, maxAttributeSizeChars));
 		} else {
 			toolSpan.setStatus(SpanStatusCode.OK);
 			if (toolResult.content !== undefined) {
 				try {
 					const result = typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content);
-					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result));
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result, maxAttributeSizeChars));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool result: ${e}`);
 				}
@@ -272,6 +294,7 @@ function processToolResult(
 	const logService = accessor.get(ILogService);
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
+	const otelService = accessor.get(IOTelService);
 
 	const { stream } = request;
 	const { unprocessedToolCalls, otelToolSpans } = state;
@@ -292,7 +315,8 @@ function processToolResult(
 		logService,
 		requestLogger,
 		otelToolSpans,
-		claudeSessionStateService.getCapturingTokenForSession(sessionId)
+		claudeSessionStateService.getCapturingTokenForSession(sessionId),
+		otelService.config.maxAttributeSizeChars,
 	);
 
 	// Tool-specific handling
@@ -359,15 +383,16 @@ export function handleHookStarted(
 	state: MessageHandlerState,
 ): void {
 	const otelService = accessor.get(IOTelService);
-	const span = otelService.startSpan(`user_hook ${message.hook_event}:${message.hook_name}`, {
+	const span = otelService.startSpan(`${GenAiOperationName.EXECUTE_HOOK} ${message.hook_name}`, {
 		kind: SpanKind.INTERNAL,
 		attributes: {
 			[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
-			'copilot_chat.hook_type': message.hook_event,
+			[CopilotChatAttr.HOOK_TYPE]: message.hook_event,
 			'copilot_chat.hook_command': message.hook_name,
 			'copilot_chat.hook_id': message.hook_id,
 			[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
 		},
+		parentTraceContext: state.parentTraceContext,
 	});
 	state.otelHookSpans.set(message.hook_id, span);
 }
@@ -489,6 +514,7 @@ export function handleHookResponse(
 	state: MessageHandlerState,
 ): void {
 	const logService = accessor.get(ILogService);
+	const otelService = accessor.get(IOTelService);
 	// TODO: can we map these types better
 	const hookType = message.hook_event as ChatHookType;
 
@@ -506,7 +532,7 @@ export function handleHookResponse(
 			span.setAttribute('copilot_chat.hook_exit_code', message.exit_code);
 		}
 		if (message.output) {
-			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output));
+			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output, otelService.config.maxAttributeSizeChars));
 		}
 		span.end();
 		state.otelHookSpans.delete(message.hook_id);

@@ -44,8 +44,7 @@
 	{
 		"name": "/tests [inline] [js] - issue #1261: Failed to create new test file when in an untitled file",
 		"requests": [
-			"3ff8d64fed825b20d0fb3ada0c4dc880477bc82580a2ece057b9de9f4ad29995",
-			"4bb3317b9d74ae64f5b2d006a0b7c90fd9d501c20dacc411023860883ed0aecc"
+			"59b8750686db284d87c0ab2f385eb6a593f939296b42d895fda731b30084eece"
 		]
 	},
 	{

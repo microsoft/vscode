@@ -14,7 +14,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -33,7 +33,7 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems, clearTodoList } from '../common/copilotCLITools';
+import { clearTodoList, enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, stripReminders, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext } from '../common/pendingRequestContext';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { SessionIdForCLI } from '../common/utils';
@@ -43,7 +43,7 @@ import { handleExitPlanMode } from './exitPlanModeHandler';
 import { type McCommand, type McEvent, type McSessionCreateResult, MissionControlApiClient } from './missionControlApiClient';
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { TodoSqlQuery } from './todoSqlQuery';
-import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from './userInputHelpers';
 
 /**
  * Known commands that can be sent to a CopilotCLI session instead of a free-form prompt.
@@ -63,9 +63,12 @@ export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'pla
  */
 interface McSharedState {
 	mcSessionId: string;
+	mcFrontendUrl?: string;
+	mcMode?: MissionControlMode;
 	mcEventBuffer: McEvent[];
 	mcCompletedCommandIds: string[];
 	mcPendingPermissionRequests: Map<string, { resolve(result: PermissionRequestResult): void }>;
+	mcPendingUserInputRequests?: Set<McPendingUserInputRequest>;
 	mcFlushInterval: ReturnType<typeof setInterval> | undefined;
 	mcPollInterval: ReturnType<typeof setInterval> | undefined;
 	mcLastEventId: string | null;
@@ -83,10 +86,45 @@ const mcStateBySessionId = new Map<string, McSharedState>();
 
 const MISSION_CONTROL_KEEPALIVE_INTERVAL_MS = 10_000;
 
+type MissionControlMode = 'plan' | 'autopilot' | 'interactive';
+
+interface McModeCommandData {
+	readonly mode?: string;
+}
+
 interface McPermissionResponseCommandData {
 	readonly promptId?: string;
 	readonly approved?: boolean;
 	readonly scope?: 'once' | 'session';
+}
+
+interface UserInputResponse {
+	readonly answer: string;
+	readonly wasFreeform: boolean;
+}
+
+interface McPendingUserInputRequest {
+	readonly requestId: string;
+	readonly toolCallId?: string;
+	resolve(result: UserInputResponse | undefined): void;
+}
+
+interface McAskUserResponsePayload {
+	readonly requestId?: string;
+	readonly promptId?: string;
+	readonly toolCallId?: string;
+	readonly answer?: string;
+	readonly wasFreeform?: boolean;
+	readonly freeText?: string | null;
+	readonly selected?: readonly string[];
+	readonly skipped?: boolean;
+	readonly response?: {
+		readonly answer?: string;
+		readonly wasFreeform?: boolean;
+		readonly freeText?: string | null;
+		readonly selected?: readonly string[];
+		readonly skipped?: boolean;
+	};
 }
 
 const skippedMissionControlEventTypes = new Set([
@@ -134,6 +172,31 @@ function getMissionControlCommandIdFromEvent(event: { type?: string; data?: unkn
 		: undefined;
 }
 
+function getMissionControlModeCommand(content: string): MissionControlMode | undefined {
+	const trimmedContent = content.trim();
+	if (!trimmedContent.startsWith('{')) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(trimmedContent) as McModeCommandData;
+		switch (parsed.mode) {
+			case 'plan':
+			case 'autopilot':
+			case 'interactive':
+				return parsed.mode;
+			case 'auto':
+			case 'autoApprove':
+				return 'autopilot';
+		}
+	} catch {
+	}
+	return undefined;
+}
+
+function isMissionControlCommandSource(source: SendOptions['source'] | undefined): boolean {
+	return typeof source === 'string' && source.startsWith('command-');
+}
+
 function getMissionControlSessionTitleFromEvent(event: { type?: string; data?: unknown }): string | undefined {
 	if (event.type !== 'session.title_changed') {
 		return undefined;
@@ -145,9 +208,104 @@ function getMissionControlSessionTitleFromEvent(event: { type?: string; data?: u
 	return typeof title === 'string' && title.trim().length > 0 ? title : undefined;
 }
 
+function getMissionControlEventData(event: { type?: string; data?: unknown }): Record<string, unknown> {
+	if (!event.data || typeof event.data !== 'object') {
+		return {};
+	}
+
+	const data = event.data as Record<string, unknown>;
+	if (event.type === 'user.message') {
+		const content = data.content;
+		if (typeof content !== 'string') {
+			return data;
+		}
+
+		const sanitizedContent = stripReminders(content);
+		return sanitizedContent === content ? data : { ...data, content: sanitizedContent };
+	}
+
+	if (event.type !== 'tool.execution_start') {
+		return data;
+	}
+
+	const toolName = data.toolName;
+	if (toolName !== 'bash' && toolName !== 'powershell' && toolName !== 'task') {
+		return data;
+	}
+
+	const args = data.arguments;
+	if (!args || typeof args !== 'object' || !('description' in args)) {
+		return data;
+	}
+
+	const { description: _description, ...sanitizedArgs } = args as Record<string, unknown>;
+	return { ...data, arguments: sanitizedArgs };
+}
+
 function getMissionControlPendingCommandCompletionIds(state: McSharedState): Set<string> {
 	state.mcPendingCommandCompletionIds ??= new Set();
 	return state.mcPendingCommandCompletionIds;
+}
+
+function getMissionControlPendingUserInputRequests(state: McSharedState): Set<McPendingUserInputRequest> {
+	state.mcPendingUserInputRequests ??= new Set();
+	return state.mcPendingUserInputRequests;
+}
+
+function getMissionControlPendingUserInputRequest(state: McSharedState, payload: McAskUserResponsePayload | undefined): McPendingUserInputRequest | undefined {
+	const pendingRequests = [...getMissionControlPendingUserInputRequests(state)];
+	const identifiers = [
+		payload?.requestId,
+		payload?.promptId,
+		payload?.toolCallId,
+	].filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+	if (identifiers.length > 0) {
+		return pendingRequests.find(request =>
+			identifiers.includes(request.requestId) ||
+			(typeof request.toolCallId === 'string' && identifiers.includes(request.toolCallId))
+		);
+	}
+
+	return pendingRequests.length === 1 ? pendingRequests[0] : undefined;
+}
+
+function toSdkUserInputResponse(answer: IQuestionAnswer | undefined): UserInputResponse {
+	if (!answer) {
+		return { answer: '', wasFreeform: false };
+	}
+
+	if (answer.freeText) {
+		return { answer: answer.freeText, wasFreeform: true };
+	}
+
+	return { answer: answer.selected.join(', '), wasFreeform: false };
+}
+
+function getMcAskUserResponse(payload: McAskUserResponsePayload | undefined, rawContent: string): UserInputResponse | undefined {
+	const response = payload?.response ?? payload;
+	const answer = typeof response?.answer === 'string'
+		? response.answer
+		: typeof response?.freeText === 'string'
+			? response.freeText
+			: Array.isArray(response?.selected)
+				? response.selected.filter((value): value is string => typeof value === 'string').join(', ')
+				: response?.skipped
+					? ''
+					: payload === undefined
+						? rawContent
+						: undefined;
+
+	if (answer === undefined) {
+		return undefined;
+	}
+
+	return {
+		answer,
+		wasFreeform: typeof response?.wasFreeform === 'boolean'
+			? response.wasFreeform
+			: typeof response?.freeText === 'string',
+	};
 }
 
 function maybeAcknowledgeMissionControlCommandFromEvent(state: McSharedState, event: { type?: string; data?: unknown }): void {
@@ -178,6 +336,374 @@ function getPromptLabel(input: CopilotCLISessionInput): string {
 	return input.prompt;
 }
 
+function getRemoteControlArgs(input: CopilotCLISessionInput): string {
+	const prompt = stripReminders(('prompt' in input ? input.prompt : '') ?? '').trim().toLowerCase();
+	if (prompt === '/remote' || prompt === 'remote') {
+		return '';
+	}
+	for (const commandPrefix of ['/remote ', 'remote ']) {
+		if (prompt.startsWith(commandPrefix)) {
+			return prompt.slice(commandPrefix.length).trim();
+		}
+	}
+	return prompt;
+}
+
+const enum QrMaskPattern {
+	Pattern0 = 0,
+	Pattern1 = 1,
+	Pattern2 = 2,
+	Pattern3 = 3,
+	Pattern4 = 4,
+	Pattern5 = 5,
+	Pattern6 = 6,
+	Pattern7 = 7,
+}
+
+const qrVersion = 6;
+const qrSize = 17 + 4 * qrVersion;
+const qrDataCodewords = 108;
+const qrDataBlocks = 4;
+const qrDataCodewordsPerBlock = 27;
+const qrErrorCodewordsPerBlock = 16;
+const qrQuietZoneModules = 4;
+const qrSvgModuleSize = 5;
+
+const qrGfExp = new Array<number>(512);
+const qrGfLog = new Array<number>(256);
+
+function initializeQrGaloisField(): void {
+	if (qrGfExp[0] !== undefined) {
+		return;
+	}
+
+	let value = 1;
+	for (let i = 0; i < 255; i++) {
+		qrGfExp[i] = value;
+		qrGfLog[value] = i;
+		value <<= 1;
+		if (value & 0x100) {
+			value ^= 0x11d;
+		}
+	}
+	for (let i = 255; i < qrGfExp.length; i++) {
+		qrGfExp[i] = qrGfExp[i - 255];
+	}
+}
+
+function qrGfMultiply(a: number, b: number): number {
+	if (!a || !b) {
+		return 0;
+	}
+	return qrGfExp[qrGfLog[a] + qrGfLog[b]];
+}
+
+function getQrGeneratorPolynomial(degree: number): number[] {
+	initializeQrGaloisField();
+
+	let polynomial = [1];
+	for (let i = 0; i < degree; i++) {
+		const next = new Array<number>(polynomial.length + 1).fill(0);
+		for (let j = 0; j < polynomial.length; j++) {
+			next[j] ^= polynomial[j];
+			next[j + 1] ^= qrGfMultiply(polynomial[j], qrGfExp[i]);
+		}
+		polynomial = next;
+	}
+	return polynomial.slice(1);
+}
+
+function getQrErrorCodewords(data: number[], degree: number): number[] {
+	const generator = getQrGeneratorPolynomial(degree);
+	const result = new Array<number>(degree).fill(0);
+	for (const codeword of data) {
+		const factor = codeword ^ result[0];
+		result.shift();
+		result.push(0);
+		for (let i = 0; i < degree; i++) {
+			result[i] ^= qrGfMultiply(generator[i], factor);
+		}
+	}
+	return result;
+}
+
+function appendQrBits(bits: boolean[], value: number, length: number): void {
+	for (let i = length - 1; i >= 0; i--) {
+		bits.push(((value >>> i) & 1) === 1);
+	}
+}
+
+function getQrDataCodewords(data: string): number[] {
+	const bytes = Array.from(Buffer.from(data, 'utf8'));
+	if (bytes.length > 106) {
+		throw new Error('Remote control URL is too long to render as a QR code.');
+	}
+
+	const bits: boolean[] = [];
+	appendQrBits(bits, 0b0100, 4);
+	appendQrBits(bits, bytes.length, 8);
+	for (const byte of bytes) {
+		appendQrBits(bits, byte, 8);
+	}
+
+	for (let i = 0; i < 4 && bits.length < qrDataCodewords * 8; i++) {
+		bits.push(false);
+	}
+	while (bits.length % 8 !== 0) {
+		bits.push(false);
+	}
+
+	const codewords: number[] = [];
+	for (let i = 0; i < bits.length; i += 8) {
+		let codeword = 0;
+		for (let j = 0; j < 8; j++) {
+			codeword = (codeword << 1) | (bits[i + j] ? 1 : 0);
+		}
+		codewords.push(codeword);
+	}
+
+	for (let pad = 0; codewords.length < qrDataCodewords; pad++) {
+		codewords.push(pad % 2 === 0 ? 0xec : 0x11);
+	}
+	return codewords;
+}
+
+function getQrCodewords(data: string): number[] {
+	const dataCodewords = getQrDataCodewords(data);
+	const blocks: { data: number[]; error: number[] }[] = [];
+	for (let i = 0; i < qrDataBlocks; i++) {
+		const blockData = dataCodewords.slice(i * qrDataCodewordsPerBlock, (i + 1) * qrDataCodewordsPerBlock);
+		blocks.push({ data: blockData, error: getQrErrorCodewords(blockData, qrErrorCodewordsPerBlock) });
+	}
+
+	const result: number[] = [];
+	for (let i = 0; i < qrDataCodewordsPerBlock; i++) {
+		for (const block of blocks) {
+			result.push(block.data[i]);
+		}
+	}
+	for (let i = 0; i < qrErrorCodewordsPerBlock; i++) {
+		for (const block of blocks) {
+			result.push(block.error[i]);
+		}
+	}
+	return result;
+}
+
+function createQrMatrix(): { modules: boolean[][]; reserved: boolean[][] } {
+	const modules = Array.from({ length: qrSize }, () => new Array<boolean>(qrSize).fill(false));
+	const reserved = Array.from({ length: qrSize }, () => new Array<boolean>(qrSize).fill(false));
+	const setModule = (x: number, y: number, dark: boolean) => {
+		if (x < 0 || y < 0 || x >= qrSize || y >= qrSize) {
+			return;
+		}
+		modules[y][x] = dark;
+		reserved[y][x] = true;
+	};
+	const addFinder = (x: number, y: number) => {
+		for (let dy = -1; dy <= 7; dy++) {
+			for (let dx = -1; dx <= 7; dx++) {
+				const isPattern = dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6
+					&& (dx === 0 || dx === 6 || dy === 0 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
+				setModule(x + dx, y + dy, isPattern);
+			}
+		}
+	};
+
+	addFinder(0, 0);
+	addFinder(qrSize - 7, 0);
+	addFinder(0, qrSize - 7);
+
+	for (let i = 8; i < qrSize - 8; i++) {
+		setModule(i, 6, i % 2 === 0);
+		setModule(6, i, i % 2 === 0);
+	}
+
+	for (let dy = -2; dy <= 2; dy++) {
+		for (let dx = -2; dx <= 2; dx++) {
+			setModule(34 + dx, 34 + dy, Math.max(Math.abs(dx), Math.abs(dy)) === 2 || (dx === 0 && dy === 0));
+		}
+	}
+
+	setModule(8, 4 * qrVersion + 9, true);
+
+	for (let i = 0; i <= 8; i++) {
+		if (i !== 6) {
+			setModule(8, i, false);
+			setModule(i, 8, false);
+		}
+	}
+	for (let i = 0; i < 8; i++) {
+		setModule(qrSize - 1 - i, 8, false);
+	}
+	for (let i = 0; i < 7; i++) {
+		setModule(8, qrSize - 1 - i, false);
+	}
+
+	return { modules, reserved };
+}
+
+function getQrMask(mask: QrMaskPattern, x: number, y: number): boolean {
+	switch (mask) {
+		case QrMaskPattern.Pattern0: return (x + y) % 2 === 0;
+		case QrMaskPattern.Pattern1: return y % 2 === 0;
+		case QrMaskPattern.Pattern2: return x % 3 === 0;
+		case QrMaskPattern.Pattern3: return (x + y) % 3 === 0;
+		case QrMaskPattern.Pattern4: return (Math.floor(y / 2) + Math.floor(x / 3)) % 2 === 0;
+		case QrMaskPattern.Pattern5: return ((x * y) % 2) + ((x * y) % 3) === 0;
+		case QrMaskPattern.Pattern6: return (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+		case QrMaskPattern.Pattern7: return (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+	}
+}
+
+function setQrFormatInfo(modules: boolean[][], mask: QrMaskPattern): void {
+	let format = mask;
+	let remainder = format << 10;
+	for (let i = 14; i >= 10; i--) {
+		if (((remainder >>> i) & 1) !== 0) {
+			remainder ^= 0x537 << (i - 10);
+		}
+	}
+	format = ((format << 10) | remainder) ^ 0x5412;
+
+	const setBit = (x: number, y: number, bitIndex: number) => {
+		modules[y][x] = ((format >>> bitIndex) & 1) !== 0;
+	};
+	for (let i = 0; i <= 5; i++) {
+		setBit(8, i, i);
+	}
+	setBit(8, 7, 6);
+	setBit(8, 8, 7);
+	setBit(7, 8, 8);
+	for (let i = 9; i < 15; i++) {
+		setBit(14 - i, 8, i);
+	}
+	for (let i = 0; i < 8; i++) {
+		setBit(qrSize - 1 - i, 8, i);
+	}
+	for (let i = 8; i < 15; i++) {
+		setBit(8, qrSize - 15 + i, i);
+	}
+}
+
+function getQrPenalty(modules: boolean[][]): number {
+	let penalty = 0;
+	const scoreRuns = (line: boolean[]) => {
+		let runColor = line[0];
+		let runLength = 1;
+		for (let i = 1; i <= line.length; i++) {
+			if (i < line.length && line[i] === runColor) {
+				runLength++;
+			} else {
+				if (runLength >= 5) {
+					penalty += 3 + runLength - 5;
+				}
+				runColor = line[i];
+				runLength = 1;
+			}
+		}
+	};
+
+	for (let y = 0; y < qrSize; y++) {
+		scoreRuns(modules[y]);
+	}
+	for (let x = 0; x < qrSize; x++) {
+		scoreRuns(modules.map(row => row[x]));
+	}
+
+	for (let y = 0; y < qrSize - 1; y++) {
+		for (let x = 0; x < qrSize - 1; x++) {
+			const color = modules[y][x];
+			if (modules[y][x + 1] === color && modules[y + 1][x] === color && modules[y + 1][x + 1] === color) {
+				penalty += 3;
+			}
+		}
+	}
+
+	const finderPattern = '10111010000';
+	const reverseFinderPattern = '00001011101';
+	const scoreFinderPattern = (line: boolean[]) => {
+		const text = line.map(bit => bit ? '1' : '0').join('');
+		for (let i = 0; i <= text.length - finderPattern.length; i++) {
+			const slice = text.slice(i, i + finderPattern.length);
+			if (slice === finderPattern || slice === reverseFinderPattern) {
+				penalty += 40;
+			}
+		}
+	};
+	for (let y = 0; y < qrSize; y++) {
+		scoreFinderPattern(modules[y]);
+	}
+	for (let x = 0; x < qrSize; x++) {
+		scoreFinderPattern(modules.map(row => row[x]));
+	}
+
+	const darkModules = modules.flat().filter(Boolean).length;
+	const darkPercent = darkModules * 100 / (qrSize * qrSize);
+	penalty += Math.floor(Math.abs(darkPercent - 50) / 5) * 10;
+	return penalty;
+}
+
+function buildQrMatrix(data: string): boolean[][] {
+	const codewordBits = getQrCodewords(data).flatMap(codeword => {
+		const bits: boolean[] = [];
+		appendQrBits(bits, codeword, 8);
+		return bits;
+	});
+
+	let bestModules: boolean[][] | undefined;
+	let bestPenalty = Number.MAX_SAFE_INTEGER;
+	for (let mask = 0; mask <= 7; mask++) {
+		const { modules, reserved } = createQrMatrix();
+		let bitIndex = 0;
+		let upward = true;
+		for (let right = qrSize - 1; right >= 1; right -= 2) {
+			if (right === 6) {
+				right--;
+			}
+			for (let vertical = 0; vertical < qrSize; vertical++) {
+				const y = upward ? qrSize - 1 - vertical : vertical;
+				for (let column = 0; column < 2; column++) {
+					const x = right - column;
+					if (reserved[y][x]) {
+						continue;
+					}
+					const bit = bitIndex < codewordBits.length ? codewordBits[bitIndex++] : false;
+					modules[y][x] = bit !== getQrMask(mask, x, y);
+				}
+			}
+			upward = !upward;
+		}
+
+		setQrFormatInfo(modules, mask);
+		const penalty = getQrPenalty(modules);
+		if (penalty < bestPenalty) {
+			bestPenalty = penalty;
+			bestModules = modules;
+		}
+	}
+
+	if (!bestModules) {
+		throw new Error('Unable to render QR code.');
+	}
+	return bestModules;
+}
+
+async function renderRemoteControlQrCode(data: string): Promise<string> {
+	const modules = buildQrMatrix(data);
+	const imageSize = (qrSize + qrQuietZoneModules * 2) * qrSvgModuleSize;
+	const path = modules.flatMap((row, y) => row.map((dark, x) => {
+		if (!dark) {
+			return '';
+		}
+		const moduleX = (x + qrQuietZoneModules) * qrSvgModuleSize;
+		const moduleY = (y + qrQuietZoneModules) * qrSvgModuleSize;
+		return `M${moduleX} ${moduleY}h${qrSvgModuleSize}v${qrSvgModuleSize}h-${qrSvgModuleSize}z`;
+	})).join('');
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${imageSize} ${imageSize}" width="${imageSize}" height="${imageSize}"><path fill="#fff" d="M0 0h${imageSize}v${imageSize}H0z"/><path fill="#000" d="${path}"/></svg>`;
+	return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
 export interface ICopilotCLISession extends IDisposable {
 	readonly sessionId: string;
 	readonly title?: string;
@@ -201,6 +727,7 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
+	getLastResponseModelId(): string | undefined;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -236,10 +763,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _lastUsedModel: string | undefined;
 	private _permissionLevel: string | undefined;
+	private _lastResponseModelId: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
 	private readonly _missionControlApiClient: MissionControlApiClient;
+	private _cancelPendingCancellationAbort: (() => void) | undefined;
 
 	/** Get or create shared MC state for this SDK session. */
 	private get _mcState(): McSharedState | undefined {
@@ -388,15 +917,25 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
+			this._cancelPendingCancellationAbort?.();
 			this._sdkSession.abort();
 		}));
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
 
 		try {
-			// Send the steering prompt (completes quickly) and also wait for the
-			// previous request to finish, so this promise settles only once all
-			// in-flight work is done.
-			await Promise.all([previousRequestPromise, this.sendRequestInternal(input, attachments, true, logStartTime)]);
+			if ('command' in input && input.command !== 'plan') {
+				this._cancelPendingCancellationAbort?.();
+				await previousRequestPromise;
+				if (!token.isCancellationRequested) {
+					this._stream?.markdown('\n\n');
+					await this.sendRequestInternal(input, attachments, false, logStartTime);
+				}
+			} else {
+				// Send the steering prompt (completes quickly) and also wait for the
+				// previous request to finish, so this promise settles only once all
+				// in-flight work is done.
+				await Promise.all([previousRequestPromise, this.sendRequestInternal(input, attachments, true, logStartTime)]);
+			}
 			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Completed');
 		} catch (error) {
 			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
@@ -422,18 +961,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
 					[GenAiAttr.AGENT_NAME]: 'copilotcli',
-					[GenAiAttr.PROVIDER_NAME]: 'github',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
-					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
 				// Emit user_message event so chronicle can extract turns and summary
-				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars) });
 
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
@@ -471,11 +1010,37 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
+		this._lastResponseModelId = undefined;
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
+		const requestStream = this._stream;
+		let wroteResponseContent = false;
+		let cancelCancellationAbort: (() => void) | undefined;
 		disposables.add(token.onCancellationRequested(() => {
-			this._sdkSession.abort();
+			const cancelAbort = () => {
+				clearTimeout(abortHandle);
+				if (this._cancelPendingCancellationAbort === cancelAbort) {
+					this._cancelPendingCancellationAbort = undefined;
+				}
+			};
+			const abortHandle = setTimeout(() => {
+				if (this._cancelPendingCancellationAbort === cancelAbort) {
+					this._cancelPendingCancellationAbort = undefined;
+				}
+				if (!wroteResponseContent) {
+					try {
+						requestStream?.markdown(l10n.t('Response was interrupted.'));
+						wroteResponseContent = true;
+					} catch (error) {
+						this.logService.trace(`[CopilotCLISession] Unable to mark interrupted response: ${error instanceof Error ? error.message : String(error)}`);
+					}
+				}
+				this._sdkSession.abort();
+			}, 250);
+			this._cancelPendingCancellationAbort?.();
+			this._cancelPendingCancellationAbort = cancelAbort;
+			cancelCancellationAbort = cancelAbort;
 		}));
 		disposables.add(toDisposable(() => this._sdkSession.abort()));
 
@@ -490,6 +1055,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
+		const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
+		const effectivePermissionLevel = remoteMode ? (remoteMode === 'autopilot' ? 'autopilot' : undefined) : this._permissionLevel;
 		clearTodoList(this._toolsService, request.toolInvocationToken, token).catch(err => {
 			this.logService.error(err, '[CopilotCLISession] Failed to clear todo list at start of session');
 		});
@@ -507,7 +1074,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const toolCallWaitingForPermissions: [ChatToolInvocationPart, ToolCall][] = [];
 		const flushPendingInvocationMessages = () => {
 			for (const [invocationMessage,] of toolCallWaitingForPermissions) {
-				this._stream?.push(invocationMessage);
+				requestStream?.push(invocationMessage);
 			}
 			toolCallWaitingForPermissions.length = 0;
 		};
@@ -522,7 +1089,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const index = toolCallWaitingForPermissions.findIndex(([, tc]) => tc.toolCallId === toolCallId);
 			if (index !== -1) {
 				const [[invocationMessage]] = toolCallWaitingForPermissions.splice(index, 1);
-				this._stream?.push(invocationMessage);
+				requestStream?.push(invocationMessage);
 			}
 		};
 
@@ -530,10 +1097,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const assistantMessageChunks: string[] = [];
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
-			if (token.isCancellationRequested || !this._stream) {
+			if (token.isCancellationRequested || !requestStream) {
 				return;
 			}
-			this._stream.usage({
+			requestStream.usage({
 				promptTokens,
 				completionTokens,
 				promptTokenDetails: buildPromptTokenDetails(lastUsageInfo),
@@ -548,7 +1115,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
-				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -557,9 +1123,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const requestId = event.data.requestId;
 
 				// Auto-approve all requests when the permission level allows it.
-				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-					this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
+					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
@@ -579,7 +1145,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						case 'write':
 							return handleWritePermission(
 								this.sessionId, permissionRequest, toolData, toolParentCallId,
-								this._stream, editTracker, this.workspace, this.workspaceService,
+								requestStream, editTracker, this.workspace, this.workspaceService,
 								this.instantiationService, this._toolsService, toolInvocationToken, this.logService, permissionToken,
 							);
 						case 'shell':
@@ -602,9 +1168,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-						response = { kind: 'approved' };
+					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
+						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
 						const permissionResolutionTokenSource = new CancellationTokenSource(token);
 						try {
@@ -645,7 +1211,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						const response = await handleExitPlanMode(
 							event.data,
 							this._sdkSession,
-							this._permissionLevel,
+							effectivePermissionLevel,
 							this._toolInvocationToken,
 							this.workspaceService,
 							this.logService,
@@ -673,17 +1239,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					allowFreeformInput: event.data.allowFreeform,
 					header: event.data.question,
 				};
-				const answer = await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token);
-				flushPendingInvocationMessages();
-				if (!answer) {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: '', wasFreeform: false });
-					return;
-				}
-				if (answer.freeText) {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: answer.freeText, wasFreeform: true });
+				let response: UserInputResponse;
+				if (this._mcState) {
+					const userInputResolutionTokenSource = new CancellationTokenSource(token);
+					const localQuestionPromise = this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, userInputResolutionTokenSource.token, event.data.toolCallId);
+					const remoteQuestionPromise = this._waitForMcUserInputResponse(this._mcState, event.data.requestId, event.data.toolCallId, userInputResolutionTokenSource.token);
+					try {
+						const result = await Promise.race([
+							localQuestionPromise.then(answer => ({ source: 'local' as const, response: toSdkUserInputResponse(answer) })),
+							remoteQuestionPromise.then(result => ({ source: 'remote' as const, response: result })),
+						]);
+						if (result.source === 'remote' && result.response && event.data.toolCallId) {
+							await this._userQuestionHandler.notifyQuestionCarouselAnswer?.(event.data.toolCallId, userInputRequest, result.response);
+						}
+						response = result.response ?? { answer: '', wasFreeform: false };
+					} finally {
+						userInputResolutionTokenSource.dispose(true);
+					}
 				} else {
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: answer.selected.join(', '), wasFreeform: false });
+					response = toSdkUserInputResponse(await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token, event.data.toolCallId));
 				}
+				flushPendingInvocationMessages();
+				this._sdkSession.respondToUserInput(event.data.requestId, response);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.title_changed', (event) => {
 				this._title = event.data.title;
@@ -693,7 +1270,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sdkRequestId = sdkRequestId ?? event.id;
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
-				if (this._stream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
+				this._lastResponseModelId = event.data.model;
+				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 			})));
@@ -718,7 +1296,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
-					this._stream?.markdown(event.data.deltaContent);
+					wroteResponseContent = true;
+					requestStream?.markdown(event.data.deltaContent);
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message', (event) => {
@@ -729,7 +1308,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
-					this._stream?.markdown(event.data.content);
+					wroteResponseContent = true;
+					requestStream?.markdown(event.data.content);
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_start', (event) => {
@@ -742,8 +1322,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const responsePart = processToolExecutionStart(event, pendingToolInvocations, getWorkingDirectory(this.workspace));
 					if (responsePart instanceof ChatResponseThinkingProgressPart) {
 						flushPendingInvocationMessages();
-						this._stream?.push(responsePart);
-						this._stream?.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
+						wroteResponseContent = true;
+						requestStream?.push(responsePart);
+						requestStream?.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
 					} else if (responsePart instanceof ChatResponseMarkdownPart) {
 						// Wait for completion to push into stream.
 					} else if (responsePart instanceof ChatToolInvocationPart) {
@@ -753,7 +1334,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							toolCallWaitingForPermissions.push([responsePart, event.data as ToolCall]);
 						} else {
 							flushPendingInvocationMessages();
-							this._stream?.push(responsePart);
+							wroteResponseContent = true;
+							requestStream?.push(responsePart);
 						}
 					}
 				}
@@ -788,7 +1370,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (responsePart instanceof ChatToolInvocationPart) {
 						responsePart.enablePartialUpdate = true;
 					}
-					this._stream?.push(responsePart);
+					wroteResponseContent = true;
+					requestStream?.push(responsePart);
 				}
 
 				const success = `success: ${event.data.success}`;
@@ -823,7 +1406,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				this._stream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+				requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -856,7 +1439,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this.logService.trace(`[CopilotCLISession] Hook ${event.data.hookType} started (${event.data.hookInvocationId})`);
 				let input: string | undefined;
 				try {
-					input = truncateForOTel(JSON.stringify(event.data.input));
+					input = truncateForOTel(JSON.stringify(event.data.input), this._otelService.config.maxAttributeSizeChars);
 				} catch { /* swallow serialization errors */ }
 				this._bridgeProcessor?.stashHookInput(event.data.hookInvocationId, event.data.hookType, input);
 			})));
@@ -866,7 +1449,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				let output: string | undefined;
 				if (event.data.success) {
 					try {
-						output = truncateForOTel(JSON.stringify(event.data.output));
+						output = truncateForOTel(JSON.stringify(event.data.output), this._otelService.config.maxAttributeSizeChars);
 					} catch { /* swallow serialization errors */ }
 				}
 				this._bridgeProcessor?.stashHookEnd(
@@ -911,7 +1494,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			this._stream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
+			requestStream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
 			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
 			if (error instanceof Error) {
@@ -921,6 +1504,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Log the failed conversation
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
 		} finally {
+			cancelCancellationAbort?.();
 			// End the invoke_agent wrapper span
 			const durationSec = (Date.now() - logStartTime) / 1000;
 			invokeAgentSpan.setAttribute('copilot_chat.duration_sec', durationSec);
@@ -1016,7 +1600,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			}
 		} else {
-			if ('command' in input && input.command === 'plan') {
+			const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
+			if (remoteMode) {
+				this._sdkSession.currentMode = remoteMode;
+			} else if ('command' in input && input.command === 'plan') {
 				this._sdkSession.currentMode = 'plan';
 			} else if (this._permissionLevel === 'autopilot') {
 				this._sdkSession.currentMode = 'autopilot';
@@ -1060,21 +1647,36 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Handle `/remote` command — enables or disables Mission Control remote
-	 * control for this session by calling the Copilot API directly.
+	 * Handle `/remote` command — prints status or enables/disables Mission
+	 * Control remote control for this session by calling the Copilot API directly.
 	 */
 	private async _handleRemoteControl(input: CopilotCLISessionInput): Promise<void> {
 		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIRemoteEnabled)) {
-			this._stream?.markdown(l10n.t('The /remote command is experimental and not enabled. Set `github.copilot.chat.cli.remote.enabled` to `true` in settings to use it.'));
+			this._stream?.markdown(l10n.t('The /remote command is not enabled. Set `github.copilot.chat.cli.remote.enabled` to `true` in settings to use it.'));
 			return;
 		}
 
-		const args = ('prompt' in input ? input.prompt : '')?.trim().toLowerCase();
+		const args = getRemoteControlArgs(input);
 		const isCurrentlyActive = !!this._mcState;
-		const enable = args === 'off' ? false : (args === 'on' ? true : !isCurrentlyActive);
+		if (!args) {
+			await this._showRemoteControlStatus();
+			return;
+		}
+		if (args !== 'on' && args !== 'off') {
+			this._stream?.markdown(l10n.t('Usage: /remote, /remote on, /remote off'));
+			return;
+		}
+		if (args === 'on' && isCurrentlyActive) {
+			await this._showRemoteControlStatus();
+			return;
+		}
+		if (args === 'off' && !isCurrentlyActive) {
+			await this._showRemoteControlStatus();
+			return;
+		}
 
 		try {
-			if (!enable) {
+			if (args === 'off') {
 				await this._teardownRemoteControl();
 				this._stream?.markdown(l10n.t('Remote control disabled.'));
 				return;
@@ -1115,7 +1717,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Step 4: Create Mission Control session
 			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-			this.logService.info('[CopilotCLISession] Creating MC session');
+			this.logService.trace('[CopilotCLISession] Creating MC session');
 
 			let mcData: McSessionCreateResult;
 			try {
@@ -1134,6 +1736,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// so it persists across CopilotCLISession instances.
 			const sharedState: McSharedState = {
 				mcSessionId: mcData.id,
+				mcFrontendUrl: undefined,
 				mcEventBuffer: [],
 				mcCompletedCommandIds: [],
 				mcPendingPermissionRequests: new Map(),
@@ -1148,7 +1751,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
 			};
 			mcStateBySessionId.set(this.sessionId, sharedState);
-			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+			this.logService.trace(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
 
 			// Step 6: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1198,7 +1801,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					replayed++;
 				}
 			}
-			this.logService.info(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
+			this.logService.trace(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
 
 			await this._flushMcEvents();
 
@@ -1229,7 +1832,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						parentId: e.parentId ?? state.mcLastEventId ?? null,
 						ephemeral: e.ephemeral,
 						type: eventType,
-						data: (e.data ?? {}) as Record<string, unknown>,
+						data: getMissionControlEventData(e),
 					});
 					state.mcLastEventId = e.id;
 				} else {
@@ -1239,7 +1842,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						timestamp: new Date().toISOString(),
 						parentId: state.mcLastEventId ?? null,
 						type: eventType,
-						data: (e.data ?? {}) as Record<string, unknown>,
+						data: getMissionControlEventData(e),
 					});
 					state.mcLastEventId = id;
 				}
@@ -1247,23 +1850,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Step 8: Construct and display the frontend URL
 			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
-			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
+			sharedState.mcFrontendUrl = frontendUrl;
+			this.logService.trace(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
-			// Render a persistent inline info banner using the proposed
-			// `stream.info()` API (blue background + blue info icon, matches
-			// the native chat info notification style). The button uses
-			// `vscode.open` so it opens the URL externally without invoking
-			// the model, and the banner stays visible after click.
-			const banner = new MarkdownString(
-				`**${l10n.t('Remote control is enabled.')}** ` +
-				l10n.t('You can open this session from any device.')
-			);
-			this._stream?.info(banner);
-			this._stream?.button({
-				command: 'vscode.open',
-				arguments: [Uri.parse(frontendUrl)],
-				title: l10n.t('Open on GitHub'),
-			});
+			await this._showRemoteControlEnabled(frontendUrl);
 
 			// Step 9: Start continuous event exporter and command poller
 			this._startMcEventExporter();
@@ -1272,6 +1862,40 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this.logService.error(`[CopilotCLISession] Remote control error: ${error}`);
 			this._stream?.markdown(l10n.t('Unable to enable remote control: {0}', error instanceof Error ? error.message : String(error)));
 		}
+	}
+
+	private async _showRemoteControlStatus(): Promise<void> {
+		const state = this._mcState;
+		if (!state) {
+			this._stream?.markdown(l10n.t('Remote control is disabled. Use /remote on to enable it.'));
+			return;
+		}
+
+		if (state.mcFrontendUrl) {
+			await this._showRemoteControlEnabled(state.mcFrontendUrl);
+			return;
+		}
+
+		this._stream?.markdown(l10n.t('Remote control is enabled. Use /remote off to disable it.'));
+	}
+
+	private async _showRemoteControlEnabled(frontendUrl: string): Promise<void> {
+		const banner = new MarkdownString();
+		banner.appendMarkdown(`**${l10n.t('Remote control is enabled.')}**\n\n${l10n.t('Use the button below to open in your browser, or scan to steer from the GitHub mobile app.')}\n\n${l10n.t('Use /remote off to disable it.')}\n\n`);
+		try {
+			const qrDataUrl = await renderRemoteControlQrCode(frontendUrl);
+			banner.appendMarkdown(`![${l10n.t('QR code to open this remote session in GitHub mobile')}](${qrDataUrl})`);
+		} catch (error) {
+			this.logService.error(`[CopilotCLISession] Failed to render remote control QR code: ${error instanceof Error ? error.message : String(error)}`);
+			banner.appendMarkdown(l10n.t('QR code could not be rendered. Open this session from any device: {0}', frontendUrl));
+		}
+
+		this._stream?.markdown(banner);
+		this._stream?.button({
+			command: 'vscode.open',
+			arguments: [Uri.parse(frontendUrl)],
+			title: l10n.t('Open on GitHub'),
+		});
 	}
 
 	/**
@@ -1298,6 +1922,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			pendingRequest.resolve({ kind: 'denied-interactively-by-user' });
 		}
 		state.mcPendingPermissionRequests.clear();
+		for (const pendingRequest of getMissionControlPendingUserInputRequests(state)) {
+			pendingRequest.resolve(undefined);
+		}
+		getMissionControlPendingUserInputRequests(state).clear();
 
 		state.mcEventBuffer.push(this._createMcEvent('session.remote_steerable_changed', {
 			remoteSteerable: false,
@@ -1393,12 +2021,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				parentId: event.parentId ?? state.mcLastEventId ?? null,
 				ephemeral: event.ephemeral,
 				type: eventType,
-				data: (event.data ?? {}) as Record<string, unknown>,
+				data: getMissionControlEventData(event),
 			};
 			state.mcLastEventId = event.id;
 			state.mcEventBuffer.push(mcEvent);
 		} else {
-			state.mcEventBuffer.push(this._createMcEvent(eventType, (event.data ?? {}) as Record<string, unknown>));
+			state.mcEventBuffer.push(this._createMcEvent(eventType, getMissionControlEventData(event)));
 		}
 	}
 
@@ -1446,8 +2074,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const content = typeof event.data === 'object' && event.data !== null && 'content' in event.data
 				? event.data.content
 				: undefined;
-			if (typeof content === 'string' && content.trim().length > 0) {
-				return content.trim();
+			if (typeof content === 'string') {
+				const sanitizedContent = stripReminders(content).trim();
+				if (sanitizedContent.length > 0) {
+					return sanitizedContent;
+				}
 			}
 		}
 
@@ -1478,6 +2109,36 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			};
 
 			state.mcPendingPermissionRequests.set(promptId, { resolve: complete });
+		});
+	}
+
+	private _waitForMcUserInputResponse(
+		state: McSharedState,
+		requestId: string,
+		toolCallId: string | undefined,
+		token: CancellationToken,
+	): Promise<UserInputResponse | undefined> {
+		return new Promise<UserInputResponse | undefined>(resolve => {
+			let settled = false;
+			const complete = (result: UserInputResponse | undefined) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				getMissionControlPendingUserInputRequests(state).delete(pendingRequest);
+				cancellationListener?.dispose();
+				resolve(result);
+			};
+			const pendingRequest: McPendingUserInputRequest = {
+				requestId,
+				toolCallId,
+				resolve: complete,
+			};
+			const cancellationListener = token.onCancellationRequested(() => {
+				complete(undefined);
+			});
+
+			getMissionControlPendingUserInputRequests(state).add(pendingRequest);
 		});
 	}
 
@@ -1582,10 +2243,54 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				state.mcProcessedCommandIds.add(cmd.id);
 				logService.info(`[CopilotCLISession] Processing MC command: ${cmd.type ?? 'user_message'} (${cmd.id})`);
 
+				const mode = getMissionControlModeCommand(cmd.content);
+				if (mode) {
+					state.mcMode = mode;
+					state.mcCompletedCommandIds.push(cmd.id);
+					continue;
+				}
+
 				switch (cmd.type) {
 					case 'abort':
+						for (const pendingRequest of state.mcPendingPermissionRequests.values()) {
+							pendingRequest.resolve({ kind: 'denied-interactively-by-user' });
+						}
+						state.mcPendingPermissionRequests.clear();
+						for (const pendingRequest of getMissionControlPendingUserInputRequests(state)) {
+							pendingRequest.resolve(undefined);
+						}
+						getMissionControlPendingUserInputRequests(state).clear();
 						state.mcSdkSession.abort();
 						break;
+					case 'ask_user_response': {
+						let responsePayload: McAskUserResponsePayload | undefined;
+						const trimmedContent = cmd.content.trim();
+						if (trimmedContent.startsWith('{')) {
+							try {
+								const parsed = JSON.parse(trimmedContent) as unknown;
+								if (parsed && typeof parsed === 'object') {
+									responsePayload = parsed as McAskUserResponsePayload;
+								}
+							} catch (error) {
+								logService.warn(`[CopilotCLISession] Failed to parse MC ask_user_response payload (${cmd.id}): ${error}`);
+							}
+						}
+
+						const pendingRequest = getMissionControlPendingUserInputRequest(state, responsePayload);
+						if (!pendingRequest) {
+							logService.warn(`[CopilotCLISession] No pending MC ask_user request found for command ${cmd.id}`);
+							break;
+						}
+
+						const response = getMcAskUserResponse(responsePayload, trimmedContent);
+						if (!response) {
+							logService.warn(`[CopilotCLISession] MC ask_user response missing answer payload (${cmd.id})`);
+							break;
+						}
+
+						pendingRequest.resolve(response);
+						break;
+					}
 					case 'permission_response': {
 						const responseData = CopilotCLISession._parseMcJsonCommand<McPermissionResponseCommandData>(cmd, logService);
 						const promptId = responseData?.promptId;
@@ -1598,7 +2303,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							logService.warn(`[CopilotCLISession] No pending MC permission request found for prompt ${promptId}`);
 							break;
 						}
-						pendingRequest.resolve(responseData?.approved ? { kind: 'approved' } : { kind: 'denied-interactively-by-user' });
+						pendingRequest.resolve(responseData?.approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
 						break;
 					}
 					case 'user_message':
@@ -1662,6 +2367,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public getSelectedModelId() {
 		return this._sdkSession.getSelectedModel();
+	}
+
+	public getLastResponseModelId(): string | undefined {
+		return this._lastResponseModelId;
 	}
 
 	private _logRequest(userPrompt: string, modelId: string, attachments: Attachment[], startTimeMs: number): void {

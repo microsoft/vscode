@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { StringOrMarkdown, type FileEdit } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -95,11 +95,35 @@ export function getTerminalContentUri(content: ToolResultContent[] | undefined):
 }
 
 /**
- * Converts completed turns from the protocol state into session history items.
+ * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
+ * the chat layer's namespaced language-model id and a human-readable display
+ * name. Both halves are independent: the id flows onto request history items
+ * (so the input picker shows the model that ran), while the display name
+ * flows onto response history items as `details` (so the response footer
+ * shows the model that produced it).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, modelId?: string): IChatSessionHistoryItem[] {
+export interface TurnModelLookup {
+	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
+	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Returns the human-readable display name, or undefined if unknown. */
+	toModelDisplayName(rawModelId: string | undefined): string | undefined;
+}
+
+/**
+ * Converts completed turns from the protocol state into session history items.
+ *
+ * Per turn, prefers `turn.usage?.model` so each request/response pair shows
+ * the model that actually ran, even if the user changed models mid-session.
+ * The `lookup` callback is responsible for any session-level fallback (e.g.
+ * `summary.model?.id` when usage hasn't reported a model yet).
+ */
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
+		const rawModelId = turn.usage?.model;
+		const modelId = lookup?.toLanguageModelId(rawModelId);
+		const modelName = lookup?.toModelDisplayName(rawModelId);
+
 		// Request
 		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId });
 
@@ -141,7 +165,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
 		}
 
-		history.push({ type: 'response', parts, participant: participantId });
+		history.push({ type: 'response', parts, participant: participantId, details: modelName });
 	}
 	return history;
 }
@@ -248,7 +272,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
 	if (isTerminal || getToolKind(tc) === 'terminal') {
 		toolSpecificData = {
 			kind: 'terminal',
@@ -259,6 +283,8 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			terminalCommandOutput: getTerminalOutput(tc),
 			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
+	} else if (getToolKind(tc) === 'search') {
+		toolSpecificData = { kind: 'search' };
 	}
 
 	const pastTenseMsg = isSuccess
@@ -413,8 +439,12 @@ export function rewriteMarkdownLinks(markdown: string, connectionAuthority: stri
  *
  * The output collapses to the canonical inline form `[](newHref)` (or
  * `![](newHref)` for images) — the chat renderer has richer handling for
- * empty-text agent-host links, so preserving the original label isn't
- * useful. This also means autolinks (`<url>`) and reference-style links
+ * empty-text agent-host links (rendering them as a file widget), so
+ * preserving the original label isn't useful for most links. The one
+ * exception is skill links (URIs whose basename is `SKILL.md`), where the
+ * skill name is preserved as the label so the skill pill renderer can
+ * display it instead of the always-identical `SKILL.md` basename. This
+ * also means autolinks (`<url>`) and reference-style links
  * (`[text][ref]`) are normalized into the inline form.
  */
 function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthority: string): string | undefined {
@@ -428,9 +458,39 @@ function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthor
 	if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
 		return undefined;
 	}
-	const newHref = toAgentHostUri(parsed, connectionAuthority).toString();
+	let agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+	const isSkill = isSkillFileUri(parsed);
+	// VS-Code-specific: links pointing at a `SKILL.md` file are rendered as a
+	// rich skill pill rather than a plain markdown link. The chat renderer's
+	// inline anchor widget keys off the `vscodeLinkType` query parameter (see
+	// `chatInlineAnchorWidget.ts`), so we tag the URI here on the client side
+	// rather than at the agent host. We do this whether or not the link came
+	// in pre-tagged so older sessions and other agent providers also benefit.
+	if (isSkill && !agentHostUri.query.includes('vscodeLinkType=')) {
+		const existing = agentHostUri.query;
+		agentHostUri = agentHostUri.with({ query: existing ? `${existing}&vscodeLinkType=skill` : 'vscodeLinkType=skill' });
+	}
 	const prefix = token.type === 'image' ? '![' : '[';
-	return `${prefix}](${newHref})`;
+	// Preserve the label for skill links (so the skill pill renderer can show
+	// the skill name) and for image alt text (accessibility — the inline
+	// anchor widget only applies to links, not images). For all other
+	// agent-host links, leave the text empty so the chat renderer's inline
+	// anchor widget takes over with its rich file-widget rendering.
+	// Escape only the characters that would break out of markdown link text
+	// syntax (`\` and `]`); a full markdown escape would leave visible
+	// backslashes in the skill pill which extracts text without re-parsing.
+	const text = isSkill || token.type === 'image' ? escapeMarkdownLinkLabel(token.text ?? '') : '';
+	return `${prefix}${text}](${agentHostUri.toString()})`;
+}
+
+/**
+ * Returns true when the URI's basename is `SKILL.md` (case-insensitive).
+ * Used to tag skill links so the chat renderer shows the rich skill pill
+ * instead of a plain markdown anchor.
+ */
+function isSkillFileUri(uri: URI): boolean {
+	const name = basename(uri);
+	return name.toLowerCase() === 'skill.md';
 }
 
 /**
@@ -572,6 +632,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 		};
+	} else if (getToolKind(tc) === 'search') {
+		invocation.toolSpecificData = { kind: 'search' };
 	}
 
 	return invocation;

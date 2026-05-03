@@ -6,25 +6,25 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { Menus } from '../../../browser/menus.js';
-import { getCustomizationTotalCount, getActiveItemProvider } from './customizationCounts.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
+import { Menus } from '../../../browser/menus.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
 const $ = DOM.$;
 
@@ -43,13 +43,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -65,7 +62,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			container.classList.add('collapsed');
 		}
 
-		// Header (clickable to toggle)
+		// Header
 		const header = DOM.append(container, $('.ai-customization-header'));
 		header.classList.toggle('collapsed', isCollapsed);
 
@@ -85,9 +82,36 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		headerButton.label = localize('customizations', "Customizations");
 		this._headerButton = headerButton;
 
-		const chevronContainer = DOM.append(headerButton.element, $('span.customization-link-counts'));
-		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
+		const headerActions = DOM.append(header, $('.ai-customization-header-actions'));
+		const openOverviewLabel = localize('openCustomizationsOverview', "Open Customizations Overview");
+		const openOverviewButton = this._register(new Button(headerActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: openOverviewLabel,
+			ariaLabel: openOverviewLabel,
+			supportIcons: true,
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryHoverBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryBorder: undefined,
+		}));
+		openOverviewButton.element.classList.add('ai-customization-overview-button');
+		openOverviewButton.label = `$(${Codicon.home.id})`;
+		this._register(openOverviewButton.onDidClick(e => {
+			e?.preventDefault();
+			this._openWelcomePage();
+		}));
+
+		// Chevron at far right (outside the link button so it sits to the
+		// right of the home overview action). Clicking the chevron toggles
+		// collapse — same as clicking the header label.
+		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
+		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
+		chevronContainer.type = 'button';
+		chevronContainer.setAttribute('aria-label', toggleCollapseLabel);
+		chevronContainer.title = toggleCollapseLabel;
 		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
+		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
 
 		// Toolbar container
@@ -104,40 +128,37 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			options?.onDidChangeLayout?.();
 		}));
 
-		let updateCountRequestId = 0;
-
-		const updateHeaderTotalCount = async () => {
-			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService, getActiveItemProvider(this.sessionsManagementService, this.harnessService));
-			if (requestId !== updateCountRequestId) {
-				return;
-			}
-
-			headerTotalCount.classList.toggle('hidden', totalCount === 0);
-			headerTotalCount.textContent = `${totalCount}`;
-		};
-
-		this._register(this.promptsService.onDidChangeCustomAgents(() => updateHeaderTotalCount()));
-		this._register(this.promptsService.onDidChangeSlashCommands(() => updateHeaderTotalCount()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => updateHeaderTotalCount()));
-		this._register(autorun(reader => {
-			this.mcpService.servers.read(reader);
-			updateHeaderTotalCount();
-		}));
-		this._register(autorun(reader => {
-			this.workspaceService.activeProjectRoot.read(reader);
-			updateHeaderTotalCount();
-		}));
-		this._register(autorun(reader => {
-			this.sessionsManagementService.activeSession.read(reader);
+		// Header total = sum of the same counts shown by each visible sidebar
+		// link (CUSTOMIZATION_ITEMS). This guarantees the header value equals
+		// the sum of the per-link badges by construction — and excludes
+		// sections like Prompts that the editor exposes but the sidebar does
+		// not surface, plus any sections the active harness hides via
+		// `hiddenSections` (e.g. Claude doesn't show Prompts; AHP doesn't
+		// show MCP Servers).
+		const totalCount = derived(reader => {
+			this.harnessService.activeHarness.read(reader);
 			this.harnessService.availableHarnesses.read(reader);
-			const provider = getActiveItemProvider(this.sessionsManagementService, this.harnessService);
-			if (provider) {
-				reader.store.add(provider.onDidChange(() => updateHeaderTotalCount()));
+			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
+			let total = 0;
+			for (const config of CUSTOMIZATION_ITEMS) {
+				if (hidden.has(config.section)) {
+					continue;
+				}
+				if (config.modelSection) {
+					total += this.itemsModel.getCount(config.modelSection).read(reader);
+				} else if (config.isMcp) {
+					total += this.mcpService.servers.read(reader).length;
+				} else if (config.isPlugins) {
+					total += this.itemsModel.getPluginCount().read(reader);
+				}
 			}
-			updateHeaderTotalCount();
+			return total;
+		});
+		this._register(autorun(reader => {
+			const value = totalCount.read(reader);
+			headerTotalCount.classList.toggle('hidden', value === 0);
+			headerTotalCount.textContent = `${value}`;
 		}));
-		updateHeaderTotalCount();
 
 		// Toggle collapse on header click
 		const transitionListener = this._register(new MutableDisposable());
@@ -157,6 +178,21 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
+		this._register(Gesture.addTarget(chevronContainer));
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(DOM.addDisposableListener(chevronContainer, eventType, e => {
+				DOM.EventHelper.stop(e, true);
+				toggleCollapse();
+			}));
+		}
+	}
+
+	private async _openWelcomePage(): Promise<void> {
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const editor = await this.editorService.openEditor(input, { pinned: true });
+		if (editor instanceof AICustomizationManagementEditor) {
+			editor.showWelcomePage();
+		}
 	}
 
 	focus(): void {

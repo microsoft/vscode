@@ -137,20 +137,15 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
 	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
 	if (options.modelCapabilities?.enableThinking) {
-		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		const thinkingExplicitlyDisabled = configuredBudget === 0;
-		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
+		const hardcodedBudget = 16000;
+		if (endpoint.supportsAdaptiveThinking) {
 			thinkingConfig = { type: 'adaptive', display: 'summarized' };
-		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
+		} else if (endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
-			const normalizedBudget = (configuredBudget && configuredBudget > 0)
-				? (configuredBudget < minBudget ? minBudget : configuredBudget)
-				: undefined;
+			const normalizedBudget = hardcodedBudget < minBudget ? minBudget : hardcodedBudget;
 			const maxBudget = endpoint.maxThinkingBudget ?? 32000;
-			const thinkingBudget = normalizedBudget
-				? Math.min(maxBudget, maxTokens - 1, normalizedBudget)
-				: undefined;
+			const thinkingBudget = Math.min(maxBudget, maxTokens - 1, normalizedBudget);
 			if (thinkingBudget) {
 				thinkingConfig = { type: 'enabled', budget_tokens: thinkingBudget };
 			}
@@ -181,11 +176,25 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
 	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
+	// "Last two messages" cache breakpoint strategy: place cache_control on the last
+	// two merged messages. This is gated behind an experiment and replaces the
+	// heuristic-based addCacheBreakpoints (which runs upstream in the prompt builder).
+	// Run before addToolsAndSystemCacheControl: shifting markers placed first,
+	// static markers fill the remainder. When the experiment is on we count slots
+	// once and thread the budget through both functions to avoid a redundant walk.
+	const useLastTwoMessages = configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, experimentationService);
+	let precomputedSlots: number | undefined;
+	if (useLastTwoMessages) {
+		precomputedSlots = maxCacheBreakpoints - countExistingMessageAndSystemCacheControl(messagesResult);
+		if (precomputedSlots > 0) {
+			precomputedSlots -= addLastTwoMessagesCacheControl(messagesResult, precomputedSlots);
+		}
+	}
+
 	// Add cache_control to the last tool and last system block so the stable tools+system
 	// prefix is cached across turns. Per the Anthropic docs, cache prefixes are created in
 	// order: tools → system → messages, and a max of 4 cache_control blocks is allowed.
-	// Count existing cache_control in messages+system first to stay within the limit.
-	addToolsAndSystemCacheControl(finalTools, messagesResult);
+	addToolsAndSystemCacheControl(finalTools, messagesResult, precomputedSlots);
 
 	// Guard: The Anthropic Messages API requires the conversation to end with a user message.
 	// A trailing assistant message is treated as a prefill request, which is not supported
@@ -478,6 +487,32 @@ function contentBlockSupportsCacheControl(block: ContentBlockParam): block is Ex
 const maxCacheBreakpoints = 4;
 
 /**
+ * Counts existing cache_control markers across system blocks and messages.
+ * Does not count tool-level cache_control — tools are managed separately by
+ * addToolsAndSystemCacheControl.
+ */
+function countExistingMessageAndSystemCacheControl(messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] }): number {
+	let count = 0;
+	if (messagesResult.system) {
+		for (const block of messagesResult.system) {
+			if (block.cache_control) {
+				count++;
+			}
+		}
+	}
+	for (const msg of messagesResult.messages) {
+		if (Array.isArray(msg.content)) {
+			for (const block of msg.content) {
+				if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
+					count++;
+				}
+			}
+		}
+	}
+	return count;
+}
+
+/**
  * Optionally adds cache_control to the tools and system prefix when there are spare
  * slots available (i.e. existing breakpoints < max). The last non-deferred tool is
  * marked first if possible, and the last system block is marked only while slots remain.
@@ -488,27 +523,11 @@ const maxCacheBreakpoints = 4;
 export function addToolsAndSystemCacheControl(
 	tools: AnthropicMessagesTool[],
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	slotsAvailable?: number,
 ): void {
-	// Count existing cache_control in messages and system
-	let existingCount = 0;
-	if (messagesResult.system) {
-		for (const block of messagesResult.system) {
-			if (block.cache_control) {
-				existingCount++;
-			}
-		}
+	if (slotsAvailable === undefined) {
+		slotsAvailable = maxCacheBreakpoints - countExistingMessageAndSystemCacheControl(messagesResult);
 	}
-	for (const msg of messagesResult.messages) {
-		if (Array.isArray(msg.content)) {
-			for (const block of msg.content) {
-				if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-					existingCount++;
-				}
-			}
-		}
-	}
-
-	let slotsAvailable = maxCacheBreakpoints - existingCount;
 	if (slotsAvailable <= 0) {
 		return;
 	}
@@ -532,6 +551,65 @@ export function addToolsAndSystemCacheControl(
 	if (lastSystemBlock && !lastSystemBlock.cache_control && slotsAvailable > 0) {
 		lastSystemBlock.cache_control = { type: 'ephemeral' };
 	}
+}
+
+/**
+ * Adds cache_control to the last two distinct messages in the conversation.
+ * This implements a simpler "shifting breakpoint" strategy: the last two messages
+ * always carry cache breakpoints, which naturally advances as the conversation grows.
+ * Combined with addToolsAndSystemCacheControl (which handles tools + system),
+ * this gives 4 breakpoints: 2 static (tools/system) + 2 shifting (last two messages).
+ *
+ * If a trailing message already carries a cache_control marker, it counts toward the
+ * "two distinct messages" target and no additional marker is added — protecting the
+ * intent against any upstream code that may have placed markers before this runs.
+ *
+ * Returns the number of new cache_control markers added (0–2).
+ */
+export function addLastTwoMessagesCacheControl(
+	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+	slotsAvailable?: number,
+): number {
+	if (slotsAvailable === undefined) {
+		slotsAvailable = maxCacheBreakpoints - countExistingMessageAndSystemCacheControl(messagesResult);
+	}
+	if (slotsAvailable <= 0) {
+		return 0;
+	}
+
+	// Walk messages in reverse, marking the last cacheable content block of the
+	// last two distinct messages. A message that already has a cache_control
+	// marker counts toward the target without a new marker being added.
+	const messages = messagesResult.messages;
+	let markedCount = 0;
+	let added = 0;
+	for (let i = messages.length - 1; i >= 0 && slotsAvailable > 0 && markedCount < 2; i--) {
+		const msg = messages[i];
+		if (!Array.isArray(msg.content) || msg.content.length === 0) {
+			continue;
+		}
+
+		const alreadyMarked = msg.content.some(b =>
+			typeof b === 'object' && 'cache_control' in b && b.cache_control
+		);
+		if (alreadyMarked) {
+			markedCount++;
+			continue;
+		}
+
+		// Find the last block in this message that supports cache_control
+		for (let j = msg.content.length - 1; j >= 0; j--) {
+			const block = msg.content[j];
+			if (typeof block === 'object' && contentBlockSupportsCacheControl(block)) {
+				block.cache_control = { type: 'ephemeral' };
+				slotsAvailable--;
+				markedCount++;
+				added++;
+				break;
+			}
+		}
+	}
+	return added;
 }
 
 export async function processResponseFromMessagesEndpoint(
@@ -576,7 +654,13 @@ export async function processResponseFromMessagesEndpoint(
 						telemetryDataWithUsage = telemetryData.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
-							totalTokens: completion.usage.total_tokens
+							totalTokens: completion.usage.total_tokens,
+							...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+							...(completion.usage.completion_tokens_details && {
+								reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+								acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+								rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+							}),
 						});
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -915,6 +999,7 @@ export class AnthropicMessagesProcessor {
 						total_tokens: computedPromptTokens + this.outputTokens,
 						prompt_tokens_details: {
 							cached_tokens: this.cacheReadTokens,
+							cache_creation_input_tokens: this.cacheCreationTokens,
 						},
 						completion_tokens_details: {
 							reasoning_tokens: 0,

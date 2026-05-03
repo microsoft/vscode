@@ -1072,7 +1072,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
+			&& (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced());
 		if (element.isComplete) {
 			return undefined;
 		}
@@ -1240,7 +1240,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true) {
+		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && (this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || this.accessibilityService.isMotionReduced())) {
 			return;
 		}
 
@@ -1915,7 +1915,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
-			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && element.sessionResource.scheme !== Schemas.vscodeLocalChatSession) // contributed sessions
+			&& (element.sessionResource.scheme !== Schemas.vscodeChatInput && getChatSessionType(element.sessionResource) !== localChatSessionType) // contributed sessions
 			&& part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'terminal'; // contributed serialized terminal tool invocations data
 		if (isTerminalTool && !isContributedTerminalToolInvocation) {
 			// don't pin terminals with confirmation
@@ -2748,6 +2748,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
+		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
@@ -2769,7 +2770,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCarouselFromTracking(context, part);
 
 			// Clear from input part (clear only the submitted carousel by its key)
-			const carouselKey = carousel.resolveId ?? `${responseId}_${context.contentIndex}`;
 			widget?.input.clearQuestionCarousel(undefined, carouselKey);
 		};
 
@@ -2790,10 +2790,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
 			}
 
-			// Clear the carousel from input part when response completes (stopped/canceled)
-			// Only clear if this response's carousel is currently displayed (pass responseId)
-			if (responseIsComplete && inputPartHasCarousel && responseId) {
-				widget?.input.clearQuestionCarousel(responseId);
+			// Clear the carousel from the input area once it has been answered or when the
+			// whole response completes. `carousel.isUsed` covers externally completed
+			// flows (for example, a remote answer winning over the local input UI).
+			if (inputPartHasCarousel) {
+				if (carousel.isUsed) {
+					widget?.input.clearQuestionCarousel(undefined, carouselKey);
+				} else if (responseIsComplete && responseId) {
+					widget?.input.clearQuestionCarousel(responseId);
+				}
 			}
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
@@ -2928,13 +2933,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// Build the inline progress message for the response stream. While
-		// pending, this is "Plan review required" with a spinner. Once the
-		// user has answered, it transitions to the action that was taken
-		// (e.g. "Approved plan", "Started implementation with autopilot"),
-		// and — when the user provided feedback — appends that feedback
-		// inline in the same progress row after a colon, collapsing
-		// whitespace so the transcript reads as a single line.
+		// Build the inline progress message. While pending: "Plan review
+		// required" with a spinner. Once answered: the action that was
+		// taken (e.g. "Approved plan", "Provided feedback"). The actual
+		// feedback text is rendered as a separate markdown block beneath
+		// rather than collapsed onto the progress line.
 		const renderProgress = (): IChatContentPart => {
 			const message = this.getPlanReviewProgressMessage(review);
 			if (!message) {
@@ -2947,12 +2950,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pending → used transition and trigger a re-render.
 			const renderedAsUsed = !!review.isUsed;
 			const isPending = !renderedAsUsed;
-			const feedbackText = renderedAsUsed && !review.data?.rejected ? review.data?.feedback?.trim() : undefined;
-			const fullMessage = feedbackText
-				? localize('chat.planReview.feedbackInline', "{0}: {1}", message, feedbackText.replace(/\s+/g, ' '))
-				: message;
+			const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
+			// Prefer the structured fields from `ChatPlanReviewPart`; fall
+			// back to the combined `feedback` string for older results.
+			let overall = data?.feedbackOverall?.trim();
+			const inlineMd = data?.feedbackInlineMarkdown?.trim();
+			if (!overall && !inlineMd && data?.feedback) {
+				overall = data.feedback.trim();
+			}
 			const content = new MarkdownString(undefined, { supportThemeIcons: true });
-			content.appendText(fullMessage);
+			if (overall) {
+				content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+			} else {
+				content.appendText(message);
+			}
+			if (inlineMd) {
+				content.appendMarkdown('\n\n');
+				content.appendMarkdown(inlineMd);
+			}
 			const progressPart = this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ content },

@@ -45,19 +45,21 @@ import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspace
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, formatModelDetails, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
+import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
+import { getCopilotCLIModelDetails, persistCopilotCLIResponseModelId } from './copilotCLIModelDetails';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
 
 const REPOSITORY_OPTION_ID = 'repository';
+const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
 const _sessionWorktreeIsolationCache = new Map<string, boolean>();
 const BRANCH_OPTION_ID = 'branch';
@@ -578,6 +580,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 	private _currentSessionId: string | undefined;
 	private _selectedRepoForBranches: { repoUri: URI; headBranchName: string | undefined } | undefined;
 	private _displayedOptionIds = new Set<string>();
+	private readonly _activeSessionsById = new Map<string, ICopilotCLISession>();
 	/**
 	 * ID of the last used folder in an untitled workspace (for defaulting selection).
 	 */
@@ -1076,7 +1079,10 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const wasBranchOptionShow = !!this._selectedRepoForBranches;
 		let triggerProviderOptionsChange = false;
 		for (const update of updates) {
-			if (update.optionId === REPOSITORY_OPTION_ID && typeof update.value === 'string' && this.sessionItemProvider.isNewSession(sessionId)) {
+			if (update.optionId === PERMISSION_LEVEL_OPTION_ID) {
+				const level = typeof update.value === 'string' ? update.value : undefined;
+				this._getActiveSessionForResourceId(sessionId)?.setPermissionLevel(level);
+			} else if (update.optionId === REPOSITORY_OPTION_ID && typeof update.value === 'string' && this.sessionItemProvider.isNewSession(sessionId)) {
 				const folder = vscode.Uri.file(update.value);
 				if (isEqual(folder, this._selectedRepoForBranches?.repoUri)) {
 					continue;
@@ -1181,6 +1187,29 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const isBranchOptionShow = !!this._selectedRepoForBranches;
 		if (wasBranchOptionShow !== isBranchOptionShow || triggerProviderOptionsChange) {
 			this.notifyProviderOptionsChange();
+		}
+	}
+
+	private _getActiveSessionForResourceId(sessionId: string): ICopilotCLISession | undefined {
+		return this._activeSessionsById.get(this.sessionItemProvider.untitledSessionIdMapping.get(sessionId) ?? sessionId)
+			?? this._activeSessionsById.get(sessionId);
+	}
+
+	trackActiveSession(resourceSessionId: string, session: ICopilotCLISession): void {
+		this._activeSessionsById.set(resourceSessionId, session);
+		this._activeSessionsById.set(session.sessionId, session);
+	}
+
+	untrackActiveSession(resourceSessionId: string | undefined, session: ICopilotCLISession | undefined, hasPendingRequests: boolean): void {
+		if (!session || hasPendingRequests) {
+			return;
+		}
+
+		if (resourceSessionId && this._activeSessionsById.get(resourceSessionId) === session) {
+			this._activeSessionsById.delete(resourceSessionId);
+		}
+		if (this._activeSessionsById.get(session.sessionId) === session) {
+			this._activeSessionsById.delete(session.sessionId);
 		}
 	}
 
@@ -1348,7 +1377,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const disposables = new DisposableStore();
 		let sessionId: string | undefined = undefined;
 		let sessionParentId: string | undefined = undefined;
+		let sessionPermissionLevel: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
+		let activeSession: ICopilotCLISession | undefined;
 		try {
 
 			const initialOptions = chatSessionContext?.initialSessionOptions;
@@ -1365,6 +1396,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 							_sessionBranch.set(sessionId, value);
 						} else if (opt.optionId === ISOLATION_OPTION_ID && value) {
 							_sessionIsolation.set(sessionId, value as IsolationMode);
+						} else if (opt.optionId === PERMISSION_LEVEL_OPTION_ID && value) {
+							sessionPermissionLevel = value;
 						} else if (opt.optionId === PARENT_SESSION_OPTION_ID && value) {
 							sessionParentId = value;
 						}
@@ -1453,7 +1486,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			};
 			const newBranch = (isUntitled && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : undefined;
 
-			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch, sessionParentId }, disposables, token);
+			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch, sessionParentId, permissionLevel: sessionPermissionLevel }, disposables, token);
 			const session = sessionResult.session;
 			if (session) {
 				disposables.add(session);
@@ -1472,6 +1505,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 
 			sdkSessionId = session.object.sessionId;
+			activeSession = session.object;
+			this.contentProvider.trackActiveSession(sessionId, activeSession);
 			const modeInstructions = this.createModeInstructions(request);
 			this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
@@ -1516,36 +1551,13 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// Build the result before the untitled-session swap below. After the swap,
 			// the chat UI reloads history from the SDK and discards the in-memory
 			// result, which would drop our `details` field on the first request.
-			const models = await this.copilotCLIModels.getModels().catch(ex => {
-				this.logService.error(ex, 'Failed to get models');
-				return [];
-			});
-			const modelInfo = models.find(m => m.id === model?.model);
-			const result: vscode.ChatResult = modelInfo
-				? { details: formatModelDetails(modelInfo) }
-				: {};
+			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled);
+
+			persistCopilotCLIResponseModelId(sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService);
 
 			if (isUntitled && !token.isCancellationRequested) {
-				// Its possible the user tried steering, in that case, we should NOT swap the session item because the session.
-				// Else the messages may get lost (wait CHECK_FOR_STEERING_DELAYms to check if we have pending steering requests)
-				await new Promise<void>(resolve => disposableTimeout(() => resolve(), CHECK_FOR_STEERING_DELAY, this._store));
-				const pendingRequests = this.pendingRequestsForUntitledSessions.get(id);
-				if (pendingRequests) {
-					pendingRequests.delete(request.id);
-					// If we have more requests, that means we had the original request as well as at least one another steering request.
-					// Lets not swap anything here, until all pending requests have been completed.
-					if (pendingRequests.size > 0) {
-						return result;
-					}
-				}
-
-				// Delete old information stored for untitled session id.
-				_sessionBranch.delete(id);
-				_sessionIsolation.delete(id);
-				this.sessionItemProvider.untitledSessionIdMapping.delete(id);
-				this.sessionItemProvider.sdkToUntitledUriMapping.delete(session.object.sessionId);
-				this.folderRepositoryManager.deleteNewSessionFolder(id);
-				this.sessionItemProvider.swap(chatSessionContext.chatSessionItem, { resource: SessionIdForCLI.getResource(session.object.sessionId), label: request.prompt });
+				this.scheduleUntitledSessionSwap(id, request.id, request.prompt, session.object.sessionId, chatSessionContext.chatSessionItem);
 			}
 
 			return result;
@@ -1565,11 +1577,37 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					}
 				}
 			}
+			this.contentProvider.untrackActiveSession(sessionId, activeSession, sdkSessionId ? this.pendingRequestBySession.has(sdkSessionId) : false);
 			if (chatSessionContext?.chatSessionItem.resource) {
 				this.sessionItemProvider.notifySessionsChange();
 			}
 			disposables.dispose();
 		}
+	}
+
+	private scheduleUntitledSessionSwap(untitledSessionId: string, requestId: string, requestPrompt: string, sdkSessionId: string, chatSessionItem: vscode.ChatSessionItem): void {
+		// If the user tried steering, do not swap the session item yet or messages may get lost.
+		// Wait CHECK_FOR_STEERING_DELAYms to check if there are pending steering requests.
+		disposableTimeout(() => {
+			const pendingRequests = this.pendingRequestsForUntitledSessions.get(untitledSessionId);
+			if (pendingRequests) {
+				pendingRequests.delete(requestId);
+				// If we have more requests, there was the original request plus at least one steering request.
+				// Do not swap until all pending requests have been completed.
+				if (pendingRequests.size > 0) {
+					return;
+				}
+				this.pendingRequestsForUntitledSessions.delete(untitledSessionId);
+			}
+
+			// Delete old information stored for untitled session id.
+			_sessionBranch.delete(untitledSessionId);
+			_sessionIsolation.delete(untitledSessionId);
+			this.sessionItemProvider.untitledSessionIdMapping.delete(untitledSessionId);
+			this.sessionItemProvider.sdkToUntitledUriMapping.delete(sdkSessionId);
+			this.folderRepositoryManager.deleteNewSessionFolder(untitledSessionId);
+			this.sessionItemProvider.swap(chatSessionItem, { resource: SessionIdForCLI.getResource(sdkSessionId), label: requestPrompt });
+		}, CHECK_FOR_STEERING_DELAY, this._store);
 	}
 
 	private async lockRepoOptionForSession(context: vscode.ChatContext, token: vscode.CancellationToken) {
@@ -1831,7 +1869,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
+	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
 		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
 		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
@@ -1872,7 +1910,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			void this.workspaceFolderService.trackSessionWorkspaceFolder(session.object.sessionId, sessionWorkingDirectory.fsPath, session.object.workspace.repositoryProperties);
 		}
 		disposables.add(session.object.attachStream(stream));
-		const permissionLevel = request.permissionLevel;
+		const permissionLevel = request.permissionLevel ?? options.permissionLevel;
 		session.object.setPermissionLevel(permissionLevel);
 
 		return { session, trusted };
