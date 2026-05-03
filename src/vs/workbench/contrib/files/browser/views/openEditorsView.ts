@@ -468,12 +468,20 @@ export class OpenEditorsView extends ViewPane {
 		if (event.affectsConfiguration('explorer.openEditors')) {
 			this.updateSize();
 		}
-		// Trigger a 'repaint' when decoration settings change or the sort order changed
-		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
+
+		if (event.affectsConfiguration('explorer.openEditors.sortOrder')) {
 			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
 			if (this.dnd) {
 				this.dnd.sortOrder = this.sortOrder;
 			}
+		}
+
+		// Trigger a 'repaint'
+		if (
+			event.affectsConfiguration('explorer.decorations') ||
+			event.affectsConfiguration('explorer.openEditors.sortOrder') ||
+			event.affectsConfiguration('explorer.openEditors.showTabIndex')
+		) {
 			this.listRefreshScheduler?.schedule();
 		}
 	}
@@ -672,6 +680,11 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
 		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
+		const showTabIndex = this.configurationService.getValue<boolean>('explorer.openEditors.showTabIndex');
+		const editorIndex = openedEditor.group.getIndexOfEditor(openedEditor.editor);
+		const namePrefix = showTabIndex
+			? `${editorIndex + 1}: `
+			: undefined;
 		templateData.root.setResource({
 			resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
@@ -681,7 +694,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG),
-			icon: editor.getIcon()
+			icon: editor.getIcon(),
+			namePrefix
 		});
 		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
 		if (!templateData.actionBar.hasAction(editorAction)) {
