@@ -6,7 +6,7 @@
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isAbsolute } from '../../../../base/common/path.js';
+import { posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -72,6 +72,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_cwd',
 			executeImmediately: false,
 			locations: [ChatAgentLocation.Chat],
+			sessionTypes: [SessionType.Local],
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const requestedPath = prompt.trim();
 			const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
@@ -97,11 +98,12 @@ export class ChatSlashCommandsContribution extends Disposable {
 			}
 
 			let resolvedUri: URI | undefined;
-			if (isAbsolute(requestedPath)) {
+			if (posix.isAbsolute(requestedPath) || win32.isAbsolute(requestedPath)) {
+				const normalizedUri = URI.file(requestedPath);
 				if (workspaceFolder) {
-					resolvedUri = workspaceFolder.uri.with({ path: requestedPath });
+					resolvedUri = workspaceFolder.uri.with({ path: normalizedUri.path });
 				} else {
-					resolvedUri = URI.file(requestedPath);
+					resolvedUri = normalizedUri;
 				}
 			} else if (workspaceFolder) {
 				resolvedUri = workspaceFolder.toResource(requestedPath);
