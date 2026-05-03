@@ -56,7 +56,8 @@ export class CloudSessionStoreClient {
 
 	/**
 	 * Execute a SQL query against the cloud session store (user-scoped).
-	 * Returns rows on success, an error string on query failure, or undefined on auth/network failure.
+	 * Returns rows on success, an error string on query errors (4xx bad SQL),
+	 * or undefined on auth/network/infrastructure failures (401, 403, network errors).
 	 */
 	async executeQuery(sql: string): Promise<{ rows: Record<string, unknown>[]; truncated: boolean } | { error: string } | undefined> {
 		try {
@@ -85,6 +86,12 @@ export class CloudSessionStoreClient {
 			});
 
 			if (!res.ok) {
+				// Auth/permission failures → return undefined so callers fall back to local
+				if (res.status === 401 || res.status === 403) {
+					return undefined;
+				}
+
+				// Query errors (bad SQL, etc.) → surface error to model
 				try {
 					const body = await res.json() as { error?: string; message?: string };
 					const msg = body?.error ?? body?.message ?? `HTTP ${res.status}`;

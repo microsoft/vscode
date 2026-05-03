@@ -139,16 +139,15 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 
 		// Determine query target based on consent
 		const hasCloud = this._indexingPreference.hasCloudConsent();
+		const startTime = Date.now();
+		let source = hasCloud ? 'cloud' : 'local';
 
 		try {
 			let rows: Record<string, unknown>[];
 			let truncated = false;
-			let source: string;
-			const startTime = Date.now();
 
 			if (hasCloud) {
 				// Cloud is enabled — model receives DuckDB description via alternativeDefinition
-				source = 'cloud';
 				const client = new CloudSessionStoreClient(this._tokenManager, this._authService, this._fetcherService);
 				const cloudResult = await client.executeQuery(sql);
 
@@ -175,7 +174,6 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 					truncated = cloudResult.truncated;
 				}
 			} else {
-				source = 'local';
 				try {
 					rows = this._sessionStore.executeReadOnly(sql);
 				} catch (authErr) {
@@ -200,7 +198,7 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			return new LanguageModelToolResult([new LanguageModelTextPart(result)]);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			this._sendTelemetry(hasCloud ? 'cloud' : 'local', 0, 0, false, message.substring(0, 100));
+			this._sendTelemetry(source, 0, Date.now() - startTime, false, message.substring(0, 100));
 			return new LanguageModelToolResult([new LanguageModelTextPart(`Error: ${message}`)]);
 		}
 	}
@@ -525,10 +523,22 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			return tool;
 		}
 
-		// When cloud is enabled, swap the description to use DuckDB syntax
+		// When cloud is enabled, swap the description and inputSchema to use DuckDB syntax
+		const cloudInputSchema = {
+			...tool.inputSchema,
+			properties: {
+				...(tool.inputSchema as Record<string, unknown>).properties as Record<string, unknown>,
+				query: {
+					type: 'string',
+					description: 'A single DuckDB SQL query to execute. Required when action is \'query\'. Read-only queries only (SELECT, WITH). Use now() - INTERVAL for date math, ILIKE for text search. Only one statement per call — do not combine multiple queries with semicolons.',
+				},
+			},
+		};
+
 		return {
 			...tool,
 			description: CLOUD_MODEL_DESCRIPTION,
+			inputSchema: cloudInputSchema,
 		};
 	}
 }
