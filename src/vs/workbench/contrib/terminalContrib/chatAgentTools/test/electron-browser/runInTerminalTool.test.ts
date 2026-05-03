@@ -294,7 +294,7 @@ suite('RunInTerminalTool', () => {
 	}
 
 	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
-		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, CancellationToken.None);
+		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
 	}
 
 	async function assertAutomaticUnsandboxRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined): Promise<void> {
