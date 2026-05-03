@@ -13,6 +13,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -884,14 +885,17 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('subscriber refcount eviction', () => {
 
-		test('an idle session created in this lifetime is evicted when subscribers drop', async () => {
+		test('an empty session created in this lifetime stays observable until GC fires', async () => {
 			service.registerProvider(copilotAgent);
 			const sessionResource = await service.createSession({ provider: 'copilot' });
 
 			service.addSubscriber(sessionResource, 'client-1');
 			service.unsubscribe(sessionResource, 'client-1');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'idle created session should be evicted; next subscribe will rehydrate from the agent');
+			// Empty sessions are routed to the GC pipeline rather than the
+			// eviction pipeline, so their state stays observable in the
+			// grace window for a re-subscribe to find.
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'empty created session must remain observable for the GC grace window');
 		});
 
 		test('a session with an active turn is NOT evicted when its last subscriber drops', async () => {
@@ -982,6 +986,111 @@ suite('AgentService (node dispatcher)', () => {
 			service.unsubscribe(childUri, 'client-child');
 			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'parent evicted after subagent drops');
 			assert.strictEqual(service.stateManager.getSessionState(childUri.toString()), undefined, 'child also evicted with parent');
+		});
+	});
+
+	// ---- empty-session GC ----------------------------------------------
+
+	suite('empty-session GC', () => {
+
+		test('an empty unsubscribed session is disposed after the grace period', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Before the grace period, dispose has not been called.
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'no GC before grace expires');
+
+				// After the grace period, the session is disposed entirely.
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.deepStrictEqual(
+					copilotAgent.disposeSessionCalls.map(u => u.toString()),
+					[sessionResource.toString()],
+					'GC fired after grace period',
+				);
+			});
+		});
+
+		test('a session with at least one turn is not GC-disposed', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					{ type: ActionType.SessionTurnStarted, session: sessionResource.toString(), turnId: 'turn-1', userMessage: { text: 'hello' } },
+					'client-1', 1,
+				);
+				service.dispatchAction(
+					{ type: ActionType.SessionTurnComplete, session: sessionResource.toString(), turnId: 'turn-1' },
+					'client-1', 2,
+				);
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'session with turns must not be GC-disposed');
+			});
+		});
+
+		test('resubscribe within the grace period cancels GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				// Resubscribe before the timer fires.
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.addSubscriber(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'GC must be cancelled after resubscribe');
+			});
+		});
+
+		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(sessionResource, 'client-1');
+
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Old timer was cancelled; a fresh 30s timer is now armed.
+				await new Promise(resolve => setTimeout(resolve, 29_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'rearmed timer not yet fired');
+				await new Promise(resolve => setTimeout(resolve, 2_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 1, 'rearmed timer fires after fresh 30s');
+			});
+		});
+
+		test('createSession on the same URI cancels a pending GC', () => {
+			// Models the reconnect path: client subscribes to a session,
+			// drops the subscription (GC armed), then re-issues
+			// `createSession` for the same URI before the grace expires.
+			// Without explicit cancellation, the timer would fire and
+			// dispose the just-revived session.
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				// Re-issue createSession mid-grace.
+				await new Promise(resolve => setTimeout(resolve, 5_000));
+				await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
+
+				// Wait past the original grace window. If GC wasn't
+				// cancelled by createSession, dispose would have fired.
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'createSession on same URI must cancel pending GC');
+			});
 		});
 	});
 

@@ -499,29 +499,27 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
-			// Fail fast inside the SDK factory so we don't need to wire up a
-			// real raw session. The seeding of activeClient and the plugin
-			// sync both happen before `client.createSession` is invoked.
-			client.createSession = async () => { throw new Error('sentinel'); };
+			// `createSession` now creates a provisional record without
+			// touching the SDK; activeClient seeding and plugin sync happen
+			// inline before the provisional record is stored.
+			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
 
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const customizations: CustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
-				await assert.rejects(
-					agent.createSession({
-						session: AgentSession.uri('copilotcli', 'test-session'),
-						workingDirectory: URI.file('/workspace'),
-						activeClient: {
-							clientId: 'client-1',
-							tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-							customizations,
-						},
-					}),
-					(err: Error) => /sentinel/.test(err.message),
-				);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'test-session'),
+					workingDirectory: URI.file('/workspace'),
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+						customizations,
+					},
+				});
 
+				assert.strictEqual(result.provisional, true);
 				assert.deepStrictEqual(pluginManager.calls, [{ clientId: 'client-1', customizations }]);
 			} finally {
 				await disposeAgent(agent);
@@ -532,25 +530,84 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
-			client.createSession = async () => { throw new Error('sentinel'); };
+			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
 
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				await assert.rejects(
-					agent.createSession({
-						session: AgentSession.uri('copilotcli', 'test-session-2'),
-						workingDirectory: URI.file('/workspace'),
-					}),
-					(err: Error) => /sentinel/.test(err.message),
-				);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'test-session-2'),
+					workingDirectory: URI.file('/workspace'),
+				});
 
+				assert.strictEqual(result.provisional, true);
 				assert.deepStrictEqual(pluginManager.calls, []);
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
+	});
+
+	suite('provisional sessions', () => {
+
+		test('createSession does not call client.createSession or create worktrees', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const gitService = new TestAgentHostGitService();
+			let clientCreateCalls = 0;
+			let worktreeCalls = 0;
+			client.createSession = async () => { clientCreateCalls++; throw new Error('SDK not expected'); };
+			const origAddWorktree = gitService.addWorktree.bind(gitService);
+			gitService.addWorktree = async (...args) => { worktreeCalls++; return origAddWorktree(...args); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, gitService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-1'),
+					workingDirectory: URI.file('/workspace'),
+					config: { isolation: 'worktree', branch: 'main' },
+				});
+
+				assert.strictEqual(result.provisional, true);
+				assert.strictEqual(clientCreateCalls, 0, 'client.createSession should not be called for provisional sessions');
+				assert.strictEqual(worktreeCalls, 0, 'no worktree should be created for provisional sessions');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession on provisional session does not touch SDK or worktree', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const gitService = new TestAgentHostGitService();
+			let removeWorktreeCalls = 0;
+			const origRemoveWorktree = gitService.removeWorktree.bind(gitService);
+			gitService.removeWorktree = async (...args) => { removeWorktreeCalls++; return origRemoveWorktree(...args); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, gitService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-2'),
+					workingDirectory: URI.file('/workspace'),
+				});
+
+				await agent.disposeSession(result.session);
+
+				assert.strictEqual(removeWorktreeCalls, 0, 'no worktree to remove for provisional');
+				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		// Forking a provisional session is no longer a special case: the agent
+		// service drops `config.fork` for sources with no turns, so the call
+		// reduces to a plain new-session create.
 	});
 
 	suite('onClientToolCallComplete', () => {

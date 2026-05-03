@@ -264,7 +264,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						const userContent = typeof lastUserMsg.content === 'string'
 							? lastUserMsg.content
 							: JSON.stringify(lastUserMsg.content);
-						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent));
+						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent, this._otelService.config.maxAttributeSizeChars));
 					}
 					// System instructions — check messages array, top-level system (Anthropic), or instructions (Responses API)
 					const systemMsg = capiMessages?.find(m => m.role === 'system');
@@ -297,14 +297,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					const capiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>> | undefined;
 					if (capiMessages) {
 						// Normalize provider-specific content (Anthropic tool_use/tool_result, OpenAI tool messages) to OTel schema
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages))));
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages)), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per
 					// OTel GenAI semantic conventions (issue #300318).
 					const toolDefs = toToolDefinitions(requestBody.tools);
 					if (toolDefs) {
-						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
+						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Cache-relevant request options. Anything in this blob, when changed
 					// between two requests, will invalidate the prompt cache even when
@@ -313,7 +313,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					// signature diff.
 					const requestOptions = pickCacheRelevantRequestOptions(requestBody);
 					if (requestOptions) {
-						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions)));
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 				tokenCount = await countTokens();
@@ -434,7 +434,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						}
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 						// Capture reasoning/thinking text if present
 						const hasThinking = streamRecorder.deltas.some(d => d.thinking);
@@ -447,7 +447,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 									return Array.isArray(t.text) ? t.text.join('') : (t.text ?? '');
 								});
 							const reasoningText = thinkingTexts.join('');
-							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]'));
+							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]', this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 

@@ -896,6 +896,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
+		const t0 = Date.now();
+		this._logService.trace(`[MainThreadChatSessions] _provideChatSessionContent start handle=${providerHandle} uri=${sessionResource.toString()}`);
 		warnOnUntitledSessionResource(sessionResource, this._logService);
 
 		let session = this._activeSessions.get(sessionResource);
@@ -932,6 +934,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					}
 				}
 			}
+			this._logService.trace(`[MainThreadChatSessions] _provideChatSessionContent done total=${Date.now() - t0}ms handle=${providerHandle} uri=${sessionResource.toString()}`);
 			return session;
 		} catch (error) {
 			session.dispose();

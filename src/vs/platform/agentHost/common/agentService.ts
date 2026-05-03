@@ -126,6 +126,27 @@ export interface IAgentCreateSessionResult {
 	readonly project?: IAgentSessionProjectInfo;
 	/** The resolved working directory, which may differ from the requested one (e.g. worktree). */
 	readonly workingDirectory?: URI;
+	/**
+	 * `true` when the agent only allocated an in-memory placeholder for this
+	 * session (no SDK session, no worktree, no on-disk state). Materialization
+	 * happens lazily on the first {@link IAgent.sendMessage}, at which point
+	 * the agent fires {@link IAgent.onDidMaterializeSession}. The
+	 * {@link IAgentService} uses this flag to defer the `sessionAdded` protocol
+	 * notification so observers don't see the session in their list until it
+	 * has been persisted.
+	 */
+	readonly provisional?: boolean;
+}
+
+/**
+ * Payload of {@link IAgent.onDidMaterializeSession}. Fired once per session
+ * when a previously {@link IAgentCreateSessionResult.provisional} session has
+ * its SDK session, worktree (if any), and on-disk metadata in place.
+ */
+export interface IAgentMaterializeSessionEvent {
+	readonly session: URI;
+	readonly workingDirectory: URI | undefined;
+	readonly project: IAgentSessionProjectInfo | undefined;
 }
 
 export type AgentProvider = string;
@@ -379,6 +400,16 @@ export interface IAgent {
 
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<AgentSignal>;
+
+	/**
+	 * Fires once when a previously
+	 * {@link IAgentCreateSessionResult.provisional} session has been
+	 * materialized — i.e. its SDK session, worktree (if any), and on-disk
+	 * metadata are all in place. The {@link IAgentService} uses this event
+	 * to fire the deferred `sessionAdded` notification with the now-final
+	 * summary.
+	 */
+	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
