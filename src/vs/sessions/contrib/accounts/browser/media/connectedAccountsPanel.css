@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sota-accounts-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 16px;
+	box-sizing: border-box;
+}
+
+.sota-accounts-panel-header {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.sota-accounts-panel-header h2 {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sota-accounts-panel-subtitle {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.sota-accounts-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* ── Provider row ── */
+
+.sota-accounts-panel-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	transition: border-color 120ms ease-out, opacity 120ms ease-out;
+}
+
+.sota-accounts-panel-row.sota-status-connected {
+	border-color: var(--vscode-charts-green, var(--vscode-focusBorder));
+}
+
+.sota-accounts-panel-row.sota-status-refresh-failed {
+	border-color: var(--vscode-errorForeground);
+}
+
+.sota-accounts-panel-row.sota-status-connecting,
+.sota-accounts-panel-row.sota-status-disconnecting {
+	opacity: 0.75;
+}
+
+.sota-accounts-panel-row-icon .codicon {
+	font-size: 18px;
+	color: var(--vscode-foreground);
+}
+
+.sota-accounts-panel-row-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.sota-accounts-panel-row-title {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+/* ── Meta row (status, expiry, quota) ── */
+
+.sota-accounts-panel-row-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	min-height: 14px;
+}
+
+.sota-accounts-panel-row-status {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sota-status-connected .sota-accounts-panel-row-status {
+	color: var(--vscode-charts-green, var(--vscode-foreground));
+}
+
+.sota-status-refresh-failed .sota-accounts-panel-row-status {
+	color: var(--vscode-errorForeground);
+}
+
+.sota-accounts-panel-row-expiry {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sota-accounts-panel-row-quota {
+	font-size: 11px;
+	padding: 0 5px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+/* ── Action button ── */
+
+.sota-accounts-panel-row-action {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.sota-accounts-panel-row-action .monaco-button {
+	min-width: 84px;
+	padding: 4px 12px;
+	font-size: 11px;
+}
