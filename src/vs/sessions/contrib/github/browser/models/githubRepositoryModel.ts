@@ -3,13 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubRepository } from '../../common/types.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 import { GitHubRepositoryFetcher } from '../fetchers/githubRepositoryFetcher.js';
 
 const LOG_PREFIX = '[GitHubRepositoryModel]';
+
+export class GitHubRepositoryModelReferenceCollection extends ReferenceCollection<GitHubRepositoryModel> {
+	private readonly _fetcher: GitHubRepositoryFetcher;
+
+	constructor(
+		apiClient: GitHubApiClient,
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+		this._fetcher = new GitHubRepositoryFetcher(apiClient);
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string): GitHubRepositoryModel {
+		this._logService.trace(`[GitHubRepositoryModelReferenceCollection][createReferencedObject] Creating repository model for ${key}`);
+		return new GitHubRepositoryModel(owner, repo, this._fetcher, this._logService);
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubRepositoryModel): void {
+		this._logService.trace(`[GitHubRepositoryModelReferenceCollection][destroyReferencedObject] Disposing repository model for ${key}`);
+		object.dispose();
+	}
+}
 
 /**
  * Reactive model for a GitHub repository. Wraps fetcher data

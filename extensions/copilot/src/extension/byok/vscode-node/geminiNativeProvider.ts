@@ -217,7 +217,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						if (responseText) { parts.push({ type: 'text', content: responseText }); }
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 				}
@@ -350,7 +350,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				// per OTel GenAI semantic conventions (issue #300318).
 				const toolDefs = toToolDefinitions(options.tools);
 				if (toolDefs) {
-					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
@@ -372,7 +372,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						}
 						return { role, parts };
 					});
-					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs)));
+					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}
 			try {

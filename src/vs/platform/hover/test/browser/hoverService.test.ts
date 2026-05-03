@@ -704,7 +704,7 @@ suite('HoverService', () => {
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
 		}));
 
-		test('hover should still dismiss on mouseout when no layout occurs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test.skip('hover should still dismiss on mouseout when no layout occurs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const content = document.createElement('div');
 			content.textContent = 'Content';

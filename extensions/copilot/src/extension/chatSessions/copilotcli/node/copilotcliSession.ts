@@ -966,13 +966,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
-					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
 				// Emit user_message event so chronicle can extract turns and summary
-				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars) });
 
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
@@ -1439,7 +1439,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this.logService.trace(`[CopilotCLISession] Hook ${event.data.hookType} started (${event.data.hookInvocationId})`);
 				let input: string | undefined;
 				try {
-					input = truncateForOTel(JSON.stringify(event.data.input));
+					input = truncateForOTel(JSON.stringify(event.data.input), this._otelService.config.maxAttributeSizeChars);
 				} catch { /* swallow serialization errors */ }
 				this._bridgeProcessor?.stashHookInput(event.data.hookInvocationId, event.data.hookType, input);
 			})));
@@ -1449,7 +1449,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				let output: string | undefined;
 				if (event.data.success) {
 					try {
-						output = truncateForOTel(JSON.stringify(event.data.output));
+						output = truncateForOTel(JSON.stringify(event.data.output), this._otelService.config.maxAttributeSizeChars);
 					} catch { /* swallow serialization errors */ }
 				}
 				this._bridgeProcessor?.stashHookEnd(
