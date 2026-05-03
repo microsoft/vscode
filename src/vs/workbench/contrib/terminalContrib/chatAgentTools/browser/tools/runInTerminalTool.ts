@@ -1204,10 +1204,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
 		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
-		// When sandbox is not wrapping the command, apply the session CWD override
-		// by prepending a cd command. The sandbox wrapper handles this internally
-		// when sandboxing is enabled.
-		if (!didSandboxWrapCommand && toolSpecificData.cwd) {
+		// Prepend a cd command to ensure the terminal runs in the resolved CWD.
+		// This works both with and without sandbox wrapping: the outer cd sets
+		// the shell's working directory before launching the sandbox runtime,
+		// which inherits it.
+		if (toolSpecificData.cwd) {
 			const cwdPath = URI.revive(toolSpecificData.cwd).fsPath;
 			const os = await this._osBackend;
 			if (os === OperatingSystem.Windows) {
