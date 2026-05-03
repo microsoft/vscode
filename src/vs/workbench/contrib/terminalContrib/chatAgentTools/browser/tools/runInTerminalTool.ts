@@ -77,6 +77,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
@@ -550,6 +551,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 	) {
 		super();
 
@@ -642,6 +644,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
 			(async () => {
+				if (chatSessionResource) {
+					const sessionCwd = this._workingDirectoryResolver.getSessionWorkingDirectory(chatSessionResource);
+					if (sessionCwd) {
+						return sessionCwd;
+					}
+				}
 				let cwd = await instance?.getCwdResource();
 				if (!cwd) {
 					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
