@@ -12,7 +12,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { CommandLineSandboxRewriter } from '../../browser/tools/commandLineRewriter/commandLineSandboxRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
 import type { TreeSitterCommandParser } from '../../browser/treeSitterCommandParser.js';
-import { ITerminalSandboxService, TerminalSandboxEnablement, TerminalSandboxPrerequisiteCheck } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../common/terminalSandboxService.js';
 
 suite('CommandLineSandboxRewriter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +26,8 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
-			isEnabled: async () => TerminalSandboxEnablement.Off,
+			isEnabled: async () => false,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command, _requestUnsandboxedExecution) => {
 				return {
 					command,

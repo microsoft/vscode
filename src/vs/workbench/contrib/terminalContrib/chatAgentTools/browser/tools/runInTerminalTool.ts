@@ -77,7 +77,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { isTerminalSandboxEnabled, ITerminalSandboxService, TerminalSandboxEnablement, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
@@ -276,14 +276,14 @@ export async function createRunInTerminalToolData(
 	const terminalSandboxService = accessor.get(ITerminalSandboxService);
 
 	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
-	const [shell, os, sandboxEnablement] = await Promise.all([
+	const [shell, os, isSandboxEnabled, isSandboxAllowNetworkEnabled] = await Promise.all([
 		profileFetcher.getCopilotShell(),
 		profileFetcher.osBackend,
 		terminalSandboxService.isEnabled(),
+		terminalSandboxService.isSandboxAllowNetworkEnabled(),
 	]);
 
-	const isSandboxEnabled = isTerminalSandboxEnabled(sandboxEnablement);
-	const networkDomains = sandboxEnablement === TerminalSandboxEnablement.On ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
+	const networkDomains = isSandboxEnabled && !isSandboxAllowNetworkEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
@@ -654,8 +654,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.checkForSandboxingPrereqs()
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-		const isTerminalSandboxEnabled = sandboxPrereqs.enabled;
-		const explicitUnsandboxRequest = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
+		const isSandboxEnabled = sandboxPrereqs.enabled;
+		const explicitUnsandboxRequest = isSandboxEnabled && args.requestUnsandboxedExecution === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
 
@@ -1196,7 +1196,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		);
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
-		const isSandboxEnabled = isTerminalSandboxEnabled(await this._terminalSandboxService.isEnabled());
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
 		const commandLineForMetadata = isSandboxEnabled
 			? toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.original
 			: undefined;

@@ -14,7 +14,7 @@ import type { ICommandLineAnalyzerOptions } from '../../browser/tools/commandLin
 import { CommandLineSandboxAnalyzer } from '../../browser/tools/commandLineAnalyzer/commandLineSandboxAnalyzer.js';
 import { TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
-import { ITerminalSandboxService, TerminalSandboxEnablement } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 
 suite('CommandLineSandboxAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +33,8 @@ suite('CommandLineSandboxAnalyzer', () => {
 		}, store);
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
-			isEnabled: async () => sandboxEnabled ? TerminalSandboxEnablement.On : TerminalSandboxEnablement.Off,
+			isEnabled: async () => sandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 		} as unknown as ITerminalSandboxService);
 
 		analyzer = store.add(instantiationService.createInstance(CommandLineSandboxAnalyzer));

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { isTerminalSandboxEnabled, ITerminalSandboxService } from '../../../common/terminalSandboxService.js';
+import { ITerminalSandboxService } from '../../../common/terminalSandboxService.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 
 export class CommandLineSandboxAnalyzer extends Disposable implements ICommandLineAnalyzer {
@@ -23,7 +23,7 @@ export class CommandLineSandboxAnalyzer extends Disposable implements ICommandLi
 
 	async analyze(_options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
 		const isAutoApproveEnabled = this._isAutoApproveEnabled();
-		if (!isTerminalSandboxEnabled(await this._sandboxService.isEnabled())) {
+		if (!(await this._sandboxService.isEnabled())) {
 			return {
 				isAutoApproveAllowed: isAutoApproveEnabled,
 			};

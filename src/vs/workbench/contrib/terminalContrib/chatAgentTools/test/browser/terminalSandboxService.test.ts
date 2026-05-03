@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxEnablement, TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -208,8 +208,8 @@ suite('TerminalSandboxService - network domains', () => {
 	test('dependency checks should not be called for isEnabled', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), TerminalSandboxEnablement.On, 'Sandbox should be enabled when dependencies are present');
-		strictEqual(await sandboxService.isEnabled(), TerminalSandboxEnablement.On, 'Sandbox should stay enabled on subsequent checks');
+		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should be enabled when dependencies are present');
+		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should stay enabled on subsequent checks');
 		strictEqual(sandboxHelperService.callCount, 0, 'Dependency checks should not be called for isEnabled');
 	});
 
@@ -218,7 +218,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), TerminalSandboxEnablement.NetworkAllowed, 'Allow network mode should keep sandboxing enabled with network access allowed');
+		strictEqual(await sandboxService.isEnabled(), true, 'Allow network mode should keep sandboxing enabled');
+		strictEqual(await sandboxService.isSandboxAllowNetworkEnabled(), true, 'Allow network mode should report network access allowed');
 	});
 
 	test('should report dependency prereq failures', async () => {
@@ -904,7 +905,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), TerminalSandboxEnablement.Off, 'Deprecated settings should not be used when only non-user scopes are set');
+		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {
