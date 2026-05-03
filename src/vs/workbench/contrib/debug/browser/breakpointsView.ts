@@ -41,6 +41,7 @@ import { TextEditorSelectionRevealType } from '../../../../platform/editor/commo
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -346,6 +347,16 @@ export class BreakpointsView extends ViewPane {
 
 	get inputBoxData(): InputBoxData | undefined {
 		return this._inputBoxData;
+	}
+
+	toggleBreakpointEnabled(): void {
+		const focused = this.tree.getFocus();
+		if (focused?.length > 0) {
+			const element = focused[0];
+			if (element && !(element instanceof BreakpointsFolderItem)) {
+				this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
+			}
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -2467,5 +2478,25 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			breakpoint.modeLabel = picked.label;
 			debugService.setExceptionBreakpointCondition(breakpoint, breakpoint.condition); // no-op to trigger a re-send
 		}
+	}
+});
+
+registerAction2(class extends ViewAction<BreakpointsView> {
+	constructor() {
+		super({
+			id: 'debug.toggleBreakpointEnabled',
+			viewId: BREAKPOINTS_VIEW_ID,
+			title: localize2('toggleBreakpointEnabled', "Toggle Breakpoint Enabled"),
+			precondition: CONTEXT_BREAKPOINTS_FOCUSED,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Space,
+				when: CONTEXT_BREAKPOINTS_FOCUSED,
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: BreakpointsView) {
+		view.toggleBreakpointEnabled();
 	}
 });
