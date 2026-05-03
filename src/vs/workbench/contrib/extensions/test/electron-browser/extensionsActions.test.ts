@@ -963,6 +963,37 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableDropDownAction when extension is enabled for workspace only (globally disabled)', () => {
+		const local = aLocalExtension('a');
+		instantiationService.stub(IExtensionService, {
+			extensions: [toExtensionDescription(local)],
+			onDidChangeExtensions: Event.None,
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+		});
+
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.EnabledWorkspace))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const disableGlobally: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
+						disableGlobally.extension = extensions[0];
+						assert.ok(!disableGlobally.enabled);
+
+						const disableWorkspace: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
+						disableWorkspace.extension = extensions[0];
+						assert.ok(disableWorkspace.enabled);
+
+						const disableDropDown: ExtensionsActions.DisableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableDropDownAction));
+						disableDropDown.extension = extensions[0];
+						assert.ok(disableDropDown.enabled);
+						assert.strictEqual(disableDropDown.menuActions.length, 0);
+					});
+			});
+	});
+
 });
 
 suite('ExtensionRuntimeStateAction', () => {
