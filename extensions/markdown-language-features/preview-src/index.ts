@@ -14,6 +14,7 @@ import type { ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
@@ -89,7 +90,9 @@ onceDocumentLoaded(() => {
 	addImageContexts();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
+			scrollDisabledCount = 1;
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
@@ -112,12 +115,16 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
 			} else {
 				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
 				}
 			}
@@ -131,7 +138,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -145,7 +158,9 @@ const onUpdateView = (() => {
 })();
 
 window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 	updateScrollProgress();
 }, true);
 
@@ -371,12 +386,12 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		messaging.postMessage('revealLine', { line });
 	}
 }, 50));
 

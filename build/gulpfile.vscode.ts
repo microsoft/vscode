@@ -29,14 +29,16 @@ import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
+import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
-import * as cp from 'child_process';
+import { spawnTsgo } from './lib/tsgo.ts';
+import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 
 
 const glob = promisify(globCallback);
@@ -96,9 +98,12 @@ const vscodeResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
+	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
+	'out-build/vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg',
 	'out-build/vs/sessions/prompts/*.prompt.md',
 	'out-build/vs/sessions/skills/**/SKILL.md',
 
@@ -161,82 +166,6 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 ));
 gulp.task(bundleVSCodeTask);
 
-// esbuild-based bundle tasks (drop-in replacement for bundle-vscode / minify-vscode)
-function runEsbuildTranspile(outDir: string, excludeTests: boolean): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const scriptPath = path.join(root, 'build/next/index.ts');
-		const args = [scriptPath, 'transpile', '--out', outDir];
-		if (excludeTests) {
-			args.push('--exclude-tests');
-		}
-
-		const proc = cp.spawn(process.execPath, args, {
-			cwd: root,
-			stdio: 'inherit'
-		});
-
-		proc.on('error', reject);
-		proc.on('close', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`esbuild transpile failed with exit code ${code} (outDir: ${outDir})`));
-			}
-		});
-	});
-}
-
-function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
-	return new Promise((resolve, reject) => {
-		// const tsxPath = path.join(root, 'build/node_modules/tsx/dist/cli.mjs');
-		const scriptPath = path.join(root, 'build/next/index.ts');
-		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
-		if (minify) {
-			args.push('--minify');
-			args.push('--mangle-privates');
-		}
-		if (nls) {
-			args.push('--nls');
-		}
-		if (sourceMapBaseUrl) {
-			args.push('--source-map-base-url', sourceMapBaseUrl);
-		}
-
-		const proc = cp.spawn(process.execPath, args, {
-			cwd: root,
-			stdio: 'inherit'
-		});
-
-		proc.on('error', reject);
-		proc.on('close', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`esbuild bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify}, nls: ${nls}, target: ${target})`));
-			}
-		});
-	});
-}
-
-function runTsGoTypeCheck(): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const proc = cp.spawn('tsgo', ['--project', 'src/tsconfig.json', '--noEmit', '--skipLibCheck'], {
-			cwd: root,
-			stdio: 'inherit',
-			shell: true
-		});
-
-		proc.on('error', reject);
-		proc.on('close', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`tsgo typecheck failed with exit code ${code}`));
-			}
-		});
-	});
-}
-
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
@@ -263,7 +192,7 @@ gulp.task(task.define('core-ci', task.series(
 	compileExtensionMediaBuildTask,
 	writeISODate('out-build'),
 	// Type-check with tsgo (no emit)
-	task.define('tsgo-typecheck', () => runTsGoTypeCheck()),
+	task.define('tsgo-typecheck', () => spawnTsgo(path.join(root, 'src', 'tsconfig.json'), { taskName: 'tsgo-typecheck', noEmit: true })),
 	// Transpile individual files to out-build first (for unit tests)
 	task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false)),
 	// Then bundle for shipping (bundles also write NLS files to out-build)
@@ -273,16 +202,6 @@ gulp.task(task.define('core-ci', task.series(
 		task.define('esbuild-vscode-reh-web-min', () => runEsbuildBundle('out-vscode-reh-web-min', true, true, 'server-web', `${sourceMappingURLBase}/core`)),
 	)
 )));
-
-const coreCIPR = task.define('core-ci-pr', task.series(
-	gulp.task('compile-build-without-mangling') as task.Task,
-	task.parallel(
-		gulp.task('minify-vscode') as task.Task,
-		gulp.task('minify-vscode-reh') as task.Task,
-		gulp.task('minify-vscode-reh-web') as task.Task,
-	)
-));
-gulp.task(coreCIPR);
 
 /**
  * Compute checksums for some files.
@@ -316,38 +235,6 @@ function computeChecksum(filename: string): string {
 		.replace(/=+$/, '');
 
 	return hash;
-}
-
-const copilotPlatforms = [
-	'darwin-arm64', 'darwin-x64',
-	'linux-arm64', 'linux-x64',
-	'win32-arm64', 'win32-x64',
-];
-
-/**
- * Returns a glob filter that strips @github/copilot platform packages and
- * prebuilt native modules for architectures other than the build target.
- * On stable builds, all copilot SDK dependencies are stripped entirely.
- */
-function getCopilotExcludeFilter(platform: string, arch: string, quality: string | undefined): string[] {
-	const targetPlatformArch = `${platform}-${arch}`;
-	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
-
-	// Strip wrong-architecture @github/copilot-{platform} packages.
-	// All copilot prebuilds are stripped by .moduleignore; VS Code's own
-	// node-pty is copied into the prebuilds location by a post-packaging task.
-	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
-
-	// Strip agent host SDK dependencies entirely from stable builds
-	if (quality === 'stable') {
-		excludes.push(
-			'!**/node_modules/@github/copilot/**',
-			'!**/node_modules/@github/copilot-sdk/**',
-			'!**/node_modules/@github/copilot-*/**',
-		);
-	}
-
-	return ['**', ...excludes];
 }
 
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
@@ -401,6 +288,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const name = product.nameShort;
 		const packageJsonUpdates: Record<string, unknown> = { name, version };
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
+			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
+			: undefined;
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -416,22 +307,27 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(out), checksums, version }))
+			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				json.commit = commit;
+				json.date = readISODate(out);
+				json.checksums = checksums;
+				json.version = version;
+				if (embedded) {
+					json['darwinSiblingBundleIdentifier'] = embedded.darwinBundleIdentifier;
+					const embeddedObj = json['embedded'] as EmbeddedProductInfo;
+					embeddedObj['darwinSiblingBundleIdentifier'] = json['darwinBundleIdentifier'] as string;
+				}
+				return json;
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
 
-
-		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
-		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
-			: undefined;
-
-		const packageSubJsonStream = isInsiderOrExploration
+		const packageSubJsonStream = embedded
 			? gulp.src(['package.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.name = `sessions-${quality || 'oss-dev'}`;
+					json.name = embedded.nameShort;
 					return json;
 				}))
 				.pipe(rename('package.sub.json'))
@@ -440,9 +336,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const productSubJsonStream = embedded
 			? gulp.src(['product.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
+					// Preserve the host's mutex name before overlaying embedded properties,
+					// so the embedded app can poll for the correct InnoSetup -ready mutex.
+					const hostMutexName = json['win32MutexName'];
 					Object.keys(embedded).forEach(key => {
 						json[key] = embedded[key as keyof EmbeddedProductInfo];
 					});
+					if (hostMutexName) {
+						json['win32SetupMutexName'] = hostMutexName;
+					}
 					return json;
 				}))
 				.pipe(rename('product.sub.json'))
@@ -469,7 +371,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
-			.pipe(filter(getCopilotExcludeFilter(platform, arch, quality)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -564,9 +466,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			ffmpegChromium: false,
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
+				darwinMiniAppDisplayName: embedded.nameLong,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
-				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
-				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
+				darwinMiniAppIcon: 'resources/darwin/agents.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,
@@ -713,64 +616,20 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
-/**
- * Copies VS Code's own node-pty and ripgrep binaries into the copilot SDK's
- * expected locations so the copilot CLI subprocess can find them at runtime.
- * The copilot-bundled prebuilds and ripgrep are stripped by .moduleignore;
- * this replaces them with the same binaries VS Code already ships, avoiding
- * new system dependency requirements.
- *
- * node-pty: `prebuilds/{platform}-{arch}/` (pty.node + spawn-helper)
- * ripgrep:  `ripgrep/bin/{platform}-{arch}/` (rg binary)
- */
-function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFolderName: string) {
+function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinationFolderName: string) {
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const quality = (product as { quality?: string }).quality;
-
-		// On stable builds the copilot SDK is stripped entirely -- nothing to copy into.
-		if (quality === 'stable') {
-			console.log(`[copyCopilotNativeDeps] Skipping -- stable build`);
-			return;
-		}
-
 		// On Windows with win32VersionedUpdate, app resources live under a
 		// commit-hash prefix: {output}/{commitHash}/resources/app/
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 		const appBase = platform === 'darwin'
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
+		const appNodeModulesDir = path.join(appBase, 'node_modules');
 
-		// Source and destination are both in node_modules/, which exists as a real
-		// directory on disk on all platforms after packaging.
-		const nodeModulesDir = path.join(appBase, 'node_modules');
-		const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
-		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
-
-		const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
-		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSource = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-
-		// Fail-fast: source binaries must exist on non-stable builds.
-		if (!fs.existsSync(nodePtySource)) {
-			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
-		}
-		if (!fs.existsSync(ripgrepSource)) {
-			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
-		}
-
-		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
-		const copilotPrebuildsDir = path.join(copilotBase, 'prebuilds', platformArch);
-		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
-		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
-		console.log(`[copyCopilotNativeDeps] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
-
-		// Copy ripgrep (rg binary) into copilot ripgrep
-		const copilotRipgrepDir = path.join(copilotBase, 'ripgrep', 'bin', platformArch);
-		fs.mkdirSync(copilotRipgrepDir, { recursive: true });
-		fs.copyFileSync(ripgrepSource, path.join(copilotRipgrepDir, rgBinary));
-		console.log(`[copyCopilotNativeDeps] Copied ripgrep from ${ripgrepSource} to ${copilotRipgrepDir}`);
+		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
 	};
 }
 
@@ -799,7 +658,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
-			copyCopilotNativeDepsTask(platform, arch, destinationFolderName)
+			prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)
 		];
 
 		if (platform === 'win32') {
@@ -825,6 +684,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
@@ -835,6 +695,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
 				vscodeTaskCI

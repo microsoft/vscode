@@ -3,43 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const SandboxHelperChannelName = 'SandboxHelper';
+import { Event } from '../../../base/common/event.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from './sandboxHelperService.js';
 
-export interface ISandboxNetworkHostPattern {
-	readonly host: string;
-	readonly port: number | undefined;
+export const SANDBOX_HELPER_CHANNEL_NAME = 'sandboxHelper';
+
+export class SandboxHelperChannel implements IServerChannel {
+
+	constructor(private readonly service: ISandboxHelperService) { }
+
+	listen<T>(_context: unknown, _event: string): Event<T> {
+		throw new Error('Invalid listen');
+	}
+
+	call<T>(_context: unknown, command: string, _arg?: unknown, _cancellationToken?: CancellationToken): Promise<T> {
+		switch (command) {
+			case 'checkSandboxDependencies':
+				return this.service.checkSandboxDependencies() as Promise<T>;
+		}
+
+		throw new Error('Invalid call');
+	}
 }
 
-export interface ISandboxNetworkConfig {
-	readonly allowedDomains?: string[];
-	readonly deniedDomains?: string[];
-	readonly allowUnixSockets?: string[];
-	readonly allowAllUnixSockets?: boolean;
-	readonly allowLocalBinding?: boolean;
-	readonly httpProxyPort?: number;
-	readonly socksProxyPort?: number;
-}
+export class SandboxHelperChannelClient implements ISandboxHelperService {
+	declare readonly _serviceBrand: undefined;
 
-export interface ISandboxFilesystemConfig {
-	readonly denyRead?: string[];
-	readonly allowWrite?: string[];
-	readonly denyWrite?: string[];
-	readonly allowGitConfig?: boolean;
-}
+	constructor(private readonly channel: IChannel) { }
 
-export interface ISandboxRuntimeConfig {
-	readonly network?: ISandboxNetworkConfig;
-	readonly filesystem?: ISandboxFilesystemConfig;
-	readonly ignoreViolations?: Record<string, string[]>;
-	readonly enableWeakerNestedSandbox?: boolean;
-	readonly ripgrep?: {
-		readonly command: string;
-		readonly args?: string[];
-	};
-	readonly mandatoryDenySearchDepth?: number;
-	readonly allowPty?: boolean;
-}
-
-export interface ISandboxPermissionRequest extends ISandboxNetworkHostPattern {
-	readonly requestId: string;
+	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
+		return this.channel.call<ISandboxDependencyStatus | undefined>('checkSandboxDependencies');
+	}
 }

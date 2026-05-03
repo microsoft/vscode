@@ -12,6 +12,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 import { IChatModeService } from '../../chatModes.js';
+import { localChatSessionType } from '../../chatSessionsService.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
@@ -22,8 +23,6 @@ import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { PromptsConfig } from '../config/config.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -42,7 +41,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -143,13 +141,10 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		const target = getTarget(promptType, header);
 		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, target));
-		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
-			attributesToPropose.delete(PromptHeaderAttributes.hooks);
-		}
 		for (const attr of header.attributes) {
 			attributesToPropose.delete(attr.key);
 		}
-		const getInsertText = (key: string): string => {
+		const getInsertText = async (key: string): Promise<string> => {
 			if (colonPosition) {
 				return key;
 			}
@@ -158,7 +153,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				const hookNames = Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]);
 				return `${key}:\n  \${1|${hookNames.join(',')}|}:\n    - type: command\n      command: "$2"`;
 			}
-			const valueSuggestions = this.getValueSuggestions(promptType, key, target);
+			const valueSuggestions = await this.getValueSuggestions(promptType, key, target);
 			if (valueSuggestions.length > 0) {
 				return `${key}: \${0:${valueSuggestions[0].name}}`;
 			} else {
@@ -172,7 +167,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				label: attribute,
 				documentation: getAttributeDefinition(attribute, promptType, target)?.description,
 				kind: CompletionItemKind.Property,
-				insertText: getInsertText(attribute),
+				insertText: await getInsertText(attribute),
 				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
 				range: new Range(position.lineNumber, 1, position.lineNumber, !colonPosition ? model.getLineMaxColumn(position.lineNumber) : colonPosition.column),
 			};
@@ -239,7 +234,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (attribute.key === PromptHeaderAttributes.agents) {
 			if (attribute.value.type === 'sequence') {
 				return this.provideArrayCompletions(model, position, attribute.value, async () => {
-					return await this.promptsService.getCustomAgents(CancellationToken.None);
+					return (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(a => a.enabled);
 				});
 			}
 		}
@@ -257,7 +252,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		}
 		const lineContent = model.getLineContent(attribute.range.startLineNumber);
 		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
-		const entries = this.getValueSuggestions(promptType, attribute.key, target);
+		const entries = await this.getValueSuggestions(promptType, attribute.key, target);
 		for (const entry of entries) {
 			const item: CompletionItem = {
 				label: entry.name,
@@ -568,7 +563,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return undefined;
 	}
 
-	private getValueSuggestions(promptType: PromptsType, attribute: string, target: Target): readonly IValueEntry[] {
+	private async getValueSuggestions(promptType: PromptsType, attribute: string, target: Target): Promise<readonly IValueEntry[]> {
 		const attributeDesc = getAttributeDefinition(attribute, promptType, target);
 		if (attributeDesc?.enums) {
 			return attributeDesc.enums;
@@ -581,7 +576,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			case PromptHeaderAttributes.mode:
 				if (promptType === PromptsType.prompt) {
 					// Get all available agents (builtin + custom)
-					const agents = this.chatModeService.getModes();
+					const agents = await this.chatModeService.awaitModes(localChatSessionType);
 					const suggestions: IValueEntry[] = [];
 					for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
 						suggestions.push({ name: agent.name.get(), description: agent.label.get() });

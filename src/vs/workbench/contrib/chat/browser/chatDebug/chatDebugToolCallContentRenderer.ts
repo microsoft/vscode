@@ -58,6 +58,7 @@ export function renderSection(
 	disposables: DisposableStore,
 	initiallyCollapsed: boolean = false,
 	clipboardService?: IClipboardService,
+	scrollable?: { scanDomNode(): void },
 ): void {
 	const sectionEl = DOM.append(parent, $('div.chat-debug-message-section'));
 	const header = DOM.append(sectionEl, $('div.chat-debug-message-section-header'));
@@ -97,7 +98,7 @@ export function renderSection(
 		contentEl.textContent = plainText;
 	}
 
-	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed);
+	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed, scrollable);
 }
 
 /**
@@ -107,7 +108,7 @@ export function renderSection(
  * When JSON is detected in input/output, renders it with syntax highlighting
  * using the editor's tokenization.
  */
-export async function renderToolCallContent(content: IChatDebugEventToolCallContent, languageService: ILanguageService, clipboardService?: IClipboardService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
+export async function renderToolCallContent(content: IChatDebugEventToolCallContent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -134,12 +135,12 @@ export async function renderToolCallContent(content: IChatDebugEventToolCallCont
 
 	if (content.input) {
 		const { plainText, tokenizedHtml } = await tokenizeContent(content.input, languageService);
-		renderSection(sectionsContainer, localize('chatDebug.toolCall.arguments', "Arguments"), plainText, tokenizedHtml, disposables, false, clipboardService);
+		renderSection(sectionsContainer, localize('chatDebug.toolCall.arguments', "Arguments"), plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 	}
 
 	if (content.output) {
 		const { plainText, tokenizedHtml } = await tokenizeContent(content.output, languageService);
-		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables, false, clipboardService);
+		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 	}
 
 	return { element: container, disposables };

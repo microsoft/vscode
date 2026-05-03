@@ -5,23 +5,30 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+export type { AICustomizationPromptsStorage } from '../../common/aiCustomizationWorkspaceService.js';
+export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
-/**
- * Extended storage type for AI Customization that includes built-in prompts
- * shipped with the application, alongside the core `PromptsStorage` values.
- */
-export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
-
-/**
- * Storage type discriminator for built-in prompts shipped with the application.
- */
-export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+export function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return PromptsType.agent;
+		case AICustomizationManagementSection.Skills:
+			return PromptsType.skill;
+		case AICustomizationManagementSection.Instructions:
+			return PromptsType.instructions;
+		case AICustomizationManagementSection.Hooks:
+			return PromptsType.hook;
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return PromptsType.prompt;
+	}
+}
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.
@@ -38,10 +45,12 @@ export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.aiCu
  */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
 	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
 } as const;
 
 /**
@@ -50,16 +59,26 @@ export const AICustomizationManagementCommands = {
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<boolean>(
 	'aiCustomizationManagementEditorFocused',
 	false,
-	localize('aiCustomizationManagementEditorFocused', "Whether the Chat Customizations editor is focused")
+	localize('aiCustomizationManagementEditorFocused', "Whether the Agent Customizations editor is focused")
 );
 
 /**
  * Context key for the currently selected section.
  */
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<string>(
-	'aiCustomizationManagementSection',
+	'chatCustomizationSection',
 	AICustomizationManagementSection.Agents,
-	localize('aiCustomizationManagementSection', "The currently selected section in the Chat Customizations editor")
+	localize('chatCustomizationSection', "The currently selected section in the Agent Customizations editor")
+);
+
+/**
+ * Context key for the active harness (session type) in the customizations editor.
+ * Extensions use this in when-clauses to scope create actions to their harness.
+ */
+export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<string>(
+	'chatCustomizationSessionType',
+	'',
+	localize('chatCustomizationSessionType', "The active harness (session type) in the Agent Customizations editor")
 );
 
 /**
@@ -71,6 +90,13 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
  * Menu ID for the AI Customization Management Editor item context menu.
  */
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
+
+/**
+ * Menu ID for the AI Customization Management Editor create/add button.
+ * Extensions can contribute commands here to add create actions to the section's add button dropdown.
+ * Use the `chatCustomizationSection` context key to target a specific section.
+ */
+export const AICustomizationManagementCreateMenuId = MenuId.for('AICustomizationManagementCreate');
 
 /**
  * Context key for the item prompt type (e.g. 'prompt', 'agent') used in when-clause filtering.
@@ -86,6 +112,17 @@ export const AI_CUSTOMIZATION_ITEM_STORAGE_KEY = 'aiCustomizationManagementItemS
  * Context key for the item URI used in when-clause filtering.
  */
 export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
+
+/**
+ * Context key for the parent plugin URI, set when the item is provided by a plugin.
+ */
+export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementItemPluginUri';
+
+/**
+ * Context key indicating whether the item is disabled.
+ */
+export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';
+
 
 /**
  * Storage key for persisting the selected section.

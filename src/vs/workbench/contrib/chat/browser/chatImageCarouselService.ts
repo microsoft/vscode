@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse } from '../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -37,6 +37,7 @@ export interface ICarouselImage {
 	readonly name: string;
 	readonly mimeType: string;
 	readonly data: Uint8Array;
+	readonly caption?: string;
 }
 
 export interface ICarouselSection {
@@ -95,10 +96,11 @@ export async function collectCarouselSections(
 		const requestImages = request ? extractImagesFromChatRequest(request) : [];
 
 		const allImages = [...requestImages, ...responseImages];
-		if (allImages.length > 0) {
+		const dedupedImages = deduplicateConsecutiveImages(allImages);
+		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: allImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}
@@ -112,15 +114,29 @@ export async function collectCarouselSections(
 			continue;
 		}
 		const requestImages = extractImagesFromChatRequest(item);
-		if (requestImages.length > 0) {
+		const dedupedImages = deduplicateConsecutiveImages(requestImages);
+		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: requestImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
 			});
 		}
 	}
 
 	return sections;
+}
+
+/**
+ * Removes consecutive images with the same URI, keeping only the first occurrence
+ * of each run of duplicates.
+ */
+function deduplicateConsecutiveImages(images: IChatExtractedImage[]): IChatExtractedImage[] {
+	return images.filter((img, index) => {
+		if (index === 0) {
+			return true;
+		}
+		return !isEqual(images[index - 1].uri, img.uri);
+	});
 }
 
 /**
@@ -135,7 +151,20 @@ export function findClickedImageIndex(
 	let globalOffset = 0;
 
 	for (const section of sections) {
-		const localIndex = findImageInList(section.images, resource, data);
+		const localIndex = findImageInListByUri(section.images, resource);
+		if (localIndex >= 0) {
+			return globalOffset + localIndex;
+		}
+		globalOffset += section.images.length;
+	}
+
+	if (!data) {
+		return -1;
+	}
+
+	globalOffset = 0;
+	for (const section of sections) {
+		const localIndex = findImageInListByData(section.images, data);
 		if (localIndex >= 0) {
 			return globalOffset + localIndex;
 		}
@@ -145,10 +174,9 @@ export function findClickedImageIndex(
 	return -1;
 }
 
-function findImageInList(
+function findImageInListByUri(
 	images: ICarouselImage[],
 	resource: URI,
-	data?: Uint8Array,
 ): number {
 	// Try matching by URI string (for inline references and tool images with URIs)
 	const uriStr = resource.toString();
@@ -169,13 +197,12 @@ function findImageInList(
 		return byParsedUri;
 	}
 
-	// Fall back to matching by data buffer equality
-	if (data) {
-		const wrapped = VSBuffer.wrap(data);
-		return images.findIndex(img => VSBuffer.wrap(img.data).equals(wrapped));
-	}
-
 	return -1;
+}
+
+function findImageInListByData(images: ICarouselImage[], data: Uint8Array): number {
+	const wrapped = VSBuffer.wrap(data);
+	return images.findIndex(img => VSBuffer.wrap(img.data).equals(wrapped));
 }
 
 /**
@@ -187,12 +214,13 @@ export function buildCollectionArgs(
 	sessionResource: URI,
 ): ICarouselCollectionArgs {
 	const collectionId = sessionResource.toString() + '_carousel';
+	const defaultTitle = localize('chatImageCarousel.allImages', "Conversation Images");
 	return {
 		collection: {
 			id: collectionId,
 			title: sections.length === 1
-				? sections[0].title
-				: localize('chatImageCarousel.allImages', "Conversation Images"),
+				? (sections[0].title || defaultTitle)
+				: defaultTitle,
 			sections,
 		},
 		startIndex: clickedGlobalIndex,

@@ -9,15 +9,12 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, CodeCompareBlockPart } from './codeBlockPart.js';
-import { ResourcePool, IDisposableReference } from './chatCollections.js';
-
-// Keep enough idle editors for viewport reuse without retaining every historical code block.
-const maxIdleCodeBlockEditors = 32;
-const maxIdleDiffEditors = 8;
+import { ResourcePool, KeyedResourcePool, IDisposableReference } from './chatCollections.js';
+import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 
 export class EditorPool extends Disposable {
 
-	private readonly _pool: ResourcePool<CodeBlockPart>;
+	private readonly _pool: KeyedResourcePool<CodeBlockPart>;
 
 	inUse(): Iterable<CodeBlockPart> {
 		return this._pool.inUse;
@@ -31,22 +28,22 @@ export class EditorPool extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._pool = this._register(new ResourcePool(() => {
+		this._pool = this._register(new KeyedResourcePool(() => {
 			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}, maxIdleCodeBlockEditors));
+		}, { maxIdleSize: 2 }));
 	}
 
-	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
+	get(key: string): IDisposableReference<CodeBlockPart> {
+		const codeBlock = this._pool.get(key);
 		let stale = false;
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
-				this._pool.release(codeBlock);
-			}
+				this._pool.release(codeBlock, key);
+			})
 		};
 	}
 
@@ -73,7 +70,7 @@ export class DiffEditorPool extends Disposable {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
 			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}, maxIdleDiffEditors));
+		}));
 	}
 
 	get(): IDisposableReference<CodeCompareBlockPart> {
@@ -82,11 +79,11 @@ export class DiffEditorPool extends Disposable {
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
+			})
 		};
 	}
 

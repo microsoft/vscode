@@ -37,7 +37,6 @@ suite('PromptHoverProvider', () => {
 	setup(async () => {
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -80,7 +79,8 @@ suite('PromptHoverProvider', () => {
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 

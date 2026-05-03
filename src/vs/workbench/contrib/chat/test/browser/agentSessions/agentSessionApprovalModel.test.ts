@@ -32,6 +32,7 @@ function makeToolInvocationPart(options: {
 		toolCallId: 'call-1',
 		state: observableValue('toolState', options.state),
 		toolSpecificData: options.toolSpecificData,
+		toolSpecificDataKind: observableValue('test', options.toolSpecificData?.kind),
 		isAttachedToThinking: false,
 		toJSON: () => undefined!,
 	};
@@ -77,7 +78,7 @@ function makeExecutingState(): IChatToolInvocation.State {
 /** Creates a minimal mock that satisfies the response chain: lastRequest.response.response.value */
 function mockModelWithResponse(model: MockChatModel, parts: IChatProgressResponseContent[]): void {
 	const response: Partial<IChatResponseModel> = {
-		response: { value: parts, getMarkdown: () => '', toString: () => '' } satisfies IResponse,
+		response: { value: parts, getMarkdown: () => '', getFinalResponse: () => '', toString: () => '' } satisfies IResponse,
 	};
 	const request: Partial<IChatRequestModel> = {
 		response: response as IChatResponseModel,

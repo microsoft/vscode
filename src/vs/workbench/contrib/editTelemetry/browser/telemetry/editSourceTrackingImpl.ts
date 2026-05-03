@@ -212,6 +212,8 @@ class TrackedDocumentInfo extends Disposable {
 				trigger: EditTelemetryTrigger;
 				languageId: string;
 				statsUuid: string;
+				conversationId: string | undefined;
+				requestId: string | undefined;
 				modifiedCount: number;
 				deltaModifiedCount: number;
 				totalModifiedCount: number;
@@ -229,6 +231,8 @@ class TrackedDocumentInfo extends Disposable {
 
 				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 				statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the session for which stats are reported. The sourceKey is unique in this session.' };
+				conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat conversation identifier when the edit source comes from chat. Sourced from the chat edit session id.' };
+				requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 
 				trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
 
@@ -248,6 +252,8 @@ class TrackedDocumentInfo extends Disposable {
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
+				conversationId: repr.props.$$sessionId,
+				requestId: repr.props.$$requestId,
 				modifiedCount: value,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount: data.totalModifiedCharactersInFinalState,

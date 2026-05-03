@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatDebugShape, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from './extHost.protocol.js';
-import { ChatDebugGenericEvent, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent } from './extHostTypes.js';
+import { ChatDebugGenericEvent, ChatDebugHookResult, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent, ChatDebugEventHookContent } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShape {
@@ -155,6 +155,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
+					cachedTokens: e.cachedTokens,
 					totalTokens: e.totalTokens,
 					durationInMillis: e.durationInMillis,
 				};
@@ -283,14 +284,33 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					status: mt.status,
 					durationInMillis: mt.durationInMillis,
 					timeToFirstTokenInMillis: mt.timeToFirstTokenInMillis,
+					requestId: mt.requestId,
 					maxInputTokens: mt.maxInputTokens,
 					maxOutputTokens: mt.maxOutputTokens,
 					inputTokens: mt.inputTokens,
 					outputTokens: mt.outputTokens,
 					cachedTokens: mt.cachedTokens,
 					totalTokens: mt.totalTokens,
+					requestOptions: mt.requestOptions,
 					errorMessage: mt.errorMessage,
 					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
+				};
+			}
+			case 'hookContent': {
+				const hk = result as unknown as ChatDebugEventHookContent;
+				return {
+					kind: 'hook',
+					hookType: hk.hookType,
+					command: hk.command,
+					result: hk.result === ChatDebugHookResult.Success ? 'success'
+						: hk.result === ChatDebugHookResult.Error ? 'error'
+							: hk.result === ChatDebugHookResult.NonBlockingError ? 'nonBlockingError'
+								: undefined,
+					durationInMillis: hk.durationInMillis,
+					input: hk.input,
+					output: hk.output,
+					exitCode: hk.exitCode,
+					errorMessage: hk.errorMessage,
 				};
 			}
 			default:
@@ -322,8 +342,10 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.model = dto.model;
+				evt.requestName = dto.requestName;
 				evt.inputTokens = dto.inputTokens;
 				evt.outputTokens = dto.outputTokens;
+				evt.cachedTokens = dto.cachedTokens;
 				evt.totalTokens = dto.totalTokens;
 				evt.durationInMillis = dto.durationInMillis;
 				return evt;
@@ -403,6 +425,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			return undefined;
 		}
 		return { uri: result.uri, sessionTitle: result.sessionTitle };
+	}
+
+	async $getAvailableDebugSessionResources(_handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]> {
+		if (!this._provider?.provideAvailableDebugSessionResources) {
+			return [];
+		}
+		const result = await this._provider.provideAvailableDebugSessionResources(token);
+		return result ?? [];
 	}
 
 	override dispose(): void {

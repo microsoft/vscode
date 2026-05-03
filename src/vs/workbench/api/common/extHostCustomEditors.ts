@@ -271,6 +271,11 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		const viewColumn = typeConverters.ViewColumn.to(position);
 
 		const webview = this._extHostWebview.createNewWebview(handle, initData.contentOptions, entry.extension);
+		// The main thread starts the custom editor's webview with empty content
+		// options. Ensure `localResourceRoots` defaults to the workspace folders
+		// and the providing extension's install directory, as documented on
+		// `WebviewOptions.localResourceRoots`.
+		this._extHostWebview.ensureDefaultContentOptions(handle, initData.contentOptions, entry.extension);
 		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
 
 		const revivedResource = URI.revive(resource);

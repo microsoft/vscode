@@ -14,8 +14,8 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDate, sessionDateFromNow } from './agentSessionsViewer.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, getAgentSessionTime } from './agentSessions.js';
+import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
@@ -44,7 +44,7 @@ export const deleteButton: IQuickInputButton = {
 
 export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
-	const timeAgo = sessionDateFromNow(getAgentSessionTime(session.timing));
+	const timeAgo = sessionDateFromNow(session.timing.created);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 
 	return descriptionParts.join(' • ');
@@ -60,6 +60,10 @@ export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
 
 	return buttons;
+}
+
+export function shouldShowSessionInPicker(session: IAgentSession, filter: IAgentSessionsFilter): boolean {
+	return !session.isArchived() && !filter.exclude(session);
 }
 
 export interface IAgentSessionsPickerOptions {
@@ -141,7 +145,7 @@ export class AgentSessionsPicker {
 
 	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
 		const sessions = this.agentSessionsService.model.sessions
-			.filter(session => !filter.exclude(session))
+			.filter(session => shouldShowSessionInPicker(session, filter))
 			.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 

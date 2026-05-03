@@ -57,7 +57,6 @@ import '../workbench/services/mcp/electron-browser/mcpGalleryManifestService.js'
 import '../workbench/services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import '../workbench/services/encryption/electron-browser/encryptionService.js';
 import '../workbench/services/imageResize/electron-browser/imageResizeService.js';
-import '../workbench/services/browserElements/electron-browser/browserElementsService.js';
 import '../workbench/services/secrets/electron-browser/secretStorageService.js';
 import '../workbench/services/localization/electron-browser/languagePackService.js';
 import '../workbench/services/telemetry/electron-browser/telemetryService.js';
@@ -89,16 +88,26 @@ import '../workbench/services/extensions/electron-browser/nativeExtensionService
 import '../platform/userDataProfile/electron-browser/userDataProfileStorageService.js';
 import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
+import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
 
-import { registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ILocalGitService } from '../platform/git/common/localGitService.js';
+import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { registerSharedProcessRemoteService } from '../platform/ipc/electron-browser/services.js';
+import { IPluginGitService } from '../workbench/contrib/chat/common/plugins/pluginGitService.js';
+import { NativePluginGitCommandService } from '../workbench/contrib/chat/electron-browser/pluginGitCommandService.js';
 import { IUserDataInitializationService, UserDataInitializationService } from '../workbench/services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
+
+// Override the browser PluginGitCommandService with the native one that always
+// runs git locally via the shared process.
+registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
+registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 
 //#endregion
@@ -121,8 +130,9 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
-// Extensions Management
-import '../workbench/contrib/extensions/electron-browser/extensions.contribution.js';
+// Extension devtools
+import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
+
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
@@ -139,9 +149,6 @@ import '../workbench/contrib/terminal/electron-browser/terminal.contribution.js'
 // Themes
 import '../workbench/contrib/themes/browser/themes.test.contribution.js';
 import '../workbench/services/themes/electron-browser/themes.contribution.js';
-// User Data Sync
-import '../workbench/contrib/userDataSync/electron-browser/userDataSync.contribution.js';
-
 // Tags
 import '../workbench/contrib/tags/electron-browser/workspaceTagsService.js';
 import '../workbench/contrib/tags/electron-browser/tags.contribution.js';
@@ -176,8 +183,8 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+import './contrib/chat/electron-browser/openInVSCode.contribution.js';
 
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
@@ -196,28 +203,25 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
-import './browser/paneCompositePartService.js';
-import './browser/layoutActions.js';
+import './services/vscode/electron-browser/themeImporterService.js';
 
-import './contrib/accountMenu/browser/account.contribution.js';
-import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changes/browser/changesView.contribution.js';
-import './contrib/codeReview/browser/codeReview.contributions.js';
-import './contrib/files/browser/files.contribution.js';
-import './contrib/git/browser/git.contribution.js';
-import './contrib/github/browser/github.contribution.js';
-import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
-import './contrib/configuration/browser/configuration.contribution.js';
+// Remote Agent Host
+import '../platform/agentHost/electron-browser/agentHostService.js';
+import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
-import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/logs/browser/logs.contribution.js';
-import './contrib/workspace/browser/workspace.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
+// Local Agent Host
+import './contrib/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSkillButtons.js';
+
+// Tunnel Host (allow remote connections to local agent host)
+import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
 
 //#endregion
 

@@ -46,3 +46,24 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 
 - **Keyboard parity**: Uses `registerOpenEditorListeners` (click, double-click, Enter, Space) matching other attachment widgets.
 - **Arrow key navigation**: Handled via DOM `keydown` listener with `stopPropagation()` — not Action2 keybindings, because the modal editor's `KEY_DOWN` handler blocks `workbench.*` commands not in its allowlist. The editor overrides `focus()` to forward focus to the slideshow container so arrow keys work immediately without clicking.
+
+### Zoom
+
+Zoom state is `ZoomScale = number | 'fit'` held in `_zoomScale`.
+
+| Gesture | Effect |
+|---------|--------|
+| Click | Zoom in one level |
+| Alt+click (Mac) / Ctrl+click (Win/Linux) | Zoom out one level |
+| Ctrl+scroll (Win/Linux) or Alt+scroll (Mac) | Continuous zoom (~7.5% per tick) |
+| Trackpad pinch | Zoom (reported as `wheel` + `e.ctrlKey`) |
+
+Predefined zoom levels: 10%, 20%, 30%, …, 100%, 150%, 200%, 300%, 500%, 700%, 1000%, 1500%, 2000%. Click cycles through these levels.
+
+`_applyZoom(scale)` is the central method:
+- `'fit'` → adds `scale-to-fit` class, clears `img.style.zoom`, removes `.zoomed` from container
+- numeric → sets `img.style.zoom`, adds `.zoomed` on the container (enabling `overflow: auto` for panning with themed scrollbars), preserves scroll center using `dx/dy` ratio math, adds `pixelated` class at ≥ 3× zoom
+
+Zoom always resets to `'fit'` when navigating to a different image.
+
+Cursor changes to `zoom-out` when the zoom-out modifier key is held (via `.zoom-out` class on the container).

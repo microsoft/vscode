@@ -361,7 +361,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		assert.strictEqual(infoMessages.length, 0, 'Should not show info notification');
 	});
 
-	test('all image reads failing shows error notification', async () => {
+	test('images with URIs are passed lazily without reading file contents', async () => {
 		const folderUri = URI.file('/workspace/broken');
 
 		const resolveMap = new Map<string, IFileStat>();
@@ -372,8 +372,13 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		]
 		));
 
-		// No file contents → all readFile calls will fail
+		// No file contents — with lazy loading, no readFile should be called at action time
+		let readFileCallCount = 0;
 		stubFileService(resolveMap, new Map());
+		instantiationService.stub(IFileService, 'readFile', async () => {
+			readFileCallCount++;
+			throw new Error('readFile should not be called');
+		});
 		stubExplorerService([]);
 		stubEditorService();
 		stubNotificationService();
@@ -384,7 +389,78 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		await instantiationService.invokeFunction(command.handler, folderUri);
 
-		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when all reads fail');
-		assert.strictEqual(errorMessages.length, 1, 'Should show error notification for read failures');
+		assert.strictEqual(readFileCallCount, 0, 'readFile should not be called during action');
+		assert.strictEqual(openedInputs.length, 1, 'Should open carousel with lazy image entries');
+		const images = openedInputs[0].input.collection.sections[0].images;
+		assert.strictEqual(images.length, 2, 'Should include 2 lazy image entries');
+		assert.strictEqual(images[0].data, undefined, 'Image data should not be loaded eagerly');
+		assert.ok(images[0].uri, 'Image should have a URI for lazy loading');
+	});
+
+	test('folder includes video files alongside images', async () => {
+		const fileService = instantiationService.get(IFileService);
+		const folderItem = createExplorerItem('/workspace/media', true, fileService, configService);
+
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/workspace/media', createFileStat(
+			URI.file('/workspace/media'), false, false, true, false, [
+			{ resource: URI.file('/workspace/media/clip.mp4'), isFile: true },
+			{ resource: URI.file('/workspace/media/photo.png'), isFile: true },
+			{ resource: URI.file('/workspace/media/demo.webm'), isFile: true },
+			{ resource: URI.file('/workspace/media/intro.mov'), isFile: true },
+			{ resource: URI.file('/workspace/media/readme.txt'), isFile: true },
+		]
+		));
+
+		stubFileService(resolveMap, new Map());
+		stubExplorerService([folderItem]);
+		stubEditorService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler);
+
+		assert.strictEqual(openedInputs.length, 1);
+		const images = openedInputs[0].input.collection.sections[0].images;
+		assert.strictEqual(images.length, 4, 'Should include mp4 + webm + mov + png, not txt');
+		assert.strictEqual(images[0].name, 'clip.mp4');
+		assert.strictEqual(images[1].name, 'demo.webm');
+		assert.strictEqual(images[2].name, 'intro.mov');
+		assert.strictEqual(images[3].name, 'photo.png');
+	});
+
+	test('single video file opens carousel with sibling media', async () => {
+		const fileService = instantiationService.get(IFileService);
+		const parent = createExplorerItem('/workspace/media', true, fileService, configService);
+		const videoItem = createExplorerItem('/workspace/media/clip.mp4', false, fileService, configService, parent);
+
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/workspace/media', createFileStat(
+			URI.file('/workspace/media'), false, false, true, false, [
+			{ resource: URI.file('/workspace/media/clip.mp4'), isFile: true },
+			{ resource: URI.file('/workspace/media/photo.png'), isFile: true },
+			{ resource: URI.file('/workspace/media/notes.txt'), isFile: true },
+		]
+		));
+
+		stubFileService(resolveMap, new Map());
+		stubExplorerService([videoItem]);
+		stubEditorService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler);
+
+		assert.strictEqual(openedInputs.length, 1);
+		const input = openedInputs[0].input;
+		const images = input.collection.sections[0].images;
+		assert.strictEqual(images.length, 2, 'Should include mp4 + png siblings');
+		assert.strictEqual(images[0].name, 'clip.mp4');
+		assert.strictEqual(images[1].name, 'photo.png');
+		assert.strictEqual(input.startIndex, 0, 'Start index should point to the selected video');
 	});
 });

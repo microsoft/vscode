@@ -4,250 +4,153 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Action and notification types for the sessions process protocol.
-// See protocol.md -> Actions for the full design.
+// Re-exports from the auto-generated protocol layer with local aliases.
 //
-// Actions mutate subscribable state via reducers. Notifications are ephemeral
-// broadcasts not stored in state. Both flow through ActionEnvelopes.
-//
-// Asymmetry: not all actions can be triggered by clients. Root actions are
-// server-only. Session actions are mixed — see the "Client-sendable?" column
-// in protocol.md for the authoritative list.
+// VS Code-specific additions:
+//   - IToolCallStartAction extends protocol with `toolKind` and `language`
+//   - isRootAction / isSessionAction type guards
+//   - INotification alias for ProtocolNotification
 
-import { URI } from '../../../../base/common/uri.js';
+// ---- Re-exports from protocol -----------------------------------------------
+
+export {
+	ActionType,
+	type ActionEnvelope,
+	type ActionOrigin,
+	type RootAgentsChangedAction,
+	type RootActiveSessionsChangedAction,
+	type SessionCreationFailedAction,
+	type SessionDeltaAction,
+	type SessionDiffsChangedAction,
+	type SessionErrorAction,
+	type SessionModelChangedAction,
+	type SessionReadyAction,
+	type SessionReasoningAction,
+	type SessionResponsePartAction,
+	type SessionToolCallCompleteAction,
+	type SessionToolCallConfirmedAction,
+	type SessionToolCallApprovedAction,
+	type SessionToolCallDeniedAction,
+	type SessionToolCallDeltaAction,
+	type SessionToolCallReadyAction,
+	type SessionToolCallResultConfirmedAction,
+	type SessionToolCallStartAction,
+	type SessionTitleChangedAction,
+	type SessionTurnCancelledAction,
+	type SessionTurnCompleteAction,
+	type SessionTurnStartedAction,
+	type SessionUsageAction,
+	type SessionServerToolsChangedAction,
+	type SessionActiveClientChangedAction,
+	type SessionActiveClientToolsChangedAction,
+	type SessionCustomizationsChangedAction,
+	type SessionCustomizationToggledAction,
+	type SessionPendingMessageSetAction,
+	type SessionPendingMessageRemovedAction,
+	type SessionQueuedMessagesReorderedAction,
+	type SessionInputRequestedAction,
+	type SessionInputCompletedAction,
+	type SessionIsReadChangedAction,
+	type SessionIsArchivedChangedAction,
+	type SessionToolCallContentChangedAction,
+	type StateAction,
+} from './protocol/actions.js';
+
+export {
+	NotificationType,
+	AuthRequiredReason,
+	type SessionAddedNotification,
+	type SessionRemovedNotification,
+	type AuthRequiredNotification,
+} from './protocol/notifications.js';
+
+// ---- Local aliases for short names ------------------------------------------
+// Consumers use these shorter names; they're type-only aliases.
+
 import type {
-	IAgentInfo,
-	IErrorInfo,
-	IPermissionRequest,
-	IResponsePart,
-	ISessionSummary,
-	IToolCallState,
-	IUsageInfo,
-	IUserMessage,
-} from './sessionState.js';
+	RootAgentsChangedAction,
+	RootActiveSessionsChangedAction,
+	SessionDeltaAction,
+	SessionModelChangedAction,
+	SessionReasoningAction,
+	SessionResponsePartAction,
+	SessionToolCallApprovedAction,
+	SessionToolCallCompleteAction,
+	SessionToolCallConfirmedAction,
+	SessionToolCallDeniedAction,
+	SessionToolCallDeltaAction,
+	SessionToolCallReadyAction,
+	SessionToolCallResultConfirmedAction,
+	SessionToolCallStartAction,
+	SessionTitleChangedAction,
+	SessionTurnCancelledAction,
+	SessionTurnCompleteAction,
+	SessionTurnStartedAction,
+	SessionUsageAction,
+	StateAction,
+	SessionPendingMessageSetAction,
+	SessionPendingMessageRemovedAction,
+	SessionQueuedMessagesReorderedAction,
+	SessionIsReadChangedAction,
+	SessionIsArchivedChangedAction,
+	RootConfigChangedAction,
+} from './protocol/actions.js';
 
-// ---- Action envelope --------------------------------------------------------
+import type { ProtocolNotification } from './protocol/notifications.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_ } from './protocol/action-origin.generated.js';
 
-/**
- * Wraps every action with server-assigned sequencing and origin tracking.
- * This enables write-ahead reconciliation: the client can tell whether an
- * incoming action was its own (echo) or from another source (rebase needed).
- */
-export interface IActionEnvelope<A extends IStateAction = IStateAction> {
-	/** The action payload. */
-	readonly action: A;
-	/** Monotonically increasing sequence number assigned by the server. */
-	readonly serverSeq: number;
-	/**
-	 * Origin tracking. `undefined` means the action was produced by the server
-	 * itself (e.g. from an agent backend). Otherwise identifies the client that
-	 * sent the command which triggered this action.
-	 */
-	readonly origin: IActionOrigin | undefined;
-	/**
-	 * Set to `true` when the server rejected the command that produced this
-	 * action. The client should revert its optimistic prediction.
-	 */
-	readonly rejected?: true;
-}
+export type RootAction = IRootAction_;
+export type SessionAction = ISessionAction_;
+export type ClientSessionAction = IClientSessionAction_;
+export type ServerSessionAction = IServerSessionAction_;
+export type TerminalAction = ITerminalAction_;
+export type ClientTerminalAction = IClientTerminalAction_;
 
-export interface IActionOrigin {
-	readonly clientId: string;
-	readonly clientSeq: number;
-}
+// Root actions
+export type IAgentsChangedAction = RootAgentsChangedAction;
+export type IActiveSessionsChangedAction = RootActiveSessionsChangedAction;
+export type IRootConfigChangedAction = RootConfigChangedAction;
 
-// ---- Root actions (server-only, mutate RootState) ---------------------------
+// Session actions — short aliases
+export type ITurnStartedAction = SessionTurnStartedAction;
+export type IDeltaAction = SessionDeltaAction;
+export type IResponsePartAction = SessionResponsePartAction;
+export type IToolCallStartAction = SessionToolCallStartAction;
+export type IToolCallDeltaAction = SessionToolCallDeltaAction;
+export type IToolCallReadyAction = SessionToolCallReadyAction;
+export type IToolCallApprovedAction = SessionToolCallApprovedAction;
+export type IToolCallDeniedAction = SessionToolCallDeniedAction;
+export type IToolCallConfirmedAction = SessionToolCallConfirmedAction;
+export type IToolCallCompleteAction = SessionToolCallCompleteAction;
+export type IToolCallResultConfirmedAction = SessionToolCallResultConfirmedAction;
+export type ITurnCompleteAction = SessionTurnCompleteAction;
+export type ITurnCancelledAction = SessionTurnCancelledAction;
+export type ITitleChangedAction = SessionTitleChangedAction;
+export type IUsageAction = SessionUsageAction;
+export type IReasoningAction = SessionReasoningAction;
+export type IModelChangedAction = SessionModelChangedAction;
+export type ICustomizationsChangedAction = import('./protocol/actions.js').SessionCustomizationsChangedAction;
+export type ICustomizationToggledAction = import('./protocol/actions.js').SessionCustomizationToggledAction;
 
-export interface IAgentsChangedAction {
-	readonly type: 'root/agentsChanged';
-	readonly agents: readonly IAgentInfo[];
-}
+export type IPendingMessageSetAction = SessionPendingMessageSetAction;
+export type IPendingMessageRemovedAction = SessionPendingMessageRemovedAction;
+export type IQueuedMessagesReorderedAction = SessionQueuedMessagesReorderedAction;
+export type IIsReadChangedAction = SessionIsReadChangedAction;
+export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
 
-export type IRootAction =
-	| IAgentsChangedAction;
-
-// ---- Session actions (mutate SessionState, scoped to a session URI) ---------
-
-interface ISessionActionBase {
-	/** URI identifying the session this action applies to. */
-	readonly session: URI;
-}
-
-// -- Lifecycle (server-only) --
-
-export interface ISessionReadyAction extends ISessionActionBase {
-	readonly type: 'session/ready';
-}
-
-export interface ISessionCreationFailedAction extends ISessionActionBase {
-	readonly type: 'session/creationFailed';
-	readonly error: IErrorInfo;
-}
-
-// -- Turn lifecycle --
-
-/** Client-dispatchable. Server starts agent processing on receipt. */
-export interface ITurnStartedAction extends ISessionActionBase {
-	readonly type: 'session/turnStarted';
-	readonly turnId: string;
-	readonly userMessage: IUserMessage;
-}
-
-/** Server-only. */
-export interface IDeltaAction extends ISessionActionBase {
-	readonly type: 'session/delta';
-	readonly turnId: string;
-	readonly content: string;
-}
-
-/** Server-only. */
-export interface IResponsePartAction extends ISessionActionBase {
-	readonly type: 'session/responsePart';
-	readonly turnId: string;
-	readonly part: IResponsePart;
-}
-
-// -- Tool calls (server-only) --
-
-export interface IToolStartAction extends ISessionActionBase {
-	readonly type: 'session/toolStart';
-	readonly turnId: string;
-	readonly toolCall: IToolCallState;
-}
-
-export interface IToolCompleteAction extends ISessionActionBase {
-	readonly type: 'session/toolComplete';
-	readonly turnId: string;
-	readonly toolCallId: string;
-	readonly result: IToolCompleteResult;
-}
-
-/** The data delivered with a tool completion event. */
-export interface IToolCompleteResult {
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolOutput?: string;
-	readonly error?: { readonly message: string; readonly code?: string };
-}
-
-// -- Permissions --
-
-/** Server-only. */
-export interface IPermissionRequestAction extends ISessionActionBase {
-	readonly type: 'session/permissionRequest';
-	readonly turnId: string;
-	readonly request: IPermissionRequest;
-}
-
-/** Client-dispatchable. Server unblocks pending tool execution. */
-export interface IPermissionResolvedAction extends ISessionActionBase {
-	readonly type: 'session/permissionResolved';
-	readonly turnId: string;
-	readonly requestId: string;
-	readonly approved: boolean;
-}
-
-// -- Turn completion --
-
-/** Server-only. */
-export interface ITurnCompleteAction extends ISessionActionBase {
-	readonly type: 'session/turnComplete';
-	readonly turnId: string;
-}
-
-/** Client-dispatchable. Server aborts in-progress processing. */
-export interface ITurnCancelledAction extends ISessionActionBase {
-	readonly type: 'session/turnCancelled';
-	readonly turnId: string;
-}
-
-/** Server-only. */
-export interface ISessionErrorAction extends ISessionActionBase {
-	readonly type: 'session/error';
-	readonly turnId: string;
-	readonly error: IErrorInfo;
-}
-
-// -- Metadata & informational --
-
-/** Server-only. */
-export interface ITitleChangedAction extends ISessionActionBase {
-	readonly type: 'session/titleChanged';
-	readonly title: string;
-}
-
-/** Server-only. */
-export interface IUsageAction extends ISessionActionBase {
-	readonly type: 'session/usage';
-	readonly turnId: string;
-	readonly usage: IUsageInfo;
-}
-
-/** Server-only. */
-export interface IReasoningAction extends ISessionActionBase {
-	readonly type: 'session/reasoning';
-	readonly turnId: string;
-	readonly content: string;
-}
-
-/** Server-only. Dispatched when the session's model is changed. */
-export interface IModelChangedAction extends ISessionActionBase {
-	readonly type: 'session/modelChanged';
-	readonly model: string;
-}
-
-export type ISessionAction =
-	| ISessionReadyAction
-	| ISessionCreationFailedAction
-	| ITurnStartedAction
-	| IDeltaAction
-	| IResponsePartAction
-	| IToolStartAction
-	| IToolCompleteAction
-	| IPermissionRequestAction
-	| IPermissionResolvedAction
-	| ITurnCompleteAction
-	| ITurnCancelledAction
-	| ISessionErrorAction
-	| ITitleChangedAction
-	| IUsageAction
-	| IReasoningAction
-	| IModelChangedAction;
-
-// ---- Combined state action type ---------------------------------------------
-
-/** Any action that mutates subscribable state (processed by a reducer). */
-export type IStateAction = IRootAction | ISessionAction;
-
-// ---- Notifications (ephemeral, not stored in state) -------------------------
-
-/**
- * Broadcast to all connected clients when a session is created.
- * Not processed by reducers — used by clients to maintain a local session list.
- */
-export interface ISessionAddedNotification {
-	readonly type: 'notify/sessionAdded';
-	readonly summary: ISessionSummary;
-}
-
-/**
- * Broadcast to all connected clients when a session is disposed.
- * Not processed by reducers — used by clients to maintain a local session list.
- */
-export interface ISessionRemovedNotification {
-	readonly type: 'notify/sessionRemoved';
-	readonly session: URI;
-}
-
-export type INotification =
-	| ISessionAddedNotification
-	| ISessionRemovedNotification;
+// Notifications
+export type INotification = ProtocolNotification;
 
 // ---- Type guards ------------------------------------------------------------
 
-export function isRootAction(action: IStateAction): action is IRootAction {
+export function isRootAction(action: StateAction): action is RootAction {
 	return action.type.startsWith('root/');
 }
 
-export function isSessionAction(action: IStateAction): action is ISessionAction {
+export function isSessionAction(action: StateAction): action is SessionAction {
 	return action.type.startsWith('session/');
+}
+
+export function isTerminalAction(action: StateAction): action is TerminalAction {
+	return action.type.startsWith('terminal/');
 }

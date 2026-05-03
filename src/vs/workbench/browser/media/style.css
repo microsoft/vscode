@@ -67,6 +67,27 @@ body {
 	--vscode-shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
 }
 
+/* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
+.monaco-workbench.no-shadows .part.titlebar,
+.monaco-workbench.no-shadows .part.activitybar,
+.monaco-workbench.no-shadows.nosidebar .part.activitybar,
+.monaco-workbench.no-shadows.activitybar-right .part.activitybar,
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab {
+	box-shadow: none;
+}
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab:hover:not(.active),
+.monaco-workbench.no-shadows .part.editor .tabs-container > .tab.active {
+	box-shadow: none;
+}
+.monaco-workbench.no-shadows {
+	/* Use zero-offset transparent shadows instead of 'none' because these
+	 * variables are interpolated into multi-value box-shadow declarations. */
+	--vscode-shadow-active-tab: 0 0 0 0 transparent;
+	--vscode-shadow-depth-x: 0 0 0 0 transparent;
+	--vscode-shadow-depth-y: 0 0 0 0 transparent;
+	--vscode-shadow-sm: 0 0 0 0 transparent;
+}
+
 .monaco-workbench.web {
 	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 	overscroll-behavior: none; /* Prevent bounce effect */

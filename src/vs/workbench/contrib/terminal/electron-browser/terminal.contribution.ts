@@ -6,7 +6,6 @@
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import '../../../../platform/sandbox/electron-browser/sandboxHelperService.js';
 import { ILocalPtyService, TerminalIpcChannels } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ITerminalProfileResolverService } from '../common/terminal.js';
