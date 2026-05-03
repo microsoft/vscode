@@ -286,12 +286,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
-				'description': localize('splitSizing', "Controls the size of editor groups when splitting them.")
+				'description': localize('splitSizing', "Controls the size of editor groups when splitting them."),
+				'keywords': ['pane']
 			},
 			'workbench.editor.splitOnDragAndDrop': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
+				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area."),
+				'keywords': ['pane']
 			},
 			'workbench.editor.dragToOpenWindow': {
 				'type': 'boolean',
@@ -343,7 +345,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.closeEmptyGroups': {
 				'type': 'boolean',
 				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
-				'default': true
+				'default': true,
+				'keywords': ['pane']
 			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',

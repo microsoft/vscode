@@ -7,10 +7,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/42624fbba5e0db7f32c224b5eb9c5dd3b08245697ae2e7d2a88be0d7c287129b)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/041fd8cf01bf03e44367c80186743d6b4eae3aa7b38a6a1551e8a0168cb8f8f7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/28af1b719f3877d2f048fef10bb4534d5f638c1987bb0536331f4ab50ea0ea7a)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/64135435974ab9866b41b95e4fd1a7b2fb87b5b4c551617c361ca0d36eb75569)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c6c77ca2785665ae66c817cda21a8e5f5ea7d51e798c5b4e5aedcda9fd7323bd)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2fbc12507b59ff950d9612d2df92e6b39d8bf0bf500478e42eca2ead4d1ae206)
