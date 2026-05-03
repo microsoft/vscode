@@ -153,31 +153,24 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 
 	/**
 	 * Locate the plan markdown file Claude wrote to `~/.claude/plans/`.
-	 * Requires an exact content match against `planContent` so we only
-	 * associate the review widget with the file Claude actually produced
-	 * for *this* invocation — the directory commonly contains plans from
-	 * prior sessions, and an mtime-based fallback could attach the widget
-	 * (and any inline comments) to unrelated content. Returns `undefined`
-	 * when no exact match is found; the review widget then renders
-	 * content-only without inline-editor affordances.
+	 * Claude calls `ExitPlanMode` immediately after writing the plan, so the
+	 * file we want is overwhelmingly the most recently modified `.md` in
+	 * that directory. We pick the newest valid candidate and verify its
+	 * contents exactly match `planContent` — if anything else slipped in
+	 * between (rare) we simply return `undefined` and the review widget
+	 * falls back to content-only rendering.
 	 *
-	 * Performance / safety:
-	 *  - Plain regular files only: symlinks are rejected so a malicious
-	 *    `~/.claude/plans/foo.md -> /etc/passwd` cannot redirect the open.
-	 *  - Skips files larger than `MAX_PLAN_FILE_BYTES` to bound the I/O
-	 *    cost of stale logs accidentally dropped in the directory.
-	 *  - Stats first, then sorts by mtime descending and short-circuits on
-	 *    the first content match — Claude's just-written plan is almost
-	 *    always the most recently modified entry.
-	 *  - Length comparison precedes decoding so obvious mismatches pay no
-	 *    decode cost.
+	 * Safety:
+	 *  - Symlinks are rejected so `foo.md -> /etc/passwd` can't redirect
+	 *    the editor open.
+	 *  - Files over `MAX_PLAN_FILE_BYTES` are skipped so a stray multi-MB
+	 *    file in the directory can't stall the permission path.
 	 */
 	private async findPlanUri(planContent: string | undefined): Promise<URI | undefined> {
 		const target = planContent?.trim();
 		if (!target) {
 			return undefined;
 		}
-		const targetByteLength = new TextEncoder().encode(target).byteLength;
 
 		const planDir = URI.joinPath(this.envService.userHome, '.claude', 'plans');
 		let entries: [string, FileType][];
@@ -187,52 +180,42 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			return undefined;
 		}
 
-		// Stat candidates in parallel, filtering out non-regular files,
-		// symlinks, and files larger than the size cap.
-		const stats = await Promise.all(entries.map(async ([name, type]) => {
-			if (type !== FileType.File || !name.toLowerCase().endsWith('.md')) {
-				return undefined;
+		// Pick the newest regular `.md` candidate (single stat sweep).
+		let newest: { uri: URI; mtime: number } | undefined;
+		await Promise.all(entries.map(async ([name, dirType]) => {
+			if (dirType !== FileType.File || !name.toLowerCase().endsWith('.md')) {
+				return;
 			}
 			const uri = URI.joinPath(planDir, name);
 			try {
 				const stat = await this.fileSystemService.stat(uri);
-				// Reject anything carrying the SymbolicLink bit (covers both
-				// pure symlinks and `File | SymbolicLink`).
-				if ((stat.type & FileType.SymbolicLink) !== 0) {
-					return undefined;
+				const isPlainFile = stat.type === FileType.File
+					&& (stat.type & FileType.SymbolicLink) === 0;
+				if (!isPlainFile || stat.size > MAX_PLAN_FILE_BYTES) {
+					return;
 				}
-				if (stat.type !== FileType.File) {
-					return undefined;
+				if (!newest || stat.mtime > newest.mtime) {
+					newest = { uri, mtime: stat.mtime };
 				}
-				if (stat.size > MAX_PLAN_FILE_BYTES) {
-					return undefined;
-				}
-				return { uri, mtime: stat.mtime, size: stat.size };
 			} catch {
-				return undefined;
+				// Ignore unstatable candidates.
 			}
 		}));
 
-		const candidates = stats.filter((s): s is { uri: URI; mtime: number; size: number } => !!s);
-		// Newest first — Claude's plan is almost always the most recent.
-		candidates.sort((a, b) => b.mtime - a.mtime);
+		if (!newest) {
+			return undefined;
+		}
 
-		for (const { uri, size } of candidates) {
-			// Cheap length filter before decoding. UTF-8 byte length must
-			// match the (trimmed) target byte length, so anything else is
-			// guaranteed to mismatch. Files have surrounding whitespace so
-			// allow a small slack.
-			if (Math.abs(size - targetByteLength) > 8 && size < targetByteLength) {
-				continue;
+		// Verify content. If the newest file isn't actually our plan we bail
+		// out rather than scan further — the staleness window is tiny and
+		// the wrong-file failure mode is worse than no-URI.
+		try {
+			const bytes = await this.fileSystemService.readFile(newest.uri);
+			if (new TextDecoder().decode(bytes).trim() === target) {
+				return newest.uri;
 			}
-			try {
-				const bytes = await this.fileSystemService.readFile(uri);
-				if (new TextDecoder().decode(bytes).trim() === target) {
-					return uri;
-				}
-			} catch {
-				// Ignore unreadable candidates.
-			}
+		} catch {
+			// Fall through to undefined.
 		}
 		return undefined;
 	}

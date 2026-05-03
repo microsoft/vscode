@@ -467,13 +467,30 @@ describe('ClaudeToolPermissionService', () => {
 					const matching = URI.joinPath(planDir, 'matching.md');
 					const { mockTools, svc } = await setupWithFs(fs => {
 						fs.mockDirectory(planDir, [['matching.md', FileType.File], ['stale.md', FileType.File]]);
-						fs.mockFile(matching, planContent);
-						fs.mockFile(URI.joinPath(planDir, 'stale.md'), 'unrelated content');
+						// `matching.md` was just written; `stale.md` is older.
+						fs.mockFile(matching, planContent, 2000);
+						fs.mockFile(URI.joinPath(planDir, 'stale.md'), 'unrelated content', 1000);
 					});
 
 					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
 
 					expect(getPlanArg(mockTools)).toBe(matching.toString());
+				});
+
+				it('omits plan URI when the newest file does not match (no fallback scan)', async () => {
+					const matching = URI.joinPath(planDir, 'matching.md');
+					const { mockTools, svc } = await setupWithFs(fs => {
+						fs.mockDirectory(planDir, [['matching.md', FileType.File], ['unrelated.md', FileType.File]]);
+						// `unrelated.md` is the newest, but its content does
+						// not match — we deliberately do not fall through to
+						// older candidates.
+						fs.mockFile(matching, planContent, 1000);
+						fs.mockFile(URI.joinPath(planDir, 'unrelated.md'), 'unrelated content', 2000);
+					});
+
+					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
+
+					expect(getPlanArg(mockTools)).toBeUndefined();
 				});
 
 				it('omits plan URI when no file matches', async () => {
