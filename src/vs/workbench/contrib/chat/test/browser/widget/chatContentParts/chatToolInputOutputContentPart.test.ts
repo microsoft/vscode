@@ -46,7 +46,6 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as IChatContentPartRenderContext['diffEditorPool'],
-			codeBlockModelCollection: {} as IChatContentPartRenderContext['codeBlockModelCollection'],
 			currentWidth: observableValue('test', 300),
 			onDidChangeVisibility: Event.None,
 			inlineTextModels: {} as IChatContentPartRenderContext['inlineTextModels'],
@@ -60,6 +59,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			context,
 			{ kind: 'code', data: '{}', languageId: 'json', codeBlockIndex: 0, ownerMarkdownPartId: 'test', options: {} },
 			undefined,
+			false,
 			false,
 			false,
 		));
