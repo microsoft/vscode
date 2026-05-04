@@ -906,12 +906,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 		if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
 			allOptions.mcpServers = options.mcpServers;
-			this.logService.info(`[CopilotCLISession] Passing ${Object.keys(options.mcpServers).length} MCP server(s) to SDK: [${Object.keys(options.mcpServers).join(', ')}]`);
-			for (const [id, cfg] of Object.entries(options.mcpServers)) {
-				this.logService.info(`[CopilotCLISession]   ${id}: type=${cfg.type}`);
-			}
-		} else {
-			this.logService.info('[CopilotCLISession] No MCP servers to pass to SDK');
 		}
 		if (skillLocations.length > 0) {
 			allOptions.skillDirectories = skillLocations.map(uri => uri.fsPath);

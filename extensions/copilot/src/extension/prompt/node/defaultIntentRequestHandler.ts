@@ -794,8 +794,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 		const computePromise = this.toolGrouping.compute(this.options.request.prompt, token);		// Show progress if this takes a moment...
 		const timeout = setTimeout(() => {
-			outputStream?.progress(l10n.t('Optimizing tool selection...'), async () => {
+			outputStream?.progress(l10n.t('Optimizing tool selection'), async () => {
 				await computePromise;
+				return l10n.t('Optimized tool selection');
 			});
 		}, 1000);
 

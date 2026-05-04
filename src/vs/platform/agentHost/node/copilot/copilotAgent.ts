@@ -932,7 +932,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		const sessionId = AgentSession.id(parseSubagentSessionUri(session.toString())?.parentSession || session);
+		// Walk up the subagent chain to reach the root SDK session entry;
+		// _sessions is keyed by root session IDs only.
+		let target = session;
+		let parsed;
+		while ((parsed = parseSubagentSessionUri(target))) {
+			target = parsed.parentSession;
+		}
+		const sessionId = AgentSession.id(target);
 		const entry = this._sessions.get(sessionId);
 		entry?.handleClientToolCallComplete(toolCallId, result);
 	}
@@ -1050,12 +1057,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		// If the URI describes a subagent child session (`<parent>/subagent/<toolCallId>`),
 		// load the parent's events once and extract the child's filtered turns.
-		const subagentInfo = parseSubagentSessionUri(session.toString());
+		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
-			const parentUri = URI.parse(subagentInfo.parentSession);
-			const parentSessionId = AgentSession.id(parentUri);
-			const parentEntry = this._sessions.get(parentSessionId) ?? await this._resumeSession(parentSessionId).catch(err => {
-				this._logService.warn(`[Copilot:${parentSessionId}] Failed to resume parent for subagent restore`, err);
+			// Walk up the subagent chain to find the root SDK session entry;
+			// _sessions is keyed by root session IDs only.
+			let rootSession = subagentInfo.parentSession;
+			let parentParsed;
+			while ((parentParsed = parseSubagentSessionUri(rootSession))) {
+				rootSession = parentParsed.parentSession;
+			}
+			const rootSessionId = AgentSession.id(rootSession);
+			const parentEntry = this._sessions.get(rootSessionId) ?? await this._resumeSession(rootSessionId).catch(err => {
+				this._logService.warn(`[Copilot:${rootSessionId}] Failed to resume root for subagent restore`, err);
 				return undefined;
 			});
 			if (!parentEntry) {
