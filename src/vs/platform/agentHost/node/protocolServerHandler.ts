@@ -205,7 +205,11 @@ export class ProtocolServerHandler extends Disposable {
 				if (pending) {
 					this._pendingReverseRequests.delete(msg.id);
 					if (hasKey(msg, { error: true })) {
-						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+						pending.reject(new ProtocolError(
+							msg.error?.code ?? -32000,
+							msg.error?.message ?? 'Reverse RPC error',
+							msg.error?.data,
+						));
 					} else {
 						pending.resolve(msg.result);
 					}
@@ -266,6 +270,7 @@ export class ProtocolServerHandler extends Disposable {
 			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
 			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
 			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(params.clientId, 'resourceRequest', params_),
 		}));
 
 
@@ -611,6 +616,12 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
+		},
+		resourceRequest: async (_client, _params) => {
+			// The local agent host does not yet enforce per-resource grants
+			// for client → server access. Always grant; receivers MAY rescind
+			// access by returning `PermissionDenied` on subsequent operations.
+			return {};
 		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);

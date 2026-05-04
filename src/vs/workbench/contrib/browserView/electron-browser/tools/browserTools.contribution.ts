@@ -8,9 +8,11 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { formatBrowserEditorList } from './browserToolHelpers.js';
@@ -43,6 +45,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IChatService private readonly chatService: IChatService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) {
 		super();
 
@@ -60,6 +64,13 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		this._register(this.browserViewService.onDidChangeSharingAvailable(() => {
 			this._updateToolRegistrations();
+		}));
+
+		// Dispose Playwright sessions when the corresponding chat session ends.
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
+				void this.playwrightService.disposeSession(resource.toString()).catch(() => { });
+			}
 		}));
 	}
 
