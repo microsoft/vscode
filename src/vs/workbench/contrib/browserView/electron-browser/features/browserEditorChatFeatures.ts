@@ -25,7 +25,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IElementData, BrowserViewCommandId, formatElementMap, formatElementPath } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -44,71 +44,6 @@ import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchServi
 
 // Register tools
 import '../tools/browserTools.contribution.js';
-
-/**
- * Format an array of element ancestors into a CSS-selector-like path string.
- */
-function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
-	if (!ancestors || ancestors.length === 0) {
-		return undefined;
-	}
-
-	return ancestors
-		.map(ancestor => {
-			const classes = ancestor.classNames?.length ? `.${ancestor.classNames.join('.')}` : '';
-			const id = ancestor.id ? `#${ancestor.id}` : '';
-			return `${ancestor.tagName}${id}${classes}`;
-		})
-		.join(' > ');
-}
-
-function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
-	const topKey = `${propertyName}-top`;
-	const rightKey = `${propertyName}-right`;
-	const bottomKey = `${propertyName}-bottom`;
-	const leftKey = `${propertyName}-left`;
-
-	const top = entries.get(topKey);
-	const right = entries.get(rightKey);
-	const bottom = entries.get(bottomKey);
-	const left = entries.get(leftKey);
-
-	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
-		return undefined;
-	}
-
-	entries.delete(topKey);
-	entries.delete(rightKey);
-	entries.delete(bottomKey);
-	entries.delete(leftKey);
-
-	return `${top} ${right} ${bottom} ${left}`;
-}
-
-function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
-	if (!entries || Object.keys(entries).length === 0) {
-		return undefined;
-	}
-
-	const normalizedEntries = new Map(Object.entries(entries));
-	const lines: string[] = [];
-
-	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
-	if (marginShorthand) {
-		lines.push(`- margin: ${marginShorthand}`);
-	}
-
-	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
-	if (paddingShorthand) {
-		lines.push(`- padding: ${paddingShorthand}`);
-	}
-
-	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
-		lines.push(`- ${name}: ${value}`);
-	}
-
-	return lines.join('\n');
-}
 
 function createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
 	const sections: string[] = [];
@@ -641,6 +576,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		'workbench.browser.enableSelect': {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.enableSelect' },
+				'Enable Browser Select: an in-page annotation toolbar in the Integrated Browser that lets you mark up elements and send them to chat. Requires {0}.',
+				'`#workbench.browser.enableChatTools#`'
+			),
 		}
 	}
 });

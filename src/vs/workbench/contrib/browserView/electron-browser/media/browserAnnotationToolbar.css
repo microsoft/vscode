@@ -1,0 +1,107 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.browser-annotation-toolbar {
+	display: none;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 4px 4px 6px;
+	position: absolute;
+	top: 6px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 10;
+	border: 1px solid var(--vscode-browser-border, var(--vscode-editorWidget-border, transparent));
+	border-radius: calc(var(--vscode-cornerRadius-small) + 1px);
+	background-color: var(--vscode-editor-background);
+	box-shadow: var(--vscode-shadow-lg);
+	cursor: default;
+	-webkit-app-region: no-drag;
+
+	&.visible {
+		display: flex;
+	}
+
+	&.disabled {
+		display: none !important;
+	}
+}
+
+.browser-annotation-toolbar .browser-annotation-toolbar-drag {
+	cursor: grab;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.4;
+	margin-right: 2px;
+	flex-shrink: 0;
+
+	&:active {
+		cursor: grabbing;
+		opacity: 0.7;
+	}
+
+	.codicon {
+		font-size: 12px;
+	}
+}
+
+.browser-annotation-toolbar .browser-annotation-toolbar-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	padding: 0;
+	outline: none !important;
+
+	&:hover:not(:disabled) {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+
+	&:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder) !important;
+		outline-offset: -1px !important;
+	}
+
+	&.active {
+		color: var(--vscode-textLink-foreground);
+		background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 15%, transparent);
+	}
+
+	&:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+
+	.codicon {
+		font-size: 16px;
+	}
+}
+
+.browser-annotation-toolbar .browser-annotation-toolbar-separator {
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-browser-border, var(--vscode-editorWidget-border, transparent));
+	margin: 0 4px;
+	flex-shrink: 0;
+}
+
+.browser-annotation-toolbar .browser-annotation-toolbar-label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 4px;
+	white-space: nowrap;
+	user-select: none;
+	-webkit-user-select: none;
+}

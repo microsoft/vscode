@@ -241,6 +241,75 @@ export function browserZoomAccessibilityLabel(zoomFactor: number): string {
 }
 
 /**
+ * Format an array of element ancestors into a CSS-selector-like path string.
+ */
+export function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
+	if (!ancestors || ancestors.length === 0) {
+		return undefined;
+	}
+
+	return ancestors
+		.map(ancestor => {
+			const classes = ancestor.classNames?.length ? `.${ancestor.classNames.join('.')}` : '';
+			const id = ancestor.id ? `#${ancestor.id}` : '';
+			return `${ancestor.tagName}${id}${classes}`;
+		})
+		.join(' > ');
+}
+
+function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
+	const topKey = `${propertyName}-top`;
+	const rightKey = `${propertyName}-right`;
+	const bottomKey = `${propertyName}-bottom`;
+	const leftKey = `${propertyName}-left`;
+
+	const top = entries.get(topKey);
+	const right = entries.get(rightKey);
+	const bottom = entries.get(bottomKey);
+	const left = entries.get(leftKey);
+
+	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
+		return undefined;
+	}
+
+	entries.delete(topKey);
+	entries.delete(rightKey);
+	entries.delete(bottomKey);
+	entries.delete(leftKey);
+
+	return `${top} ${right} ${bottom} ${left}`;
+}
+
+/**
+ * Format a key-value record into a markdown-style list,
+ * collapsing margin/padding into shorthand values.
+ */
+export function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
+	if (!entries || Object.keys(entries).length === 0) {
+		return undefined;
+	}
+
+	const normalizedEntries = new Map(Object.entries(entries));
+	const lines: string[] = [];
+
+	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
+	if (marginShorthand) {
+		lines.push(`- margin: ${marginShorthand}`);
+	}
+
+	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
+	if (paddingShorthand) {
+		lines.push(`- padding: ${paddingShorthand}`);
+	}
+
+	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+		lines.push(`- ${name}: ${value}`);
+	}
+
+	return lines.join('\n');
+}
+
+/**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
  */
 export const browserViewIsolatedWorldId = 999;
