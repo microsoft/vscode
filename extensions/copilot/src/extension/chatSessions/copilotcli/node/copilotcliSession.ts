@@ -913,7 +913,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
-		this.logService.info(`[CopilotCLISession] Steering session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
@@ -966,13 +965,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
-					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
 				// Emit user_message event so chronicle can extract turns and summary
-				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars) });
 
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
@@ -1114,7 +1113,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
-				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1339,7 +1337,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						}
 					}
 				}
-				this.logService.trace(`[CopilotCLISession] Start Tool ${event.data.toolName || '<unknown>'}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
 				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
@@ -1347,7 +1344,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
 						this._createdPullRequestUrl = pullRequestUrl;
-						this.logService.trace(`[CopilotCLISession] Captured pull request URL: ${pullRequestUrl}`);
 						GenAiMetrics.incrementPullRequestCount(this._otelService);
 					}
 				}
@@ -1359,7 +1355,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
 				if (editToolIds.has(event.data.toolCallId)) {
-					this.logService.trace(`[CopilotCLISession] Completed edit tracking for toolCallId ${event.data.toolCallId}`);
 					return;
 				}
 
@@ -1373,11 +1368,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					wroteResponseContent = true;
 					requestStream?.push(responsePart);
 				}
-
-				const success = `success: ${event.data.success}`;
-				const error = event.data.error ? `error: ${event.data.error.code},${event.data.error.message}` : '';
-				const result = event.data.result ? `result: ${event.data.result?.content}` : '';
-				const parts = [success, error, result].filter(part => part.length > 0).join(', ');
 
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
@@ -1401,7 +1391,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 				}
 
-				this.logService.trace(`[CopilotCLISession]Complete Tool ${toolName}, ${parts}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
@@ -1419,16 +1408,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.started', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent started: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 				enrichToolInvocationWithSubagentMetadata(
 					event.data.toolCallId,
 					event.data.agentDisplayName,
 					event.data.agentDescription,
 					pendingToolInvocations
 				);
-			})));
-			disposables.add(toDisposable(this._sdkSession.on('subagent.completed', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent completed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.failed', (event) => {
 				this.logService.trace(`[CopilotCLISession] Subagent failed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
@@ -1439,7 +1424,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this.logService.trace(`[CopilotCLISession] Hook ${event.data.hookType} started (${event.data.hookInvocationId})`);
 				let input: string | undefined;
 				try {
-					input = truncateForOTel(JSON.stringify(event.data.input));
+					input = truncateForOTel(JSON.stringify(event.data.input), this._otelService.config.maxAttributeSizeChars);
 				} catch { /* swallow serialization errors */ }
 				this._bridgeProcessor?.stashHookInput(event.data.hookInvocationId, event.data.hookType, input);
 			})));
@@ -1449,7 +1434,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				let output: string | undefined;
 				if (event.data.success) {
 					try {
-						output = truncateForOTel(JSON.stringify(event.data.output));
+						output = truncateForOTel(JSON.stringify(event.data.output), this._otelService.config.maxAttributeSizeChars);
 					} catch { /* swallow serialization errors */ }
 				}
 				this._bridgeProcessor?.stashHookEnd(

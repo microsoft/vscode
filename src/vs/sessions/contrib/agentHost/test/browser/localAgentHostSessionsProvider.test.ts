@@ -52,6 +52,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -113,7 +114,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return uri;
 	}
 
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
+		this.resolveSessionConfigRequests.push(request);
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -220,11 +222,11 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService());
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
@@ -628,6 +630,62 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
 
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
+	});
+
+	test('createNewSession seeds autoApprove from chat.permissions.default and forwards it to resolveSessionConfig', async () => {
+		const config = new TestConfigurationService();
+		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove', 'autopilot'], title: 'Auto-approve' } } },
+			values: { autoApprove: 'autoApprove' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, c => c?.values.autoApprove === 'autoApprove');
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			seededImmediately: 'autoApprove',
+			forwardedToAgentHost: 'autoApprove',
+		});
+	});
+
+	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			initialValues: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedAutoApprove: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			initialValues: {},
+			forwardedAutoApprove: undefined,
+		});
+	});
+
+	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.tools.global.autoApprove') {
+					return { ...base, policyValue: false as unknown as T };
+				}
+				return base;
+			}
+		}();
+		await config.setUserConfiguration('chat.permissions.default', 'autopilot');
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+		}, {
+			seededImmediately: 'default',
+			forwardedToAgentHost: 'default',
+		});
 	});
 
 	test('getSessionByResource resolves current new session without listing it', () => {

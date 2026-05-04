@@ -15,6 +15,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -23,14 +25,14 @@ import { readSessionGitState, StateComponents, type ISessionGitState } from '../
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 
 // ============================================================================
@@ -72,6 +74,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>('changes', []);
+	readonly changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
@@ -160,6 +163,7 @@ export class AgentHostSessionAdapter implements ISession {
 			updatedAt: this.updatedAt,
 			status: this.status,
 			changes: this.changes,
+			changesets: this.changesets,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -297,6 +301,13 @@ interface INewSessionConstructionContext {
 	readonly resourceScheme: string;
 	readonly authenticationPending: IObservable<boolean>;
 	readonly logService: ILogService;
+	/**
+	 * Optional initial config values to seed into the new session before its
+	 * first {@link NewSession.resolveConfig} round-trip. Used to forward
+	 * `chat.permissions.default` into the agent host's `autoApprove` slot so
+	 * the picker reflects the user's preference immediately.
+	 */
+	readonly initialConfigValues?: Record<string, unknown>;
 }
 
 /**
@@ -372,6 +383,7 @@ class NewSession extends Disposable {
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue<string>(this, '');
 		const updatedAt = observableValue(this, new Date());
+		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
@@ -385,6 +397,7 @@ class NewSession extends Disposable {
 		const mainChat: IChat = {
 			resource, createdAt, title, updatedAt,
 			status: this._status,
+			changesets,
 			changes,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
@@ -402,6 +415,7 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
+			changesets,
 			changes,
 			modelId: this._modelId,
 			mode,
@@ -416,6 +430,10 @@ class NewSession extends Disposable {
 			capabilities: { supportsMultipleChats: false },
 		};
 		this.sessionId = this.session.sessionId;
+
+		if (ctx.initialConfigValues) {
+			this._config = { schema: { type: 'object', properties: {} }, values: { ...ctx.initialConfigValues } };
+		}
 	}
 
 	// -- Picker mutations ----------------------------------------------------
@@ -684,6 +702,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IChatService protected readonly _chatService: IChatService,
 		@IChatWidgetService protected readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService protected readonly _languageModelsService: ILanguageModelsService,
+		@IConfigurationService protected readonly _baseConfigurationService: IConfigurationService,
 		@ILogService protected readonly _logService: ILogService,
 	) {
 		super();
@@ -860,6 +879,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			resourceScheme: this.resourceSchemeForProvider(sessionType.id),
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
+			initialConfigValues: this._initialNewSessionConfig(),
 		});
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
@@ -905,6 +925,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Localized "no agents" error message. Subclasses can override. */
 	protected _noAgentsErrorMessage(): string {
 		return localize('noAgents', "Agent host has not advertised any agents yet.");
+	}
+
+	/**
+	 * Initial session-config values applied to a brand-new agent-host session
+	 * before its schema is resolved. The user-facing `chat.permissions.default`
+	 * setting seeds the `autoApprove` property so that agents which advertise
+	 * the well-known auto-approve enum (`default | autoApprove | autopilot`)
+	 * pick it up on their first `resolveSessionConfig` round-trip. Agents that
+	 * do not advertise `autoApprove` simply ignore the unknown key.
+	 *
+	 * If enterprise policy disables global auto-approval
+	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
+	 * clamped to `default` so the agent host never starts in an elevated
+	 * permission level the user is not allowed to pick.
+	 */
+	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
+		const configured = this._baseConfigurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof configured !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			return undefined;
+		}
+		const policyRestricted = this._baseConfigurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const value = policyRestricted ? 'default' : configured;
+		return { [SessionConfigKey.AutoApprove]: value };
 	}
 
 	// -- Dynamic session config ----------------------------------------------

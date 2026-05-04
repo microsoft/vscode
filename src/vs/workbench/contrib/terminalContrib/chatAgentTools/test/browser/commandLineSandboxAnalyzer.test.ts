@@ -34,6 +34,7 @@ suite('CommandLineSandboxAnalyzer', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 		} as unknown as ITerminalSandboxService);
 
 		analyzer = store.add(instantiationService.createInstance(CommandLineSandboxAnalyzer));

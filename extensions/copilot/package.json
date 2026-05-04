@@ -3862,6 +3862,15 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.claude47OpusPrompt.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.gpt54ConcisePrompt.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4385,6 +4394,16 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.agent.backgroundTodoAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.agent.backgroundTodoAgent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4905,6 +4924,15 @@
 						"type": "boolean",
 						"default": false,
 						"markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.otel.maxAttributeSizeChars": {
+						"type": "integer",
+						"default": 0,
+						"minimum": 0,
+						"markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
 						"tags": [
 							"advanced"
 						]

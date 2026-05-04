@@ -251,6 +251,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body.previous_response_id = undefined;
 			}
 			return body;
+		} else if (this.useMessagesApi) {
+			// Delegate to base ChatEndpoint for Messages API dispatch
+			return super.createRequestBody(options);
 		} else {
 			// Handle CAPI: provide callback for thinking data processing
 			const callback: RawMessageConversionCallback = (out, data) => {
