@@ -32,13 +32,14 @@ import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/c
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
@@ -65,13 +66,13 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { }
 });
 
-interface IConfigPickerItem {
+export interface IConfigPickerItem {
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
 }
 
-function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
+export function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
 	if (property === 'isolation') {
 		if (value === 'folder') {
 			return Codicon.folder;
@@ -227,21 +228,21 @@ function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | 
 	}
 }
 
-class AgentHostSessionConfigPicker extends Disposable {
+export class AgentHostSessionConfigPicker extends Disposable {
 
-	private readonly _renderDisposables = this._register(new DisposableStore());
+	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
-	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
+	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 
 	constructor(
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
+		@IDialogService protected readonly _dialogService: IDialogService,
+		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -261,15 +262,6 @@ class AgentHostSessionConfigPicker extends Disposable {
 			this._renderConfigPickers();
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders());
-
-		// Re-render when phone-layout flips so the isolation pill
-		// switches between the desktop dropdown and the phone
-		// checkbox affordance at runtime.
-		this._register(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
-				this._renderConfigPickers();
-			}
-		}));
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
@@ -379,11 +371,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _isPhone(): boolean {
-		return IsPhoneLayoutContext.getValue(this._contextKeyService) === true;
-	}
-
-	private _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
+	protected _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(property, value);
@@ -402,19 +390,11 @@ class AgentHostSessionConfigPicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
-	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	protected async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
 
-		// On phone, the isolation and branch pickers share a single
-		// bottom-sheet so the user can switch between worktree mode and
-		// branch in one interaction. Both chips trigger the same sheet —
-		// the chip the user tapped is the one with focus restored on close.
-		if (this._isPhone() && (property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch)) {
-			await this._showUnifiedRepoSheet(provider, sessionId, trigger);
-			return;
-		}
 
 		const rawItems = await this._getItems(provider, sessionId, property, schema);
 		const { items, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
@@ -461,147 +441,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	/**
-	 * Phone-only: show the isolation and branch pickers together as a
-	 * single bottom sheet so the user can adjust both repo-config knobs
-	 * in one interaction. The sheet's first section lists the isolation
-	 * options (Use worktree / Edit in place) and the second section
-	 * lists the available branches; tapping any row applies that single
-	 * change and closes the sheet. Both the Worktree chip and the
-	 * Branch chip route through this helper so they feel like surfaces
-	 * onto the same picker rather than two separate dropdowns.
-	 */
-	private async _showUnifiedRepoSheet(provider: IAgentHostSessionsProvider, sessionId: string, trigger: HTMLElement): Promise<void> {
-		const config = provider.getSessionConfig(sessionId);
-		if (!config) {
-			return;
-		}
-
-		const isolationSchema = config.schema.properties[SessionConfigKey.Isolation];
-		const branchSchema = config.schema.properties[SessionConfigKey.Branch];
-
-		// Load isolation options eagerly. Branch is loaded eagerly too
-		// (so the user sees the most relevant base branches immediately),
-		// but when the schema is `enumDynamic` we additionally wire up an
-		// inline search source so typing in the sheet fans out to the
-		// agent host for live completions.
-		const [isolationItems, branchItems] = await Promise.all([
-			isolationSchema && !isolationSchema.readOnly
-				? this._getItems(provider, sessionId, SessionConfigKey.Isolation, isolationSchema)
-				: Promise.resolve([] as readonly IConfigPickerItem[]),
-			branchSchema && !branchSchema.readOnly
-				? this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema)
-				: Promise.resolve([] as readonly IConfigPickerItem[]),
-		]);
-
-		const isolationValue = config.values[SessionConfigKey.Isolation];
-		const branchValue = config.values[SessionConfigKey.Branch];
-		const sheetItems: IMobilePickerSheetItem[] = [];
-
-		// Resolve sheet-row ids back to the agent-host (property, value)
-		// tuple they represent. The sheet API uses opaque string ids,
-		// so we keep a side-table here rather than encoding metadata
-		// into the id (a previous version used `${property}:${value}`,
-		// which would break silently on values containing `:` such as
-		// future config keys with namespaces).
-		const idToConfig = new Map<string, { property: string; value: string }>();
-		const registerId = (property: string, value: string): string => {
-			const id = `repo-row-${idToConfig.size}`;
-			idToConfig.set(id, { property, value });
-			return id;
-		};
-
-		isolationItems.forEach((item, index) => {
-			sheetItems.push({
-				id: registerId(SessionConfigKey.Isolation, item.value),
-				label: item.label,
-				description: item.description,
-				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
-				checked: item.value === isolationValue,
-				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('agentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
-			});
-		});
-
-		// Only show the static branch list when the schema is *not*
-		// dynamic — dynamic enums are surfaced via the inline search
-		// section below, where the agent host streams matching
-		// completions as the user types. Showing both would render the
-		// same row twice (once static, once as a search hit).
-		const branchSectionTitle = branchSchema?.title ?? localize('agentHostSessionConfig.repoSheet.branchSection', "Base Branch");
-		if (!branchSchema?.enumDynamic) {
-			branchItems.forEach((item, index) => {
-				sheetItems.push({
-					id: registerId(SessionConfigKey.Branch, item.value),
-					label: item.label,
-					description: item.description,
-					icon: getConfigIcon(SessionConfigKey.Branch, item.value),
-					checked: item.value === branchValue,
-					sectionTitle: index === 0 ? branchSectionTitle : undefined,
-				});
-			});
-		}
-
-		if (sheetItems.length === 0 && !branchSchema?.enumDynamic) {
-			return;
-		}
-
-		// When the branch schema advertises dynamic completions, expose
-		// them through the sheet's inline search section. The sheet
-		// debounces the input + cancels stale loads for us; we honor
-		// the cancellation token before yielding results so a slower
-		// keystroke can't overwrite a faster one.
-		let search: IMobilePickerSheetSearchSource | undefined;
-		if (branchSchema?.enumDynamic && !branchSchema.readOnly) {
-			search = {
-				placeholder: localize('agentHostSessionConfig.repoSheet.branchSearchPlaceholder', "Search branches"),
-				ariaLabel: localize('agentHostSessionConfig.repoSheet.branchSearchAria', "Search base branches"),
-				resultsSectionTitle: branchSectionTitle,
-				emptyMessage: localize('agentHostSessionConfig.repoSheet.branchSearchEmpty', "No matching branches."),
-				loadItems: async (query, token) => {
-					// On empty query, return the eagerly-loaded list so the
-					// search section feels populated even before the user
-					// types anything.
-					const items = query
-						? await this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema, query)
-						: branchItems;
-					// If the user already typed another character (or
-					// closed the sheet) while the agent host was
-					// resolving completions, drop the stale result.
-					if (token.isCancellationRequested) {
-						return [];
-					}
-					return items.map(item => ({
-						id: registerId(SessionConfigKey.Branch, item.value),
-						label: item.label,
-						description: item.description,
-						icon: getConfigIcon(SessionConfigKey.Branch, item.value),
-						checked: item.value === branchValue,
-					}));
-				},
-			};
-		}
-
-		trigger.setAttribute('aria-expanded', 'true');
-		const id = await showMobilePickerSheet(
-			this._layoutService.mainContainer,
-			localize('agentHostSessionConfig.repoSheet.title', "Worktree"),
-			sheetItems,
-			{ search },
-		);
-		trigger.setAttribute('aria-expanded', 'false');
-		trigger.focus();
-
-		if (!id) {
-			return;
-		}
-		const selection = idToConfig.get(id);
-		if (!selection) {
-			return;
-		}
-		provider.setSessionConfigValue(sessionId, selection.property, selection.value).catch(() => { /* best-effort */ });
-	}
-
-	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -632,9 +472,142 @@ class AgentHostSessionConfigPicker extends Disposable {
 		return schema.title;
 	}
 
-	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
+	protected _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
 		const provider = this._sessionsProvidersService.getProvider(providerId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
+	}
+}
+
+/**
+ * Phone variant of {@link AgentHostSessionConfigPicker} that routes the
+ * Isolation and Branch pickers through a unified bottom sheet rather
+ * than the desktop action-widget popup.
+ *
+ * On desktop viewports the inherited `_showPicker` falls through to the
+ * base implementation, so this class is safe to keep through
+ * viewport-class transitions.
+ *
+ * Defined in the same file as the base class to avoid a circular ESM
+ * dependency (the `extends` clause runs at class-definition time, which
+ * is during module evaluation — a separate file that imported the base
+ * would hit "Cannot access before initialization").
+ */
+class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
+
+	protected override async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+		if (!isPhoneLayout(this._layoutService)) {
+			return super._showPicker(provider, sessionId, property, schema, trigger);
+		}
+
+		if (property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch) {
+			await this._showUnifiedRepoSheet(provider, sessionId, trigger);
+			return;
+		}
+
+		return super._showPicker(provider, sessionId, property, schema, trigger);
+	}
+
+	private async _showUnifiedRepoSheet(provider: IAgentHostSessionsProvider, sessionId: string, trigger: HTMLElement): Promise<void> {
+		const config = provider.getSessionConfig(sessionId);
+		if (!config) {
+			return;
+		}
+
+		const isolationSchema = config.schema.properties[SessionConfigKey.Isolation];
+		const branchSchema = config.schema.properties[SessionConfigKey.Branch];
+
+		const [isolationItems, branchItems] = await Promise.all([
+			isolationSchema && !isolationSchema.readOnly
+				? this._getItems(provider, sessionId, SessionConfigKey.Isolation, isolationSchema)
+				: Promise.resolve([] as readonly IConfigPickerItem[]),
+			branchSchema && !branchSchema.readOnly
+				? this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema)
+				: Promise.resolve([] as readonly IConfigPickerItem[]),
+		]);
+
+		const isolationValue = config.values[SessionConfigKey.Isolation];
+		const branchValue = config.values[SessionConfigKey.Branch];
+		const sheetItems: IMobilePickerSheetItem[] = [];
+
+		const idToConfig = new Map<string, { property: string; value: string }>();
+		const registerId = (property: string, value: string): string => {
+			const id = `repo-row-${idToConfig.size}`;
+			idToConfig.set(id, { property, value });
+			return id;
+		};
+
+		isolationItems.forEach((item, index) => {
+			sheetItems.push({
+				id: registerId(SessionConfigKey.Isolation, item.value),
+				label: item.label,
+				description: item.description,
+				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
+				checked: item.value === isolationValue,
+				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
+			});
+		});
+
+		const branchSectionTitle = branchSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.branchSection', "Base Branch");
+		if (!branchSchema?.enumDynamic) {
+			branchItems.forEach((item, index) => {
+				sheetItems.push({
+					id: registerId(SessionConfigKey.Branch, item.value),
+					label: item.label,
+					description: item.description,
+					icon: getConfigIcon(SessionConfigKey.Branch, item.value),
+					checked: item.value === branchValue,
+					sectionTitle: index === 0 ? branchSectionTitle : undefined,
+				});
+			});
+		}
+
+		if (sheetItems.length === 0 && !branchSchema?.enumDynamic) {
+			return;
+		}
+
+		let search: IMobilePickerSheetSearchSource | undefined;
+		if (branchSchema?.enumDynamic && !branchSchema.readOnly) {
+			search = {
+				placeholder: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchPlaceholder', "Search branches"),
+				ariaLabel: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchAria', "Search base branches"),
+				resultsSectionTitle: branchSectionTitle,
+				emptyMessage: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchEmpty', "No matching branches."),
+				loadItems: async (query, token) => {
+					const items = query
+						? await this._getItems(provider, sessionId, SessionConfigKey.Branch, branchSchema, query)
+						: branchItems;
+					if (token.isCancellationRequested) {
+						return [];
+					}
+					return items.map(item => ({
+						id: registerId(SessionConfigKey.Branch, item.value),
+						label: item.label,
+						description: item.description,
+						icon: getConfigIcon(SessionConfigKey.Branch, item.value),
+						checked: item.value === branchValue,
+					}));
+				},
+			};
+		}
+
+		trigger.setAttribute('aria-expanded', 'true');
+		const id = await showMobilePickerSheet(
+			this._layoutService.mainContainer,
+			localize('mobileAgentHostSessionConfig.repoSheet.title', "Worktree"),
+			sheetItems,
+			{ search },
+		);
+		trigger.setAttribute('aria-expanded', 'false');
+		trigger.focus();
+
+		if (!id) {
+			return;
+		}
+		const selection = idToConfig.get(id);
+		if (!selection) {
+			return;
+		}
+		provider.setSessionConfigValue(sessionId, selection.property, selection.value).catch(() => { /* best-effort */ });
 	}
 }
 
@@ -642,7 +615,7 @@ interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): void;
 }
 
-class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -668,10 +641,17 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		// Always use the mobile-aware subclass. Its `_showPicker`
+		// override falls back to `super._showPicker()` when the viewport
+		// is not phone, so desktop behavior is preserved. The static
+		// import creates a circular dependency (mobile → base → mobile),
+		// but ESM handles it because the class is only accessed inside
+		// this factory callback, which runs at `AfterRestored` — well
+		// after both modules have finished evaluating.
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			'sessions.agentHost.sessionConfigPicker',
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostSessionConfigPicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(MobileAgentHostSessionConfigPicker)),
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
@@ -766,7 +746,13 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				// On phone the {@link MobileChatInputConfigPicker} replaces
+				// this picker with a unified mode + model bottom sheet, so
+				// gate this desktop-only Action out of phone layouts.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+					IsPhoneLayoutContext.negate(),
+				),
 			}],
 		});
 	}

@@ -413,7 +413,7 @@
 .agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
 	min-height: 36px;
-	padding: 4px 16px;
+	padding: 2px 6px;
 	font-size: 17px;
 	border-radius: 999px;
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
@@ -590,7 +590,7 @@
 	height: auto;
 	min-height: 30px;
 	min-width: 0;
-	padding: 4px 10px;
+	padding: 2px 6px;
 	border-radius: 999px;
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid transparent;

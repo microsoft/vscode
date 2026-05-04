@@ -18,11 +18,10 @@ import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/
  * to the inherited implementation when the viewport is no longer phone
  * (e.g. user rotated past the phone breakpoint).
  *
- * On phone the picker is hidden entirely from the chat-input chip row:
- * the row is too cramped to surface session-type switching alongside
- * the other config pills, and selection still works programmatically
- * (e.g. via `selectedType`/`onDidSelectSessionType`) because the base
- * class tracks the active type independently of any rendered trigger.
+ * The trigger is rendered on every viewport so phone users can switch
+ * session types — same functionality, different presentation. Tapping
+ * the trigger on phone calls {@link showMobilePickerSheet}; on desktop
+ * it falls through to the inherited action-widget popup.
  */
 export class MobileSessionTypePicker extends SessionTypePicker {
 
@@ -36,13 +35,13 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 	}
 
 	override render(container: HTMLElement): void {
-		// Skip DOM rendering on phone — the trigger has no slot in the
-		// mobile chip row. Base-class state (selected type, change
-		// events, autoruns) is still wired by the constructor and stays
-		// fully functional for programmatic consumers.
-		if (isPhoneLayout(this.layoutService)) {
-			return;
-		}
+		// Always render so the session-type chip is visible in the chip
+		// row on phone. The base class renders a trigger that the mobile
+		// `_showPicker` override routes to a bottom sheet, while desktop
+		// uses the inherited action-widget popup. Rendering on all
+		// viewports also means rotation across the phone breakpoint
+		// keeps the trigger alive — consistent with MOBILE.md's
+		// principle of same functionality, different presentation.
 		super.render(container);
 	}
 

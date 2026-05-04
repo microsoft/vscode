@@ -314,6 +314,42 @@ export function showMobilePickerSheet(
 		}, true);
 		disposables.add(keyHandler);
 
+		// -- iOS keyboard avoidance -----------------------------------
+		// On iOS Safari, when the virtual keyboard opens the layout
+		// viewport (`vh` units) does NOT shrink — only the visual
+		// viewport changes. The sheet uses `position: fixed` which
+		// positions against the layout viewport, so without correction
+		// the keyboard covers the bottom portion of the sheet (including
+		// the search input the user is actively typing into).
+		//
+		// `window.visualViewport` exposes the real visible area. We
+		// listen for `resize` and `scroll` events on it and translate
+		// the sheet upward by the keyboard height so the search input
+		// remains visible.
+		const win = DOM.getWindow(workbenchContainer);
+		const vv = win.visualViewport;
+		if (vv) {
+			const adjustForKeyboard = () => {
+				// The keyboard height is the difference between the
+				// layout viewport height and the visual viewport height,
+				// plus any scroll offset the browser applied.
+				const keyboardHeight = win.innerHeight - vv.height;
+				overlay.style.bottom = `${Math.max(0, keyboardHeight)}px`;
+				overlay.style.height = `${vv.height}px`;
+			};
+			vv.addEventListener('resize', adjustForKeyboard);
+			vv.addEventListener('scroll', adjustForKeyboard);
+			disposables.add(toDisposable(() => {
+				vv.removeEventListener('resize', adjustForKeyboard);
+				vv.removeEventListener('scroll', adjustForKeyboard);
+				overlay.style.bottom = '';
+				overlay.style.height = '';
+			}));
+			// Run once immediately in case the keyboard is already
+			// visible (e.g., sheet opened while another input had focus).
+			adjustForKeyboard();
+		}
+
 		// Focus the first checked row (or the first row) for keyboard
 		// users — but only when there's no search input, since on phone
 		// auto-focusing a list row would dismiss the on-screen keyboard.
@@ -374,8 +410,8 @@ function renderRow(
 	// The codicon glyph lives on a child span so the slot's flex layout
 	// can actually center it; codicon's own `display: inline-block` would
 	// otherwise win on specificity and break vertical centering.
-	const iconSlot = DOM.append(row, $('span.mobile-picker-sheet-icon'));
 	if (item.icon) {
+		const iconSlot = DOM.append(row, $('span.mobile-picker-sheet-icon'));
 		const iconGlyph = DOM.append(iconSlot, $('span.mobile-picker-sheet-icon-glyph'));
 		iconGlyph.classList.add(...ThemeIcon.asClassNameArray(item.icon));
 	}
