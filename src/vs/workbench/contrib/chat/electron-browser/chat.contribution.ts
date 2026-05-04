@@ -17,6 +17,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -255,29 +256,48 @@ registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, Wo
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 
+// Open a new Agent Host session at the given position. Shared by the session
+// type picker command and the static sidebar/editor commands below.
+async function openNewAgentHostSession(accessor: ServicesAccessor, chatSessionPosition: 'editor' | 'sidebar'): Promise<void> {
+	const resource = URI.from({
+		scheme: AgentSessionProviders.AgentHostCopilot,
+		path: `/untitled-${generateUuid()}`,
+	});
+
+	if (chatSessionPosition === 'editor') {
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({
+			resource,
+			options: {
+				override: ChatEditorInput.EditorID,
+				pinned: true,
+			},
+		});
+	} else {
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+		await view.loadSession(resource);
+		view.focus();
+	}
+}
+
 // Register command for opening a new Agent Host session from the session type picker
 CommandsRegistry.registerCommand(
 	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostCopilot}`,
-	async (accessor, chatSessionPosition: string) => {
-		const viewsService = accessor.get(IViewsService);
-		const resource = URI.from({
-			scheme: AgentSessionProviders.AgentHostCopilot,
-			path: `/untitled-${generateUuid()}`,
-		});
+	(accessor, chatSessionPosition: string) =>
+		openNewAgentHostSession(accessor, chatSessionPosition === 'editor' ? 'editor' : 'sidebar')
+);
 
-		if (chatSessionPosition === 'editor') {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({
-				resource,
-				options: {
-					override: ChatEditorInput.EditorID,
-					pinned: true,
-				},
-			});
-		} else {
-			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-			await view.loadSession(resource);
-			view.focus();
-		}
-	}
+// Static sidebar/editor open commands for the Agent Host umbrella scheme.
+// The dynamic per-agent commands (e.g. `agent-host-copilot`) are only
+// registered after the agent host starts and surfaces an AgentInfo, which
+// is asynchronous. Provide stable command ids that automation (evals) can
+// invoke before the dynamic registration has occurred.
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
+	accessor => openNewAgentHostSession(accessor, 'sidebar')
+);
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
+	accessor => openNewAgentHostSession(accessor, 'editor')
 );
