@@ -1866,11 +1866,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Split model picker layout */
-.interactive-session .chat-input-toolbar .chat-input-picker-item:has(.model-picker-split) {
+.interactive-session .chat-input-picker-item:has(.model-picker-split),
+.sessions-chat-config-toolbar .action-item:has(.model-picker-split) {
 	overflow: visible;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split,
+.sessions-chat-config-toolbar .action-label.model-picker-split {
 	padding: 0 6px;
 	gap: 2px;
 	overflow: visible;
@@ -1898,7 +1900,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 0;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
+/* Left divider for the agents app welcome view */
+.sessions-chat-config-toolbar .action-label.model-picker-split::before {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	left: 0;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+}
+
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-section,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-section {
 	display: flex;
 	align-items: center;
 	height: 16px;
@@ -1911,52 +1925,65 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Prevent double hover: disable the outer container hover so only individual sections highlight */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split:hover,
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split:hover,
+.interactive-session .chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"],
+.sessions-chat-config-toolbar .action-label.model-picker-split:hover,
+.sessions-chat-config-toolbar .action-label.model-picker-split[aria-expanded="true"] {
 	background-color: transparent !important;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-section:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"],
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-name,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-name {
 	min-width: 0;
 	flex-shrink: 1;
 	overflow: hidden;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-tokens,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-effort,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-tokens {
 	flex-shrink: 0;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-section .codicon {
 	font-size: 12px;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label,
+.sessions-chat-config-toolbar .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
 	margin-left: 2px;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section,
+.sessions-chat-config-toolbar .action-label.model-picker-split.disabled .model-picker-section {
 	cursor: default;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover,
+.sessions-chat-config-toolbar .action-label.model-picker-split.disabled .model-picker-section:hover {
 	background-color: transparent;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
+.interactive-session .chat-input-picker-item .action-label.model-picker-split.disabled .codicon,
+.sessions-chat-config-toolbar .action-label.model-picker-split.disabled .codicon {
 	color: var(--vscode-disabledForeground);
 }
 
