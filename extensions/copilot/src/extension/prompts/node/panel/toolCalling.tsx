@@ -485,9 +485,16 @@ class ToolResultElement extends PromptElement<IToolResultElementActualProps & Ba
 }
 
 export function sendInvokedToolTelemetry(instantiationService: IInstantiationService, endpoint: IChatEndpoint, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
+	// Override the token budget to Infinity for telemetry counting to avoid truncation,
+	// matching the prior behavior with modelMaxPromptTokens: Infinity
+	const endpointWithUnlimitedBudget: IChatEndpoint = {
+		...endpoint,
+		modelMaxPromptTokens: Infinity,
+	};
+
 	PromptRenderer.create(
 		instantiationService,
-		endpoint,
+		endpointWithUnlimitedBudget,
 		class extends PromptElement {
 			render() {
 				return <UserMessage><PrimitiveToolResult content={toolResult.content} /></UserMessage>;

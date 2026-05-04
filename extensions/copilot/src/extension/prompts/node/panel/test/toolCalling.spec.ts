@@ -611,16 +611,20 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 			LanguageModelDataPart.image(imageData, 'image/png'),
 		]);
 
-		// This should not throw or reject — the endpoint and all services must be properly injected
-		const renderPromise = sendInvokedToolTelemetry(
-			instantiationService,
-			endpoint as any, // endpoint satisfies IChatEndpoint
-			telemetryService,
-			'testTool',
-			toolResult,
-		);
+		// This should not throw — the endpoint and all services must be properly injected so that
+		// onImage() can read this.endpoint.supportsVision without crashing.
+		// The function is fire-and-forget (returns undefined), so we just verify it doesn't throw.
+		expect(() => {
+			sendInvokedToolTelemetry(
+				instantiationService,
+				endpoint as any, // endpoint satisfies IChatEndpoint
+				telemetryService,
+				'testTool',
+				toolResult,
+			);
+		}).not.toThrow();
 
-		// The render is fire-and-forget but should complete without error
-		await expect(renderPromise).resolves.toBeUndefined();
+		// Give async rendering a moment to complete without unhandled rejection
+		await new Promise(resolve => setTimeout(resolve, 100));
 	});
 });
