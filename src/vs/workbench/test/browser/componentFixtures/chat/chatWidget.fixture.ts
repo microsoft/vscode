@@ -42,7 +42,6 @@ interface IFixtureMessage {
 
 interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
-	readonly withInput?: boolean;
 }
 
 function makeUserMessage(text: string) {
@@ -198,12 +197,10 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	}();
 	widgetHolder.current = fixtureWidget;
 
-	if (options.withInput) {
-		inputPart.render(session, '', fixtureWidget);
-		inputPart.layout(720);
-		await new Promise(r => setTimeout(r, 50));
-		inputPart.layout(720);
-	}
+	inputPart.render(session, '', fixtureWidget);
+	inputPart.layout(720);
+	await new Promise(r => setTimeout(r, 50));
+	inputPart.layout(720);
 
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';
@@ -233,7 +230,7 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	listWidget.setVisible(true);
 	listWidget.refresh();
 
-	const listHeight = options.withInput ? 420 : 600;
+	const listHeight = 420;
 	listWidget.layout(listHeight, 720);
 
 	// Allow the renderer to flush its async progressive rendering pass.
@@ -296,7 +293,5 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
-	PendingToolApprovalWithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL, withInput: true }) }),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	WithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN, withInput: true }) }),
 });
