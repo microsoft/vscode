@@ -81,6 +81,7 @@ export class MessageRenderer extends Disposable {
 	private readonly _errorMessage: HTMLElement;
 	private readonly _retryButton: HTMLElement;
 	private readonly _altRetryContainer: HTMLElement;
+	private readonly _altButtonDisposables = this._register(new DisposableStore());
 
 	private _activeProvider: string | undefined;
 	private _failedProvider: string | undefined;
@@ -126,8 +127,9 @@ export class MessageRenderer extends Disposable {
 		// Usage chip — hidden until we receive a usage event
 		this._usageChip = dom.append(_container, dom.$('.message-renderer-usage.hidden'));
 
-		// Error section — hidden until we receive an error event
+		// Error section — hidden until we receive an error event; role=alert notifies screen readers
 		this._errorSection = dom.append(_container, dom.$('.message-renderer-error.hidden'));
+		this._errorSection.setAttribute('role', 'alert');
 
 		const errorHeader = dom.append(this._errorSection, dom.$('.message-renderer-error-header'));
 		this._errorProviderBadge = dom.append(errorHeader, dom.$('span.message-renderer-error-provider.hidden'));
@@ -306,6 +308,14 @@ export class MessageRenderer extends Disposable {
 	}
 
 	private _showError(event: ErrorEvent): void {
+		// Reset all error UI state so a second error never shows stale data
+		this._errorProviderBadge.textContent = '';
+		this._errorProviderBadge.classList.add('hidden');
+		this._retryButton.classList.remove('hidden');
+		this._altButtonDisposables.clear();
+		dom.clearNode(this._altRetryContainer);
+		this._altRetryContainer.classList.add('hidden');
+
 		this._errorSection.classList.remove('hidden');
 		this._errorMessage.textContent = event.message;
 
@@ -331,14 +341,13 @@ export class MessageRenderer extends Disposable {
 			return;
 		}
 
-		dom.clearNode(this._altRetryContainer);
 		this._altRetryContainer.classList.remove('hidden');
 
 		for (const alt of alts) {
 			const btn = dom.append(this._altRetryContainer, dom.$('button.message-renderer-retry-button.message-renderer-retry-alt'));
 			dom.append(btn, renderIcon(Codicon.refresh));
 			dom.append(btn, dom.$('span', undefined, localize('retryOnProvider', "Retry on {0}", alt.displayName)));
-			this._register(dom.addDisposableListener(btn, dom.EventType.CLICK, () =>
+			this._altButtonDisposables.add(dom.addDisposableListener(btn, dom.EventType.CLICK, () =>
 				this._onRetry({ failedProvider, preferredProvider: alt.id })
 			));
 		}

@@ -238,6 +238,24 @@ suite('MessageRenderer', () => {
 		assert.strictEqual(cancelCount, 1, 'cancel callback fired');
 	});
 
+	test('second error resets stale state from first error', async () => {
+		const renderer = makeRenderer();
+		// First error: non-retryable with a provider
+		await renderStream(renderer, [
+			{ type: 'error', code: 'auth_failed', message: 'Auth error', retryable: false, provider: 'copilot' },
+		]);
+		// Second error: retryable with no provider — badge and alt buttons from first must be gone
+		await renderStream(renderer, [
+			{ type: 'error', code: 'rate_limit', message: 'Rate limited', retryable: true },
+		]);
+
+		const retryBtn = container.querySelector('.message-renderer-retry-button');
+		assert.ok(!retryBtn!.classList.contains('hidden'), 'retry button visible after second retryable error');
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.ok(badge!.classList.contains('hidden'), 'stale provider badge hidden after second error');
+	});
+
 	test('cancel button hidden after stream ends', async () => {
 		const renderer = makeRenderer();
 		await renderStream(renderer, [
