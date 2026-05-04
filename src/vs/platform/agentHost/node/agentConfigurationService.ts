@@ -75,6 +75,17 @@ export interface IAgentConfigurationService {
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
 	/**
+	 * Returns the merged config values currently stored on `session`.
+	 *
+	 * Reflects the live state managed by the reducer: every
+	 * {@link ActionType.SessionConfigChanged} action mutates these values
+	 * before this method returns. Callers materializing a provisional session
+	 * use this to read the user's latest selections without subscribing to
+	 * the action stream themselves.
+	 */
+	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined;
+
+	/**
 	 * Returns the host-level value for `key`, validating it against
 	 * `schema.definition[key]`. Invalid persisted values are logged and treated
 	 * as missing.
@@ -157,7 +168,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession)?.summary.workingDirectory;
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.summary.workingDirectory;
 		}
 		return undefined;
 	}
@@ -168,6 +179,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			session,
 			config: patch,
 		});
+	}
+
+	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
 	getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
@@ -232,7 +247,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			const parent = this._stateManager.getSessionState(parentInfo.parentSession)?.config?.values;
+			const parent = this._stateManager.getSessionState(parentInfo.parentSession.toString())?.config?.values;
 			if (parent) {
 				yield parent;
 			}

@@ -40,11 +40,12 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -377,6 +378,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._config = config;
@@ -494,8 +496,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				const sessionState = this._getSessionState(resolvedSession.toString());
 				if (sessionState) {
-					const modelId = this._toLanguageModelId(sessionResource, sessionState.summary.model?.id);
-					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, modelId));
+					const fallbackRawModelId = sessionState.summary.model?.id;
+					const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup));
 
 					// Enrich history with inner tool calls from subagent
 					// child sessions. Subscribes to each child session so
@@ -518,11 +521,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// progressObs for live streaming.
 					if (sessionState.activeTurn) {
 						activeTurnId = sessionState.activeTurn.id;
+						const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
 						history.push({
 							type: 'request',
 							prompt: sessionState.activeTurn.userMessage.text,
 							participant: this._config.agentId,
-							modelId,
+							modelId: lookup.toLanguageModelId(activeRawModelId),
 						});
 						history.push({
 							type: 'response',
@@ -643,13 +647,74 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
 
 		const resolvedSession = this._resolveSessionUri(request.sessionResource);
-		if (!this._getSessionState(resolvedSession.toString())) {
+		const sessionKey = resolvedSession.toString();
+
+		// The sessions provider may have eagerly created this session at
+		// folder-pick time and is holding the connection-level subscription
+		// open with hydrated state. Use the unmanaged accessor to peek
+		// without taking a fresh subscription, which would trigger a
+		// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
+		const existingState = this._readEagerlyCreatedSessionState(resolvedSession);
+
+		if (!existingState) {
+			// Eager-create did not produce server-side state (e.g. no
+			// sessions provider involved, agent host not connected at
+			// folder-pick time, or this session was created via a legacy/
+			// test path). Fall back to the original create-then-subscribe
+			// flow.
 			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
+		} else {
+			// Eager-created session: take a refcounted subscription so the
+			// handler observes state changes for the duration of the chat
+			// session, then wire up the per-turn machinery that
+			// `_createAndSubscribe` would normally set up.
+			this._ensureSessionSubscription(sessionKey);
+			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
+			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
+
+			// Push the user-selected session config (e.g. isolation = worktree)
+			// to the agent so its provisional record materializes with the
+			// latest values. The picker doesn't dispatch this for new
+			// sessions, so this is the first time the agent sees them. Use
+			// `replace: true` so the agent's view exactly matches the
+			// resolved values the picker computed.
+			if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+				this._dispatchAction({
+					type: ActionType.SessionConfigChanged,
+					session: sessionKey,
+					config: request.agentHostSessionConfig,
+					replace: true,
+				});
+			}
+
+			// Claim the active-client role and publish current tools +
+			// customizations. The eager `connection.createSession` from the
+			// sessions provider couldn't include them because the handler
+			// owns them; this dispatch is the equivalent of the
+			// `activeClient` parameter on the legacy createSession call.
+			this._dispatchActiveClient(resolvedSession, this._config.customizations?.get() ?? []);
 		}
 
 		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 
 		return {};
+	}
+
+	/**
+	 * Returns the {@link SessionState} for a session that was eagerly created
+	 * at folder-pick time, or `undefined` if no such session exists. Uses the
+	 * unmanaged subscription accessor so we don't accidentally open a fresh
+	 * subscription (which would issue a duplicate snapshot fetch on the wire,
+	 * and in tests would synthesise placeholder state via the mock's auto-
+	 * hydration path).
+	 */
+	private _readEagerlyCreatedSessionState(resolvedSession: URI): SessionState | undefined {
+		const sub = this._config.connection.getSubscriptionUnmanaged(StateComponents.Session, resolvedSession);
+		if (!sub) {
+			return undefined;
+		}
+		const value = sub.value;
+		return (value && !(value instanceof Error)) ? value : undefined;
 	}
 
 	// ---- Pending message sync -----------------------------------------------
@@ -2300,6 +2365,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const prefix = `${getChatSessionType(sessionResource)}:`;
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
+	}
+
+	/**
+	 * Builds a per-turn model lookup that namespaces raw AHP model ids into
+	 * chat-layer language-model ids and resolves human-readable display
+	 * names via the registered language-model providers (so the chat UI's
+	 * per-response footer can show e.g. "Claude Opus 4.7" instead of the
+	 * raw model id). `fallbackRawModelId` is used when a turn's
+	 * `usage?.model` is not yet set (e.g. older sessions or turns that
+	 * never reported usage).
+	 */
+	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
+		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
+		return {
+			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
+			toModelDisplayName: (rawModelId) => {
+				const modelId = this._toLanguageModelId(sessionResource, resolveRaw(rawModelId));
+				if (!modelId) {
+					return undefined;
+				}
+				return this._languageModelsService.lookupLanguageModel(modelId)?.name;
+			},
+		};
 	}
 
 	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {

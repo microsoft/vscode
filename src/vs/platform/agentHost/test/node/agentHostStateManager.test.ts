@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedNotification } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -395,11 +395,32 @@ suite('Subagent URI helpers', () => {
 		);
 	});
 
+	test('buildSubagentSessionUri preserves parent URI path shape', () => {
+		assert.strictEqual(
+			buildSubagentSessionUri('copilot:/session-1//nested/../kept', 'tc-1'),
+			'copilot:/session-1//nested/../kept/subagent/tc-1',
+		);
+	});
+
 	test('parseSubagentSessionUri extracts parent and toolCallId', () => {
 		const parsed = parseSubagentSessionUri('copilot:/session-1/subagent/tc-1');
-		assert.deepStrictEqual(parsed, {
+		assert.deepStrictEqual(parsed && {
+			parentSession: parsed.parentSession.toString(),
+			toolCallId: parsed.toolCallId,
+		}, {
 			parentSession: 'copilot:/session-1',
 			toolCallId: 'tc-1',
+		});
+	});
+
+	test('parseSubagentSessionUri handles nested subagent URIs', () => {
+		const parsed = parseSubagentSessionUri('copilot:/session-1/subagent/tc-1/subagent/tc-2');
+		assert.deepStrictEqual(parsed && {
+			parentSession: parsed.parentSession.toString(),
+			toolCallId: parsed.toolCallId,
+		}, {
+			parentSession: 'copilot:/session-1/subagent/tc-1',
+			toolCallId: 'tc-2',
 		});
 	});
 
@@ -410,5 +431,19 @@ suite('Subagent URI helpers', () => {
 	test('isSubagentSession identifies subagent URIs', () => {
 		assert.strictEqual(isSubagentSession('copilot:/session-1/subagent/tc-1'), true);
 		assert.strictEqual(isSubagentSession('copilot:/session-1'), false);
+	});
+
+	test('buildSubagentSessionUriPrefix creates state manager prefix', () => {
+		assert.strictEqual(
+			buildSubagentSessionUriPrefix('copilot:/session-1'),
+			'copilot:/session-1/subagent/',
+		);
+	});
+
+	test('buildSubagentSessionUriPrefix preserves parent URI path shape', () => {
+		assert.strictEqual(
+			buildSubagentSessionUriPrefix('copilot:/session-1//nested/../kept'),
+			'copilot:/session-1//nested/../kept/subagent/',
+		);
 	});
 });

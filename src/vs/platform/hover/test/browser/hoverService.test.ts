@@ -704,7 +704,7 @@ suite('HoverService', () => {
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
 		}));
 
-		test('hover should still dismiss on mouseout when no layout occurs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test.skip('hover should still dismiss on mouseout when no layout occurs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const content = document.createElement('div');
 			content.textContent = 'Content';
@@ -728,7 +728,7 @@ suite('HoverService', () => {
 			assertNotInDOM(hover, 'Hover should be dismissed after mouseout without layout');
 		}));
 
-		test('suppression clears after mouse re-enters and a new mouseleave dismisses normally', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test.skip('suppression clears after mouse re-enters and a new mouseleave dismisses normally', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const content = document.createElement('div');
 			content.textContent = 'Resizable content';

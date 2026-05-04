@@ -9,7 +9,6 @@ import { InlineChatIntent } from '../../inlineChat2/node/inlineChatIntent';
 import { IntentRegistry } from '../../prompt/node/intentRegistry';
 import { AgentIntent } from './agentIntent';
 import { AskAgentIntent } from './askAgentIntent';
-import { ChronicleIntent } from './chronicleIntent';
 import { EditCodeIntent } from './editCodeIntent';
 import { ExplainIntent } from './explainIntent';
 import { FixIntent } from './fixIntent';
@@ -49,5 +48,4 @@ IntentRegistry.setIntents([
 	new SyncDescriptor(AskAgentIntent),
 	new SyncDescriptor(NotebookEditorIntent),
 	new SyncDescriptor(InlineChatIntent),
-	new SyncDescriptor(ChronicleIntent),
 ]);

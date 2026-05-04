@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -23,7 +24,7 @@ export interface IChatInputNotificationAction {
 export interface IChatInputNotification {
 	readonly id: string;
 	readonly severity: ChatInputNotificationSeverity;
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly description: string | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;

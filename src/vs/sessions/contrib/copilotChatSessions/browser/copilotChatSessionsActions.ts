@@ -6,6 +6,7 @@
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -173,8 +174,12 @@ registerAction2(class extends Action2 {
 /**
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
+ *
+ * Exported so the web-only `CopilotPermissionPickerWebContribution`
+ * (in `mobilePermissionPicker.contribution.ts`) can reuse the same
+ * wrapper for its `MobilePermissionPicker` registration.
  */
-class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -239,14 +244,24 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				return new PickerActionViewItem(picker);
 			},
 		));
-		this._register(actionViewItemService.register(
-			Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
-			() => {
-				const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
-				const picker = instantiationService.createInstance(PermissionPicker, delegate);
-				return new PickerActionViewItem(picker, delegate);
-			},
-		));
+		// Permission picker registration is skipped on web so the
+		// web-only `CopilotPermissionPickerWebContribution` (registered
+		// from `sessions.web.main.ts`) can install the mobile-aware
+		// {@link MobilePermissionPicker} variant instead. On Electron
+		// desktop, register the standard {@link PermissionPicker}
+		// directly — the mobile-only sheet rendering never runs there
+		// and importing the mobile picker would needlessly drag
+		// `mobilePickerSheet.ts` into the desktop bundle.
+		if (!isWeb) {
+			this._register(actionViewItemService.register(
+				Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
+				() => {
+					const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
+					const picker = instantiationService.createInstance(PermissionPicker, delegate);
+					return new PickerActionViewItem(picker, delegate);
+				},
+			));
+		}
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
 			() => {

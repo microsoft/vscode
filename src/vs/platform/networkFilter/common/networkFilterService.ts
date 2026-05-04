@@ -102,7 +102,11 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 	}
 
 	private async updateTerminalSandboxEnabled(): Promise<void> {
-		const enabled = await this.terminalSandboxService.isEnabled();
+		const [isSandboxEnabled, isSandboxAllowNetworkEnabled] = await Promise.all([
+			this.terminalSandboxService.isEnabled(),
+			this.terminalSandboxService.isSandboxAllowNetworkEnabled(),
+		]);
+		const enabled = isSandboxEnabled && !isSandboxAllowNetworkEnabled;
 		if (this.terminalSandboxEnabled === enabled) {
 			return;
 		}

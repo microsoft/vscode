@@ -164,6 +164,25 @@ export class PluginInstallService implements IPluginInstallService {
 		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
 
 		if (discoveredPlugins.length === 0) {
+			// Fall back to a single-plugin manifest at the repo root
+			// (e.g. `.claude-plugin/plugin.json`). Such repos are not
+			// marketplaces, so we do NOT register the reference under the
+			// `chat.plugins.marketplaces` config — updates flow through
+			// `updatePluginSource` via the plugin's git source descriptor.
+			const singlePlugin = await this._pluginMarketplaceService.readSinglePluginManifest(repoDir, reference);
+			if (singlePlugin) {
+				if (options?.plugin && options.plugin !== singlePlugin.name) {
+					return {
+						success: false,
+						message: localize('pluginNotFound', "Plugin '{0}' not found in '{1}'.", options.plugin, reference.displayLabel),
+					};
+				}
+				await this.installPlugin(singlePlugin);
+				return options?.plugin
+					? { success: true, matchedPlugin: singlePlugin }
+					: { success: true };
+			}
+
 			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
 			return {
 				success: false,

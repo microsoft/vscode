@@ -1268,24 +1268,33 @@
 				"name": "copilot_sessionStoreSql",
 				"displayName": "Session Store SQL",
 				"toolReferenceName": "sessionStoreSql",
+				"when": "github.copilot.sessionSearch.enabled",
 				"userDescription": "Query your Copilot session history using SQL",
-				"modelDescription": "Execute read-only SQL queries against the global session store containing history from ALL past coding sessions. Use this proactively when the user asks about:\n- What they've worked on recently or in the past\n- Prior approaches to similar problems\n- Project history and file changes\n- Sessions linked to PRs, issues, or commits\n- Temporal queries ('what was I doing yesterday?')\n\nSupports SQLite SQL including JOINs, FTS5 MATCH queries, aggregations, and subqueries.\n\n**Only one query per call — do not combine multiple statements with semicolons.**\n\nSchema:\n- sessions — id, cwd, repository, branch, summary, created_at, updated_at\n- turns — session_id, turn_index, user_message, assistant_response, timestamp\n- session_files — session_id, file_path, tool_name (edit/create), turn_index\n- session_refs — session_id, ref_type (commit/pr/issue), ref_value, turn_index\n- search_index — FTS5 virtual table (content, session_id, source_type). Use WHERE search_index MATCH 'query' for full-text search.",
+				"modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite SQL syntax.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
 				"tags": [],
 				"canBeReferencedInPrompt": false,
 				"inputSchema": {
 					"type": "object",
 					"properties": {
+						"action": {
+							"type": "string",
+							"enum": ["query", "standup", "reindex"],
+							"description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+						},
 						"query": {
 							"type": "string",
-							"description": "A single read-only SQL query to execute. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+							"description": "A single read-only SQL query to execute. Required when action is 'query'. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+						},
+						"force": {
+							"type": "boolean",
+							"description": "When true with action 'reindex', re-processes all sessions including already-indexed ones. Default false (skips already-indexed sessions)."
 						},
 						"description": {
 							"type": "string",
-							"description": "A 2-5 word summary of what this query does (e.g. 'Recent sessions overview', 'Find PR sessions')."
+							"description": "A 2-5 word summary of what this call does (e.g. 'Recent sessions overview', 'Generate standup', 'Reindex sessions')."
 						}
 					},
 					"required": [
-						"query",
 						"description"
 					]
 				}
@@ -1533,26 +1542,6 @@
 					{
 						"name": "compact",
 						"description": "%copilot.agent.compact.description%"
-					},
-					{
-						"name": "chronicle",
-						"description": "%copilot.chronicle.description%",
-						"when": "github.copilot.sessionSearch.enabled"
-					},
-					{
-						"name": "chronicle:standup",
-						"description": "%copilot.chronicle.standup.description%",
-						"when": "github.copilot.sessionSearch.enabled"
-					},
-					{
-						"name": "chronicle:tips",
-						"description": "%copilot.chronicle.tips.description%",
-						"when": "github.copilot.sessionSearch.enabled"
-					},
-					{
-						"name": "chronicle:reindex",
-						"description": "%copilot.chronicle.reindex.description%",
-						"when": "github.copilot.sessionSearch.enabled"
 					},
 					{
 						"name": "explain",
@@ -3862,6 +3851,15 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.claude47OpusPrompt.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.gpt54ConcisePrompt.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4385,6 +4383,16 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.agent.backgroundTodoAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.agent.backgroundTodoAgent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4905,6 +4913,15 @@
 						"type": "boolean",
 						"default": false,
 						"markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.otel.maxAttributeSizeChars": {
+						"type": "integer",
+						"default": 0,
+						"minimum": 0,
+						"markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
 						"tags": [
 							"advanced"
 						]
@@ -6370,6 +6387,27 @@
 				"sessionTypes": [
 					"local"
 				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-standup.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-tips.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-reindex.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"chatSkills": [
@@ -6447,6 +6485,13 @@
 			},
 			{
 				"path": "./assets/prompts/skills/create-hook/SKILL.md",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./assets/prompts/skills/chronicle/SKILL.md",
+				"when": "github.copilot.sessionSearch.enabled",
 				"sessionTypes": [
 					"local"
 				]

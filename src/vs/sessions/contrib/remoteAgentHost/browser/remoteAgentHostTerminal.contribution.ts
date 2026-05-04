@@ -33,7 +33,7 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 		const connectedAddresses = new Set<string>();
 
 		for (const info of this._remoteAgentHostService.connections) {
-			if (info.status !== RemoteAgentHostConnectionStatus.Connected) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(info.status)) {
 				continue;
 			}
 			const connection = this._remoteAgentHostService.getConnection(info.address);
