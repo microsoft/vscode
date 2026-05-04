@@ -61,6 +61,11 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 		// Get the final output before killing
 		const finalOutput = execution.getOutput();
 
+		// Mark as killed by this tool so the onDisposed handler in
+		// _registerCompletionNotification skips the redundant steering
+		// message (the agent receives output through this tool result).
+		RunInTerminalTool.markKilledByTool(args.id);
+
 		// Dispose the terminal instance (this kills the process)
 		execution.instance.dispose();
 
