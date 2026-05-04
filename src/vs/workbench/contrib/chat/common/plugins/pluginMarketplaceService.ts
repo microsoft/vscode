@@ -179,6 +179,17 @@ export interface IPluginMarketplaceService {
 	 * that clone a repo first, then need to discover its plugins.
 	 */
 	readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]>;
+	/**
+	 * Reads a single-plugin manifest (e.g. `.claude-plugin/plugin.json`) at the
+	 * root of an already-cloned repository directory and returns a synthesised
+	 * {@link IMarketplacePlugin} describing the repository as a single plugin.
+	 * Used by direct-install flows when {@link readPluginsFromDirectory} finds
+	 * no marketplace index.
+	 *
+	 * Returns `undefined` when no recognised manifest is present at the repo
+	 * root.
+	 */
+	readSinglePluginManifest(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin | undefined>;
 }
 
 /**
@@ -190,6 +201,18 @@ const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
 	{ type: MarketplaceType.OpenPlugin, path: '.plugin/marketplace.json' },
 	{ type: MarketplaceType.Copilot, path: '.github/plugin/marketplace.json' },
 	{ type: MarketplaceType.Claude, path: '.claude-plugin/marketplace.json' },
+];
+
+/**
+ * Single-plugin manifest files by type, checked in order. Used when a cloned
+ * source repository has no marketplace index — the repository itself is the
+ * plugin. Order matches {@link detectPluginFormat} so that runtime format
+ * detection later agrees with the marketplace type chosen here.
+ */
+const SINGLE_PLUGIN_MANIFEST_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
+	{ type: MarketplaceType.OpenPlugin, path: '.plugin/plugin.json' },
+	{ type: MarketplaceType.Claude, path: '.claude-plugin/plugin.json' },
+	{ type: MarketplaceType.Copilot, path: 'plugin.json' },
 ];
 
 const GITHUB_MARKETPLACE_CACHE_TTL_MS = 8 * 60 * 60 * 1000;
@@ -607,7 +630,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 			try {
 				const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
-				const plugins = await this._readPluginsFromDirectory(repoDir, reference);
+				let plugins = await this._readPluginsFromDirectory(repoDir, reference);
+				if (plugins.length === 0) {
+					// The entry may have come from a single-plugin repo
+					// installed via `installPluginFromSource` (no
+					// marketplace.json). Try the plugin manifest at the
+					// repo root — its synthesised install URI matches what
+					// `addInstalledPlugin` recorded.
+					const single = await this.readSinglePluginManifest(repoDir, reference);
+					if (single) {
+						plugins = [single];
+					}
+				}
 				const match = plugins.find(p => {
 					const installUri = this._pluginRepositoryService.getPluginInstallUri(p);
 					return isEqual(installUri, entry.pluginUri);
@@ -767,6 +801,53 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	async readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]> {
 		return this._readPluginsFromDirectory(repoDir, reference);
+	}
+
+	async readSinglePluginManifest(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin | undefined> {
+		// Single-plugin repos are only meaningful for direct git clones —
+		// there's no synthetic relative-path source to fall back on.
+		if (reference.kind !== MarketplaceReferenceKind.GitHubShorthand && reference.kind !== MarketplaceReferenceKind.GitUri) {
+			return undefined;
+		}
+
+		for (const def of SINGLE_PLUGIN_MANIFEST_DEFINITIONS) {
+			const manifestUri = joinPath(repoDir, def.path);
+			let manifest: Record<string, unknown> | undefined;
+			try {
+				const contents = await this._fileService.readFile(manifestUri);
+				const parsed = parseJSONC(contents.value.toString());
+				if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+					manifest = parsed as Record<string, unknown>;
+				}
+			} catch {
+				continue;
+			}
+			if (!manifest) {
+				continue;
+			}
+
+			const sourceDescriptor: IPluginSourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
+				? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo! }
+				: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl };
+
+			const manifestName = typeof manifest['name'] === 'string' && manifest['name'] ? manifest['name'] as string : reference.displayLabel;
+			const manifestDescription = typeof manifest['description'] === 'string' ? manifest['description'] as string : '';
+			const manifestVersion = typeof manifest['version'] === 'string' ? manifest['version'] as string : '';
+
+			return {
+				name: manifestName,
+				description: manifestDescription,
+				version: manifestVersion,
+				source: '',
+				sourceDescriptor,
+				marketplace: reference.displayLabel,
+				marketplaceReference: reference,
+				marketplaceType: def.type,
+			};
+		}
+
+		this._logService.debug(`[PluginMarketplaceService] No single-plugin manifest found in ${reference.rawValue}`);
+		return undefined;
 	}
 
 	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {
