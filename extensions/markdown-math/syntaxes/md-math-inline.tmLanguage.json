@@ -56,7 +56,7 @@
 		"math_inline_block": {
 			"name": "markup.math.inline.markdown",
 			"contentName": "meta.embedded.math.markdown",
-			"begin": "(?<=\\s|^)(\\${1,2})",
+			"begin": "(?<=\\s|^)(\\${1,2})(?=\\S)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
