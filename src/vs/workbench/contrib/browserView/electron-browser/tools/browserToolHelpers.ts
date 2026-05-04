@@ -10,7 +10,7 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
@@ -18,6 +18,14 @@ import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../com
 import type { Page } from 'playwright-core';
 
 export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
+
+/**
+ * Extracts the session ID from a tool invocation context.
+ * Falls back to a default string when no session context is available.
+ */
+export function getSessionId(invocation: IToolInvocation): string {
+	return invocation.context?.sessionResource?.toString() ?? '<default>';
+}
 
 export interface FormatBrowserEditorLinesOptions {
 	indent?: string;
@@ -75,11 +83,12 @@ export function createBrowserPageLink(pageId: string | URI): string {
  */
 export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<TReturn> {
-	return playwrightService.invokeFunctionRaw(pageId, fn.toString(), ...args);
+	return playwrightService.invokeFunctionRaw(sessionId, pageId, fn.toString(), ...args);
 }
 
 /**
@@ -91,12 +100,13 @@ export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
  */
 export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
+	sessionId: string,
 	pageId: string,
 	fn: (page: Page, ...args: TArgs) => Promise<TReturn>,
 	...args: TArgs
 ): Promise<IToolResult> {
 	try {
-		const result = await playwrightService.invokeFunction(pageId, fn.toString(), args);
+		const result = await playwrightService.invokeFunction(sessionId, pageId, fn.toString(), args);
 		return invokeFunctionResultToToolResult(result);
 	} catch (e) {
 		return errorResult(e instanceof Error ? e.message : String(e));

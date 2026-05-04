@@ -452,6 +452,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 				registerResolver: () => toDisposable(() => { }),
 				resolve: () => undefined,
+				isNewSession: () => false,
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 
@@ -531,7 +532,7 @@ suite('AgentHostClientTools', () => {
 			configValues['chat.agentHost.clientTools'] = ['runTests'];
 			onDidChangeConfig.fire({ affectsConfiguration: (key: string) => key === 'chat.agentHost.clientTools' } as unknown as IConfigurationChangeEvent);
 
-			// Since no session is active (no _sessionToBackend entries),
+			// Since no session is active,
 			// no activeClientToolsChanged should be dispatched.
 			// But the observable should now reflect the new tools.
 			const toolsChangedActions = connection.dispatchedActions.filter(

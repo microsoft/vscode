@@ -28,6 +28,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 
 //  Constants
 
@@ -785,20 +786,10 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', false),
-							ContextKeyExpr.equals('sessions.hasIncomingChanges', false),
-							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
-							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
-						),
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', true),
-							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
-						)
-					)
+					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
+					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
 				)
 			}]
 		});

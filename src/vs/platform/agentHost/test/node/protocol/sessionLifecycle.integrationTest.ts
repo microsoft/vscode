@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedNotification, SessionRemovedNotification } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
@@ -48,7 +48,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	test('create session triggers sessionAdded notification', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-create-session' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
@@ -63,7 +63,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	test('listSessions returns sessions', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
 
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 		await client.waitForNotification(n =>
@@ -91,7 +91,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	test('subscribe to a pre-existing session restores turns from agent history', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-restore' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-restore' });
 
 		// The mock agent seeds a pre-existing session that was never created
 		// through the server's handleCreateSession -- simulating a session
@@ -169,7 +169,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		client.close();
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-read-archived-flags-2' });
+		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-read-archived-flags-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
@@ -209,7 +209,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		client.close();
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-isread-false-2' });
+		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-isread-false-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {

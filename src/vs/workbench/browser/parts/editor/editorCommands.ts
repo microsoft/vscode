@@ -28,7 +28,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAc
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isDiffEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -956,7 +956,8 @@ function registerCloseEditorCommands() {
 
 		for (const { group, editors } of resolvedContext.groupedEditors) {
 			for (const editor of editors) {
-				const untypedEditor = editor.toUntyped();
+				const editorToResolve = isDiffEditorInput(editor) ? editor.modified : editor;
+				const untypedEditor = editorToResolve.toUntyped();
 				if (!untypedEditor) {
 					return; // Resolver can only resolve untyped editors
 				}
@@ -976,7 +977,7 @@ function registerCloseEditorCommands() {
 				editorReplacementsInGroup.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
-					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					forceReplaceDirty: editorToResolve.resource?.scheme === Schemas.untitled,
 					options: resolvedEditor.options
 				});
 
@@ -998,8 +999,8 @@ function registerCloseEditorCommands() {
 				};
 
 				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-					scheme: editor.resource?.scheme ?? '',
-					ext: editor.resource ? extname(editor.resource) : '',
+					scheme: editorToResolve.resource?.scheme ?? '',
+					ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
 					from: editor.editorId ?? '',
 					to: resolvedEditor.editor.editorId ?? ''
 				});

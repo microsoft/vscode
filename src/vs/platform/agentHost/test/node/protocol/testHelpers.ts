@@ -9,7 +9,7 @@ import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ActionEnvelope, SessionAddedNotification } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -285,7 +285,7 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
-	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
+	await c.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId });
 
 	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
 

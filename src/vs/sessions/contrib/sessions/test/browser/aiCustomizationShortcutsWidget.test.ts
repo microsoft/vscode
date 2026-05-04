@@ -109,6 +109,10 @@ function createMockItemsModel(): IAICustomizationItemsModel {
 		override getCount(_section: ItemsModelSection): IObservable<number> {
 			return zeroCount;
 		}
+
+		override getPluginCount(): IObservable<number> {
+			return zeroCount;
+		}
 	}();
 }
 

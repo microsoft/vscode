@@ -155,9 +155,18 @@
 
 /** Cost column styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-pricing {
+.models-widget .models-table-container .monaco-table-td .model-cost-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 4px;
+	width: 100%;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-cost-grid .model-cost-cell {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /** Token Limits column styling **/

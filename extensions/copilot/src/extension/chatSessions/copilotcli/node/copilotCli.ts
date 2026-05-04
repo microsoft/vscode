@@ -24,6 +24,7 @@ import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { getCopilotLogger } from './logger';
+import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
@@ -63,6 +64,11 @@ export interface ICopilotCLIModels {
 
 export function formatModelDetails(model: CopilotCLIModelInfo): string {
 	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
+}
+
+export function matchesCopilotCLIModel(model: Pick<CopilotCLIModelInfo, 'id' | 'name'>, modelId: string): boolean {
+	const normalizedModelId = modelId.trim().toLowerCase();
+	return model.id.trim().toLowerCase() === normalizedModelId || model.name.trim().toLowerCase() === normalizedModelId;
 }
 
 export const ICopilotCLISDK = createServiceIdentifier<ICopilotCLISDK>('ICopilotCLISDK');
@@ -113,7 +119,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		}
 		const models = await this.getModels();
 		modelId = modelId.trim().toLowerCase();
-		return models.find(m => m.id.toLowerCase() === modelId || m.name.toLowerCase() === modelId)?.id;
+		return models.find(m => matchesCopilotCLIModel(m, modelId))?.id;
 	}
 	public async getDefaultModel() {
 		// First item in the list is always the default model (SDK sends the list ordered based on default preference)
@@ -122,9 +128,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			return;
 		}
 		const defaultModel = models[0];
-		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase();
+		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase() ?? defaultModel.id;
 
-		return models.find(m => m.id.toLowerCase() === preferredModelId)?.id ?? defaultModel.id;
+		return models.find(m => matchesCopilotCLIModel(m, preferredModelId))?.id ?? defaultModel.id;
 	}
 
 	public async setDefaultModel(modelId: string | undefined): Promise<void> {
@@ -521,7 +527,7 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 
 	public async getPackage(): Promise<typeof import('@github/copilot/sdk')> {
 		try {
-			// Ensure the ripgrep shim exists before importing the SDK (required for CLI sessions)
+			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
 			return await import('@github/copilot/sdk');
 		} catch (error) {
@@ -558,7 +564,10 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		if (await checkFileExists(successfulPlaceholder)) {
 			return;
 		}
-		await ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService);
+		await Promise.all([
+			ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
+			ensureNodePtyShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
+		]);
 		await fs.writeFile(successfulPlaceholder, 'Shims created successfully');
 	}
 

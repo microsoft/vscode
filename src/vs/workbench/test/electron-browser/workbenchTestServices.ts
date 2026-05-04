@@ -103,7 +103,7 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(_options?: { readonly forceNewWindow?: boolean }): Promise<void> { }
+	async openAgentsWindow(): Promise<void> { }
 
 	async launchSiblingApp(_args?: string[]): Promise<void> { }
 

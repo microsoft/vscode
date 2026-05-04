@@ -69,6 +69,7 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
 			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(
@@ -151,6 +152,9 @@ function appendBackgroundCommandNotesToFinalAnswer(
 		if (c.reason === 'timeout') {
 			const timeoutText = c.timeoutMs !== undefined ? ` after ${c.timeoutMs} ms` : '';
 			return `Note: The command \`${c.command}\` timed out${timeoutText}. It may still be running in terminal ID ${c.termId}.`;
+		}
+		if (c.reason === 'inputNeeded') {
+			return `Note: The command \`${c.command}\` may be waiting for input in terminal ID ${c.termId}. Use send_to_terminal or get_terminal_output to check.`;
 		}
 		return `Note: The command \`${c.command}\` was started in the background. It may still be running in terminal ID ${c.termId}.`;
 	}).join('\n');

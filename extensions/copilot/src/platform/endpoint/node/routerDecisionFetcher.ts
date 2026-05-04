@@ -78,7 +78,9 @@ export class RouterDecisionFetcher {
 		if (hasImage) {
 			requestBody.has_image = true;
 		}
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		const copilotTokenObj = await this._authService.getCopilotToken();
+		const copilotToken = copilotTokenObj.token;
+		requestBody.copilot_plan = copilotTokenObj.rawCopilotPlan;
 		const abortController = new AbortController();
 		const timeout = setTimeout(() => abortController.abort(), 1000);
 		let response: Response;

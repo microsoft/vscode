@@ -201,6 +201,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		let actualStatusCode: number | undefined;
 		let suspendEventSeen: boolean | undefined;
 		let resumeEventSeen: boolean | undefined;
+		let actualModelCallId: string | undefined;
 		let otelInferenceSpan: ISpanHandle | undefined;
 		try {
 			let response: ChatResults | ChatRequestFailed | ChatRequestCanceled;
@@ -247,6 +248,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				actualStatusCode = fetchResult.statusCode;
 				suspendEventSeen = fetchResult.suspendEventSeen;
 				resumeEventSeen = fetchResult.resumeEventSeen;
+				actualModelCallId = fetchResult.modelCallId;
 				otelInferenceSpan = fetchResult.otelSpan;
 				// Tag span with debug name so orphaned spans (title, progressMessages, etc.) are identifiable
 				otelInferenceSpan?.setAttribute(GenAiAttr.AGENT_NAME, debugName);
@@ -262,7 +264,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						const userContent = typeof lastUserMsg.content === 'string'
 							? lastUserMsg.content
 							: JSON.stringify(lastUserMsg.content);
-						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent));
+						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent, this._otelService.config.maxAttributeSizeChars));
 					}
 					// System instructions — check messages array, top-level system (Anthropic), or instructions (Responses API)
 					const systemMsg = capiMessages?.find(m => m.role === 'system');
@@ -295,14 +297,23 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					const capiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>> | undefined;
 					if (capiMessages) {
 						// Normalize provider-specific content (Anthropic tool_use/tool_result, OpenAI tool messages) to OTel schema
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages))));
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages)), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per
 					// OTel GenAI semantic conventions (issue #300318).
 					const toolDefs = toToolDefinitions(requestBody.tools);
 					if (toolDefs) {
-						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
+						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+					}
+					// Cache-relevant request options. Anything in this blob, when changed
+					// between two requests, will invalidate the prompt cache even when
+					// the messages array is byte-identical. The Cache Explorer uses
+					// this to surface "options changed" drift alongside the message
+					// signature diff.
+					const requestOptions = pickCacheRelevantRequestOptions(requestBody);
+					if (requestOptions) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 				tokenCount = await countTokens();
@@ -318,7 +329,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			switch (response.type) {
 				case FetchResponseKind.Success: {
-					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen);
+					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
 
 					// Handle FilteredRetry case with augmented messages
 					if (result.type === ChatFetchResponseType.FilteredRetry) {
@@ -423,7 +434,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						}
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 						// Capture reasoning/thinking text if present
 						const hasThinking = streamRecorder.deltas.some(d => d.thinking);
@@ -436,7 +447,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 									return Array.isArray(t.text) ? t.text.join('') : (t.text ?? '');
 								});
 							const reasoningText = thinkingTexts.join('');
-							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]'));
+							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]', this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 
@@ -863,7 +874,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
 		modeChanged?: boolean,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle; modelCallId?: string }> {
 		const isPowerSaveBlockerEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, this._experimentationService);
 		const blockerHandle = isPowerSaveBlockerEnabled && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
 
@@ -942,7 +953,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
 		summarizedAtRoundId?: string,
 		modeChanged?: boolean,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle; modelCallId?: string }> {
 
 		if (cancellationToken.isCancellationRequested) {
 			return { result: { type: FetchResponseKind.Canceled, reason: 'before fetch request' } };
@@ -1075,7 +1086,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
 		summarizedAtRoundId: string | undefined,
 		modeChanged: boolean | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; modelCallId?: string }> {
 		const intent = locationToIntent(location);
 		const agentInteractionType = requestKindOptions?.kind === 'subagent' ?
 			'conversation-subagent' :
@@ -1237,7 +1248,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			result: {
 				type: FetchResponseKind.Success,
 				chatCompletions,
-			}
+			},
+			modelCallId,
 		};
 	}
 
@@ -1256,7 +1268,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useFetcher: FetcherId | undefined,
 		canRetryOnce: boolean | undefined,
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number }> {
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; modelCallId?: string }> {
 		// Generate unique ID to link input and output messages
 		const modelCallId = generateUuid();
 
@@ -1354,7 +1366,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				chatCompletions,
 			},
 			fetcher: response.fetcher,
-			bytesReceived: response.bytesReceived
+			bytesReceived: response.bytesReceived,
+			modelCallId,
 		};
 	}
 
@@ -1745,6 +1758,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		bytesReceived: number | undefined,
 		suspendEventSeen: boolean | undefined,
 		resumeEventSeen: boolean | undefined,
+		modelCallId: string | undefined,
 	): Promise<ChatResponses | ChatFetchRetriableError<string[]>> {
 
 		const completions: ChatCompletion[] = [];
@@ -1768,6 +1782,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					bytesReceived,
 					suspendEventSeen,
 					resumeEventSeen,
+					modelCallId,
 				}
 			);
 
@@ -1785,6 +1800,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				value: successfulCompletions.map(c => getTextPart(c.message.content)),
 				requestId,
 				serverRequestId: successfulCompletions[0].requestId.headerRequestId,
+				modelCallId,
 			};
 		}
 
@@ -2236,4 +2252,35 @@ export function locationToIntent(location: ChatLocation): string {
 		case ChatLocation.MessagesProxy:
 			return 'messages-proxy';
 	}
+}
+
+/**
+ * Curate the cache-relevant subset of a request body. Anything in the
+ * returned object that differs between two requests will invalidate the
+ * prompt cache even when the message array itself is byte-identical
+ * (e.g. switching from `tool_choice: 'auto'` to `'required'`, raising
+ * `reasoning_effort`, enabling thinking, changing the response format).
+ *
+ * Strict allowlist on purpose: we never want a future provider-specific
+ * body field (especially anything resembling auth headers, API keys, or
+ * personal identifiers) to silently leak into the OTel attribute or the
+ * on-disk debug log via a catch-all. New cache-keying knobs must be
+ * added explicitly here.
+ */
+function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	for (const key of [
+		'tool_choice', 'reasoning', 'reasoning_effort', 'thinking', 'thinking_budget',
+		'output_config', 'response_format', 'text', 'truncation', 'context_management',
+		'frequency_penalty', 'presence_penalty', 'top_logprobs', 'logit_bias',
+		'store', 'stream', 'stream_options', 'prediction', 'seed', 'parallel_tool_calls',
+		'service_tier', 'metadata', 'verbosity', 'snippy', 'state', 'intent', 'intent_threshold',
+		'include',
+	] as const) {
+		const value = (body as Record<string, unknown>)[key];
+		if (value !== undefined) {
+			out[key] = value;
+		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
 }

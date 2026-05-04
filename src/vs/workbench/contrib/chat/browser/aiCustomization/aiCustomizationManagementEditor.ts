@@ -564,7 +564,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.label,
+					getAriaLabel: (item: ISectionItem) => item.count > 0
+						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
+						: item.label,
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,

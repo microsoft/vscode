@@ -29,7 +29,7 @@ import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { SessionToolCallStartAction } from '../../../common/state/protocol/actions.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
 import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
@@ -71,7 +71,7 @@ interface IRealSessionResult {
 
 /** Full version that returns the sessionAdded notification and subscribe snapshot for assertions. */
 async function createRealSessionFull(c: TestProtocolClient, clientId: string, trackingList: string[], workingDirectory?: string): Promise<IRealSessionResult> {
-	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId }, 30_000);
+	await c.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 
 	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
@@ -623,7 +623,7 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		tempDirs.push(tempDir);
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-workdir' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-workdir' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wd-${Date.now()}` }).toString();
@@ -667,7 +667,7 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-worktree' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-worktree' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wt-${Date.now()}` }).toString();
@@ -927,7 +927,7 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 	test('listModels returns well-shaped model entries after authenticate', async function () {
 		this.timeout(60_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-list-models' }, 30_000);
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-list-models' }, 30_000);
 
 		// Subscribe to root state *before* authenticating so we can observe
 		// the agentsChanged action that carries the populated model list.

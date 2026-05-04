@@ -66,7 +66,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'terminal.integrated.initialHint': false,
 
 		'workbench.browser.openLocalhostLinks': true,
-		'workbench.browser.enableChatTools': false,
+		'workbench.browser.enableChatTools': true,
 
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,

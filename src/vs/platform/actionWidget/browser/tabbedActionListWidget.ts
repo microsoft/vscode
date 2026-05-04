@@ -7,6 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -14,7 +15,7 @@ import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } 
 import './tabbedActionListWidget.css';
 
 /**
- * Result of {@link ITabbedActionListShowOptions.buildItems}. The list
+ * Result of {@link ITabbedActionListShowOptions.createActionList}. The list
  * options are recomputed on every tab switch so callers can vary filter
  * visibility, width, etc. by tab.
  */
@@ -39,7 +40,7 @@ export interface ITabbedActionListShowOptions<T> {
 	/** Initially active tab. Must be present in {@link tabs}. */
 	readonly initialTab: string;
 	/** Computes the list items and per-tab options shown when the given tab is active. */
-	buildItems(activeTab: string): ITabbedActionListBuildResult<T>;
+	createActionList(activeTab: string): ITabbedActionListBuildResult<T>;
 	/** Item delegate (selection, hide, focus). */
 	readonly delegate: IActionListDelegate<T>;
 	/** Optional accessibility provider passed to the underlying list. */
@@ -48,21 +49,18 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly width?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
-	/** Fired with the new tab when the user switches tabs. */
-	onDidChangeTab?(tab: string): void;
-	/** Fired when the popup hides for any reason. */
-	onHide?(): void;
 }
 
 /**
- * Composite popup widget that renders a horizontal tab bar above an
- * {@link ActionList}. Owns its own context-view lifecycle and swap state;
- * consumers describe the data and react to tab changes via callbacks.
- *
- * Bypasses `IActionWidgetService` so this widget can compose with any
- * caller-driven state without extending the platform action widget API.
+ * A widget that shows a tabbed action list in a context view popup
  */
 export class TabbedActionListWidget extends Disposable {
+
+	private readonly _onDidChangeTab = this._register(new Emitter<string>());
+	readonly onDidChangeTab = this._onDidChangeTab.event;
+
+	private readonly _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
@@ -129,7 +127,7 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					activeTab = next;
-					options.onDidChangeTab?.(next);
+					this._onDidChangeTab.fire(next);
 					this.show({ ...options, initialTab: next });
 				};
 
@@ -140,7 +138,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				const { items, listOptions } = options.buildItems(activeTab);
+				const { items, listOptions } = options.createActionList(activeTab);
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -238,7 +236,7 @@ export class TabbedActionListWidget extends Disposable {
 					this._activePopup.value = undefined;
 				}
 				options.delegate.onHide?.();
-				options.onHide?.();
+				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
 		}, undefined, false);
