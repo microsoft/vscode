@@ -4385,6 +4385,16 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.agent.backgroundTodoAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.agent.backgroundTodoAgent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
 						"type": "boolean",
 						"default": true,

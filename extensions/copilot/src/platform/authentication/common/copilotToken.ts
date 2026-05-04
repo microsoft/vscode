@@ -175,6 +175,18 @@ export class CopilotToken {
 		}
 	}
 
+	/**
+	 * Returns the raw copilot_plan string from the token payload without normalization.
+	 * Used when the exact plan value must be preserved (e.g. for per-SKU routing overrides
+	 * where individual_edu, individual_pro_plus, etc. need distinct handling).
+	 */
+	get rawCopilotPlan(): string {
+		if (this.isFreeUser) {
+			return 'free';
+		}
+		return this._info.copilot_plan ?? 'individual';
+	}
+
 	get quotaInfo() {
 		return { quota_snapshots: this._info.quota_snapshots, quota_reset_date: this._info.quota_reset_date };
 	}
