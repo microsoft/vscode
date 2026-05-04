@@ -569,7 +569,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async close() {
-		await (this._closed ??= this._dbPromise?.then(db => db.close()).catch(() => { }) || true);
+		await (this._closed ??= this._dbPromise?.then(db => dbClose(db)).catch(() => { }) || true);
 	}
 
 	dispose(): void {

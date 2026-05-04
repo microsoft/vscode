@@ -88,6 +88,8 @@ export interface IBrowserViewCaptureScreenshotOptions {
 export interface IBrowserViewOwner {
 	/** The main code window ID that owns this view's lifecycle. */
 	readonly mainWindowId: number;
+	/** Optional session ID identifying the agent session that created this view. */
+	readonly sessionId?: string;
 }
 
 /**
