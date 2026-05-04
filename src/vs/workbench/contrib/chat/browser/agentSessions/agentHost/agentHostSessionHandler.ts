@@ -2423,7 +2423,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _convertVariablesToAttachments(request: IChatAgentRequest): Promise<MessageAttachment[]> {
 		const attachments: MessageAttachment[] = [];
 		for (const v of request.variables.variables) {
-			if (isLocation(v.value)) {
+			if (v.kind === 'file' && isLocation(v.value)) {
+				const uri = v.value.uri;
+				if (uri.scheme === 'file') {
+					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
+					const selectionMetadata = await this._readSelectionAttachmentMetadata(uri, v.value.range);
+					attachments.push({
+						type: MessageAttachmentKind.Resource,
+						uri: attachmentUri.toString(),
+						label: v.name,
+						displayKind: 'selection',
+						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
+					});
+				}
+			} else if (v.kind === 'implicit' && v.isSelection && isLocation(v.value)) {
 				const uri = v.value.uri;
 				if (uri.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
@@ -2447,19 +2460,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (uri?.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
 					attachments.push({ type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label: v.name, displayKind: 'directory' });
-				}
-			} else if (v.kind === 'implicit' && v.isSelection) {
-				const uri = v.uri;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					const selectionMetadata = isLocation(v.value) ? await this._readSelectionAttachmentMetadata(v.value.uri, v.value.range) : undefined;
-					attachments.push({
-						type: MessageAttachmentKind.Resource,
-						uri: attachmentUri.toString(),
-						label: v.name,
-						displayKind: 'selection',
-						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
-					});
 				}
 			}
 		}
