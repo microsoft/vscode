@@ -408,6 +408,7 @@ export class McpListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
@@ -523,14 +524,13 @@ export class McpListWidget extends Disposable {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel(element: IMcpListEntry) {
+					getAriaLabel: (element: IMcpListEntry) => {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						if (element.type === 'builtin-item') {
-							return element.label;
-						}
-						return element.server.label;
+						const isBridged = this.harnessService.activeHarness.get() !== SessionType.Local;
+						const label = element.type === 'builtin-item' ? element.label : element.server.label;
+						return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}, Bridged", label) : label;
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");
