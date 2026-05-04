@@ -7,7 +7,7 @@
 	display: flex;
 	align-items: center;
 	background-color: var(--chat-bar-background);
-	padding: 0 4px;
+	padding: 0 6px;
 	height: 35px;
 	flex-shrink: 0;
 	overflow: hidden;
@@ -17,7 +17,7 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 0;
+	gap: 4px;
 	overflow-x: auto;
 	overflow-y: hidden;
 }
@@ -26,12 +26,12 @@
 	display: none;
 }
 
-/* Base tab: preserve chat title casing while keeping the same pill treatment */
+/* Base tab: pill-shaped with clear boundaries */
 .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
 	position: relative;
-	padding: 0 8px;
+	padding: 0 10px;
 	cursor: pointer;
 	white-space: nowrap;
 	color: var(--chat-tab-inactive-foreground);
@@ -39,18 +39,21 @@
 	font-size: 12px;
 	line-height: 22px;
 	height: 26px;
-	border-radius: 4px;
+	border-radius: 6px;
 	user-select: none;
+	border: 1px solid transparent;
 }
 
 .chat-composite-bar-tab:hover {
 	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
 }
 
-/* Active state: background container instead of underline — mirrors auxiliarybar checked */
+/* Active state: prominent filled pill */
 .chat-composite-bar-tab.active {
 	color: var(--chat-tab-active-foreground);
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 12%, transparent);
 }
 
 /* Reduce right padding when close button is present to avoid excess spacing */
