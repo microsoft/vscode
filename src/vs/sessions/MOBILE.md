@@ -132,10 +132,10 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 |------|-----------|---------|
 | `contrib/copilotChatSessions/browser/mobilePermissionPicker.ts` | `PermissionPicker` | Renders Default/Bypass/Autopilot as a bottom sheet on phone. |
 | `contrib/chat/browser/mobileSessionTypePicker.ts` | `SessionTypePicker` | Renders session-type choices as a bottom sheet on phone. |
-| `contrib/chat/browser/mobileWorkspacePicker.ts` | `WorkspacePicker` | Renders workspace choices as a bottom sheet on phone. |
-| `contrib/chat/browser/mobileScopedWorkspacePicker.ts` | `ScopedWorkspacePicker` | Same as above for the scoped (web) variant. |
-| `contrib/chat/browser/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Shared by both workspace picker subclasses. |
-| `contrib/chat/browser/agentHost/mobileAgentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | Routes Isolation + Branch to a unified bottom sheet on phone. |
+| `contrib/chat/browser/webWorkspacePicker.ts` | `WorkspacePicker` | Web variant: scopes to active host filter and renders as a bottom sheet on phone. Note: this is the only "mobile" picker that lives in a non-`mobile*`-named file because the same class also handles the desktop-web case (host scoping). |
+| `contrib/chat/browser/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Used by `WebWorkspacePicker` on phone. |
+| `contrib/chat/browser/agentHost/mobileAgentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | Routes Isolation + Branch to a unified bottom sheet on phone. Defined in the same file as the base to avoid a circular ESM import. |
+| `contrib/chat/browser/agentHost/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only chat-input chip that combines Mode + Model into a unified bottom sheet. Replaces the desktop mode + model pickers (gated off via `when:` clauses) on phone-layout viewports. |
 
 ### Layout & Navigation
 

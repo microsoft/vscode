@@ -169,6 +169,12 @@ import './contrib/remoteAgentHost/browser/hostFilter.contribution.js';
 // mutually exclusive at the action-menu level.
 import './contrib/chat/browser/agentHost/mobileChatInputConfigPicker.js';
 
+// Mobile-aware Copilot permission picker. Replaces the desktop
+// permission picker registration (which the shared contribution
+// skips when `isWeb`), so we get the bottom-sheet sheet on phone
+// without duplicate-registration conflicts.
+import './contrib/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';

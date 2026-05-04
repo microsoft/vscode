@@ -301,23 +301,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
 
-		// Render order for known repo-config properties. Default Approvals
-		// is rendered by a separate left-side picker and lands first in
-		// the chip row, so by surfacing branch before isolation we
-		// produce the visual sequence: Approvals | Branch | Worktree.
-		// Unknown properties retain their schema-declared order after
-		// the known ones.
-		const propertyOrder = new Map<string, number>([
-			[SessionConfigKey.Branch, 0],
-			[SessionConfigKey.Isolation, 1],
-		]);
-		const orderedProperties = Object.entries(resolvedConfig.schema.properties).slice().sort(([aKey], [bKey]) => {
-			const aOrder = propertyOrder.get(aKey) ?? Number.MAX_SAFE_INTEGER;
-			const bOrder = propertyOrder.get(bKey) ?? Number.MAX_SAFE_INTEGER;
-			return aOrder - bOrder;
-		});
+		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
-		for (const [property, schema] of orderedProperties) {
+		for (const [property, schema] of properties) {
 			if (property === SessionConfigKey.BranchNameHint) {
 				continue;
 			}
@@ -332,14 +318,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (schema.type !== 'string' || (!hasStaticEnum && !hasDynamicEnum)) {
 				continue;
 			}
-			// In a running session, non-mutable properties whose `enum`
-			// has only one value would render as a dead pill (no
-			// alternatives to pick) — skip those. Branch and Isolation
-			// are kept even when non-mutable, because their value is
-			// informational (the user wants to see what the running
-			// session is using); they render as readonly chips below.
-			const isUnifiedRepoProperty = property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch;
-			if (!isNewSession && !schema.sessionMutable && !isUnifiedRepoProperty) {
+			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
 				continue;
 			}
 			// When the autoApprove property uses the well-known schema, the
@@ -358,17 +337,43 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				continue;
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
-			// Non-mutable Branch/Isolation surface in running sessions
-			// as a *readonly* chip — the value is informational (so the
-			// user can see what the running session is using) but the
-			// chip can't open a picker because writes would no-op at
-			// the provider boundary. The schema's `readOnly` flag still
-			// applies on top of this runtime check.
-			const isReadOnly = !!schema.readOnly || (!isNewSession && !schema.sessionMutable);
+			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
+	}
+
+	/**
+	 * Order the schema properties for rendering. The base implementation
+	 * preserves the schema-declared order; subclasses can override to
+	 * impose a deterministic visual sequence (e.g. the mobile chip row
+	 * groups Approvals | Branch | Worktree).
+	 */
+	protected _orderProperties(properties: ReadonlyArray<[string, SessionConfigPropertySchema]>): ReadonlyArray<[string, SessionConfigPropertySchema]> {
+		return properties;
+	}
+
+	/**
+	 * Decide whether a property's chip should be rendered for the current
+	 * session. The base implementation hides non-mutable properties in
+	 * running sessions (they would render as dead pills). Subclasses can
+	 * override to keep specific properties visible as readonly chips —
+	 * see {@link _isReadOnlyChip}.
+	 */
+	protected _shouldRenderProperty(property: string, schema: SessionConfigPropertySchema, isNewSession: boolean): boolean {
+		return isNewSession || !!schema.sessionMutable;
+	}
+
+	/**
+	 * Decide whether a property's trigger should render as readonly
+	 * (no chevron, no popup). The base implementation defers to the
+	 * schema's `readOnly` flag. Subclasses that opt in to rendering
+	 * non-mutable chips via {@link _shouldRenderProperty} should
+	 * override this to also mark them readonly at runtime.
+	 */
+	protected _isReadOnlyChip(property: string, schema: SessionConfigPropertySchema, isNewSession: boolean): boolean {
+		return !!schema.readOnly;
 	}
 
 	protected _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
@@ -494,6 +499,47 @@ export class AgentHostSessionConfigPicker extends Disposable {
  */
 class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
+	/**
+	 * On phone the chip lane has a fixed visual sequence — Default
+	 * Approvals (rendered by a separate left-side picker), then Branch,
+	 * then Worktree. Sort the known repo-config properties to that
+	 * order; unknown properties fall through to schema-declared order
+	 * after the known ones.
+	 */
+	protected override _orderProperties(properties: ReadonlyArray<[string, SessionConfigPropertySchema]>): ReadonlyArray<[string, SessionConfigPropertySchema]> {
+		const order = new Map<string, number>([
+			[SessionConfigKey.Branch, 0],
+			[SessionConfigKey.Isolation, 1],
+		]);
+		return properties.slice().sort(([aKey], [bKey]) => {
+			const a = order.get(aKey) ?? Number.MAX_SAFE_INTEGER;
+			const b = order.get(bKey) ?? Number.MAX_SAFE_INTEGER;
+			return a - b;
+		});
+	}
+
+	/**
+	 * Keep Branch and Isolation visible in running sessions even when
+	 * the schema marks them non-mutable. Their value is informational
+	 * — the user wants to see what the running session is using —
+	 * and the chip renders as readonly via {@link _isReadOnlyChip}.
+	 * All other properties defer to the base behavior (hide if
+	 * non-mutable in a running session).
+	 */
+	protected override _shouldRenderProperty(property: string, schema: SessionConfigPropertySchema, isNewSession: boolean): boolean {
+		const isUnifiedRepoProperty = property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch;
+		return isUnifiedRepoProperty || super._shouldRenderProperty(property, schema, isNewSession);
+	}
+
+	/**
+	 * Mark non-mutable properties as readonly chips in running sessions
+	 * so taps don't try to open a picker (which would no-op at the
+	 * provider boundary). The schema's own `readOnly` flag still wins.
+	 */
+	protected override _isReadOnlyChip(property: string, schema: SessionConfigPropertySchema, isNewSession: boolean): boolean {
+		return super._isReadOnlyChip(property, schema, isNewSession) || (!isNewSession && !schema.sessionMutable);
+	}
+
 	protected override async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (!isPhoneLayout(this._layoutService)) {
 			return super._showPicker(provider, sessionId, property, schema, trigger);
@@ -591,23 +637,26 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		}
 
 		trigger.setAttribute('aria-expanded', 'true');
-		const id = await showMobilePickerSheet(
+		await showMobilePickerSheet(
 			this._layoutService.mainContainer,
 			localize('mobileAgentHostSessionConfig.repoSheet.title', "Worktree"),
 			sheetItems,
-			{ search },
+			{
+				search,
+				// Keep the sheet open on row taps so the user can adjust
+				// both isolation mode and branch without reopening. Each
+				// tap writes through immediately; Done just dismisses.
+				stayOpenOnSelect: true,
+				onDidSelect: (id) => {
+					const selection = idToConfig.get(id);
+					if (selection) {
+						provider.setSessionConfigValue(sessionId, selection.property, selection.value).catch(() => { /* best-effort */ });
+					}
+				},
+			},
 		);
 		trigger.setAttribute('aria-expanded', 'false');
 		trigger.focus();
-
-		if (!id) {
-			return;
-		}
-		const selection = idToConfig.get(id);
-		if (!selection) {
-			return;
-		}
-		provider.setSessionConfigValue(sessionId, selection.property, selection.value).catch(() => { /* best-effort */ });
 	}
 }
 

@@ -268,7 +268,12 @@
 	font-size: 15px;
 	text-align: left;
 	cursor: pointer;
-	touch-action: manipulation;
+	/* `pan-y` instead of `manipulation` so vertical scrolling bubbles
+	 * up to the `.mobile-picker-sheet-list` scroll container even
+	 * though monaco's `Gesture.addTarget` (registered on each row)
+	 * calls `preventDefault` on `touchmove`. Without this, the user
+	 * can only scroll the list by dragging in the gaps between rows. */
+	touch-action: pan-y;
 }
 
 .mobile-picker-sheet-item:focus {

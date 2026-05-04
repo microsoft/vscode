@@ -229,26 +229,48 @@ export async function showMobileWorkspacePickerSheet(
 		: undefined;
 
 	triggerElement.setAttribute('aria-expanded', 'true');
+
+	// Track the last-tapped folder from search results so Done can
+	// dispatch it. In `stayOpenOnSelect` mode, row taps don't close
+	// the sheet — instead they apply the selection and let the user
+	// browse further. The workspace-picker-specific rows (recents)
+	// dispatch immediately on tap since those are confirmed choices.
+	let lastSearchFolderRun: (() => void) | undefined;
+
 	try {
-		const id = await showMobilePickerSheet(
+		await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
 			rows.map(r => r.sheetItem),
-			{ headerActions, search },
+			{
+				headerActions,
+				search,
+				caption: localize('mobileWorkspacePicker.caption', "Search to browse folders on the host"),
+				stayOpenOnSelect: true,
+				onDidSelect: (id) => {
+					if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
+						const idx = Number(id.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
+						headerBrowseActions[idx]?.invoke();
+						return;
+					}
+					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
+						lastSearchFolderRun = folderRunById.get(id);
+						return;
+					}
+					// Recent workspace row — dispatch immediately (it
+					// sets the workspace on the session).
+					const row = rows.find(r => r.sheetItem.id === id);
+					if (row) {
+						row.run();
+						lastSearchFolderRun = undefined;
+					}
+				},
+			},
 		);
-		if (id === undefined) {
-			return;
-		}
-		if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
-			const idx = Number(id.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
-			headerBrowseActions[idx]?.invoke();
-			return;
-		}
-		if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
-			folderRunById.get(id)?.();
-			return;
-		}
-		rows.find(r => r.sheetItem.id === id)?.run();
+
+		// Done was tapped — if the last selection was a search folder,
+		// dispatch it now. Recent rows were already dispatched on tap.
+		lastSearchFolderRun?.();
 	} finally {
 		triggerElement.setAttribute('aria-expanded', 'false');
 		triggerElement.focus();

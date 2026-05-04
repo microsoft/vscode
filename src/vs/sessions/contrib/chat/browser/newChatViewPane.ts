@@ -25,8 +25,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
-import { MobileWorkspacePicker } from './mobileWorkspacePicker.js';
-import { MobileScopedWorkspacePicker } from './mobileScopedWorkspacePicker.js';
+import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -48,12 +47,11 @@ class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
-		// Always use the mobile-aware picker. Its overrides bail to the
-		// desktop behavior when `isPhoneLayout()` is false, so picking
-		// the same class regardless of construction-time viewport
-		// avoids a class-mismatch when the user resizes across the
-		// phone breakpoint after the chat input mounted.
-		const PickerCtor = isWeb ? MobileScopedWorkspacePicker : MobileWorkspacePicker;
+		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
+		// which scopes recents to the active host and renders as a bottom
+		// sheet on phone-layout viewports. On Electron desktop, the regular
+		// {@link WorkspacePicker} is fine — phones never run there.
+		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
 		this._register(this._pendingSessionTypeWait);
 

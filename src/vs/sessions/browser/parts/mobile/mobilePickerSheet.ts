@@ -64,6 +64,30 @@ export interface IMobilePickerSheetOptions {
 	 * exactly like a static row.
 	 */
 	readonly search?: IMobilePickerSheetSearchSource;
+
+	/**
+	 * When true, row taps call {@link onDidSelect} instead of resolving
+	 * the sheet. The sheet stays open until the user taps Done, the
+	 * backdrop, or presses Escape (all resolve with `undefined`). Use
+	 * this for multi-property sheets (e.g. Worktree + Branch) where the
+	 * user adjusts several values before dismissing, or for drill-down
+	 * navigation where a tap replaces the row list rather than picking
+	 * a final value.
+	 *
+	 * When false (default), a row tap resolves the sheet with that
+	 * row's id and closes immediately (the original behavior).
+	 */
+	readonly stayOpenOnSelect?: boolean;
+
+	/**
+	 * Called when a row is tapped and {@link stayOpenOnSelect} is true.
+	 * Callers should write-through the selection (e.g.
+	 * `provider.setSessionConfigValue`) and optionally update the
+	 * sheet's visual state via {@link IMobilePickerSheetController}.
+	 *
+	 * Ignored when `stayOpenOnSelect` is false.
+	 */
+	readonly onDidSelect?: (id: string) => void;
 }
 
 export interface IMobilePickerSheetHeaderAction {
@@ -216,9 +240,41 @@ export function showMobilePickerSheet(
 		const list = DOM.append(sheet, $('div.mobile-picker-sheet-list'));
 		list.setAttribute('role', 'listbox');
 
+		// When `stayOpenOnSelect` is true, row taps call the caller's
+		// `onDidSelect` callback and leave the sheet open. The visual
+		// state (checkmark + aria) is updated immediately so the user
+		// sees which option is now active. Within each section, only
+		// one row can be checked at a time (radio-select semantics).
+		// When false (default), taps resolve the sheet promise and close.
+
+		// Registry of rendered rows keyed by section index, used to
+		// toggle checkmarks within a section on tap.
+		const rowsBySection = new Map<number, { row: HTMLButtonElement; checkSlot: HTMLElement; id: string }[]>();
+
+		const handleRowTap = options?.stayOpenOnSelect && options.onDidSelect
+			? (id: string, _row: HTMLElement, sectionIndex: number) => {
+				// Update visual: uncheck all rows in the same section,
+				// then check the tapped row.
+				const sectionRows = rowsBySection.get(sectionIndex);
+				if (sectionRows) {
+					for (const entry of sectionRows) {
+						const isTarget = entry.id === id;
+						entry.row.classList.toggle('checked', isTarget);
+						entry.row.setAttribute('aria-selected', String(isTarget));
+						DOM.clearNode(entry.checkSlot);
+						if (isTarget) {
+							const checkGlyph = DOM.append(entry.checkSlot, $('span.mobile-picker-sheet-check-glyph'));
+							checkGlyph.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+						}
+					}
+				}
+				options.onDidSelect!(id);
+			}
+			: (id: string, _row: HTMLElement, _sectionIndex: number) => { finish(id); };
+
 		const renderState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: 0 };
 		for (const item of items) {
-			renderRow(list, item, renderState, finish, disposables);
+			renderRow(list, item, renderState, handleRowTap, disposables, rowsBySection);
 		}
 
 		// -- Dynamic search results -----------------------------------
@@ -273,7 +329,7 @@ export function showMobilePickerSheet(
 					return;
 				}
 				for (const item of results) {
-					renderRow(resultsContainer, item, localState, finish, disposables);
+					renderRow(resultsContainer, item, localState, handleRowTap, disposables, rowsBySection);
 				}
 			};
 
@@ -368,16 +424,17 @@ interface IRenderState {
 
 /**
  * Append a single picker row (and any preceding section divider) to the
- * given list element. Wires up touch/click handlers so taps resolve the
- * sheet via {@link finish}. Shared between the static items list and
- * the dynamic search-results renderer.
+ * given list element. Wires up touch/click handlers so taps invoke
+ * {@link onTap}. Shared between the static items list and the dynamic
+ * search-results renderer.
  */
 function renderRow(
 	list: HTMLElement,
 	item: IMobilePickerSheetItem,
 	state: IRenderState,
-	finish: (id: string | undefined) => void,
+	onTap: (id: string, row: HTMLButtonElement, sectionIndex: number) => void,
 	disposables: DisposableStore,
+	rowsBySection?: Map<number, { row: HTMLButtonElement; checkSlot: HTMLElement; id: string }[]>,
 ): void {
 	if (item.sectionTitle !== undefined) {
 		if (state.sectionCount > 0) {
@@ -432,15 +489,29 @@ function renderRow(
 		checkGlyph.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 	}
 
+	// Register this row so `stayOpenOnSelect` mode can toggle
+	// checkmarks within the same section on tap.
+	if (rowsBySection) {
+		const sectionRows = rowsBySection.get(state.sectionCount);
+		if (sectionRows) {
+			sectionRows.push({ row, checkSlot, id: item.id });
+		} else {
+			rowsBySection.set(state.sectionCount, [{ row, checkSlot, id: item.id }]);
+		}
+	}
+
+	const currentSectionIndex = state.sectionCount;
 	if (!item.disabled) {
-		const rowGesture = Gesture.addTarget(row);
-		disposables.add(rowGesture);
+		// Use plain `click` only — NOT `Gesture.addTarget`. Monaco's
+		// Gesture handler registers `touchmove` listeners that call
+		// `event.preventDefault()`, which blocks native touch scrolling
+		// inside the sheet's scrollable list container. The browser's
+		// built-in `click` event fires on touch-tap in mobile Safari
+		// and Chrome Android, so Gesture isn't needed here.
 		const rowClick = DOM.addDisposableListener(row, DOM.EventType.CLICK, (e: MouseEvent) => {
 			e.preventDefault();
-			finish(item.id);
+			onTap(item.id, row, currentSectionIndex);
 		});
 		disposables.add(rowClick);
-		const rowTap = DOM.addDisposableListener(row, TouchEventType.Tap, () => finish(item.id));
-		disposables.add(rowTap);
 	}
 }
