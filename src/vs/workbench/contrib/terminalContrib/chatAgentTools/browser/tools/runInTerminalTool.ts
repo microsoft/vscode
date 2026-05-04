@@ -2320,6 +2320,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// _activeExecutions.
 		const executionForDisposal = RunInTerminalTool._activeExecutions.get(termId);
 		store.add(terminalInstance.onDisposed(() => {
+			// If the execution was already removed from _activeExecutions,
+			// kill_terminal handled the cleanup and the agent will receive
+			// the output through the normal tool-result flow — skip the
+			// redundant steering message.
+			if (!RunInTerminalTool._activeExecutions.has(termId)) {
+				disposeNotification();
+				return;
+			}
 			if (handleSessionCancelled()) {
 				return;
 			}
