@@ -73,7 +73,10 @@ class NewChatWidget extends Disposable {
 			canSendRequest,
 			loading,
 			shouldExpandPromptSlashCommand: () => {
-				const providerId = this._workspacePicker.selectedProject?.providerId;
+				// Mirror what `_send()` does: it sends to the current active
+				// session, which can lag behind the workspace picker selection
+				// while trust approval or session-type discovery is in flight.
+				const providerId = this.sessionsManagementService.activeSession.get()?.providerId;
 				return !providerId || !ANY_AGENT_HOST_PROVIDER_RE.test(providerId);
 			},
 		}));
