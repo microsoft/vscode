@@ -578,12 +578,6 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
-		'chat.sendElementsToChat.attachCSS': {
-			default: true,
-			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat."),
-			type: 'boolean',
-			tags: ['preview']
-		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat."),
