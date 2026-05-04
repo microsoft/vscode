@@ -1713,6 +1713,7 @@ export interface IInstructionDto extends IChatResourceDto {
 
 export interface ISkillDto extends IChatResourceDto {
 	readonly userInvocable: boolean;
+	readonly disableModelInvocation: boolean;
 }
 
 export interface ISlashCommandDto extends IChatResourceDto {
