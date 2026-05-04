@@ -25,6 +25,12 @@ export interface IMenuItem {
 	group?: 'navigation' | string;
 	order?: number;
 	isHiddenByDefault?: boolean;
+	/**
+	 * When true, the context menu will not close when this item is triggered.
+	 * This is useful for toggle actions in menus where the user may want to
+	 * change multiple items without having to reopen the menu.
+	 */
+	keepOpen?: boolean;
 }
 
 export interface ISubmenuItem {
@@ -575,6 +581,9 @@ export class MenuItemAction implements IAction {
 	readonly alt: MenuItemAction | undefined;
 
 	private readonly _options: IMenuActionOptions | undefined;
+	private readonly _contextKeyService: IContextKeyService;
+	private readonly _precondition: ContextKeyExpression | undefined;
+	private readonly _toggledCondition: ContextKeyExpression | undefined;
 
 	readonly id: string;
 	readonly label: string;
@@ -583,6 +592,11 @@ export class MenuItemAction implements IAction {
 	readonly enabled: boolean;
 	readonly checked?: boolean;
 
+	/**
+	 * When true, the context menu should not close when this item is triggered.
+	 */
+	keepOpen: boolean = false;
+
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
@@ -590,8 +604,11 @@ export class MenuItemAction implements IAction {
 		readonly hideActions: IMenuItemHide | undefined,
 		readonly menuKeybinding: IAction | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService
+		@ICommandService private _commandService: ICommandService,
 	) {
+		this._contextKeyService = contextKeyService;
+		this._precondition = item.precondition;
+
 		this.id = item.id;
 		this.label = MenuItemAction.label(item, options);
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
@@ -600,10 +617,12 @@ export class MenuItemAction implements IAction {
 
 		let icon: ThemeIcon | undefined;
 
+		this._toggledCondition = undefined;
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression; icon?: Icon; tooltip?: string | ILocalizedString; title?: string | ILocalizedString;
 			};
+			this._toggledCondition = toggled.condition;
 			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
 			if (this.checked && toggled.tooltip) {
 				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
@@ -627,6 +646,17 @@ export class MenuItemAction implements IAction {
 		this._options = options;
 		this.class = icon && ThemeIcon.asClassName(icon);
 
+	}
+
+	/**
+	 * Re-evaluates the `checked` and `enabled` state from the current context keys.
+	 * Used when the menu stays open after this action runs (keepOpen).
+	 */
+	refreshState(): void {
+		(this as unknown as { enabled: boolean }).enabled = !this._precondition || this._contextKeyService.contextMatchesRules(this._precondition);
+		(this as unknown as { checked: boolean | undefined }).checked = this._toggledCondition
+			? this._contextKeyService.contextMatchesRules(this._toggledCondition)
+			: undefined;
 	}
 
 	run(...args: unknown[]): Promise<void> {

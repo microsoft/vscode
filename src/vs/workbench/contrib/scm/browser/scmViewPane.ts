@@ -976,7 +976,7 @@ class RepositoryVisibilityAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.or(ContextKeys.RepositoryVisibilityCount.notEqualsTo(1), ContextKeys.RepositoryVisibility(repository).isEqualTo(false)),
 			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
-			menu: { id: Menus.Repositories, group: '0_repositories' }
+			menu: { id: Menus.Repositories, group: '0_repositories', keepOpen: true }
 		});
 		this.repository = repository;
 	}
