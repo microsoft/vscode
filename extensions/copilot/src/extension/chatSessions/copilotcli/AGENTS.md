@@ -342,7 +342,7 @@ The integration respects these VS Code settings (all under `github.copilot.chat.
 | `planExitMode.enabled` | `true` | Show plan exit mode choices (Autopilot/Interactive/Exit) |
 | `planCommand.enabled` | `true` | Enable the `/plan` command |
 | `aiGenerateBranchNames.enabled` | `true` | AI-generated branch names for worktrees |
-| `forkSessions.enabled` | `true` | Allow forking sessions into new conversations |
+| `forkSessions.enabled` | `false` | Allow forking sessions into new conversations |
 | `isolationOption.enabled` | `true` | Show worktree isolation option in session UI |
 | `autoCommit.enabled` | `true` | Auto-commit worktree changes at end of each turn |
 | `sessionController.enabled` | `false` | Use session controller API (V2) |
