@@ -169,6 +169,17 @@
 	height: auto;
 }
 
+/* Left divider for the agents app welcome view */
+.sessions-chat-config-toolbar .action-label.model-picker-split::before {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	left: 0;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+}
+
 /* Hide the right divider from the workbench base styles */
 .agent-sessions-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
 	content: none;
