@@ -57,6 +57,7 @@ import { ISCMService } from '../../../../contrib/scm/common/scm.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
+import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 
 class FixtureMenuService implements IMenuService {
 	declare readonly _serviceBrand: undefined;
@@ -118,7 +119,7 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }());
-			reg.defineInstance(IChatModeService, new class extends mock<IChatModeService>() { override readonly onDidChangeChatModes = Event.None; override getModes() { return { builtin: [], custom: [] }; } override findModeById() { return undefined; } }());
+			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override getTools() { return []; } }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() { override onDidSubmitRequest = Event.None; }());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() { override getAllChatSessionContributions() { return []; } override readonly onDidChangeSessionOptions = Event.None; override readonly onDidChangeOptionGroups = Event.None; override readonly onDidChangeAvailability = Event.None; }());

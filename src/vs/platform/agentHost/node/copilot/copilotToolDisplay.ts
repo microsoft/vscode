@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentToolCompleteEvent, IAgentToolReadyEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -49,6 +49,7 @@ const enum CopilotToolName {
 	Edit = 'edit',
 	Create = 'create',
 	Grep = 'grep',
+	Rg = 'rg',
 	Glob = 'glob',
 	ApplyPatch = 'apply_patch',
 	GitApplyPatch = 'git_apply_patch',
@@ -57,6 +58,7 @@ const enum CopilotToolName {
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
 	Skill = 'skill',
+	ExitPlanMode = 'exit_plan_mode',
 }
 
 /** Parameters for the `bash` / `powershell` shell tools. */
@@ -102,11 +104,44 @@ function formatViewRange(view_range: number[] | undefined): { startLine: number;
 	return { startLine, endLine };
 }
 
-/** Parameters for the `grep` tool. */
+/**
+ * Parameters for the `grep` tool. The Copilot CLI's `grep` accepts the same
+ * rich rg-flag schema as `rg`; the older narrower shape (e.g. `include`) is
+ * no longer used.
+ */
 interface ICopilotGrepToolArgs {
 	pattern: string;
 	path?: string;
-	include?: string;
+	output_mode?: 'content' | 'files_with_matches' | 'count';
+	glob?: string;
+	type?: string;
+	'-i'?: boolean;
+	'-A'?: number;
+	'-B'?: number;
+	'-C'?: number;
+	'-n'?: boolean;
+	head_limit?: number;
+	multiline?: boolean;
+}
+
+/**
+ * Parameters for the `rg` tool. Mirrors {@link ICopilotGrepToolArgs} today but
+ * is kept as a distinct interface so the two tools can drift independently if
+ * the SDK ever differentiates them.
+ */
+interface ICopilotRgToolArgs {
+	pattern: string;
+	path?: string;
+	output_mode?: 'content' | 'files_with_matches' | 'count';
+	glob?: string;
+	type?: string;
+	'-i'?: boolean;
+	'-A'?: number;
+	'-B'?: number;
+	'-C'?: number;
+	'-n'?: boolean;
+	head_limit?: number;
+	multiline?: boolean;
 }
 
 /** Parameters for the `glob` tool. */
@@ -169,6 +204,12 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
 ]);
 
+/** Set of tool names that perform file/text search. */
+const SEARCH_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.Grep,
+	CopilotToolName.Rg,
+]);
+
 /**
  * Tools that should not be shown to the user. These are internal tools
  * used by the CLI for its own purposes (e.g., reporting intent to the model).
@@ -177,7 +218,7 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
  * lifecycle event with the resolved skill file path; the agent session
  * synthesizes a tool-start/complete pair from that event so the UI can
  * render a clickable file link instead of just the skill name. See
- * {@link synthesizeSkillToolEvents}.
+ * {@link synthesizeSkillToolCall}.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
@@ -242,13 +283,15 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.View: return localize('toolName.view', "View File");
 		case CopilotToolName.Edit: return localize('toolName.edit', "Edit File");
 		case CopilotToolName.Create: return localize('toolName.create', "Create File");
-		case CopilotToolName.Grep: return localize('toolName.grep', "Search");
+		case CopilotToolName.Grep:
+		case CopilotToolName.Rg: return localize('toolName.grep', "Search");
 		case CopilotToolName.Glob: return localize('toolName.glob', "Find Files");
 		case CopilotToolName.ApplyPatch:
 		case CopilotToolName.GitApplyPatch: return localize('toolName.patch', "Patch");
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
+		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Plan");
 		default: return toolName;
 	}
 }
@@ -316,6 +359,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.grep', "Searching files");
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			if (args?.pattern) {
+				return md(localize('toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
+			}
+			return localize('toolInvoke.grep', "Searching files");
+		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
@@ -323,6 +373,8 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -395,6 +447,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.grep', "Searched files");
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			if (args?.pattern) {
+				return md(localize('toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
+			}
+			return localize('toolComplete.grep', "Searched files");
+		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
@@ -402,6 +461,8 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolComplete.exitPlanMode', "Exited plan mode");
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}
@@ -442,16 +503,29 @@ export function getSkillSyntheticToolCallId(eventId: string | undefined, data: I
 }
 
 /**
- * Synthesizes the `tool_start` and `tool_complete` agent progress events that
- * represent a successful `skill.invoked` lifecycle event. Used by both the
- * live session handler and the history-replay mapper so the two paths render
- * identically.
+ * Synthesized data for a `skill.invoked` tool call. Used by both the live
+ * session handler and the history-replay mapper so the two paths render
+ * identically. Callers wrap this into protocol actions or {@link Turn}
+ * data; this helper avoids any agent-protocol coupling.
  */
-export function synthesizeSkillToolEvents(
-	session: URI,
+export interface ISynthesizedSkillToolCall {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly invocationMessage: StringOrMarkdown;
+	readonly pastTenseMessage: StringOrMarkdown;
+}
+
+/**
+ * Synthesizes the data for a `skill.invoked` tool call (a tool-start /
+ * tool-complete pair). Returns the constituent fields without coupling to
+ * any specific event or action shape — callers compose them into protocol
+ * actions or {@link Turn} entries as needed.
+ */
+export function synthesizeSkillToolCall(
 	data: ICopilotSkillInvokedData,
 	eventId: string | undefined,
-): { start: IAgentToolStartEvent; complete: IAgentToolCompleteEvent } {
+): ISynthesizedSkillToolCall {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
 	const displayName = localize('toolName.skill', "Read Skill");
 	// Use the skill name as the link text rather than the basename: every skill
@@ -472,24 +546,13 @@ export function synthesizeSkillToolEvents(
 	const pastTenseMessage: StringOrMarkdown = skillLink
 		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
 		: localize('toolComplete.skillName', "Read skill {0}", data.name);
-	const start: IAgentToolStartEvent = {
-		session,
-		type: 'tool_start',
+	return {
 		toolCallId,
 		toolName: CopilotToolName.Skill,
 		displayName,
 		invocationMessage,
+		pastTenseMessage,
 	};
-	const complete: IAgentToolCompleteEvent = {
-		session,
-		type: 'tool_complete',
-		toolCallId,
-		result: {
-			success: true,
-			pastTenseMessage,
-		},
-	};
-	return { start, complete };
 }
 
 export function getToolInputString(toolName: string, parameters: Record<string, unknown> | undefined, rawArguments: string | undefined): string | undefined {
@@ -515,6 +578,10 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			return args?.pattern ?? rawArguments;
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			return args?.pattern ?? rawArguments;
+		}
 		default:
 			// For other tools, show the formatted JSON arguments
 			if (parameters) {
@@ -529,16 +596,19 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 }
 
 /**
- * Returns a rendering hint for the given tool. Currently only 'terminal' is
- * supported, which tells the renderer to display the tool as a terminal command
- * block.
+ * Returns a rendering hint for the given tool. Currently 'terminal', 'subagent',
+ * and 'search' are supported, which tell the renderer to display the tool with
+ * a terminal command block, a subagent widget, or a search icon respectively.
  */
-export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefined {
+export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search' | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
 	}
 	if (SUBAGENT_TOOL_NAMES.has(toolName)) {
 		return 'subagent';
+	}
+	if (SEARCH_TOOL_NAMES.has(toolName)) {
+		return 'search';
 	}
 	return undefined;
 }
@@ -635,7 +705,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: IAgentToolReadyEvent['permissionKind'];
+	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
 	/** File path extracted from the request. */
 	permissionPath?: string;
 } {

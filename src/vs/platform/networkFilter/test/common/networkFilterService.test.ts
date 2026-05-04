@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { AgentNetworkFilterService } from '../../common/networkFilterService.js';
+import { AgentNetworkFilterFetchWebToolName, AgentNetworkFilterService } from '../../common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../common/settings.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../../sandbox/common/terminalSandboxService.js';
@@ -19,13 +19,18 @@ suite('AgentNetworkFilterService', () => {
 	let disposables: DisposableStore;
 	let configService: TestConfigurationService;
 	let terminalSandboxEnabled: boolean;
+	let terminalSandboxAllowNetworkEnabled: boolean;
 	let terminalSandboxService: ITerminalSandboxService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		configService = new TestConfigurationService();
 		terminalSandboxEnabled = false;
-		terminalSandboxService = Object.assign(new NullTerminalSandboxService(), { isEnabled: async () => terminalSandboxEnabled });
+		terminalSandboxAllowNetworkEnabled = false;
+		terminalSandboxService = Object.assign(new NullTerminalSandboxService(), {
+			isEnabled: async () => terminalSandboxEnabled,
+			isSandboxAllowNetworkEnabled: async () => terminalSandboxAllowNetworkEnabled,
+		});
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
@@ -60,7 +65,7 @@ suite('AgentNetworkFilterService', () => {
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://anything.test')), true);
 	});
 
-	test('network filter disabled with sandbox enabled activates filtering', async () => {
+	test('network filter disabled with sandbox enabled filters fetch web tool only', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
 		terminalSandboxEnabled = true;
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
@@ -68,7 +73,21 @@ suite('AgentNetworkFilterService', () => {
 		const service = await createService();
 
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
-		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), false);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com'), AgentNetworkFilterFetchWebToolName), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com'), AgentNetworkFilterFetchWebToolName), false);
+	});
+
+	test('network filter disabled with sandbox network allowed does not activate filtering', async () => {
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+		terminalSandboxEnabled = true;
+		terminalSandboxAllowNetworkEnabled = true;
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+
+		const service = await createService();
+
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), true);
 	});
 
 	test('denies all domains when both lists are empty', async () => {
@@ -143,21 +162,31 @@ suite('AgentNetworkFilterService', () => {
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), false);
 	});
 
-	test('terminal sandbox enablement change fires onDidChange and updates filtering', async () => {
+	test('terminal sandbox network mode change fires onDidChange and updates fetch web tool filtering', async () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		terminalSandboxEnabled = true;
+		terminalSandboxAllowNetworkEnabled = true;
 		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com'), AgentNetworkFilterFetchWebToolName), true);
 
 		let fired = false;
-		disposables.add(service.onDidChange(() => { fired = true; }));
+		const didChange = new Promise<void>(resolve => {
+			disposables.add(service.onDidChange(() => {
+				fired = true;
+				resolve();
+			}));
+		});
 
-		terminalSandboxEnabled = true;
+		terminalSandboxAllowNetworkEnabled = false;
 		fireConfigChange(AgentSandboxSettingId.AgentSandboxEnabled);
-		await Promise.resolve();
+		await didChange;
 
 		assert.strictEqual(fired, true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), true);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), true);
-		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com')), false);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com'), AgentNetworkFilterFetchWebToolName), true);
+		assert.strictEqual(service.isUriAllowed(URI.parse('https://other.com'), AgentNetworkFilterFetchWebToolName), false);
 	});
 });

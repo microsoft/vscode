@@ -11,8 +11,9 @@ import { basename, isEqualOrParent } from '../../../../../../base/common/resourc
 import { URI } from '../../../../../../base/common/uri.js';
 import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider, type ICustomizationItem, type ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { getFriendlyName } from '../../aiCustomization/aiCustomizationItemSource.js';
@@ -47,7 +48,7 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 export interface ILocalCustomizationFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
-	readonly storage: PromptsStorage;
+	readonly storage: AICustomizationPromptsStorage;
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
@@ -60,6 +61,12 @@ export interface ILocalCustomizationFile {
  * This is the single source of truth used by both the AI Customization view
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientChanged`).
+ *
+ * Built-in skills bundled with the Agents app (only present when the
+ * sessions-aware prompts service is in play) are also enumerated so that
+ * `/create-pr`, `/merge`, etc. are available to every agent host without
+ * any per-provider plumbing. In the regular VS Code workbench window the
+ * built-in lookup returns nothing and this is a no-op.
  */
 export async function enumerateLocalCustomizationsForHarness(
 	promptsService: IPromptsService,
@@ -85,6 +92,32 @@ export async function enumerateLocalCustomizationsForHarness(
 			}
 		}
 	}
+
+	// Built-in skills (e.g. `/create-pr`, `/merge`) are exposed via
+	// `BUILTIN_STORAGE`, which is not a member of the core `PromptsStorage`
+	// enum. The sessions-aware prompts service supports this extra storage,
+	// but the regular workbench prompts service throws on unknown storage
+	// values; treat that case as "no built-in skills available" so
+	// enumeration remains a no-op outside Sessions.
+	let builtinSkills: readonly IPromptPath[] = [];
+	try {
+		builtinSkills = await promptsService.listPromptFilesForStorage(
+			PromptsType.skill,
+			BUILTIN_STORAGE as unknown as PromptsStorage,
+			token,
+		);
+	} catch {
+		builtinSkills = [];
+	}
+	for (const file of builtinSkills) {
+		result.push({
+			uri: file.uri,
+			type: PromptsType.skill,
+			storage: BUILTIN_STORAGE,
+			disabled: syncProvider.isDisabled(file.uri),
+		});
+	}
+
 	return result;
 }
 
@@ -127,17 +160,19 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 		// folder, so the filename is not a useful display name. Look up the
 		// parsed skill metadata (name + description from frontmatter) and
 		// fall back to the parent folder name when a skill failed to parse.
-		const skillByUri = new ResourceMap<{ name: string; description: string | undefined }>();
+		const skillByUri = new ResourceMap<{ name: string; description: string | undefined; userInvocable?: boolean }>();
 		for (const skill of skills ?? []) {
-			skillByUri.set(skill.uri, { name: skill.name, description: skill.description });
+			skillByUri.set(skill.uri, { name: skill.name, description: skill.description, userInvocable: skill.userInvocable });
 		}
 		return enumerated.map(file => {
 			let name: string;
 			let description: string | undefined;
+			let userInvocable: boolean | undefined;
 			if (file.type === PromptsType.skill) {
 				const parsed = skillByUri.get(file.uri);
 				name = parsed?.name ?? getSkillFolderName(file.uri);
 				description = parsed?.description;
+				userInvocable = parsed?.userInvocable;
 			} else {
 				name = getFriendlyName(basename(file.uri));
 			}
@@ -146,10 +181,14 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 				type: file.type,
 				name,
 				description,
-				storage: file.storage,
+				// Cast through the wider storage union: built-in skills use
+				// `BUILTIN_STORAGE`, which is not a `PromptsStorage` enum
+				// member but is recognized by the AI Customization view.
+				storage: file.storage as PromptsStorage,
 				enabled: !file.disabled,
 				extensionId: file.extensionId,
 				pluginUri: file.pluginUri,
+				userInvocable
 			};
 		});
 	}

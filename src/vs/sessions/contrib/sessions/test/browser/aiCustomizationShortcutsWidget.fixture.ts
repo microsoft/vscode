@@ -7,6 +7,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -14,6 +15,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -104,6 +106,7 @@ interface ICustomizationCounts {
 	readonly instructions?: number;
 	readonly prompts?: number;
 	readonly hooks?: number;
+	readonly plugins?: number;
 }
 
 function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationItemsModel {
@@ -117,6 +120,7 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		[AICustomizationManagementSection.Prompts, observableValue('promptsItems', fakeItems(counts?.prompts ?? 0))],
 		[AICustomizationManagementSection.Hooks, observableValue('hooksItems', fakeItems(counts?.hooks ?? 0))],
 	]);
+	const pluginCount = observableValue('pluginsCount', counts?.plugins ?? 0);
 
 	return new class extends mock<IAICustomizationItemsModel>() {
 		override getItems(section: ItemsModelSection) {
@@ -125,6 +129,9 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		override getCount(section: ItemsModelSection): IObservable<number> {
 			const items = sectionItems.get(section)!;
 			return observableValue(`${section}-count`, items.get().length);
+		}
+		override getPluginCount(): IObservable<number> {
+			return pluginCount;
 		}
 	}();
 }
@@ -137,11 +144,27 @@ function createMockMcpService(serverCount: number = 0): IMcpService {
 	}();
 }
 
+function createMockHarnessService(hiddenSections: readonly string[] = []): ICustomizationHarnessService {
+	const descriptor: IHarnessDescriptor = {
+		id: 'fixture',
+		label: 'Fixture',
+		icon: ThemeIcon.fromId('vm'),
+		hiddenSections,
+		getStorageSourceFilter: () => ({ sources: [] }),
+	};
+	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly activeHarness = observableValue('mockActiveHarness', descriptor.id);
+		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('mockAvailableHarnesses', [descriptor]);
+		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
+		override getActiveDescriptor() { return descriptor; }
+	}();
+}
+
 // ============================================================================
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts; hiddenSections?: readonly string[] }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
@@ -155,6 +178,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
+			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);

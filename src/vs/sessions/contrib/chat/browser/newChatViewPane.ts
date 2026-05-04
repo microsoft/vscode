@@ -21,6 +21,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAquariumService } from '../../aquarium/browser/aquariumOverlay.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -28,6 +29,7 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { ScopedWorkspacePicker } from './scopedWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 
 // #region --- New Chat Widget ---
 
@@ -45,9 +47,11 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IAquariumService private readonly aquariumService: IAquariumService,
 	) {
 		super();
-		this._workspacePicker = this._register(this.instantiationService.createInstance(isWeb ? ScopedWorkspacePicker : WorkspacePicker));
+		const pickerCtor = isWeb ? ScopedWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(pickerCtor));
 		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {
@@ -68,6 +72,13 @@ class NewChatWidget extends Disposable {
 			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
 			canSendRequest,
 			loading,
+			shouldExpandPromptSlashCommand: () => {
+				// Mirror what `_send()` does: it sends to the current active
+				// session, which can lag behind the workspace picker selection
+				// while trust approval or session-type discovery is in flight.
+				const providerId = this.sessionsManagementService.activeSession.get()?.providerId;
+				return !providerId || !ANY_AGENT_HOST_PROVIDER_RE.test(providerId);
+			},
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
@@ -93,6 +104,8 @@ class NewChatWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+
+		this._register(this.aquariumService.mountToggle(element));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		this._register(this._renderWorkspacePicker(workspacePickerContainer));

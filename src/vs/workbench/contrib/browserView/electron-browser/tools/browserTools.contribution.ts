@@ -104,6 +104,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			this._syncModelListeners();
 			this._updateBrowserContext();
 		}));
+		this._toolsStore.add(this.editorService.onDidActiveEditorChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.editorService.onDidVisibleEditorsChange(() => this._updateBrowserContext()));
 		this._toolsStore.add(this.agentNetworkFilterService.onDidChange(() => this._updateBrowserContext()));
 
 		this._updateBrowserContext();
@@ -154,6 +156,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 				value += '\n\n';
 			}
 			value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
+			value += `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`;
 		}
 
 		this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, [{

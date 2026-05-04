@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationPromptsStorage, BUILTIN_STORAGE, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -145,10 +145,10 @@ export interface IHarnessDescriptor {
 	 */
 	readonly syncProvider?: ICustomizationSyncProvider;
 	/**
-	 * Optional plugin-management actions shown in the Plugins section toolbar.
-	 * Harnesses can use these to replace the default local install/create
-	 * actions with environment-specific commands (for example, configuring
-	 * plugins on a remote agent host).
+	 * Optional plugin-management actions shown in the Plugins section add menu.
+	 * Harnesses can use these to add environment-specific commands alongside
+	 * the default install-from-source action (for example, configuring plugins on
+	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
 }
@@ -163,8 +163,8 @@ export interface ICustomizationItem {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
-	/** Storage origin (local, user, extension, plugin). Set by providers that know the source. */
-	readonly storage?: PromptsStorage;
+	/** Storage origin (local, user, extension, plugin, builtin). Set by providers that know the source. */
+	readonly storage?: AICustomizationPromptsStorage;
 	/** The extension identifier that contributed this customization, if any. */
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
@@ -181,8 +181,17 @@ export interface ICustomizationItem {
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
 	readonly badgeTooltip?: string;
+	/**
+	 * Whether this customization item can be invoked by the user.
+	 * Relevant for prompt / skill and custom agents
+	 */
+	readonly userInvocable?: boolean;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
+}
+
+export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
+	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
 
 /**
@@ -640,13 +649,20 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const result = [];
 		for (const item of items) {
 			if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
+				// `IChatPromptSlashCommand.storage` is `PromptsStorage`, so coerce
+				// the wider provider-supplied storage (which may be `BUILTIN_STORAGE`)
+				// down to the closest narrow value.
+				const storage = item.storage;
+				const narrowStorage: PromptsStorage = storage !== undefined && storage !== BUILTIN_STORAGE
+					? storage as PromptsStorage
+					: PromptsStorage.local;
 				result.push({
 					uri: item.uri,
 					type: item.type as PromptsType.prompt | PromptsType.skill,
 					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri }, item.name) : item.name,
 					description: item.description,
-					userInvocable: true, // todo we need a way for providers to specify this if some items aren't user-invocable`
-					storage: item.storage ?? PromptsStorage.local,
+					userInvocable: item.userInvocable ?? true,
+					storage: narrowStorage,
 					sessionTypes: [sessionType],
 				});
 			}
@@ -679,7 +695,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 		const result: ICustomAgent[] = [];
 		for (const item of items) {
-			if ((item.enabled !== false) && item.type === PromptsType.agent) {
+			if (item.type === PromptsType.agent) {
 				const promptFile = await this.promptsService.parseNew(item.uri, token);
 				const extra = {
 					name: item.name,
@@ -688,6 +704,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					hooks: undefined,
 					source: getSource(item),
 					type: PromptsType.agent,
+					enabled: item.enabled !== false,
 				};
 				result.push(CustomAgent.fromParsedPromptFile(promptFile, extra));
 			}

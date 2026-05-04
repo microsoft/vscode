@@ -167,7 +167,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _reconcileProviders(): void {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const cached = enabled ? this._tunnelService.getCachedTunnels() : [];
+		const cached = enabled ? this._getProviderTunnels() : [];
 		const desiredAddresses = new Set(cached.map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 
 		// Remove providers no longer cached
@@ -185,6 +185,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				this._createProvider(address, tunnel.name);
 			}
 		}
+	}
+
+	private _getProviderTunnels() {
+		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId));
 	}
 
 	private _createProvider(address: string, name: string): void {
@@ -261,6 +265,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (!cached) {
 			return Promise.resolve();
 		}
+		if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(tunnelId)) {
+			this._logService.info(`[TunnelAgentHost] Skipping background connect for user-disconnected tunnel ${address}`);
+			return Promise.resolve();
+		}
+		if (options.userInitiated) {
+			this._tunnelService.clearAutoConnectSuppression(tunnelId);
+		}
 
 		// A new attempt is starting — cancel any scheduled reconnect timer;
 		// success/failure of this attempt will drive the next decision.
@@ -292,6 +303,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					hostConnectionCount: 0,
 				};
 				await this._tunnelService.connect(tunnelInfo, cached.authProvider);
+				// Re-check after the await: the user may have disconnected this
+				// tunnel while this background connect was already in flight.
+				if (!options.userInitiated && this._tunnelService.isAutoConnectSuppressed(cached.tunnelId)) {
+					this._logService.info(`[TunnelAgentHost] Disconnecting background connection for user-disconnected tunnel ${address}`);
+					await this._tunnelService.disconnect(address);
+					this._connectSessions.delete(address);
+					return;
+				}
 				this._finishConnectAttempt(address, { success: true, attemptNumber, attemptStart, session, isReconnect });
 			} catch (err) {
 				this._logService.warn(`[TunnelAgentHost] Connect to ${cached.name} failed:`, err);
@@ -347,6 +366,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private async _disconnectTunnel(address: string): Promise<void> {
 		this._cancelReconnect(address);
 		this._resetReconnectState(address);
+		this._tunnelService.suppressAutoConnect(address.slice(TUNNEL_ADDRESS_PREFIX.length));
 		// Mark as explicitly disconnected so `_handleConnectionChanges` does
 		// not treat the impending Connected→(removed) transition as a
 		// reconnect-worthy drop.
@@ -368,9 +388,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 
-		const cachedAddresses = new Set(
-			this._tunnelService.getCachedTunnels().map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`)
-		);
+		const cachedAddresses = new Set(this._getProviderTunnels().map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 		const currentStatuses = new Map<string, RemoteAgentHostConnectionStatus>();
 		for (const conn of this._remoteAgentHostService.connections) {
 			currentStatuses.set(conn.address, conn.status);
@@ -669,7 +687,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		this._lastResumeAt = now;
 
-		const cached = this._tunnelService.getCachedTunnels();
+		const cached = this._getProviderTunnels();
 		for (const tunnel of cached) {
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			if (this._pendingConnects.has(address)) {
@@ -694,9 +712,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	/** Drop reconnect state for addresses whose tunnel is no longer cached. */
 	private _pruneReconnectState(): void {
-		const cachedAddresses = new Set(
-			this._tunnelService.getCachedTunnels().map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`)
-		);
+		const cachedAddresses = new Set(this._getProviderTunnels().map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 		const tracked = new Set<string>([
 			...this._reconnectTimeouts.keys(),
 			...this._reconnectAttempts.keys(),
@@ -803,6 +819,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				for (const tunnel of onlineTunnels) {
 					if (tunnel.hostConnectionCount > 0) {
 						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+						if (this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
+							continue;
+						}
 						const alreadyConnected = this._remoteAgentHostService.connections.some(
 							c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
 						);

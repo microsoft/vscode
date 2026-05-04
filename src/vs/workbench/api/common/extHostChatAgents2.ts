@@ -545,6 +545,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			model: dto.model,
 			userInvocable: dto.userInvocable,
 			disableModelInvocation: dto.disableModelInvocation,
+			enabled: dto.enabled,
 		});
 	}
 
@@ -839,6 +840,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				badgeTooltip: item.badgeTooltip,
 				extensionId: item.extensionId,
 				pluginUri: item.pluginUri,
+				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;

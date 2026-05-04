@@ -234,7 +234,7 @@ export interface IBrowserViewModel extends IDisposable {
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
-	setSharedWithAgent(shared: boolean): Promise<void>;
+	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	zoomIn(): Promise<void>;
@@ -576,7 +576,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
 
-	async setSharedWithAgent(shared: boolean): Promise<void> {
+	async setSharedWithAgent(shared: boolean): Promise<boolean> {
 		if (shared) {
 			// Block sharing when the current page URL is denied by network policy.
 			if (this._url) {
@@ -587,7 +587,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 							localize('browserView.shareBlocked.title', "Cannot Share with Agent"),
 							this.agentNetworkFilterService.formatError(uri),
 						);
-						return;
+						return false;
 					}
 				} catch { }
 			}
@@ -623,7 +623,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				);
 
 				if (!result.confirmed) {
-					return;
+					return false;
 				}
 			} else {
 				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
@@ -641,6 +641,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			await this.playwrightService.stopTrackingPage(this.id);
 			this._setSharedWithAgent(false);
 		}
+
+		return true;
 	}
 
 	private _setSharedWithAgent(isShared: boolean): void {

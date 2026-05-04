@@ -40,6 +40,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -173,7 +174,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const provider = this._providers.get(chatModel.sessionResource.scheme);
+		const provider = this._providers.get(getChatSessionType(chatModel.sessionResource));
 		const session = provider
 			? provider.createEditingSession(chatModel.sessionResource)
 			: this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this), initFrom);
