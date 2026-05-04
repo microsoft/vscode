@@ -85,9 +85,14 @@ export interface IMobilePickerSheetOptions {
 	 * `provider.setSessionConfigValue`) and optionally update the
 	 * sheet's visual state via {@link IMobilePickerSheetController}.
 	 *
+	 * If the callback returns a string, that string is injected into
+	 * the search input and a new query is triggered — use this for
+	 * drill-down navigation where tapping a folder replaces the query
+	 * with `folderName/` to list its children.
+	 *
 	 * Ignored when `stayOpenOnSelect` is false.
 	 */
-	readonly onDidSelect?: (id: string) => void;
+	readonly onDidSelect?: (id: string) => string | void;
 }
 
 export interface IMobilePickerSheetHeaderAction {
@@ -238,7 +243,7 @@ export function showMobilePickerSheet(
 
 		// -- Items list ------------------------------------------------
 		const list = DOM.append(sheet, $('div.mobile-picker-sheet-list'));
-		list.setAttribute('role', 'listbox');
+		list.setAttribute('role', 'list');
 
 		// When `stayOpenOnSelect` is true, row taps call the caller's
 		// `onDidSelect` callback and leave the sheet open. The visual
@@ -251,6 +256,11 @@ export function showMobilePickerSheet(
 		// toggle checkmarks within a section on tap.
 		const rowsBySection = new Map<number, { row: HTMLButtonElement; checkSlot: HTMLElement; id: string }[]>();
 
+		// Mutable reference so handleRowTap can trigger a search-query
+		// update when onDidSelect returns a drill-down string. Populated
+		// after the search section is created below.
+		let setSearchQuery: ((query: string) => void) | undefined;
+
 		const handleRowTap = options?.stayOpenOnSelect && options.onDidSelect
 			? (id: string, _row: HTMLElement, sectionIndex: number) => {
 				// Update visual: uncheck all rows in the same section,
@@ -260,7 +270,7 @@ export function showMobilePickerSheet(
 					for (const entry of sectionRows) {
 						const isTarget = entry.id === id;
 						entry.row.classList.toggle('checked', isTarget);
-						entry.row.setAttribute('aria-selected', String(isTarget));
+						entry.row.setAttribute('aria-current', isTarget ? 'true' : 'false');
 						DOM.clearNode(entry.checkSlot);
 						if (isTarget) {
 							const checkGlyph = DOM.append(entry.checkSlot, $('span.mobile-picker-sheet-check-glyph'));
@@ -268,7 +278,11 @@ export function showMobilePickerSheet(
 						}
 					}
 				}
-				options.onDidSelect!(id);
+				const drillDown = options.onDidSelect!(id);
+				if (typeof drillDown === 'string' && searchInput && setSearchQuery) {
+					searchInput.value = drillDown;
+					setSearchQuery(drillDown);
+				}
 			}
 			: (id: string, _row: HTMLElement, _sectionIndex: number) => { finish(id); };
 
@@ -351,6 +365,10 @@ export function showMobilePickerSheet(
 
 			// Initial population (empty query).
 			renderResults('');
+
+			// Expose a programmatic setter so handleRowTap can drive
+			// drill-down navigation when onDidSelect returns a string.
+			setSearchQuery = (query: string) => renderResults(query);
 		}
 
 		// -- Dismissal: backdrop + Escape ------------------------------
@@ -406,10 +424,11 @@ export function showMobilePickerSheet(
 			adjustForKeyboard();
 		}
 
-		// Focus the first checked row (or the first row) for keyboard
-		// users — but only when there's no search input, since on phone
-		// auto-focusing a list row would dismiss the on-screen keyboard.
-		if (!searchInput) {
+		// Focus the search input if present, otherwise focus the first
+		// checked row (or the first row) for keyboard users.
+		if (searchInput) {
+			searchInput.focus();
+		} else {
 			(renderState.firstCheckedRow ?? renderState.firstRow)?.focus();
 		}
 	});
@@ -448,8 +467,8 @@ function renderRow(
 	}
 
 	const row = DOM.append(list, $('button.mobile-picker-sheet-item', { type: 'button' })) as HTMLButtonElement;
-	row.setAttribute('role', 'option');
-	row.setAttribute('aria-selected', String(!!item.checked));
+	row.setAttribute('role', 'listitem');
+	row.setAttribute('aria-current', item.checked ? 'true' : 'false');
 	if (item.checked) {
 		row.classList.add('checked');
 	}

@@ -191,13 +191,18 @@ export async function showMobileWorkspacePickerSheet(
 	// Build the inline search source and a parallel id→dispatch map so
 	// the sheet can resolve folder taps back to a provider selection.
 	const folderRunById = new Map<string, () => void>();
+	const folderLabelById = new Map<string, string>();
+	// Track the current search query so drill-down can append to it.
+	let currentSearchQuery = '';
 	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0
 		? {
 			placeholder: localize('mobileWorkspacePicker.searchFolders', "Search folders…"),
 			resultsSectionTitle: localize('mobileWorkspacePicker.foldersSection', "Folders"),
 			emptyMessage: localize('mobileWorkspacePicker.noFolders', "No folders match"),
 			loadItems: async (query, token) => {
+				currentSearchQuery = query;
 				folderRunById.clear();
+				folderLabelById.clear();
 				const results = await Promise.all(
 					inlineFolderActions.map(async action => {
 						try {
@@ -216,6 +221,7 @@ export async function showMobileWorkspacePickerSheet(
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					folderRunById.set(id, () => dispatch({ selection: { providerId: entry.providerId, workspace: entry.workspace } }));
+					folderLabelById.set(id, entry.workspace.label);
 					sheetItems.push({
 						id,
 						label: entry.workspace.label,
@@ -255,6 +261,18 @@ export async function showMobileWorkspacePickerSheet(
 					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
 						lastSearchFolderRun = folderRunById.get(id);
+						// Drill down: build a path query from the
+						// current query prefix + this folder's name,
+						// e.g. "projects/" → "projects/subfolder/".
+						const folderName = folderLabelById.get(id);
+						if (folderName) {
+							// Compute the prefix up to (and including)
+							// the last `/` in the current query, then
+							// append the tapped folder name + `/`.
+							const lastSlash = currentSearchQuery.lastIndexOf('/');
+							const prefix = lastSlash >= 0 ? currentSearchQuery.slice(0, lastSlash + 1) : '';
+							return `${prefix}${folderName}/`;
+						}
 						return;
 					}
 					// Recent workspace row — dispatch immediately (it
@@ -264,6 +282,7 @@ export async function showMobileWorkspacePickerSheet(
 						row.run();
 						lastSearchFolderRun = undefined;
 					}
+					return;
 				},
 			},
 		);
@@ -402,12 +421,22 @@ function collectSurfacedBrowseProviderIds(
 			continue;
 		}
 		const idx = item.item?.browseActionIndex;
-		if (idx === undefined) {
+		if (idx !== undefined) {
+			const action = browseActions[idx];
+			if (action) {
+				ids.add(action.providerId);
+			}
 			continue;
 		}
-		const action = browseActions[idx];
-		if (action) {
-			ids.add(action.providerId);
+		// Multi-provider case: the desktop picker groups browse actions
+		// into a submenu item. The submenu children don't carry
+		// `browseActionIndex`, so we fall back to including all browse-
+		// action providers when a submenu is present — the picker has
+		// already scoped the items to visible providers.
+		if (item.submenuActions?.length) {
+			for (const ba of browseActions) {
+				ids.add(ba.providerId);
+			}
 		}
 	}
 	return ids;
