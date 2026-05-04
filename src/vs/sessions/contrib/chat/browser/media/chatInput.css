@@ -169,16 +169,15 @@
 	height: auto;
 }
 
-/* Split model picker: undo the fixed height/overflow from .action-label above */
-.sessions-chat-config-toolbar .action-label.model-picker-split {
-	height: auto;
-	overflow: visible;
-	padding: 0 6px;
-	min-width: 0;
-}
-
-.sessions-chat-config-toolbar .action-item:has(.model-picker-split) {
-	overflow: visible;
+/* Left divider for the agents app welcome view */
+.sessions-chat-config-toolbar .action-label.model-picker-split::before {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	left: 0;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
 }
 
 /* Hide the right divider from the workbench base styles */

@@ -231,6 +231,7 @@
 		"quickInputList.focusBackground": "#297AA0",
 		"quickInputList.focusForeground": "#FFFFFF",
 		"quickInputList.focusIconForeground": "#FFFFFF",
+		"quickInputList.focusHighlightForeground": "#FFFFFF",
 		"quickInputList.hoverBackground": "#262728",
 		"terminal.selectionBackground": "#3994BC33",
 		"terminal.background": "#191A1B",
