@@ -53,7 +53,7 @@
 .chat-composite-bar-tab.active {
 	color: var(--chat-tab-active-foreground);
 	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 12%, transparent);
+	border-color: var(--chat-tab-active-border, var(--vscode-contrastActiveBorder));
 }
 
 /* Reduce right padding when close button is present to avoid excess spacing */
