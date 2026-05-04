@@ -6,6 +6,7 @@
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 import { Point } from './point.js';
+import { Size2D } from './size.js';
 
 export class Rect {
 	public static fromPoint(point: Point): Rect {
@@ -204,6 +205,10 @@ export class Rect {
 		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
 	}
 
+	translate(point: Point): Rect {
+		return new Rect(this.left + point.x, this.top + point.y, this.right + point.x, this.bottom + point.y);
+	}
+
 	deltaRight(delta: number): Rect {
 		return new Rect(this.left, this.top, this.right + delta, this.bottom);
 	}
@@ -244,5 +249,25 @@ export class Rect {
 			width: `${this.width}px`,
 			height: `${this.height}px`,
 		};
+	}
+
+	getHorizontalRange(): OffsetRange {
+		return new OffsetRange(this.left, this.right);
+	}
+
+	getVerticalRange(): OffsetRange {
+		return new OffsetRange(this.top, this.bottom);
+	}
+
+	withHorizontalRange(range: OffsetRange): Rect {
+		return new Rect(range.start, this.top, range.endExclusive, this.bottom);
+	}
+
+	withVerticalRange(range: OffsetRange): Rect {
+		return new Rect(this.left, range.start, this.right, range.endExclusive);
+	}
+
+	getSize(): Size2D {
+		return new Size2D(this.width, this.height);
 	}
 }

@@ -237,6 +237,14 @@ impl LauncherPaths {
 		})
 	}
 
+	/// Lockfile for the running agent host
+	pub fn agent_host_lockfile(&self) -> PathBuf {
+		self.root.join(format!(
+			"agent-host-{}.lock",
+			VSCODE_CLI_QUALITY.unwrap_or("oss")
+		))
+	}
+
 	/// Suggested path for web server storage
 	pub fn web_server_storage(&self) -> PathBuf {
 		self.root.join("serve-web")

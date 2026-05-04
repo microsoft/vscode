@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import { join } from 'path';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
+// TODO: this now became flaky with built-in copilot
 suite('chat', () => {
 
 	let disposables: Disposable[] = [];
@@ -15,7 +18,7 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
+		disposables.push(lm.registerLanguageModelChatProvider('copilot', {
 			async provideLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
@@ -58,6 +61,7 @@ suite('chat', () => {
 
 	test('participant and slash command history', async () => {
 		const onRequest = setupParticipant();
+		await commands.executeCommand('workbench.action.chat.newChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		const deferred = new DeferredPromise<void>();
@@ -213,5 +217,29 @@ suite('chat', () => {
 
 		// Title provider was not called again
 		assert.strictEqual(calls, 1);
+	});
+
+	test('can access node-pty module', async function () {
+		// Required for copilot cli in chat extension.
+		if (env.uiKind === UIKind.Web) {
+			this.skip();
+		}
+		const nodePtyModules = [
+			join(env.appRoot, 'node_modules.asar', 'node-pty'),
+			join(env.appRoot, 'node_modules', 'node-pty')
+		];
+
+		for (const modulePath of nodePtyModules) {
+			// try to stat and require module
+			try {
+				await fs.promises.stat(modulePath);
+				const nodePty = require(modulePath);
+				assert.ok(nodePty, `Successfully required node-pty from ${modulePath}`);
+				return;
+			} catch (err) {
+				// failed to require, try next
+			}
+		}
+		assert.fail('Failed to find and require node-pty module');
 	});
 });

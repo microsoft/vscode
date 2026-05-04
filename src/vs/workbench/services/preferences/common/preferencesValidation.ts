@@ -339,19 +339,32 @@ function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) =>
 
 function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
 	if (prop.type === 'object') {
-		const { properties, patternProperties, additionalProperties } = prop;
+		const { properties, patternProperties, additionalProperties, propertyNames } = prop;
 		return value => {
 			if (!value) {
 				return null;
 			}
 
 			const errors: string[] = [];
+			let propertyNamesErrorShown = false;
 
 			if (!isObject(value)) {
 				errors.push(nls.localize('validations.objectIncorrectType', 'Incorrect type. Expected an object.'));
 			} else {
 				Object.keys(value).forEach((key: string) => {
 					const data = value[key];
+
+					// Validate propertyNames.pattern - show error message once
+					if (propertyNames?.pattern && !propertyNamesErrorShown) {
+						const patternRegex = toRegExp(propertyNames.pattern);
+						if (!patternRegex.test(key)) {
+							const errorMessage = propertyNames.patternErrorMessage ||
+								nls.localize('validations.propertyNamePattern', 'Property name must match pattern `{0}`.', propertyNames.pattern);
+							errors.push(errorMessage + '\n');
+							propertyNamesErrorShown = true;
+						}
+					}
+
 					if (properties && key in properties) {
 						const errorMessage = getErrorsForSchema(properties[key], data);
 						if (errorMessage) {
@@ -392,6 +405,18 @@ function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) =
 	}
 
 	return null;
+}
+
+/**
+ * Validates a single property name against the propertyNames.pattern schema.
+ * Returns true if the key is valid, false otherwise.
+ */
+export function validatePropertyName(propertyNames: IConfigurationPropertySchema['propertyNames'], key: string): boolean {
+	if (!propertyNames?.pattern) {
+		return true;
+	}
+	const patternRegex = toRegExp(propertyNames.pattern);
+	return patternRegex.test(key);
 }
 
 function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {

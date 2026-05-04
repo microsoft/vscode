@@ -91,6 +91,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	disregardExcludeSettings?: boolean;
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	ignoreGlobCase?: boolean;
 	onlyOpenEditors?: boolean;
 	onlyFileScheme?: boolean;
 }
@@ -143,7 +144,7 @@ export class QueryBuilder {
 
 		const fallbackToPCRE = folderResources && folderResources.some(folder => {
 			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.useRipgrep;
+			return !folderConfig.search?.useRipgrep;
 		});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
@@ -153,7 +154,7 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options.previewOptions,
 			maxFileSize: options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
+			usePCRE2: searchConfig.search?.usePCRE2 || fallbackToPCRE || false,
 			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
 
@@ -269,6 +270,7 @@ export class QueryBuilder {
 
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
+			ignoreGlobCase: options.ignoreGlobCase,
 			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults,
 			onlyFileScheme: options.onlyFileScheme
@@ -613,10 +615,11 @@ export class QueryBuilder {
 			folderName: includeFolderName ? folderName : undefined,
 			excludePattern: excludePatternRet,
 			fileEncoding: folderConfig.files && folderConfig.files.encoding,
-			disregardIgnoreFiles: typeof options.disregardIgnoreFiles === 'boolean' ? options.disregardIgnoreFiles : !folderConfig.search.useIgnoreFiles,
-			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
-			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search.useParentIgnoreFiles,
-			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+			disregardIgnoreFiles: typeof options.disregardIgnoreFiles === 'boolean' ? options.disregardIgnoreFiles : !folderConfig.search?.useIgnoreFiles,
+			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search?.useGlobalIgnoreFiles,
+			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search?.useParentIgnoreFiles,
+			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search?.followSymlinks,
+			ignoreGlobCase: options.ignoreGlobCase,
 		};
 	}
 }

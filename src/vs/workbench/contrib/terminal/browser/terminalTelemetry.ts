@@ -9,6 +9,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
+import { isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -57,6 +58,10 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			this._logCreateInstance(instance, isInAuxWindow);
 			this._store.delete(store);
 		}));
+
+		this._register(terminalService.onAnyInstanceShellTypeChanged(instance => {
+			this._logShellTypeChanged(instance);
+		}));
 	}
 
 	private _logCreateInstance(instance: ITerminalInstance, isInAuxWindow: boolean): void {
@@ -79,10 +84,12 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: boolean;
 			shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
 
+			imageAddonLoaded: boolean;
+
 			terminalSessionId: string;
 		};
 		type TerminalCreationTelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'anthonykim1';
 			comment: 'Track details about terminal creation, such as the shell type';
 
 			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the terminal.' };
@@ -100,6 +107,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
 			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
 
+			imageAddonLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the xterm.js image addon was loaded.' };
+
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
@@ -114,13 +123,32 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
-			isLoginShell: (typeof slc.args === 'string' ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
+			isLoginShell: (isString(slc.args) ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
 			isReconnect: !!slc.attachPersistentProcess,
 			hasRemoteAuthority: instance.hasRemoteAuthority,
 
 			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
 			shellIntegrationInjected: instance.usedShellIntegrationInjection,
 			shellIntegrationInjectionFailureReason: instance.shellIntegrationInjectionFailureReason,
+			imageAddonLoaded: instance.xterm?.isImageAddonLoaded ?? false,
+			terminalSessionId: instance.sessionId,
+		});
+	}
+
+	private _logShellTypeChanged(instance: ITerminalInstance): void {
+		type TerminalShellTypeChangedTelemetryData = {
+			shellType: TelemetryTrustedValue<string>;
+			terminalSessionId: string;
+		};
+		type TerminalShellTypeChangedTelemetryClassification = {
+			owner: 'anthonykim1';
+			comment: 'Track when the detected shell type for a terminal changes, including detection of agent CLIs (e.g. claude, copilot, gemini)';
+
+			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new detected shell type for the terminal.' };
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+		};
+		this._telemetryService.publicLog2<TerminalShellTypeChangedTelemetryData, TerminalShellTypeChangedTelemetryClassification>('terminal/shellTypeChanged', {
+			shellType: new TelemetryTrustedValue(instance.shellType ?? 'unknown'),
 			terminalSessionId: instance.sessionId,
 		});
 	}
@@ -166,6 +194,12 @@ const enum AllowedShellType {
 	Tcsh = 'tcsh',
 	Termux = 'termux',
 	Xonsh = 'xonsh',
+
+	// AI CLIs
+	Claude = 'claude',
+	Codex = 'codex',
+	Copilot = 'copilot',
+	Gemini = 'gemini',
 
 	// Lanugage REPLs
 	// These are expected to be very low since they are not typically the default shell

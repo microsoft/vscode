@@ -9,7 +9,7 @@ import { ViewPart } from '../../view/viewPart.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption, RenderMinimap } from '../../../common/config/editorOptions.js';
 
 
 export class ScrollDecorationViewPart extends ViewPart {
@@ -35,9 +35,6 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._domNode.setAttribute('aria-hidden', 'true');
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private _updateShouldShow(): boolean {
 		const newShouldShow = (this._useShadows && this._scrollTop > 0);
@@ -56,7 +53,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (layoutInfo.minimap.renderMinimap === 0 || (layoutInfo.minimap.minimapWidth > 0 && layoutInfo.minimap.minimapLeft === 0)) {
+		if (layoutInfo.minimap.renderMinimap === RenderMinimap.None || (layoutInfo.minimap.minimapWidth > 0 && layoutInfo.minimap.minimapLeft === 0)) {
 			this._width = layoutInfo.width;
 		} else {
 			this._width = layoutInfo.width - layoutInfo.verticalScrollbarWidth;

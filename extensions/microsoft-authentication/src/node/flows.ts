@@ -14,16 +14,15 @@ import { Config } from '../common/config';
 const DEFAULT_REDIRECT_URI = 'https://vscode.dev/redirect';
 
 export const enum ExtensionHost {
-	WebWorker,
 	Remote,
 	Local
 }
 
 interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
-	supportsWebWorkerExtensionHost: boolean;
 	supportsUnsupportedClient: boolean;
 	supportsBroker: boolean;
+	supportsPortableMode: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
@@ -48,9 +47,9 @@ class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: false,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: true
+		supportsBroker: true,
+		supportsPortableMode: true
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -78,9 +77,9 @@ class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: false,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: false
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -108,9 +107,9 @@ class DeviceCodeFlow implements IMsalFlow {
 	label = 'device code';
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: true
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -133,22 +132,19 @@ export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
 	supportedClient: boolean;
 	isBrokerSupported: boolean;
+	isPortableMode: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 	const flows = [];
 	for (const flow of allFlows) {
 		let useFlow: boolean = true;
-		switch (query.extensionHost) {
-			case ExtensionHost.Remote:
-				useFlow &&= flow.options.supportsRemoteExtensionHost;
-				break;
-			case ExtensionHost.WebWorker:
-				useFlow &&= flow.options.supportsWebWorkerExtensionHost;
-				break;
+		if (query.extensionHost === ExtensionHost.Remote) {
+			useFlow &&= flow.options.supportsRemoteExtensionHost;
 		}
 		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
 		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
+		useFlow &&= flow.options.supportsPortableMode || !query.isPortableMode;
 		if (useFlow) {
 			flows.push(flow);
 		}

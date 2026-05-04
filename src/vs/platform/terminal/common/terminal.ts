@@ -46,6 +46,7 @@ export const enum TerminalSettingId {
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
+	TabsAllowAgentCliTitle = 'terminal.integrated.tabs.allowAgentCliTitle',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
@@ -64,6 +65,7 @@ export const enum TerminalSettingId {
 	FontWeight = 'terminal.integrated.fontWeight',
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
+	TextBlinking = 'terminal.integrated.textBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
 	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
@@ -91,7 +93,6 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
@@ -120,6 +121,9 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
+	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
+	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
 
 	// Developer/debug settings
 
@@ -147,11 +151,16 @@ export const enum WindowsShellType {
 }
 
 export const enum GeneralShellType {
+	Claude = 'claude',
+	Codex = 'codex',
+	Copilot = 'copilot',
+	Gemini = 'gemini',
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
 	NuShell = 'nu',
 	Node = 'node',
+	Xonsh = 'xonsh',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
@@ -255,7 +264,7 @@ export const enum ProcessPropertyType {
 	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
-export interface IProcessProperty<T extends ProcessPropertyType> {
+export interface IProcessProperty<T extends ProcessPropertyType = ProcessPropertyType> {
 	type: T;
 	value: IProcessPropertyMap[T];
 }
@@ -301,7 +310,7 @@ export interface IPtyService {
 	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty }>;
 	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	createProcess(
@@ -335,7 +344,7 @@ export interface IPtyService {
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	sendSignal(id: number, signal: string): Promise<void>;
-	resize(id: number, cols: number, rows: number): Promise<void>;
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
@@ -387,7 +396,7 @@ export interface IPtyServiceContribution {
 	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void;
 	handleProcessDispose(persistentProcessId: number): void;
 	handleProcessInput(persistentProcessId: number, data: string): void;
-	handleProcessResize(persistentProcessId: number, cols: number, rows: number): void;
+	handleProcessResize(persistentProcessId: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void;
 }
 
 export interface IPtyHostController {
@@ -667,6 +676,13 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
+
+	/**
+	 * A title template string that supports the same variables as the
+	 * `terminal.integrated.tabs.title` setting. When set, this overrides the config-based
+	 * title template for this terminal instance.
+	 */
+	titleTemplate?: string;
 }
 
 export interface ITerminalTabAction {
@@ -682,6 +698,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 	cwd?: string | URI;
+	titleTemplate?: string;
 }
 
 export enum TerminalLocation {
@@ -707,8 +724,10 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
+	titleTemplate?: string;
 }
 
 /**
@@ -721,7 +740,6 @@ export interface ITerminalProcessOptions {
 		suggestEnabled: boolean;
 		nonce: string;
 	};
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
@@ -747,7 +765,7 @@ export interface IProcessReadyWindowsPty {
 	/**
 	 * What pty emulation backend is being used.
 	 */
-	backend: 'conpty' | 'winpty';
+	backend: 'conpty';
 	/**
 	 * The Windows build version (eg. 19045)
 	 */
@@ -774,7 +792,7 @@ export interface ITerminalChildProcess {
 	readonly onProcessData: Event<IProcessDataEvent | string>;
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onProcessReplayComplete?: Event<void>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 
@@ -807,7 +825,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	sendSignal(signal: string): void;
 	processBinary(data: string): Promise<void>;
-	resize(cols: number, rows: number): void;
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): void | Promise<void>;
 
 	/**
@@ -817,12 +835,6 @@ export interface ITerminalChildProcess {
 	 * @param charCount The number of characters being acknowledged.
 	 */
 	acknowledgeDataEvent(charCount: number): void;
-
-	/**
-	 * Pre-assigns the command identifier that should be associated with the next command detected by
-	 * shell integration. This keeps the pty host and renderer command stores aligned.
-	 */
-	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 
 	/**
 	 * Sets the unicode version for the process, this drives the size of some characters in the
@@ -965,6 +977,7 @@ export interface ITerminalProfileContribution {
 	id: string;
 	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
+	titleTemplate?: string;
 }
 
 export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
@@ -1027,9 +1040,9 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 */
 	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
 	/**
-	 * Shell integration doesn't work with winpty.
+	 * Shell integration doesn't work on older Windows builds that don't support ConPTY.
 	 */
-	Winpty = 'winpty',
+	UnsupportedWindowsBuild = 'unsupportedWindowsBuild',
 	/**
 	 * We're conservative whether we inject when we don't recognize the arguments used for the
 	 * shell as we would prefer launching one without shell integration than breaking their profile.
@@ -1051,6 +1064,10 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 * For zsh, we failed to create a temp directory for the shell integration script.
 	 */
 	FailedToCreateTmpDir = 'failedToCreateTmpDir',
+}
+
+export const enum ShellIntegrationTimeoutOverride {
+	DisableForTests = -2
 }
 
 export enum TerminalExitReason {
@@ -1151,6 +1168,7 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
 	reduceConnectionGraceTime(): Promise<void>;

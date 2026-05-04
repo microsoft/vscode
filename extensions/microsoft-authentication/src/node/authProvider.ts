@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError, SilentFlowRequest } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthError, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
 import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
@@ -12,7 +12,6 @@ import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
 import { BetterTokenStorage } from '../betterSecretStorage';
-import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
 import { Config } from '../common/config';
@@ -20,6 +19,22 @@ import { isSupportedClient } from '../common/env';
 
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
+
+/**
+ * Interface for sessions stored from the old authentication flow.
+ * Used for migration purposes when upgrading to MSAL.
+ * TODO: Remove this after one or two releases.
+ */
+export interface IStoredSession {
+	id: string;
+	refreshToken: string;
+	scope: string; // Scopes are alphabetized and joined with a space
+	account: {
+		label: string;
+		id: string;
+	};
+	endpoint: string | undefined;
+}
 
 export class MsalAuthProvider implements AuthenticationProvider {
 
@@ -155,7 +170,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer, options?.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -185,7 +200,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer, options.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
@@ -209,14 +224,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
-		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
-			extensionHost: isNodeEnvironment
-				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
-				: ExtensionHost.WebWorker,
+			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			supportedClient: isSupportedClient(callbackUri),
-			isBrokerSupported: cachedPca.isBrokerAvailable
+			isBrokerSupported: cachedPca.isBrokerAvailable,
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -302,7 +315,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer, options?.clientId);
 		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -325,7 +338,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
 
-		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer, options.clientId);
 		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -348,14 +361,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
-		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const callbackUri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://vscode.microsoft-authentication`));
 		const flows = getMsalFlows({
-			extensionHost: isNodeEnvironment
-				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
-				: ExtensionHost.WebWorker,
+			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			isBrokerSupported: cachedPca.isBrokerAvailable,
-			supportedClient: isSupportedClient(callbackUri)
+			supportedClient: isSupportedClient(callbackUri),
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -501,6 +512,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 						redirectUri = Config.macOSBrokerRedirectUri;
 					}
+					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}...`);
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
@@ -513,7 +525,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
-					this._telemetryReporter.sendTelemetryErrorEvent(e);
+					if (e instanceof AuthError) {
+						this._telemetryReporter.sendTelemetryClientAuthErrorEvent(e);
+					} else {
+						this._telemetryReporter.sendTelemetryErrorEvent(e);
+					}
 					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}

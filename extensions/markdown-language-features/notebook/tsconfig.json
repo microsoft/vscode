@@ -1,10 +1,10 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": ".",
 		"outDir": "./dist/",
 		"jsx": "react",
 		"module": "esnext",
-		"allowSyntheticDefaultImports": true,
 		"lib": [
 			"ES2024",
 			"DOM",

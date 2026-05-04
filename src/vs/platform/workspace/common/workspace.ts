@@ -74,6 +74,11 @@ export interface IWorkspaceContextService {
 	 * Returns if the provided resource is inside the workspace or not.
 	 */
 	isInsideWorkspace(resource: URI): boolean;
+
+	/**
+	 * Return `true` if the current workspace has data (e.g. folders or a workspace configuration) that can be sent to the extension host, otherwise `false`.
+	 */
+	hasWorkspaceData(): boolean;
 }
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
@@ -281,6 +286,7 @@ export interface IWorkspace {
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
+
 }
 
 export function isWorkspace(thing: unknown): thing is IWorkspace {

@@ -10,7 +10,15 @@ import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
 import { getBranchLink, getVscodeDevHost } from './links.js';
 
-function asRemoteSource(raw: any): RemoteSource {
+type RemoteSourceResponse = {
+	readonly full_name: string;
+	readonly description: string | null;
+	readonly stargazers_count: number;
+	readonly clone_url: string;
+	readonly ssh_url: string;
+};
+
+function asRemoteSource(raw: RemoteSourceResponse): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,

@@ -23,7 +23,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -72,14 +72,15 @@ registerAction2(class extends Action2 {
 				...localize2('toggleCenteredLayout', "Toggle Centered Layout"),
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 			},
-			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), IsSessionsWindowContext.negate()),
 			category: Categories.View,
 			f1: true,
 			toggled: IsMainEditorCenteredLayoutContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
-				order: 3
+				order: 3,
+				when: IsSessionsWindowContext.negate()
 			}]
 		});
 	}
@@ -151,7 +152,8 @@ export class ToggleSidebarPositionAction extends Action2 {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize2('toggleSidebarPosition', "Toggle Primary Side Bar Position"),
 			category: Categories.View,
-			f1: true
+			f1: true,
+			precondition: IsSessionsWindowContext.negate()
 		});
 	}
 
@@ -233,7 +235,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Right")
 	},
-	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+	when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), IsSessionsWindowContext.negate()),
 	order: 2
 });
 
@@ -243,7 +245,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Left")
 	},
-	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), IsSessionsWindowContext.negate()),
 	order: 2
 });
 
@@ -275,6 +277,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
 	submenu: MenuId.MenubarAppearanceMenu,
+	when: IsSessionsWindowContext.negate(),
 	order: 1
 });
 
@@ -404,11 +407,13 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			},
 			category: Categories.View,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '2_workbench_layout',
-				order: 3
+				order: 3,
+				when: IsSessionsWindowContext.negate()
 			}]
 		});
 	}
@@ -435,7 +440,7 @@ abstract class AbstractSetShowTabsAction extends Action2 {
 			id,
 			title,
 			category: Categories.View,
-			precondition,
+			precondition: ContextKeyExpr.and(precondition, IsSessionsWindowContext.negate()),
 			metadata: description ? { description } : undefined,
 			f1: true
 		});
@@ -537,7 +542,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	title: localize('tabBar', "Tab Bar"),
 	group: '3_workbench_layout_move',
 	order: 10,
-	when: InEditorZenModeContext.negate()
+	when: ContextKeyExpr.and(InEditorZenModeContext.negate(), IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -545,7 +550,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	title: localize('tabBar', "Tab Bar"),
 	group: '3_workbench_layout_move',
 	order: 10,
-	when: InEditorZenModeContext
+	when: ContextKeyExpr.and(InEditorZenModeContext, IsSessionsWindowContext.negate())
 });
 
 // --- Show Editor Actions in Title Bar
@@ -559,7 +564,7 @@ export class EditorActionsTitleBarAction extends Action2 {
 			id: EditorActionsTitleBarAction.ID,
 			title: localize2('moveEditorActionsToTitleBar', "Move Editor Actions to Title Bar"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(), IsSessionsWindowContext.negate()),
 			metadata: { description: localize2('moveEditorActionsToTitleBarDescription', "Move Editor Actions from the tab bar to the title bar") },
 			f1: true
 		});
@@ -586,6 +591,7 @@ export class EditorActionsDefaultAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT).negate(),
 				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(),
+				IsSessionsWindowContext.negate(),
 			),
 			metadata: { description: localize2('moveEditorActionsToTabBarDescription', "Move Editor Actions from the title bar to the tab bar") },
 			f1: true
@@ -610,7 +616,7 @@ export class HideEditorActionsAction extends Action2 {
 			id: HideEditorActionsAction.ID,
 			title: localize2('hideEditorActons', "Hide Editor Actions"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN).negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN).negate(), IsSessionsWindowContext.negate()),
 			metadata: { description: localize2('hideEditorActonsDescription', "Hide Editor Actions in the tab and title bar") },
 			f1: true
 		});
@@ -634,7 +640,7 @@ export class ShowEditorActionsAction extends Action2 {
 			id: ShowEditorActionsAction.ID,
 			title: localize2('showEditorActons', "Show Editor Actions"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN), IsSessionsWindowContext.negate()),
 			metadata: { description: localize2('showEditorActonsDescription', "Make Editor Actions visible.") },
 			f1: true
 		});
@@ -653,7 +659,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.EditorActionsPositionSubmenu,
 	title: localize('editorActionsPosition', "Editor Actions Position"),
 	group: '3_workbench_layout_move',
-	order: 11
+	order: 11,
+	when: IsSessionsWindowContext.negate()
 });
 
 // --- Configure Tabs Layout
@@ -734,7 +741,7 @@ registerAction2(class extends Action2 {
 				...localize2('toggleZenMode', "Toggle Zen Mode"),
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 			},
-			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), IsSessionsWindowContext.negate()),
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -745,7 +752,8 @@ registerAction2(class extends Action2 {
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate()
 			}]
 		});
 	}
@@ -783,11 +791,13 @@ if (isWindows || isLinux || isWeb) {
 				},
 				category: Categories.View,
 				f1: true,
+				precondition: IsSessionsWindowContext.negate(),
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')),
 				menu: [{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 0
+					order: 0,
+					when: IsSessionsWindowContext.negate()
 				}]
 			});
 		}
@@ -1184,6 +1194,9 @@ abstract class BaseResizeViewAction extends Action2 {
 	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+		if (layoutService.activeContainer !== layoutService.mainContainer) {
+			return; // we do not support resizing in auxiliary windows
+		}
 
 		let part: Parts | undefined;
 		if (partToResize === undefined) {

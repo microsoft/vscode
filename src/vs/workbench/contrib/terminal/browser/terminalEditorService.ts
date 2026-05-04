@@ -125,7 +125,12 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		return instance.focusWhenReady(true);
+		if (!this.instances.includes(instance)) {
+			return;
+		}
+		this.setActiveInstance(instance);
+		await this._revealEditor(instance);
+		await instance.focusWhenReady(true);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -207,7 +212,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return getInstanceFromResource(this.instances, resource);
 	}
 
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
+	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): Promise<ITerminalInstance> {
 		if (instanceToSplit.target === TerminalLocation.Editor) {
 			// Make sure the instance to split's group is active
 			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
@@ -218,7 +223,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
 		const resource = this.resolveResource(instance);
 		if (resource) {
-			this._editorService.openEditor({
+			await this._editorService.openEditor({
 				resource: URI.revive(resource),
 				description: instance.description,
 				options: {
@@ -254,14 +259,22 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (!instance) {
 			return;
 		}
+		await this._revealEditor(instance, preserveFocus);
+	}
 
+	private async _revealEditor(instance: ITerminalInstance, preserveFocus?: boolean): Promise<void> {
 		// If there is an active openEditor call for this instance it will be revealed by that
 		if (this._activeOpenEditorRequest?.instanceId === instance.instanceId) {
+			await this._activeOpenEditorRequest.promise;
 			return;
 		}
 
-		const editorInput = this._editorInputs.get(instance.resource.path)!;
-		this._editorService.openEditor(
+		const editorInput = this._editorInputs.get(instance.resource.path);
+		if (!editorInput) {
+			return;
+		}
+
+		await this._editorService.openEditor(
 			editorInput,
 			{
 				pinned: true,

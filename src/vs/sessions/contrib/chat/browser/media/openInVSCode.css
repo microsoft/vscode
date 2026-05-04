@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* "Open in VS Code" titlebar widget — icon-only at rest, expands on hover/focus. */
+.monaco-workbench .open-in-vscode-titlebar-widget {
+	display: inline-flex;
+	align-items: center;
+	height: 22px;
+	padding: 0 4px;
+	margin: 0 4px 0 2px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--vscode-titleBar-activeForeground);
+	-webkit-app-region: no-drag;
+	white-space: nowrap;
+	position: relative;
+	touch-action: manipulation;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget::after {
+	content: '';
+	position: absolute;
+	right: -6px;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
+	pointer-events: none;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+	/* Dev fallback: the VS Code shield logo bundled in the sessions media folder.
+	 * In production builds the distro mixin overwrites
+	 * vs/workbench/browser/media/code-icon.svg with the quality-branded icon;
+	 * the per-quality rules below then take precedence. */
+	background-image: url('./vscode-icon.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: contain;
+	filter: grayscale(1);
+}
+
+/* In production builds vscode-distro overlays vs/workbench/browser/media/code-icon.svg
+ * with the quality-specific branded VS Code icon. Use it whenever the product quality is
+ * known (the data-product-quality attribute is only set in non-dev builds). */
+.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="stable"] > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"] > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"] > .open-in-vscode-titlebar-widget-icon {
+	background-image: url('../../../../../workbench/browser/media/code-icon.svg');
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	transition: filter 150ms ease;
+}
+
+.monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	transition-duration: 0ms !important;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-icon {
+	filter: none;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label {
+	display: inline-block;
+	max-width: 0;
+	opacity: 0;
+	margin-left: 0;
+	color: var(--vscode-foreground);
+	font: inherit;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label {
+	transition: max-width 150ms ease, opacity 150ms ease, margin-left 150ms ease;
+}
+
+.monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench.monaco-reduce-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label {
+	transition-duration: 0ms !important;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:hover,
+.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
+	background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
+	outline: none;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label {
+	max-width: 200px;
+	opacity: 1;
+	margin-left: 6px;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

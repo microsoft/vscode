@@ -5,14 +5,16 @@
 
 import fs from 'fs';
 import path from 'path';
-import type * as ts from 'typescript';
-import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
+import * as ts from 'typescript';
+import { type IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.ts';
 
-enum ShakeLevel {
-	Files = 0,
-	InnerFile = 1,
-	ClassMembers = 2
-}
+const ShakeLevel = Object.freeze({
+	Files: 0,
+	InnerFile: 1,
+	ClassMembers: 2
+});
+
+type ShakeLevel = typeof ShakeLevel[keyof typeof ShakeLevel];
 
 export function toStringShakeLevel(shakeLevel: ShakeLevel): string {
 	switch (shakeLevel) {
@@ -77,7 +79,6 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 }
 
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
-	const ts = require('typescript') as typeof import('typescript');
 	const languageService = createTypeScriptLanguageService(ts, options);
 	const program = languageService.getProgram()!;
 
@@ -136,11 +137,12 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 //#region Tree Shaking
 
-const enum NodeColor {
-	White = 0,
-	Gray = 1,
-	Black = 2
-}
+const NodeColor = Object.freeze({
+	White: 0,
+	Gray: 1,
+	Black: 2
+});
+type NodeColor = typeof NodeColor[keyof typeof NodeColor];
 
 type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
 
@@ -755,10 +757,16 @@ function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts
 }
 
 class SymbolImportTuple {
+	public readonly symbol: ts.Symbol | null;
+	public readonly symbolImportNode: ts.Declaration | null;
+
 	constructor(
-		public readonly symbol: ts.Symbol | null,
-		public readonly symbolImportNode: ts.Declaration | null
-	) { }
+		symbol: ts.Symbol | null,
+		symbolImportNode: ts.Declaration | null
+	) {
+		this.symbol = symbol;
+		this.symbolImportNode = symbolImportNode;
+	}
 }
 
 /**

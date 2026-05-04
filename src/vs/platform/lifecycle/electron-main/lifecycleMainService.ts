@@ -433,9 +433,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
-			if (this.windowToCloseRequest.has(windowId)) {
-				this.windowToCloseRequest.delete(windowId);
-
+			if (this.windowToCloseRequest.delete(windowId)) {
 				return;
 			}
 

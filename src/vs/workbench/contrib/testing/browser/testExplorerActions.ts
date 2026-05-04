@@ -219,7 +219,7 @@ export class RunUsingProfileAction extends Action2 {
 		});
 	}
 
-	public override async run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const commandService = acessor.get(ICommandService);
 		const testService = acessor.get(ITestService);
 		const profile: ITestRunProfile | undefined = await commandService.executeCommand('vscode.pickTestProfile', {
@@ -295,7 +295,7 @@ export class ContinuousRunTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
@@ -329,7 +329,7 @@ export class ContinuousRunUsingProfileTestAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
+	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<void> {
 		const crService = accessor.get(ITestingContinuousRunService);
 		const profileService = accessor.get(ITestProfileService);
 		const notificationService = accessor.get(INotificationService);

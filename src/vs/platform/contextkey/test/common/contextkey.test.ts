@@ -183,6 +183,19 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
 		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+
+		// file URI case-insensitive comparison on Windows
+		if (isWindows) {
+			// Array source: file URIs with different casing should match on Windows
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/users/path/file.ts'] })), true);
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), true);
+			// Object source: file URIs with different casing should match on Windows
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': { 'file:///c%3A/users/path/file.ts': true } })), true);
+			// Non-file URIs should still be case-sensitive
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'git:/path/File.ts', 'b': ['git:/path/file.ts'] })), false);
+			// Exact match still works
+			assert.strictEqual(ainb.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), true);
+		}
 	});
 
 	test('ContextKeyNotInExpr', () => {
@@ -198,6 +211,13 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), false);
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), false);
 		assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'prototype', 'b': {} })), true);
+
+		// file URI case-insensitive comparison on Windows
+		if (isWindows) {
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'file:///c%3A/Users/path/file.ts', 'b': ['file:///c%3A/users/path/file.ts'] })), false);
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'file:///c%3A/users/path/file.ts', 'b': ['file:///c%3A/Users/path/file.ts'] })), false);
+			assert.strictEqual(aNotInB.evaluate(createContext({ 'a': 'git:/path/File.ts', 'b': ['git:/path/file.ts'] })), true);
+		}
 	});
 
 	test('issue #106524: distributing AND should normalize', () => {

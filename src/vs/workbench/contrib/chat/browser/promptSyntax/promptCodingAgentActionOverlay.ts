@@ -7,13 +7,14 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { localize } from '../../../../../nls.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 export class PromptCodingAgentActionOverlayWidget extends Disposable implements IOverlayWidget {
 
@@ -106,7 +107,7 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 		this._button.enabled = false;
 		try {
 			const promptContent = model.getValue();
-			const promptName = await this._promptsService.getPromptCommandName(model.uri);
+			const promptName = await this._promptsService.getPromptSlashCommandName(model.uri, CancellationToken.None);
 
 			const agents = this._remoteCodingAgentService.getAvailableAgents();
 			const agent = agents[0]; // Use the first available agent

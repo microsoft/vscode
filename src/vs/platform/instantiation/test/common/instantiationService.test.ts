@@ -288,7 +288,7 @@ suite('Instantiation Service', () => {
 
 	test('Invoke - get service, optional', function () {
 		const collection = new ServiceCollection([IService1, new Service1()]);
-		const service = new InstantiationService(collection);
+		const service = new InstantiationService(collection, true);
 
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);

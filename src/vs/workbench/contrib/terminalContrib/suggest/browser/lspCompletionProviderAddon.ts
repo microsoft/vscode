@@ -13,6 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -21,6 +22,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
+	readonly shellTypes: TerminalShellType[] = [GeneralShellType.Python];
 
 	constructor(
 		provider: CompletionItemProvider,

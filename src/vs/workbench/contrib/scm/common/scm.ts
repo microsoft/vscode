@@ -82,6 +82,7 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly isHidden?: boolean;
 	readonly inputBoxTextModel: ITextModel;
 	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
@@ -162,6 +163,9 @@ export interface ISCMInput {
 	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void;
 	readonly onDidChangeValidationMessage: Event<IInputValidation>;
 
+	clearValidation(): void;
+	readonly onDidClearValidation: Event<void>;
+
 	showNextHistoryValue(): void;
 	showPreviousHistoryValue(): void;
 }
@@ -237,6 +241,7 @@ export interface ISCMViewService {
 
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+	readonly didFinishLoadingRepositories: IObservable<boolean>;
 
 	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

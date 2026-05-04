@@ -27,7 +27,7 @@ import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js'
 import { ISpliceable } from '../../../common/sequence.js';
 import { isNumber } from '../../../common/types.js';
 import './list.css';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError, NotSelectableGroupId, NotSelectableGroupIdType } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
@@ -403,7 +403,17 @@ class KeyboardController<T> implements IDisposable {
 	private onCtrlA(e: StandardKeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
-		this.list.setSelection(range(this.list.length), e.browserEvent);
+
+		let selection = range(this.list.length);
+
+		// Filter by group if identity provider has getGroupId
+		const focusedElements = this.list.getFocus();
+		const referenceGroupId = focusedElements.length > 0 ? this.list.getElementGroupId(focusedElements[0]) : undefined;
+		if (referenceGroupId !== undefined) {
+			selection = this.list.filterIndicesByGroup(selection, referenceGroupId);
+		}
+
+		this.list.setSelection(selection, e.browserEvent);
 		this.list.setAnchor(undefined);
 		this.view.domNode.focus();
 	}
@@ -777,7 +787,11 @@ export class MouseController<T> implements IDisposable {
 		this.list.setAnchor(focus);
 
 		if (!isMouseRightClick(e.browserEvent)) {
-			this.list.setSelection([focus], e.browserEvent);
+			// Check if the element is selectable (getGroupId must not return undefined)
+			const focusGroupId = this.list.getElementGroupId(focus);
+			if (focusGroupId !== NotSelectableGroupId) {
+				this.list.setSelection([focus], e.browserEvent);
+			}
 		}
 
 		this._onPointer.fire(e);
@@ -814,7 +828,16 @@ export class MouseController<T> implements IDisposable {
 
 			const min = Math.min(anchor, focus);
 			const max = Math.max(anchor, focus);
-			const rangeSelection = range(min, max + 1);
+			let rangeSelection = range(min, max + 1);
+
+			const selectedElement = this.list.getSelection()[0];
+			if (selectedElement !== undefined) {
+				const referenceGroupId = this.list.getElementGroupId(selectedElement);
+				if (referenceGroupId !== undefined) {
+					rangeSelection = this.list.filterIndicesByGroup(rangeSelection, referenceGroupId);
+				}
+			}
+
 			const selection = this.list.getSelection();
 			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [anchor]), anchor);
 
@@ -833,8 +856,16 @@ export class MouseController<T> implements IDisposable {
 			this.list.setFocus([focus]);
 			this.list.setAnchor(focus);
 
+			const focusGroupId = this.list.getElementGroupId(focus);
+			if (focusGroupId === NotSelectableGroupId) {
+				return; // Cannot select this element, do nothing
+			}
+
 			if (selection.length === newSelection.length) {
-				this.list.setSelection([...newSelection, focus], e.browserEvent);
+				const itemsToBeSelected = focusGroupId !== undefined ?
+					this.list.filterIndicesByGroup([...newSelection, focus], focusGroupId)
+					: [...newSelection, focus];
+				this.list.setSelection(itemsToBeSelected, e.browserEvent);
 			} else {
 				this.list.setSelection(newSelection, e.browserEvent);
 			}
@@ -1698,6 +1729,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
+		indexes = indexes.filter(i => this.getElementGroupId(i) !== NotSelectableGroupId);
+
 		this.selection.set(indexes, browserEvent);
 	}
 
@@ -1729,6 +1762,42 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	getAnchorElement(): T | undefined {
 		const anchor = this.getAnchor();
 		return typeof anchor === 'undefined' ? undefined : this.element(anchor);
+	}
+
+	/**
+	 * Gets the group ID for an element at the given index.
+	 * Returns undefined if no identity provider, no getGroupId method, or if the group ID is undefined.
+	 */
+	getElementGroupId(index: number): number | NotSelectableGroupIdType | undefined {
+		const identityProvider = this.options.identityProvider;
+		if (!identityProvider?.getGroupId) {
+			return undefined;
+		}
+
+		const element = this.element(index);
+		return identityProvider.getGroupId(element);
+	}
+
+	/**
+	 * Filters the given indices to only include those with a matching group ID.
+	 * If no identity provider or getGroupId method exists, returns the original indices.
+	 * If referenceGroupId is undefined, returns an empty array (elements without group IDs are not selectable).
+	 */
+	filterIndicesByGroup(indices: number[], referenceGroupId: number | NotSelectableGroupIdType): number[] {
+		const identityProvider = this.options.identityProvider;
+		if (!identityProvider?.getGroupId) {
+			return indices;
+		}
+
+		if (referenceGroupId === NotSelectableGroupId) {
+			return [];
+		}
+
+		return indices.filter(index => {
+			const element = this.element(index);
+			const groupId = identityProvider.getGroupId!(element);
+			return groupId === referenceGroupId;
+		});
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {

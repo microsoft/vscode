@@ -21,7 +21,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from './commentColors.js';
-import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
+import { CommentThreadApplicability, CommentThreadState, CommentState } from '../../../../editor/common/languages.js';
 import { Color } from '../../../../base/common/color.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { FilterOptions } from './commentsFilterOptions.js';
@@ -72,6 +72,7 @@ interface ICommentThreadTemplateData {
 	};
 	actionBar: ActionBar;
 	disposables: IDisposable[];
+	elementDisposables: DisposableStore;
 }
 
 class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
@@ -230,7 +231,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
 
 		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
-		return { threadMetadata, repliesMetadata, actionBar, disposables };
+		return { threadMetadata, repliesMetadata, actionBar, disposables, elementDisposables: new DisposableStore() };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -265,8 +266,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): ThemeIcon {
-		if (threadState === CommentThreadState.Unresolved) {
+	private getIcon(threadState?: CommentThreadState, hasDraft?: boolean): ThemeIcon {
+		// Priority: draft > unresolved > resolved
+		if (hasDraft) {
+			return Codicon.commentDraft;
+		} else if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {
 			return Codicon.comment;
@@ -289,7 +293,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.threadMetadata.icon.classList.remove(...Array.from(templateData.threadMetadata.icon.classList.values())
 			.filter(value => value.startsWith('codicon')));
-		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState)));
+		// Check if any comment in the thread has draft state
+		const hasDraft = node.element.thread.comments?.some(comment => comment.state === CommentState.Draft);
+		templateData.threadMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(this.getIcon(node.element.threadState, hasDraft)));
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
@@ -304,15 +310,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
-			const disposables = new DisposableStore();
-			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body);
-			templateData.disposables.push(renderedComment);
+			templateData.elementDisposables.add(renderedComment);
 			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
 				renderedComment.element.removeChild(renderedComment.element.children[i]);
 			}
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -347,8 +351,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return (state !== undefined) ? getCommentThreadStateIconColor(state, theme) : undefined;
 	}
 
+	disposeElement(_node: ITreeNode<CommentNode>, _index: number, templateData: ICommentThreadTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.elementDisposables.dispose();
 		templateData.actionBar.dispose();
 	}
 }

@@ -3,28 +3,32 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
 		"c": "ifndef",
 		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -38,7 +42,9 @@
 			"hc_black": "meta.preprocessor: #569CD6",
 			"dark_modern": "meta.preprocessor: #569CD6",
 			"hc_light": "meta.preprocessor: #0F4A85",
-			"light_modern": "meta.preprocessor: #0000FF"
+			"light_modern": "meta.preprocessor: #0000FF",
+			"2026-dark": "meta.preprocessor: #569CD6",
+			"2026-light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -52,35 +58,41 @@
 			"hc_black": "entity.name.function: #DCDCAA",
 			"dark_modern": "entity.name.function.preprocessor: #569CD6",
 			"hc_light": "entity.name.function.preprocessor: #0F4A85",
-			"light_modern": "entity.name.function.preprocessor: #0000FF"
+			"light_modern": "entity.name.function.preprocessor: #0000FF",
+			"2026-dark": "entity.name.function.preprocessor: #569CD6",
+			"2026-light": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
 		"c": "#",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
 		"c": "define",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -94,7 +106,9 @@
 			"hc_black": "meta.preprocessor: #569CD6",
 			"dark_modern": "meta.preprocessor: #569CD6",
 			"hc_light": "meta.preprocessor: #0F4A85",
-			"light_modern": "meta.preprocessor: #0000FF"
+			"light_modern": "meta.preprocessor: #0000FF",
+			"2026-dark": "meta.preprocessor: #569CD6",
+			"2026-light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -108,35 +122,41 @@
 			"hc_black": "entity.name.function: #DCDCAA",
 			"dark_modern": "entity.name.function.preprocessor: #569CD6",
 			"hc_light": "entity.name.function.preprocessor: #0F4A85",
-			"light_modern": "entity.name.function.preprocessor: #0000FF"
+			"light_modern": "entity.name.function.preprocessor: #0000FF",
+			"2026-dark": "entity.name.function.preprocessor: #569CD6",
+			"2026-light": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.endif.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
 		"c": "endif",
 		"t": "source.cpp keyword.control.directive.endif.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_modern": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	}
 ]

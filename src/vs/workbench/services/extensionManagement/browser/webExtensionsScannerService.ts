@@ -54,14 +54,13 @@ function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
 		&& (galleryExtensionInfo.migrateStorageFrom === undefined || typeof galleryExtensionInfo.migrateStorageFrom === 'string');
 }
 
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
+function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj) {
 		return false;
 	}
-	// eslint-disable-next-line local/code-no-any-casts
-	return isString((<any>thing).path) &&
-		// eslint-disable-next-line local/code-no-any-casts
-		isString((<any>thing).scheme);
+	const thing = obj as UriComponents | undefined;
+	return typeof thing?.path === 'string' &&
+		typeof thing?.scheme === 'string';
 }
 
 interface IStoredWebExtension {

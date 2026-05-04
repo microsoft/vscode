@@ -139,11 +139,7 @@ export class FloatingEditorClickWidget extends FloatingClickWidget implements IO
 		keyBindingAction: string | null,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(
-			keyBindingAction && keybindingService.lookupKeybinding(keyBindingAction)
-				? `${label} (${keybindingService.lookupKeybinding(keyBindingAction)!.getLabel()})`
-				: label
-		);
+		super(keybindingService.appendKeybinding(label, keyBindingAction));
 	}
 
 	getId(): string {

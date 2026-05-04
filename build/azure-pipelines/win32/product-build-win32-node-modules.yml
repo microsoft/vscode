@@ -33,13 +33,13 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
+      - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
       - pwsh: |
           mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -81,14 +81,14 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - powershell: node build/azure-pipelines/distro/mixin-npm
+      - powershell: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
           exec { mkdir -Force .build/node_modules_cache }
           exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

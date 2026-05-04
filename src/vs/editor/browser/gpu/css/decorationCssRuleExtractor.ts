@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getActiveDocument } from '../../../../base/browser/dom.js';
+import { $, getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import './media/decorationCssRuleExtractor.css';
 
@@ -15,6 +15,7 @@ export class DecorationCssRuleExtractor extends Disposable {
 	private _dummyElement: HTMLSpanElement;
 
 	private _ruleCache: Map</* className */string, CSSStyleRule[]> = new Map();
+	private _cssVariableCache: Map</* variableName */string, /* value */string> = new Map();
 
 	constructor() {
 		super();
@@ -49,36 +50,75 @@ export class DecorationCssRuleExtractor extends Disposable {
 
 	private _getStyleRules(className: string) {
 		// Iterate through all stylesheets and imported stylesheets to find matching rules
-		const rules = [];
+		const rules: CSSStyleRule[] = [];
 		const doc = getActiveDocument();
 		const stylesheets = [...doc.styleSheets];
+
+		// className can be space-separated (e.g., 'ghost-text-decoration syntax-highlighted')
+		// We need to search for each individual class
+		const classNames = className.split(' ').filter(c => c.length > 0);
+
 		for (let i = 0; i < stylesheets.length; i++) {
 			const stylesheet = stylesheets[i];
-			for (const rule of stylesheet.cssRules) {
-				if (rule instanceof CSSImportRule) {
-					if (rule.styleSheet) {
-						stylesheets.push(rule.styleSheet);
-					}
-				} else if (rule instanceof CSSStyleRule) {
-					// Note that originally `.matches(rule.selectorText)` was used but this would
-					// not pick up pseudo-classes which are important to determine support of the
-					// returned styles.
-					//
-					// Since a selector could contain a class name lookup that is simple a prefix of
-					// the class name we are looking for, we need to also check the character after
-					// it.
+			this._collectMatchingRules(stylesheet.cssRules, classNames, rules);
+		}
+
+		return rules;
+	}
+
+	private _collectMatchingRules(cssRules: CSSRuleList, classNames: string[], result: CSSStyleRule[]): void {
+		for (const rule of cssRules) {
+			if (rule instanceof CSSImportRule) {
+				if (rule.styleSheet) {
+					this._collectMatchingRules(rule.styleSheet.cssRules, classNames, result);
+				}
+			} else if (rule instanceof CSSStyleRule) {
+				// Note that originally `.matches(rule.selectorText)` was used but this would
+				// not pick up pseudo-classes which are important to determine support of the
+				// returned styles.
+				//
+				// Since a selector could contain a class name lookup that is simple a prefix of
+				// the class name we are looking for, we need to also check the character after
+				// it.
+				for (const className of classNames) {
 					const searchTerm = `.${className}`;
 					const index = rule.selectorText.indexOf(searchTerm);
 					if (index !== -1) {
 						const endOfResult = index + searchTerm.length;
-						if (rule.selectorText.length === endOfResult || rule.selectorText.substring(endOfResult, endOfResult + 1).match(/[ :]/)) {
-							rules.push(rule);
+						if (rule.selectorText.length === endOfResult || rule.selectorText.substring(endOfResult, endOfResult + 1).match(/[ :.]/)) {
+							result.push(rule);
+							break; // Don't add the same rule multiple times
 						}
 					}
 				}
+				// Recursively check nested rules (CSS nesting)
+				if (rule.cssRules?.length) {
+					this._collectMatchingRules(rule.cssRules, classNames, result);
+				}
 			}
 		}
+	}
 
-		return rules;
+	/**
+	 * Resolves a CSS variable to its computed value using the container element.
+	 */
+	resolveCssVariable(canvas: HTMLCanvasElement, variableName: string): string {
+		let result = this._cssVariableCache.get(variableName);
+		if (result === undefined) {
+			canvas.appendChild(this._container);
+			result = getActiveWindow().getComputedStyle(this._container).getPropertyValue(variableName).trim();
+			canvas.removeChild(this._container);
+			this._cssVariableCache.set(variableName, result);
+		}
+		return result;
+	}
+
+	/**
+	 * Clears all cached CSS rules and CSS variable values. This should be called when the theme
+	 * changes to ensure fresh values are computed.
+	 */
+	clear(): void {
+		this._ruleCache.clear();
+		this._cssVariableCache.clear();
 	}
 }

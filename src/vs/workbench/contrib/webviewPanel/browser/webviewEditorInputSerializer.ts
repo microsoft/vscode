@@ -8,15 +8,16 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorSerializer } from '../../../common/editor.js';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from '../../webview/browser/webview.js';
-import { WebviewIcons, WebviewInput } from './webviewEditorInput.js';
+import { WebviewIconPath, WebviewInput } from './webviewEditorInput.js';
 import { IWebviewWorkbenchService } from './webviewWorkbenchService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;
 
-interface SerializedIconPath {
+type SerializedIconPath = ThemeIcon | {
 	light: string | UriComponents;
 	dark: string | UriComponents;
-}
+};
 
 export interface SerializedWebview {
 	readonly origin: string | undefined;
@@ -40,7 +41,7 @@ export interface DeserializedWebview {
 	readonly contentOptions: WebviewContentOptions;
 	readonly extension: WebviewExtensionDescription | undefined;
 	readonly state: any;
-	readonly iconPath: WebviewIcons | undefined;
+	readonly iconPath: WebviewIconPath | undefined;
 	readonly group?: number;
 }
 
@@ -95,7 +96,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return {
 			...data,
 			extension: reviveWebviewExtensionDescription(data.extensionId, data.extensionLocation),
-			iconPath: reviveIconPath(data.iconPath),
+			iconPath: reviveWebviewIconPath(data.iconPath),
 			state: reviveState(data.state),
 			webviewOptions: restoreWebviewOptions(data.options),
 			contentOptions: restoreWebviewContentOptions(data.options),
@@ -112,7 +113,11 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			extensionLocation: input.extension?.location,
 			extensionId: input.extension?.id.value,
 			state: input.webview.state,
-			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			iconPath: input.iconPath
+				? ThemeIcon.isThemeIcon(input.iconPath)
+					? input.iconPath
+					: { light: input.iconPath.light, dark: input.iconPath.dark, }
+				: undefined,
 			group: input.group
 		};
 	}
@@ -137,9 +142,13 @@ export function reviveWebviewExtensionDescription(
 	};
 }
 
-function reviveIconPath(data: SerializedIconPath | undefined) {
+export function reviveWebviewIconPath(data: SerializedIconPath | undefined): WebviewIconPath | undefined {
 	if (!data) {
 		return undefined;
+	}
+
+	if (ThemeIcon.isThemeIcon(data)) {
+		return data;
 	}
 
 	const light = reviveUri(data.light);

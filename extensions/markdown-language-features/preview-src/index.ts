@@ -14,6 +14,7 @@ import type { ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
@@ -23,11 +24,17 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
-// eslint-disable-next-line local/code-no-any-casts
-const originalState = vscode.getState() ?? {} as any;
-const state = {
+interface State {
+	scrollProgress?: number;
+	resource?: string;
+	line?: number;
+	fragment?: string;
+}
+
+const originalState: State = vscode.getState() ?? {};
+const state: State = {
 	...originalState,
-	...getData<any>('data-state')
+	...getData<Partial<State>>('data-state')
 };
 
 if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
@@ -83,7 +90,9 @@ onceDocumentLoaded(() => {
 	addImageContexts();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
+			scrollDisabledCount = 1;
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
@@ -106,12 +115,16 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
 			} else {
 				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
 				}
 			}
@@ -125,7 +138,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -139,7 +158,9 @@ const onUpdateView = (() => {
 })();
 
 window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 	updateScrollProgress();
 }, true);
 
@@ -250,7 +271,6 @@ window.addEventListener('message', async event => {
 				}
 				newRoot.prepend(...styles);
 
-				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
@@ -287,7 +307,7 @@ window.addEventListener('message', async event => {
 							domEval(childNode);
 						}
 					}
-				} as any);
+				});
 			}
 
 			++documentVersion;
@@ -332,10 +352,10 @@ document.addEventListener('click', event => {
 		return;
 	}
 
-	let node: any = event.target;
+	let node = event.target as Element | null;
 	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
+		if (node.tagName && node.tagName === 'A' && (node as HTMLAnchorElement).href) {
+			if (node.getAttribute('href')?.startsWith('#')) {
 				return;
 			}
 
@@ -343,13 +363,13 @@ document.addEventListener('click', event => {
 			if (!hrefText) {
 				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
+				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;
 				}
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
+			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
@@ -358,7 +378,7 @@ document.addEventListener('click', event => {
 
 			return;
 		}
-		node = node.parentNode;
+		node = node.parentElement;
 	}
 }, true);
 
@@ -366,12 +386,12 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		messaging.postMessage('revealLine', { line });
 	}
 }, 50));
 
@@ -441,8 +461,7 @@ function domEval(el: Element): void {
 		for (const key of preservedScriptAttributes) {
 			const val = node.getAttribute?.(key);
 			if (val) {
-				// eslint-disable-next-line local/code-no-any-casts
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val);
 			}
 		}
 

@@ -10,6 +10,10 @@ import '../editor/editor.all.js';
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
 
+// Agent-sessions color tokens — side-effect import so they register in the
+// global color registry and appear in the color-theme JSON schema.
+import '../sessions/common/theme.js';
+
 //#endregion
 
 
@@ -46,6 +50,7 @@ import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
 import './browser/parts/statusbar/statusbarPart.js';
+import './browser/parts/titlebar/menubar.contribution.js';
 
 //#endregion
 
@@ -115,8 +120,8 @@ import './services/authentication/browser/authenticationMcpAccessService.js';
 import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/authentication/browser/authenticationQueryService.js';
-import './services/accounts/common/defaultAccount.js';
 import '../platform/hover/browser/hoverService.js';
+import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
 import './services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
@@ -127,11 +132,13 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
 import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
+import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -139,8 +146,6 @@ import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '..
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../platform/contextview/browser/contextView.js';
 import { IListService, ListService } from '../platform/list/browser/listService.js';
-import { IEditorWorkerService } from '../editor/common/services/editorWorker.js';
-import { WorkbenchEditorWorkerService } from './contrib/codeEditor/browser/workbenchEditorWorkerService.js';
 import { MarkerDecorationsService } from '../editor/common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../editor/common/services/markerDecorations.js';
 import { IMarkerService } from '../platform/markers/common/markers.js';
@@ -161,6 +166,8 @@ import { AllowedExtensionsService } from '../platform/extensionManagement/common
 import { IAllowedMcpServersService, IMcpGalleryService } from '../platform/mcp/common/mcpManagement.js';
 import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
+import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
+import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -169,13 +176,13 @@ registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementSe
 registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
 registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
 registerSingleton(IListService, ListService, InstantiationType.Delayed);
-registerSingleton(IEditorWorkerService, WorkbenchEditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 
@@ -183,6 +190,12 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 
 
 //#region --- workbench contributions
+
+// Default Account
+import './services/accounts/browser/defaultAccount.js';
+
+// Account Policy Gate
+import './services/policies/browser/accountPolicyGate.contribution.js';
 
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
@@ -203,10 +216,13 @@ import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/chat/browser/chatSessions.contribution.js';
-import './contrib/chat/browser/chatContext.contribution.js';
+import './contrib/mcp/browser/mcp.view.contribution.js';
+import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
@@ -232,6 +248,9 @@ import './contrib/files/browser/files.contribution.js';
 import './contrib/bulkEdit/browser/bulkEditService.js';
 import './contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
+// Rename Symbol Tracker for Inline completions.
+import './contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
+
 // Search
 import './contrib/search/browser/search.contribution.js';
 import './contrib/search/browser/searchView.js';
@@ -242,8 +261,13 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 // Sash
 import './contrib/sash/browser/sash.contribution.js';
 
+// Git
+import './contrib/git/browser/git.contributions.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
+import './contrib/scm/browser/quickDiff.contribution.js';
+import './contrib/scm/browser/scm.service.contribution.js';
 
 // Debug
 import './contrib/debug/browser/debug.contribution.js';
@@ -346,9 +370,13 @@ import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
+import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';
+
+// Welcome Onboarding
+import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
@@ -386,6 +414,7 @@ import './contrib/codeActions/browser/codeActions.contribution.js';
 
 // Timeline
 import './contrib/timeline/browser/timeline.contribution.js';
+import './contrib/timeline/browser/timeline.service.contribution.js';
 
 // Local History
 import './contrib/localHistory/browser/localHistory.contribution.js';
@@ -407,6 +436,9 @@ import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Te
 
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';
+
+// Metered Connection
+import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
 // Share
 import './contrib/share/browser/share.contribution.js';

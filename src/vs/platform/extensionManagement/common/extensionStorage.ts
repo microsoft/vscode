@@ -26,9 +26,9 @@ export const IExtensionStorageService = createDecorator<IExtensionStorageService
 export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
-	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
+	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<unknown> | undefined;
 	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined;
-	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
+	setExtensionState(extension: IExtension | IGalleryExtension | string, state: object | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void;
@@ -140,7 +140,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return getExtensionId(publisher, name);
 	}
 
-	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
+	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<unknown> | undefined {
 		const extensionId = this.getExtensionId(extension);
 		const jsonValue = this.getExtensionStateRaw(extension, global);
 		if (jsonValue) {
@@ -167,7 +167,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return rawState;
 	}
 
-	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {
+	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<unknown> | undefined, global: boolean): void {
 		const extensionId = this.getExtensionId(extension);
 		if (state === undefined) {
 			this.storageService.remove(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);

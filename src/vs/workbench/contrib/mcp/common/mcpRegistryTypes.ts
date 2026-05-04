@@ -12,6 +12,7 @@ import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { McpTaskManager } from './mcpTaskManager.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpStartServerInteraction } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
@@ -61,6 +62,9 @@ export interface IMcpResolveConnectionOptions {
 
 	/** If true, throw an error if any user interaction would be required during startup. */
 	errorOnUserInteraction?: boolean;
+
+	/** Shared task manager for server-side MCP tasks (survives reconnections) */
+	taskManager: McpTaskManager;
 }
 
 export interface IMcpRegistry {

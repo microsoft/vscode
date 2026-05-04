@@ -1,0 +1,26 @@
+[
+	{
+		"name": "notebook (generate) [inline] [markdown] - edit markdown cell should support code example",
+		"requests": [
+			"4f1fd09926007ddc71d28966c54eaa948e3f40c231b1dbf8e68c7664d5205845"
+		]
+	},
+	{
+		"name": "notebook (generate) [inline] [python] - create a model to predict the likelihood of a flight being delayed",
+		"requests": [
+			"c66e36b6442e075be3ebb45cd995e718e72eddab3ea99a3946cfbddf2c3aadd6"
+		]
+	},
+	{
+		"name": "notebook (generate) [inline] [python] - How many items were orderd in total?",
+		"requests": [
+			"9ea969218d7390b28ef1d795fe3b5e8ec811b9653e7d6ab7c0f80b5237acc5d8"
+		]
+	},
+	{
+		"name": "notebook (generate) [inline] [python] - Which was the most-ordered item",
+		"requests": [
+			"53575304cc7fc428a8692c3cce05db0efe3a9d8b485f6cec85d8bf8baaeb463b"
+		]
+	}
+]

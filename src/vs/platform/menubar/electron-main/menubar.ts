@@ -82,9 +82,9 @@ export class Menubar extends Disposable {
 	) {
 		super();
 
-		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenu(), 0));
 
-		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
+		this.menuGC = this._register(new RunOnceScheduler(() => { this.oldMenus = []; }, 10000));
 
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
@@ -180,6 +180,10 @@ export class Menubar extends Disposable {
 		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
 		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
 		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
+
+		// Rebuild menu when update state changes so update menu items reflect
+		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
+		this._register(this.updateService.onStateChange(() => this.scheduleUpdateMenu()));
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -643,11 +647,12 @@ export class Menubar extends Disposable {
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miDownloadUpdate', "D&&ownload Available Update")), click: () => {
-						this.updateService.downloadUpdate();
+						this.updateService.downloadUpdate(true);
 					}
 				})];
 
 			case StateType.Downloading:
+			case StateType.Overwriting:
 				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:
@@ -744,6 +749,11 @@ export class Menubar extends Disposable {
 			if (activeWindow.webContents.isDevToolsFocused() &&
 				activeWindow.webContents.devToolsWebContents) {
 				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
+			}
+
+			// Focus is not in the workbench webContents
+			if (!activeWindow.webContents.isFocused()) {
+				return contextSpecificHandlers.inNoWindow();
 			}
 
 			// Finally execute command in Window

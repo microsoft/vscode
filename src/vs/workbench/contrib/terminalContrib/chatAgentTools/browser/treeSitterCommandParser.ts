@@ -4,22 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser, Query, QueryCapture, Tree } from '@vscode/tree-sitter-wasm';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
-import { arch } from '../../../../../base/common/process.js';
-import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
+import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
 	PowerShell = 'powershell',
 }
 
+/**
+ * Matches a PowerShell command token of the form `-flag=` or `--flag=` at the
+ * start of input or following whitespace. Used to work around a tree-sitter
+ * PowerShell grammar limitation where POSIX-style `--flag=value` arguments
+ * (e.g. `git log --format="a|b"`) are parsed as assignment expressions and
+ * truncate the surrounding command.
+ *
+ * See https://github.com/microsoft/vscode/issues/294010
+ * TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
+ */
+const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
+
+// TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
+function maskPwshFlagEquals(commandLine: string): string {
+	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
+}
+
 export class TreeSitterCommandParser extends Disposable {
 	private readonly _parser: Lazy<Promise<Parser>>;
 	private readonly _treeCache = this._register(new TreeCache());
+	private readonly _commandFileWriteParsers: ICommandFileWriteParser[] = [
+		new SedFileWriteParser(),
+	];
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
@@ -29,6 +50,15 @@ export class TreeSitterCommandParser extends Disposable {
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		if (languageId === TreeSitterCommandParserLanguage.PowerShell) {
+			const masked = maskPwshFlagEquals(commandLine);
+			if (masked !== commandLine) {
+				const captures = await this._queryTree(languageId, masked, '(command) @command');
+				// Masked command line has identical character positions, so slice the original
+				// to preserve the user-visible text (including the `=` characters).
+				return captures.map(e => commandLine.substring(e.node.startIndex, e.node.endIndex));
+			}
+		}
 		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
 		return captures.map(e => e.node.text);
 	}
@@ -36,13 +66,23 @@ export class TreeSitterCommandParser extends Disposable {
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
 		const captures = await this._queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
 			'(',
-			'  (command',
-			'    (command_elements',
-			'      (generic_token) @double.ampersand',
-			'        (#eq? @double.ampersand "&&")))',
+			'  (pipeline',
+			'    (pipeline_chain_tail) @double.ampersand)',
 			')',
 		].join('\n'));
 		return captures;
+	}
+
+	async extractCommandKeywords(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		const captures = await this._queryTree(languageId, commandLine, '(command_name) @command');
+		const keywords = new Set<string>();
+		for (const capture of captures) {
+			const normalized = this._normalizeCommandKeyword(capture.node.text);
+			if (normalized) {
+				keywords.add(normalized);
+			}
+		}
+		return [...keywords];
 	}
 
 	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
@@ -65,14 +105,50 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text.trim());
 	}
 
+	/**
+	 * Extracts file targets from commands that perform file writes beyond shell redirections.
+	 * Uses registered command parsers (e.g., for `sed -i`) to detect command-specific file writes.
+	 * Returns an array of file paths that would be modified.
+	 */
+	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		// Currently only bash-like shells are supported for command-specific parsing
+		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
+			return [];
+		}
+
+		// Query for all commands
+		const query = '(command) @command';
+		const captures = await this._queryTree(languageId, commandLine, query);
+
+		const result: string[] = [];
+		for (const capture of captures) {
+			const commandText = capture.node.text;
+			for (const parser of this._commandFileWriteParsers) {
+				if (parser.canHandle(commandText)) {
+					result.push(...parser.extractFileWrites(commandText));
+				}
+			}
+		}
+		return result;
+	}
+
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
 		return query.captures(tree.rootNode);
 	}
 
-	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
-		this._throwIfCanCrash(languageId);
+	private _normalizeCommandKeyword(token: string): string | undefined {
+		const unquoted = token.replace(/^['"]|['"]$/g, '');
+		if (!unquoted) {
+			return undefined;
+		}
 
+		const pathBase = unquoted.includes('\\') ? win32.basename(unquoted) : posix.basename(unquoted);
+		const normalized = pathBase.toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/i, '');
+		return normalized || undefined;
+	}
+
+	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
 		const language = await this._treeSitterLibraryService.getLanguagePromise(languageId);
 		if (!language) {
 			throw new BugIndicatingError('Failed to fetch language grammar');
@@ -97,17 +173,6 @@ export class TreeSitterCommandParser extends Disposable {
 		}
 
 		return { tree, query };
-	}
-
-	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
-		// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-		if (
-			isWindows &&
-			(arch === 'arm' || arch === 'arm64') &&
-			languageId === TreeSitterCommandParserLanguage.PowerShell
-		) {
-			throw new ErrorNoTelemetry('powershell grammar is not supported on arm or arm64');
-		}
 	}
 }
 

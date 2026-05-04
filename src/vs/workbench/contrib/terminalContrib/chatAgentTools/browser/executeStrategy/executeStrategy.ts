@@ -6,11 +6,12 @@
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
-export interface ITerminalExecuteStrategy {
+export interface ITerminalExecuteStrategy extends IDisposable {
 	readonly type: 'rich' | 'basic' | 'none';
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
@@ -18,8 +19,11 @@ export interface ITerminalExecuteStrategy {
 	 * @param commandLine The command line to execute
 	 * @param token Cancellation token
 	 * @param commandId Optional predefined command ID to link the command
+	 * @param commandLineForMetadata Optional command line to report in terminal execution metadata.
+	 * This can differ from the command line that is sent to the shell, for example when the command
+	 * is wrapped for sandbox execution.
 	 */
-	execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
+	execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult>;
 
 	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
@@ -29,6 +33,7 @@ export interface ITerminalExecuteStrategyResult {
 	additionalInformation?: string;
 	exitCode?: number;
 	error?: string;
+	didEnterAltBuffer?: boolean;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {
@@ -99,28 +104,6 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
 }
 
-
-// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
-const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
-
-// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
-const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
-
-// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
-const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
-
-// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
-const CONFIRM_Y_RE = /\(y\)\s*$/i;
-
-const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
-
-const END = /\(END\)$/;
-
-export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || CONFIRM_Y_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) || END.test(cursorLine);
-}
-
-
 /**
  * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal
  * idles for the specified period, checks if the terminal's cursor line looks like a common prompt.
@@ -177,49 +160,172 @@ export async function waitForIdleWithPromptHeuristics(
  * Tracks the terminal for being idle on a prompt input. This must be called before `executeCommand`
  * is called.
  */
+export interface ITrackIdleOnPromptOptions {
+	/**
+	 * When true, disables all fallback schedulers: the initial prompt fallback,
+	 * the data-idle executing fallback, and the hard-cap safety net. Use this
+	 * for sync (foreground) commands that should block until the command truly
+	 * finishes rather than being abandoned after an idle period. In sync mode
+	 * the overall chat-request timeout or user-specified timeout is the safety
+	 * net instead.
+	 */
+	disableFallbacks?: boolean;
+}
+
 export async function trackIdleOnPrompt(
 	instance: ITerminalInstance,
 	idleDurationMs: number,
 	store: DisposableStore,
+	promptFallbackMs?: number,
+	logService?: ITerminalLogService,
+	options?: ITrackIdleOnPromptOptions,
 ): Promise<void> {
 	const idleOnPrompt = new DeferredPromise<void>();
 	const onData = instance.onData;
-	const scheduler = store.add(new RunOnceScheduler(() => {
-		idleOnPrompt.complete();
-	}, idleDurationMs));
-	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
-	// cases where the command is executed before the prompt is written. While not perfect, sitting
-	// on an A without a C following shortly after is a very good indicator that the command is done
-	// and the terminal is idle. Note that D is treated as a signal for executed since shell
-	// integration sometimes lacks the C sequence either due to limitations in the integation or the
-	// required hooks aren't available.
+	const log = logService ? (msg: string) => logService.info(`trackIdleOnPrompt: ${msg}`) : undefined;
+
 	const enum TerminalState {
 		Initial,
 		Prompt,
 		Executing,
 		PromptAfterExecuting,
 	}
+	const stateNames: Record<TerminalState, string> = {
+		[TerminalState.Initial]: 'Initial',
+		[TerminalState.Prompt]: 'Prompt',
+		[TerminalState.Executing]: 'Executing',
+		[TerminalState.PromptAfterExecuting]: 'PromptAfterExecuting',
+	};
+
 	let state: TerminalState = TerminalState.Initial;
+	let dataEventCount = 0;
+
+	function setState(newState: TerminalState, reason: string): void {
+		if (state !== newState) {
+			log?.(`State ${stateNames[state]} → ${stateNames[newState]} (${reason})`);
+			state = newState;
+		}
+	}
+
+	const scheduler = store.add(new RunOnceScheduler(() => {
+		log?.(`Idle scheduler fired, completing (dataEvents=${dataEventCount})`);
+		idleOnPrompt.complete();
+	}, idleDurationMs));
+
+	// Fallback in case prompt sequences are not seen but the terminal goes idle.
+	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
+			return;
+		}
+		log?.(`Prompt fallback fired (dataEvents=${dataEventCount})`);
+		setState(TerminalState.PromptAfterExecuting, 'promptFallback');
+		scheduler.schedule();
+	}, promptFallbackMs ?? 1000));
+	// Schedule an initial fallback with a longer timeout so we can detect idle
+	// even when no terminal data events arrive at all (e.g. shell integration
+	// is broken and the command finishes silently or hangs waiting for input).
+	// Without this, if no data events fire, neither scheduler is ever triggered
+	// and trackIdleOnPrompt blocks forever. We use a longer initial delay (10s)
+	// to avoid falsely reporting completion for commands that are slow to start
+	// producing output. Once any data arrives, the onData handler takes over
+	// with the shorter promptFallbackMs interval.
+	const disableFallbacks = options?.disableFallbacks ?? false;
+	const initialFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
+			log?.(`Initial fallback fired but state is ${stateNames[state]}, skipping`);
+			return;
+		}
+		log?.(`Initial fallback fired, no data events received`);
+		setState(TerminalState.PromptAfterExecuting, 'initialFallback');
+		scheduler.schedule();
+	}, 10_000));
+	if (!disableFallbacks) {
+		initialFallbackScheduler.schedule();
+	}
+	// Fallback for when shell integration breaks mid-command: data arrives and
+	// C/D sequences transition us to Executing, but no A (prompt) sequence ever
+	// follows. Both initialFallbackScheduler and promptFallbackScheduler get
+	// cancelled in that state, causing a permanent hang. This scheduler is
+	// rescheduled on every data event while in the Executing state, so it only
+	// fires after 30s of data-idle — long enough that actively-outputting
+	// commands won't be cut off, but short enough to prevent indefinite hangs
+	// when shell integration breaks. When shell integration is working,
+	// onCommandFinished in the rich strategy's race wins before this fires.
+	//
+	// In sync (foreground) mode this fallback is disabled: sync commands should
+	// block until the command truly finishes. The overall chat-request timeout
+	// or user-specified timeout serves as the safety net instead.
+	const executingFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Executing) {
+			log?.(`Executing fallback fired after 30s data-idle (dataEvents=${dataEventCount})`);
+			setState(TerminalState.PromptAfterExecuting, 'executingFallback');
+			scheduler.schedule();
+		}
+	}, 30_000));
+	// Hard wall-clock safety net for the case where shell integration never
+	// engages at all — no OSC `C`/`D` is ever parsed so state never advances
+	// to Executing. This is purely a resource-cleanup fallback; with recent
+	// shell integration fixes this path is rare. The 5-minute timeout is
+	// generous to avoid prematurely abandoning legitimate commands.
+	const hardCapScheduler = store.add(new RunOnceScheduler(() => {
+		if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+			log?.(`Hard cap fired after 5min in state ${stateNames[state]} (dataEvents=${dataEventCount})`);
+			setState(TerminalState.PromptAfterExecuting, 'hardCap');
+			scheduler.schedule();
+		}
+	}, 60_000));
+	if (!disableFallbacks) {
+		hardCapScheduler.schedule();
+	}
+	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
+	// cases where the command is executed before the prompt is written. While not perfect, sitting
+	// on an A without a C following shortly after is a very good indicator that the command is done
+	// and the terminal is idle. Note that D is treated as a signal for executed since shell
+	// integration sometimes lacks the C sequence either due to limitations in the integation or the
+	// required hooks aren't available.
 	store.add(onData(e => {
+		dataEventCount++;
+		// Once any data arrives, cancel the initial fallback — the data-driven
+		// promptFallbackScheduler handles rescheduling from here.
+		initialFallbackScheduler.cancel();
 		// Update state
 		// p10k fires C as `133;C;`
 		const matches = e.matchAll(/(?:\x1b\]|\x9d)[16]33;(?<type>[ACD])(?:;.*)?(?:\x1b\\|\x07|\x9c)/g);
 		for (const match of matches) {
 			if (match.groups?.type === 'A') {
 				if (state === TerminalState.Initial) {
-					state = TerminalState.Prompt;
+					setState(TerminalState.Prompt, 'sequence A');
 				} else if (state === TerminalState.Executing) {
-					state = TerminalState.PromptAfterExecuting;
+					setState(TerminalState.PromptAfterExecuting, 'sequence A after executing');
+					executingFallbackScheduler.cancel();
 				}
 			} else if (match.groups?.type === 'C' || match.groups?.type === 'D') {
-				state = TerminalState.Executing;
+				setState(TerminalState.Executing, `sequence ${match.groups?.type}`);
+				if (!disableFallbacks) {
+					executingFallbackScheduler.schedule();
+				}
 			}
 		}
 		// Re-schedule on every data event as we're tracking data idle
 		if (state === TerminalState.PromptAfterExecuting) {
+			promptFallbackScheduler.cancel();
+			executingFallbackScheduler.cancel();
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
+			if (state === TerminalState.Initial || state === TerminalState.Prompt) {
+				if (!disableFallbacks) {
+					promptFallbackScheduler.schedule();
+				}
+			} else {
+				promptFallbackScheduler.cancel();
+				// Re-schedule on every data event so it only fires after 30s
+				// of data-idle while in the Executing state.
+				if (!disableFallbacks) {
+					executingFallbackScheduler.schedule();
+				}
+			}
 		}
 	}));
 	return idleOnPrompt.p;

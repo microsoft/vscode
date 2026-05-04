@@ -72,7 +72,7 @@ export interface ISCMHistoryItem {
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
-	readonly tooltip?: string | IMarkdownString | undefined;
+	readonly tooltip?: IMarkdownString | Array<IMarkdownString> | undefined;
 }
 
 export interface ISCMHistoryItemGraphNode {

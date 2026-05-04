@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
-import type * as ts from 'typescript';
 import path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import { IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost';
+import { type IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.ts';
+import ts from 'typescript';
+
+import tsfmt from '../../tsfmt.json' with { type: 'json' };
 
 const dtsv = '3';
 
-const tsfmt = require('../../tsfmt.json');
-
-const SRC = path.join(__dirname, '../../src');
-export const RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
-const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+const SRC = path.join(import.meta.dirname, '../../src');
+export const RECIPE_PATH = path.join(import.meta.dirname, '../monaco/monaco.d.ts.recipe');
+const DECLARATION_PATH = path.join(import.meta.dirname, '../../src/vs/monaco.d.ts');
 
 function logErr(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
@@ -54,7 +54,7 @@ function visitTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: 
 			case ts.SyntaxKind.TypeAliasDeclaration:
 			case ts.SyntaxKind.FunctionDeclaration:
 			case ts.SyntaxKind.ModuleDeclaration:
-				stop = visitor(<TSTopLevelDeclare>node);
+				stop = visitor(node as TSTopLevelDeclare);
 		}
 
 		if (stop) {
@@ -71,7 +71,7 @@ function getAllTopLevelDeclarations(ts: typeof import('typescript'), sourceFile:
 	const all: TSTopLevelDeclare[] = [];
 	visitTopLevelDeclarations(ts, sourceFile, (node) => {
 		if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
-			const interfaceDeclaration = <ts.InterfaceDeclaration>node;
+			const interfaceDeclaration = node as ts.InterfaceDeclaration;
 			const triviaStart = interfaceDeclaration.pos;
 			const triviaEnd = interfaceDeclaration.name.pos;
 			const triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
@@ -145,7 +145,7 @@ function isDefaultExport(ts: typeof import('typescript'), declaration: ts.Interf
 function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
-		const interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
+		const interfaceDeclaration = declaration as ts.InterfaceDeclaration | ts.ClassDeclaration;
 
 		const staticTypeName = (
 			isDefaultExport(ts, interfaceDeclaration)
@@ -170,7 +170,7 @@ function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sou
 				if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
 					result = result.replace(memberText, '');
 				} else {
-					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
+					const memberName = (member.name as ts.Identifier | ts.StringLiteral).text;
 					const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
 					if (isStatic(ts, member)) {
 						usage.push(`a = ${staticTypeName}${memberAccess};`);
@@ -602,19 +602,27 @@ export class FSProvider {
 }
 
 class CacheEntry {
+	public readonly sourceFile: ts.SourceFile;
+	public readonly mtime: number;
+
 	constructor(
-		public readonly sourceFile: ts.SourceFile,
-		public readonly mtime: number
-	) { }
+		sourceFile: ts.SourceFile,
+		mtime: number
+	) {
+		this.sourceFile = sourceFile;
+		this.mtime = mtime;
+	}
 }
 
 export class DeclarationResolver {
 
 	public readonly ts: typeof import('typescript');
 	private _sourceFileCache: { [moduleId: string]: CacheEntry | null };
+	private readonly _fsProvider: FSProvider;
 
-	constructor(private readonly _fsProvider: FSProvider) {
-		this.ts = require('typescript') as typeof import('typescript');
+	constructor(fsProvider: FSProvider) {
+		this._fsProvider = fsProvider;
+		this.ts = ts;
 		this._sourceFileCache = Object.create(null);
 	}
 

@@ -29,7 +29,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
-import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
@@ -62,6 +62,32 @@ export class CloseWindowAction extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 
 		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
+	}
+}
+
+export class CloseOtherWindowsAction extends Action2 {
+
+	private static readonly ID = 'workbench.action.closeOtherWindows';
+
+	constructor() {
+		super({
+			id: CloseOtherWindowsAction.ID,
+			title: localize2('closeOtherWindows', "Close Other Windows"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+
+		for (const window of windows) {
+			if (window.id !== currentWindowId) {
+				nativeHostService.closeWindow({ targetWindowId: window.id });
+			}
+		}
 	}
 }
 
@@ -216,6 +242,12 @@ abstract class BaseSwitchWindow extends Action2 {
 		alwaysVisible: true
 	};
 
+	private readonly closeActiveWindowAction: IQuickInputButton = {
+		iconClass: 'active-window ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('closeActive', "Close Active Window"),
+		alwaysVisible: true
+	};
+
 	protected abstract isQuickNavigate(): boolean;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -269,7 +301,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
 			picks.push(pick);
 
@@ -280,7 +312,7 @@ abstract class BaseSwitchWindow extends Action2 {
 						label: auxiliaryWindow.title,
 						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
-						buttons: [this.closeWindowAction]
+						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};
 					picks.push(pick);
 				}
@@ -354,6 +386,23 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 
 	protected isQuickNavigate(): boolean {
 		return true;
+	}
+}
+
+export class SwitchToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.switchToMainWindow',
+			title: localize2('switchToMainWindow', "Switch to Main Window"),
+			f1: true,
+			precondition: IsAuxiliaryWindowContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		return nativeHostService.focusWindow({ targetWindowId: mainWindow.vscodeWindowId });
 	}
 }
 

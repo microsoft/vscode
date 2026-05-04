@@ -89,7 +89,7 @@ function registerTokenizationSupport(instantiationService: TestInstantiationServ
 					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
 						| (tokensOnLine[i].standardTokenType << MetadataConsts.TOKEN_TYPE_OFFSET));
 			}
-			return new EncodedTokenizationResult(result, state);
+			return new EncodedTokenizationResult(result, [], state);
 		}
 	};
 	return TokenizationRegistry.register(languageId, tokenizationSupport);

@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto';
-import { BooleanPolicy } from '../policies/booleanPolicy';
-import { NumberPolicy } from '../policies/numberPolicy';
-import { ObjectPolicy } from '../policies/objectPolicy';
-import { StringEnumPolicy } from '../policies/stringEnumPolicy';
-import { StringPolicy } from '../policies/stringPolicy';
-import { Policy, ProductJson } from '../policies/types';
-import { renderGP, renderMacOSPolicy, renderJsonPolicies } from '../policies/render';
+import type { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto.ts';
+import { BooleanPolicy } from '../policies/booleanPolicy.ts';
+import { NumberPolicy } from '../policies/numberPolicy.ts';
+import { ObjectPolicy } from '../policies/objectPolicy.ts';
+import { StringEnumPolicy } from '../policies/stringEnumPolicy.ts';
+import { StringPolicy } from '../policies/stringPolicy.ts';
+import type { Policy, ProductJson } from '../policies/types.ts';
+import { renderGP, renderMacOSPolicy, renderJsonPolicies } from '../policies/render.ts';
+import * as JSONC from 'jsonc-parser';
 
 const PolicyTypes = [
 	BooleanPolicy,
@@ -398,7 +400,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderMacOSPolicy(mockProduct, parsedPolicies, []);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'darwin', 'com.visualstudio.code.oss.mobileconfig');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'darwin', 'com.visualstudio.code.oss.mobileconfig');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Compare the rendered profile with the fixture
@@ -410,7 +412,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderMacOSPolicy(mockProduct, parsedPolicies, []);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'darwin', 'en-us', 'com.visualstudio.code.oss.plist');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'darwin', 'en-us', 'com.visualstudio.code.oss.plist');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the en-us manifest
@@ -432,7 +434,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderGP(mockProduct, parsedPolicies, []);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'win32', 'CodeOSS.admx');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'win32', 'CodeOSS.admx');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Compare the rendered ADMX with the fixture
@@ -444,7 +446,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderGP(mockProduct, parsedPolicies, []);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'win32', 'en-us', 'CodeOSS.adml');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'win32', 'en-us', 'CodeOSS.adml');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the en-us ADML
@@ -460,7 +462,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderMacOSPolicy(mockProduct, parsedPolicies, frenchTranslations);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'darwin', 'fr-fr', 'com.visualstudio.code.oss.plist');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'darwin', 'fr-fr', 'com.visualstudio.code.oss.plist');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the fr-fr manifest
@@ -481,7 +483,7 @@ suite('Policy E2E conversion', () => {
 		const result = renderGP(mockProduct, parsedPolicies, frenchTranslations);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'win32', 'fr-fr', 'CodeOSS.adml');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'win32', 'fr-fr', 'CodeOSS.adml');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 
 		// Find the fr-fr ADML
@@ -497,12 +499,25 @@ suite('Policy E2E conversion', () => {
 		const result = renderJsonPolicies(parsedPolicies);
 
 		// Load the expected fixture file
-		const fixturePath = path.join(__dirname, 'fixtures', 'policies', 'linux', 'policy.json');
+		const fixturePath = path.join(import.meta.dirname, 'fixtures', 'policies', 'linux', 'policy.json');
 		const expectedContent = await fs.readFile(fixturePath, 'utf-8');
 		const expectedJson = JSON.parse(expectedContent);
 
 		// Compare the rendered JSON with the fixture
 		assert.deepStrictEqual(result, expectedJson, 'Linux policy JSON should match the fixture');
+	});
+
+	test('should successfully parse the checked-in policyData.jsonc', async () => {
+		const policyDataPath = path.join(import.meta.dirname, '..', 'policies', 'policyData.jsonc');
+		const raw = await fs.readFile(policyDataPath, 'utf-8');
+		const errors: JSONC.ParseError[] = [];
+		const policyData: ExportedPolicyDataDto = JSONC.parse(raw, errors);
+
+		assert.strictEqual(errors.length, 0, `policyData.jsonc should be valid JSONC: ${JSON.stringify(errors)}`);
+		// This exercises StringEnumPolicy.from() validation, which requires
+		// enumDescriptions to exist and match enum length for string enum policies.
+		const parsed = parsePolicies(policyData);
+		assert.ok(parsed.length > 0, 'Should parse at least one policy from policyData.jsonc');
 	});
 
 });

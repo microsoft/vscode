@@ -114,6 +114,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize
+	get appSharedDataHome(): URI { return joinPath(this.userRoamingDataHome, 'sharedData'); }
+
+	@memoize
 	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
 
 	@memoize
@@ -255,6 +258,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
+	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
+
+	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
 	@memoize
@@ -318,6 +324,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 						break;
 					case 'inspect-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
+					case 'extensionEnvironment':
+						try {
+							extensionHostDebugEnvironment.params.env = JSON.parse(value);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

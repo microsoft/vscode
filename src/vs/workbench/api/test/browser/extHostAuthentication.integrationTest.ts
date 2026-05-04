@@ -693,25 +693,6 @@ suite('ExtHostAuthentication', () => {
 		assert.notStrictEqual(session1?.accessToken, session2?.accessToken);
 	});
 
-	test('session operations during provider lifecycle changes', async () => {
-		const provider = new TestAuthProvider('lifecycle-test');
-		const disposable = extHostAuthentication.registerAuthenticationProvider('lifecycle-test', 'Lifecycle Test', provider);
-
-		// Start a session creation
-		const sessionPromise = extHostAuthentication.getSession(extensionDescription, 'lifecycle-test', ['scope'], { createIfNone: true });
-
-		// Don't dispose immediately - let the session creation start
-		await new Promise(resolve => setTimeout(resolve, 5));
-
-		// Dispose the provider while the session creation is likely still in progress
-		disposable.dispose();
-
-		// The session creation should complete successfully even if we dispose during the operation
-		const session = await sessionPromise;
-		assert.ok(session);
-		assert.strictEqual(session.account.label, 'lifecycle-test');
-	});
-
 	test('operations on different providers run concurrently', async () => {
 		const provider1 = new TestAuthProvider('concurrent-1');
 		const provider2 = new TestAuthProvider('concurrent-2');

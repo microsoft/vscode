@@ -53,9 +53,8 @@ export class ReentrancyBarrier {
 		return this._isOccupied;
 	}
 
-	public makeExclusiveOrSkip<TFunction extends Function>(fn: TFunction): TFunction {
-		// eslint-disable-next-line local/code-no-any-casts
-		return ((...args: any[]) => {
+	public makeExclusiveOrSkip<TArgs extends unknown[]>(fn: (...args: TArgs) => void): (...args: TArgs) => void {
+		return ((...args: TArgs) => {
 			if (this._isOccupied) {
 				return;
 			}
@@ -65,6 +64,6 @@ export class ReentrancyBarrier {
 			} finally {
 				this._isOccupied = false;
 			}
-		}) as any;
+		});
 	}
 }

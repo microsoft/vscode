@@ -103,7 +103,7 @@ export class BreadcrumbsModel {
 
 		const breadcrumbsElements = this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements();
 		for (let i = this._cfgSymbolPath.getValue() === 'last' && breadcrumbsElements.length > 0 ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
-			result.push(new OutlineElement2(breadcrumbsElements[i], this._currentOutline.value));
+			result.push(new OutlineElement2(breadcrumbsElements[i].element, this._currentOutline.value));
 		}
 
 		if (breadcrumbsElements.length === 0 && !this._currentOutline.value.isEmpty) {

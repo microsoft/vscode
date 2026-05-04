@@ -13,6 +13,8 @@ import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBox
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
+import { IAction } from '../../../common/actions.js';
+import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
@@ -34,11 +36,14 @@ export interface IFindInputOptions {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly additionalToggles?: Toggle[];
+	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -112,7 +117,10 @@ export class FindInput extends Widget {
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
-			history: options.history
+			history: options.history,
+			actions: options.actions,
+			actionViewItemProvider: options.actionViewItemProvider,
+			hideHoverOnValueChange: options.hideHoverOnValueChange
 		}));
 
 		if (this.showCommonFindToggles) {
@@ -166,9 +174,9 @@ export class FindInput extends Widget {
 			}));
 
 			// Arrow-Key support to navigate between options
-			const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+					const indexes = this.getToggleDomNodes();
 					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 					if (index >= 0) {
 						let newIndex: number = -1;
@@ -305,6 +313,27 @@ export class FindInput extends Widget {
 		}
 
 		this.updateInputBoxPadding();
+	}
+
+	protected getToggleDomNodes(): HTMLElement[] {
+		const nodes: HTMLElement[] = [];
+		if (this.caseSensitive) {
+			nodes.push(this.caseSensitive.domNode);
+		}
+		if (this.wholeWords) {
+			nodes.push(this.wholeWords.domNode);
+		}
+		if (this.regex) {
+			nodes.push(this.regex.domNode);
+		}
+		for (const toggle of this.additionalToggles) {
+			nodes.push(toggle.domNode);
+		}
+		return nodes;
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		this.inputBox.setActions(actions, actionViewItemProvider);
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {

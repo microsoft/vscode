@@ -9,6 +9,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
@@ -27,7 +28,7 @@ suite('PartialCommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }) as Terminal);
 		onDidExecuteTextEmitter = store.add(new Emitter<void>());
 		capability = store.add(new PartialCommandDetectionCapability(xterm, onDidExecuteTextEmitter.event));
 		addEvents = [];

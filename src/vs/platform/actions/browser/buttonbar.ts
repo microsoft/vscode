@@ -8,6 +8,7 @@ import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hover
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
@@ -24,11 +25,15 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 	showIcon?: boolean;
 	showLabel?: boolean;
 	isSecondary?: boolean;
+	customLabel?: string | IMarkdownString;
+	customClass?: string;
 } | undefined;
 
 export interface IWorkbenchButtonBarOptions {
 	telemetrySource?: string;
 	buttonConfigProvider?: IButtonConfigProvider;
+	small?: boolean;
+	disableWhileRunning?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -71,12 +76,12 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 	update(actions: IAction[], secondary: IAction[]): void {
 
-		const conifgProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
+		const configProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
 
 		this._updateStore.clear();
 		this.clear();
 
-		// Support instamt hover between buttons
+		// Support instant hover between buttons
 		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
 		for (let i = 0; i < actions.length; i++) {
@@ -85,50 +90,69 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-			let tooltip: string = '';
-			const kb = actionOrSubmenu instanceof SubmenuAction ? '' : this._keybindingService.lookupKeybinding(actionOrSubmenu.id);
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", actionOrSubmenu.tooltip || actionOrSubmenu.label, kb.getLabel());
-			} else {
-				tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
-			}
-			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
+			let tooltip: string;
+
+			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 1) {
 				const [first, ...rest] = actionOrSubmenu.actions;
 				action = <MenuItemAction>first;
+
+				tooltip = action.tooltip || action.label;
+				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
+
 				btn = this.addButtonWithDropdown({
-					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
 					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			} else {
-				action = actionOrSubmenu;
+				action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length === 1
+					? actionOrSubmenu.actions[0]
+					: actionOrSubmenu;
+
+				tooltip = action.tooltip || action.label;
+				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
+
 				btn = this.addButton({
-					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			}
 
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			const showLabel = conifgProvider(action, i)?.showLabel ?? true;
+			const showLabel = configProvider(action, i)?.showLabel ?? true;
+			const customClass = configProvider(action, i)?.customClass;
+			const customLabel = configProvider(action, i)?.customLabel;
+
+			if (customClass) {
+				btn.element.classList.add(customClass);
+			}
+
 			if (showLabel) {
-				btn.label = action.label;
+				btn.label = customLabel ?? action.label;
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
-			if (conifgProvider(action, i)?.showIcon) {
+			if (configProvider(action, i)?.showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
 					if (!showLabel) {
 						btn.icon = action.item.icon;
 					} else {
 						// this is REALLY hacky but combining a codicon and normal text is ugly because
 						// the former define a font which doesn't work for text
-						btn.label = `$(${action.item.icon.id}) ${action.label}`;
+						const labelValue = customLabel ?? action.label;
+						btn.label = isMarkdownString(labelValue)
+							? new MarkdownString(`$(${action.item.icon.id}) ${labelValue.value}`, {
+								isTrusted: labelValue.isTrusted, supportThemeIcons: true, supportHtml: labelValue.supportHtml
+							})
+							: `$(${action.item.icon.id}) ${labelValue}`;
 					}
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
@@ -137,7 +161,16 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
-				this._actionRunner.run(action);
+				if (this._options?.disableWhileRunning) {
+					btn.enabled = false;
+					try {
+						await this._actionRunner.run(action);
+					} finally {
+						btn.enabled = action.enabled;
+					}
+				} else {
+					this._actionRunner.run(action);
+				}
 			}));
 		}
 
@@ -145,7 +178,8 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			const btn = this.addButton({
 				secondary: true,
-				ariaLabel: localize('moreActions', "More Actions")
+				ariaLabel: localize('moreActions', "More Actions"),
+				small: this._options?.small,
 			});
 
 			btn.icon = Codicon.dropDownButton;

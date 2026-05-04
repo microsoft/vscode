@@ -14,7 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
+import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
@@ -194,9 +194,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
 		const disposables = new DisposableStore();
-		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel));
+		const provider = new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel);
+		this._authenticationService.registerAuthenticationProvider(authProviderId, provider);
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
+			provider.dispose();
 		}));
 		disposables.add(this._authenticationAccessService.onDidChangeExtensionSessionAccess(async (e) => {
 			const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(authProviderId, accountLabel);
@@ -281,5 +283,9 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 			accessToken: 'fake-access-token',
 			scopes,
 		};
+	}
+
+	dispose(): void {
+		this._onDidChangeSessions.dispose();
 	}
 }

@@ -38,7 +38,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
-import { ISearchResult, ISearchTreeFolderMatch, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, ISearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
@@ -419,6 +419,47 @@ suite('SearchResult', () => {
 
 		assert.ok(target.calledOnce);
 		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+	});
+
+	test('batchRemove should remove FolderMatchNoRoot (Other files) correctly', function () {
+		const target = sinon.spy();
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: createFileUriFromPathFromRoot('/workspace')
+			}]
+		};
+
+		// Add a file inside the workspace folder
+		addToSearchResult(testObject, [
+			aRawMatch('/workspace/file.txt',
+				new TextSearchMatch('preview 1', lineOneRange)),
+		]);
+
+		// Add a file outside of the workspace folder (goes to "Other files")
+		addToSearchResult(testObject, [
+			aRawMatch('/other/outside.txt',
+				new TextSearchMatch('preview 2', lineOneRange)),
+		]);
+
+		// Should have 2 folder matches: workspace root and "Other files"
+		const folderMatches = testObject.folderMatches();
+		assert.strictEqual(folderMatches.length, 2);
+
+		// Find the "Other files" folder match (FolderMatchNoRoot)
+		const otherFilesMatch = folderMatches.find(fm => isSearchTreeFolderMatchNoRoot(fm));
+		assert.ok(otherFilesMatch, 'Should have an Other files folder match');
+		assert.strictEqual(otherFilesMatch.allDownstreamFileMatches().length, 1);
+
+		store.add(testObject.onChange(target));
+		testObject.batchRemove([otherFilesMatch]);
+
+		assert.ok(target.calledOnce);
+		// After removal, the Other files folder should be cleared
+		assert.strictEqual(otherFilesMatch.allDownstreamFileMatches().length, 0);
 	});
 
 	test('batchReplace should trigger the onChange event correctly', async function () {

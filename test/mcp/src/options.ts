@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as minimist from 'minimist';
+import minimist from 'minimist';
 
 const [, , ...args] = process.argv;
 export const opts = minimist(args, {
@@ -12,7 +12,8 @@ export const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'electronArgs'
+		'electronArgs',
+		'extensionDevelopmentPath'
 	],
 	boolean: [
 		'verbose',
@@ -36,4 +37,5 @@ export const opts = minimist(args, {
 	electronArgs?: string;
 	video?: boolean;
 	autostart?: boolean;
+	extensionDevelopmentPath?: string;
 };

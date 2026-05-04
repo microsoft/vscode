@@ -170,8 +170,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+		container.previousElementSibling?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		return createRow(container, 'header');
 	}

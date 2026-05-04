@@ -22,7 +22,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { LRUCache } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { canASAR } from '../../../../amdX.js';
-import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';
 
@@ -62,7 +63,8 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IWebWorkerService webWorkerService: IWebWorkerService,
 	) {
 		super();
 
@@ -71,6 +73,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			modelService,
 			languageService,
 			telemetryService,
+			webWorkerService,
 			// TODO See if it's possible to bundle vscode-languagedetection
 			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
@@ -187,6 +190,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		private readonly _modelService: IModelService,
 		private readonly _languageService: ILanguageService,
 		private readonly _telemetryService: ITelemetryService,
+		private readonly _webWorkerService: IWebWorkerService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
 		private readonly _weightsUri: string,
@@ -200,9 +204,11 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
 	} {
 		if (!this.worker) {
-			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
-				FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
-				'LanguageDetectionWorker'
+			const workerClient = this._register(this._webWorkerService.createWorkerClient<ILanguageDetectionWorker>(
+				new WebWorkerDescriptor({
+					esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
+					label: 'LanguageDetectionWorker'
+				})
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {
 				$getIndexJsUri: async () => this.getIndexJsUri(),

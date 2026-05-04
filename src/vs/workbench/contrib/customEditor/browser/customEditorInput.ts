@@ -33,13 +33,13 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { WebviewIcons } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { WebviewIconPath } from '../../webviewPanel/browser/webviewEditorInput.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly webviewTitle: string | undefined;
-	readonly iconPath: WebviewIcons | undefined;
+	readonly iconPath: WebviewIconPath | undefined;
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -52,8 +52,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
-			const untitledString = accessor.get(IUntitledTextEditorService).getValue(init.resource);
+			const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
+			const untitledTextModel = untitledTextEditorService.get(init.resource);
+			const untitledString = untitledTextModel?.textEditorModel?.getValue();
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+
+			// If we're taking over an untitled text editor, revert it so it's no longer
+			// tracked as a dirty working copy (fixes #125293).
+			untitledTextModel?.revert();
+
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: init.viewType,
 				title: init.webviewTitle,

@@ -28,20 +28,20 @@ export interface IDisposable {
 }
 
 export abstract class Disposable {
-	private _isDisposed = false;
+	#isDisposed = false;
 
 	protected _disposables: vscode.Disposable[] = [];
 
 	public dispose(): any {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			return;
 		}
-		this._isDisposed = true;
+		this.#isDisposed = true;
 		disposeAll(this._disposables);
 	}
 
 	protected _register<T extends IDisposable>(value: T): T {
-		if (this._isDisposed) {
+		if (this.#isDisposed) {
 			value.dispose();
 		} else {
 			this._disposables.push(value);
@@ -50,6 +50,6 @@ export abstract class Disposable {
 	}
 
 	protected get isDisposed() {
-		return this._isDisposed;
+		return this.#isDisposed;
 	}
 }

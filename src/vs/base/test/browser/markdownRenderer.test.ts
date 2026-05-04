@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -34,6 +32,25 @@ suite('MarkdownRenderer', () => {
 			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
+		});
+
+		test('Strips links with disallowed schemes (default config)', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
+			// No <a> element should remain because the scheme isn't allowed.
+			assert.strictEqual(result.querySelector('a'), null);
+		});
+
+		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
+				},
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/file/-/path/to/foo.ts');
 		});
 	});
 
@@ -307,6 +324,36 @@ suite('MarkdownRenderer', () => {
 
 		const result = store.add(renderMarkdown(md)).element;
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
+	});
+
+	test('Should use decoded file path as title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, fileUri.fsPath);
+	});
+
+	test('Should include fragment in title for file:// links with line numbers', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()}#L42)`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, `${fileUri.fsPath}#L42`);
+	});
+
+	test('Should not override explicit title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()} "Go to definition")`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, 'Go to definition');
 	});
 
 	suite('PlaintextMarkdownRender', () => {

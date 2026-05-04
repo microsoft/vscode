@@ -15,7 +15,7 @@ export interface IResolveAuthorityErrorResult {
 	error: {
 		message: string | undefined;
 		code: RemoteAuthorityResolverErrorCode;
-		detail: any;
+		detail: unknown;
 	};
 }
 

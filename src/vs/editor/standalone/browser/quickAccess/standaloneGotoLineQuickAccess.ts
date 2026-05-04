@@ -52,7 +52,7 @@ export class GotoLineAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(StandaloneGotoLineQuickAccessProvider.PREFIX);
+		accessor.get(IQuickInputService).quickAccess.show(StandaloneGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX);
 	}
 }
 
@@ -60,6 +60,33 @@ registerEditorAction(GotoLineAction);
 
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: StandaloneGotoLineQuickAccessProvider,
-	prefix: StandaloneGotoLineQuickAccessProvider.PREFIX,
+	prefix: StandaloneGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX,
 	helpEntries: [{ description: GoToLineNLS.gotoLineActionLabel, commandId: GotoLineAction.ID }]
 });
+
+class GotoOffsetAction extends EditorAction {
+
+	static readonly ID = 'editor.action.gotoOffset';
+
+	constructor() {
+		super({
+			id: GotoOffsetAction.ID,
+			label: GoToLineNLS.gotoOffsetActionLabel,
+			alias: 'Go to Offset...',
+			precondition: undefined,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IQuickInputService).quickAccess.show(StandaloneGotoLineQuickAccessProvider.GO_TO_OFFSET_PREFIX);
+	}
+}
+
+registerEditorAction(GotoOffsetAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneGotoLineQuickAccessProvider,
+	prefix: StandaloneGotoLineQuickAccessProvider.GO_TO_OFFSET_PREFIX,
+	helpEntries: [{ description: GoToLineNLS.gotoOffsetActionLabel, commandId: GotoOffsetAction.ID }]
+});
+

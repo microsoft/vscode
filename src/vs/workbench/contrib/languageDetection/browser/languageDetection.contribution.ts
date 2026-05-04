@@ -88,12 +88,10 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 			const existing = editorModel.getLanguageId();
 			if (lang && lang !== existing && skip[existing] !== lang) {
 				const detectedName = this._languageService.getLanguageName(lang) || lang;
-				let tooltip = localize('status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName);
-				const keybinding = this._keybindingService.lookupKeybinding(detectLanguageCommandId);
-				const label = keybinding?.getLabel();
-				if (label) {
-					tooltip += ` (${label})`;
-				}
+				const tooltip = this._keybindingService.appendKeybinding(
+					localize('status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName),
+					detectLanguageCommandId
+				);
 
 				const props: IStatusbarEntry = {
 					name: localize('langDetection.name', "Language Detection"),

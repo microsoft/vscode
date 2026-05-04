@@ -13,7 +13,8 @@ import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
-export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+export function isConfigurationOverrides(obj: unknown): obj is IConfigurationOverrides {
+	const thing = obj as IConfigurationOverrides;
 	return thing
 		&& typeof thing === 'object'
 		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
@@ -25,11 +26,12 @@ export interface IConfigurationOverrides {
 	resource?: URI | null;
 }
 
-export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
+export function isConfigurationUpdateOverrides(obj: unknown): obj is IConfigurationUpdateOverrides {
+	const thing = obj as IConfigurationUpdateOverrides | IConfigurationOverrides;
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
-		&& !thing.overrideIdentifier
+		&& (!(thing as IConfigurationUpdateOverrides).overrideIdentifiers || Array.isArray((thing as IConfigurationUpdateOverrides).overrideIdentifiers))
+		&& !(thing as IConfigurationOverrides).overrideIdentifier
 		&& (!thing.resource || thing.resource instanceof URI);
 }
 
@@ -185,10 +187,10 @@ export interface IConfigurationService {
 	 * @param key setting to be updated
 	 * @param value The new value
 	 */
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	updateValue(key: string, value: unknown): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -205,15 +207,15 @@ export interface IConfigurationService {
 }
 
 export interface IConfigurationModel {
-	contents: any;
+	contents: IStringDictionary<unknown>;
 	keys: string[];
 	overrides: IOverrides[];
-	raw?: IStringDictionary<any>;
+	raw?: ReadonlyArray<IStringDictionary<unknown>> | IStringDictionary<unknown>;
 }
 
 export interface IOverrides {
 	keys: string[];
-	contents: any;
+	contents: IStringDictionary<unknown>;
 	identifiers: string[];
 }
 
@@ -234,7 +236,7 @@ export interface IConfigurationCompareResult {
 	overrides: [string, string[]][];
 }
 
-export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
+export function toValuesTree(properties: IStringDictionary<unknown>, conflictReporter: (message: string) => void): IStringDictionary<unknown> {
 	const root = Object.create(null);
 
 	for (const key in properties) {
@@ -244,11 +246,11 @@ export function toValuesTree(properties: { [qualifiedKey: string]: any }, confli
 	return root;
 }
 
-export function addToValueTree(settingsTreeRoot: any, key: string, value: any, conflictReporter: (message: string) => void): void {
+export function addToValueTree(settingsTreeRoot: IStringDictionary<unknown>, key: string, value: unknown, conflictReporter: (message: string) => void): void {
 	const segments = key.split('.');
 	const last = segments.pop()!;
 
-	let curr = settingsTreeRoot;
+	let curr: IStringDictionary<unknown> = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
 		const s = segments[i];
 		let obj = curr[s];
@@ -266,12 +268,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);
 				return;
 		}
-		curr = obj;
+		curr = obj as IStringDictionary<unknown>;
 	}
 
 	if (typeof curr === 'object' && curr !== null) {
 		try {
-			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+			(curr as IStringDictionary<unknown>)[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
 		} catch (e) {
 			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 		}
@@ -280,29 +282,30 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 	}
 }
 
-export function removeFromValueTree(valueTree: any, key: string): void {
+export function removeFromValueTree(valueTree: IStringDictionary<unknown>, key: string): void {
 	const segments = key.split('.');
 	doRemoveFromValueTree(valueTree, segments);
 }
 
-function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
+function doRemoveFromValueTree(valueTree: IStringDictionary<unknown> | unknown, segments: string[]): void {
 	if (!valueTree) {
 		return;
 	}
 
+	const valueTreeRecord = valueTree as IStringDictionary<unknown>;
 	const first = segments.shift()!;
 	if (segments.length === 0) {
 		// Reached last segment
-		delete valueTree[first];
+		delete valueTreeRecord[first];
 		return;
 	}
 
-	if (Object.keys(valueTree).indexOf(first) !== -1) {
-		const value = valueTree[first];
+	if (Object.keys(valueTreeRecord).indexOf(first) !== -1) {
+		const value = valueTreeRecord[first];
 		if (typeof value === 'object' && !Array.isArray(value)) {
 			doRemoveFromValueTree(value, segments);
-			if (Object.keys(value).length === 0) {
-				delete valueTree[first];
+			if (Object.keys(value as object).length === 0) {
+				delete valueTreeRecord[first];
 			}
 		}
 	}
@@ -311,32 +314,32 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
-export function getConfigurationValue<T>(config: any, settingPath: string): T | undefined;
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue: T): T;
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T | undefined {
-	function accessSetting(config: any, path: string[]): any {
-		let current = config;
+export function getConfigurationValue<T>(config: IStringDictionary<unknown>, settingPath: string): T | undefined;
+export function getConfigurationValue<T>(config: IStringDictionary<unknown>, settingPath: string, defaultValue: T): T;
+export function getConfigurationValue<T>(config: IStringDictionary<unknown>, settingPath: string, defaultValue?: T): T | undefined {
+	function accessSetting(config: IStringDictionary<unknown>, path: string[]): unknown {
+		let current: unknown = config;
 		for (const component of path) {
 			if (typeof current !== 'object' || current === null) {
 				return undefined;
 			}
-			current = current[component];
+			current = (current as IStringDictionary<unknown>)[component];
 		}
-		return <T>current;
+		return current as T;
 	}
 
 	const path = settingPath.split('.');
 	const result = accessSetting(config, path);
 
-	return typeof result === 'undefined' ? defaultValue : result;
+	return typeof result === 'undefined' ? defaultValue : result as T;
 }
 
-export function merge(base: any, add: any, overwrite: boolean): void {
+export function merge(base: IStringDictionary<unknown>, add: IStringDictionary<unknown>, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
 		if (key !== '__proto__') {
 			if (key in base) {
 				if (types.isObject(base[key]) && types.isObject(add[key])) {
-					merge(base[key], add[key], overwrite);
+					merge(base[key] as IStringDictionary<unknown>, add[key] as IStringDictionary<unknown>, overwrite);
 				} else if (overwrite) {
 					base[key] = add[key];
 				}

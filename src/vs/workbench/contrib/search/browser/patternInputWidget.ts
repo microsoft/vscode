@@ -228,6 +228,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 				this.inputBox.focus();
 			}
 		}));
+
 		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}

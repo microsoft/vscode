@@ -7,7 +7,7 @@
     "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc",
     "watch-automation": "cd ../automation && npm run watch",
     "watch-smoke": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
-    "watch": "npm-run-all -lp watch-automation watch-smoke",
+    "watch": "npm-run-all2 -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
@@ -18,6 +18,6 @@
     "@types/ncp": "2.0.1",
     "@types/node": "22.x",
     "@types/node-fetch": "^2.5.10",
-    "npm-run-all": "^4.1.5"
+    "npm-run-all2": "^8.0.4"
   }
 }

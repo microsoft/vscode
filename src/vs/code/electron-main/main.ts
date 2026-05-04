@@ -144,6 +144,14 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
+				// Check if Inno Setup is running
+				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
@@ -192,7 +200,7 @@ class CodeMain {
 		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService, productService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Use FileUserDataProvider for user data to
@@ -201,10 +209,13 @@ class CodeMain {
 
 		// Policy
 		let policyService: IPolicyService | undefined;
-		if (isWindows && productService.win32RegValueName) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
-		} else if (isMacintosh && productService.darwinBundleIdentifier) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		const policyProductName = isWindows
+			? (productService.parentPolicyConfig?.win32RegValueName ?? productService.win32RegValueName)
+			: (productService.parentPolicyConfig?.darwinBundleIdentifier ?? productService.darwinBundleIdentifier);
+		if (isWindows && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+		} else if (isMacintosh && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isLinux) {
 			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
@@ -485,6 +496,21 @@ class CodeMain {
 		}
 
 		lifecycleMainService.kill(exitCode);
+	}
+
+	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
+			return false;
+		}
+
+		try {
+			const updatingMutexName = `${productService.win32MutexName}-updating`;
+			const mutex = await import('@vscode/windows-mutex');
+			return mutex.isActive(updatingMutexName);
+		} catch (error) {
+			console.error('Failed to check Inno Setup mutex:', error);
+			return false;
+		}
 	}
 
 	//#region Command line arguments utilities
