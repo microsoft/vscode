@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import type { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import type { IFetcherService } from '../../../../platform/networking/common/fetcherService';

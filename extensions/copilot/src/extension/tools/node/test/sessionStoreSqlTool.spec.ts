@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ISessionStore } from '../../../../platform/chronicle/common/sessionStore';
 import type { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import type { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
