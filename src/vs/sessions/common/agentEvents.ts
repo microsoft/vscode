@@ -70,6 +70,8 @@ export interface ErrorEvent {
 	readonly code: string;
 	readonly message: string;
 	readonly retryable: boolean;
+	/** Provider that emitted this error, if known. Populated by adapters and forwarded to the IDE for provider-aware retry UI. */
+	readonly provider?: string;
 }
 
 export type AgentEvent =

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MessageRenderer } from '../../browser/messageRenderer.js';
+import { AlternativeProvider, MessageRenderer, RetryContext } from '../../browser/messageRenderer.js';
 import { AgentEvent } from '../../../../common/agentEvents.js';
 
 async function* makeStream(events: AgentEvent[]): AsyncIterable<AgentEvent> {
@@ -19,11 +19,13 @@ suite('MessageRenderer', () => {
 
 	const store = new DisposableStore();
 	let container: HTMLElement;
+	let lastRetryContext: RetryContext | undefined;
 	let retryCount: number;
 	let cancelCount: number;
 
 	setup(() => {
 		container = document.createElement('div');
+		lastRetryContext = undefined;
 		retryCount = 0;
 		cancelCount = 0;
 	});
@@ -34,11 +36,12 @@ suite('MessageRenderer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeRenderer(): MessageRenderer {
+	function makeRenderer(alternatives: ReadonlyArray<AlternativeProvider> = []): MessageRenderer {
 		return store.add(new MessageRenderer(
 			container,
-			() => { retryCount++; },
+			(ctx) => { retryCount++; lastRetryContext = ctx; },
 			() => { cancelCount++; },
+			alternatives,
 		));
 	}
 
@@ -178,7 +181,23 @@ suite('MessageRenderer', () => {
 		assert.ok(retryBtn!.classList.contains('hidden'), 'retry button hidden for non-retryable');
 	});
 
-	test('retry callback fires when retry button clicked', async () => {
+	test('retry callback fires with failedProvider when retry button clicked', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'claude-opus' },
+			{ type: 'error', code: 'server_error', message: 'Server error', retryable: true },
+		]);
+
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+		assert.strictEqual(retryCount, 1);
+		assert.deepStrictEqual(lastRetryContext, {
+			failedProvider: 'copilot',
+			preferredProvider: undefined,
+		});
+	});
+
+	test('retry callback fires with no provider when error has no preceding message_start', async () => {
 		const renderer = makeRenderer();
 		await renderStream(renderer, [
 			{ type: 'error', code: 'server_error', message: 'Server error', retryable: true },
@@ -187,6 +206,10 @@ suite('MessageRenderer', () => {
 		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
 		retryBtn!.click();
 		assert.strictEqual(retryCount, 1);
+		assert.deepStrictEqual(lastRetryContext, {
+			failedProvider: undefined,
+			preferredProvider: undefined,
+		});
 	});
 
 	test('cancel aborts stream and fires callback', async () => {
@@ -213,6 +236,24 @@ suite('MessageRenderer', () => {
 		assert.strictEqual(textBeforeCancel, 'Before', 'text before cancel present');
 		assert.ok(container.classList.contains('done'), 'done class after cancel');
 		assert.strictEqual(cancelCount, 1, 'cancel callback fired');
+	});
+
+	test('second error resets stale state from first error', async () => {
+		const renderer = makeRenderer();
+		// First error: non-retryable with a provider
+		await renderStream(renderer, [
+			{ type: 'error', code: 'auth_failed', message: 'Auth error', retryable: false, provider: 'copilot' },
+		]);
+		// Second error: retryable with no provider — badge and alt buttons from first must be gone
+		await renderStream(renderer, [
+			{ type: 'error', code: 'rate_limit', message: 'Rate limited', retryable: true },
+		]);
+
+		const retryBtn = container.querySelector('.message-renderer-retry-button');
+		assert.ok(!retryBtn!.classList.contains('hidden'), 'retry button visible after second retryable error');
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.ok(badge!.classList.contains('hidden'), 'stale provider badge hidden after second error');
 	});
 
 	test('cancel button hidden after stream ends', async () => {
@@ -260,5 +301,131 @@ suite('MessageRenderer', () => {
 				{ name: 'read_file', args: '{"path":"/f"}', done: true },
 			],
 		);
+	});
+
+	// Provider-aware error tests (section 9.10)
+
+	test('shows provider badge from message_start before error', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'claude-opus' },
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true },
+		]);
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.ok(badge, 'provider badge present');
+		assert.ok(!badge!.classList.contains('hidden'), 'provider badge visible');
+		assert.strictEqual(badge!.textContent, 'copilot');
+	});
+
+	test('shows provider badge from error event provider field', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true, provider: 'anthropic-oauth' },
+		]);
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.ok(!badge!.classList.contains('hidden'), 'provider badge visible');
+		assert.strictEqual(badge!.textContent, 'anthropic-oauth');
+
+		// Generic retry must use event.provider, not the (absent) message_start provider
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'anthropic-oauth', preferredProvider: undefined });
+	});
+
+	test('provider badge shows display name when alternative matches', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'copilot', displayName: 'GitHub Copilot' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'gpt-4o' },
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true },
+		]);
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.strictEqual(badge!.textContent, 'GitHub Copilot', 'badge shows display name not raw ID');
+	});
+
+	test('no provider badge when error arrives without provider info', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'error', code: 'network', message: 'Connection refused', retryable: true },
+		]);
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.ok(badge!.classList.contains('hidden'), 'provider badge hidden when no provider known');
+	});
+
+	test('shows alternative retry buttons for retryable error', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'anthropic-oauth', displayName: 'Claude (subscription)' },
+			{ id: 'copilot', displayName: 'GitHub Copilot' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'claude-opus' },
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true },
+		]);
+
+		// copilot is the active provider — should be filtered out, leaving only anthropic-oauth
+		const altContainer = container.querySelector('.message-renderer-alt-retry-container');
+		assert.ok(altContainer, 'alt retry container present');
+		assert.ok(!altContainer!.classList.contains('hidden'), 'alt retry container visible');
+
+		const altBtns = altContainer!.querySelectorAll('.message-renderer-retry-alt');
+		assert.strictEqual(altBtns.length, 1, 'one alt retry button (copilot filtered out)');
+		assert.ok(altBtns[0].textContent?.includes('Claude (subscription)'), 'button text includes provider name');
+	});
+
+	test('no alternative buttons for non-retryable error', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'anthropic-oauth', displayName: 'Claude (subscription)' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'error', code: 'auth_failed', message: 'Auth failed', retryable: false },
+		]);
+
+		const altContainer = container.querySelector('.message-renderer-alt-retry-container');
+		assert.ok(altContainer!.classList.contains('hidden'), 'alt retry container hidden for non-retryable');
+	});
+
+	test('alt retry button fires callback with preferredProvider', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'anthropic-oauth', displayName: 'Claude (subscription)' },
+			{ id: 'openai-key', displayName: 'OpenAI (API key)' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'gpt-4o' },
+			{ type: 'error', code: 'server_error', message: 'Server error', retryable: true },
+		]);
+
+		const altBtns = container.querySelectorAll<HTMLButtonElement>('.message-renderer-retry-alt');
+		assert.strictEqual(altBtns.length, 2, 'two alt buttons (copilot filtered)');
+
+		altBtns[0].click();
+		assert.strictEqual(retryCount, 1, 'retry called once');
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'copilot', preferredProvider: 'anthropic-oauth' });
+
+		altBtns[1].click();
+		assert.strictEqual(retryCount, 2, 'retry called again');
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'copilot', preferredProvider: 'openai-key' });
+	});
+
+	test('no alt buttons when all alternatives match active provider', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'copilot', displayName: 'GitHub Copilot' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'claude-opus' },
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true },
+		]);
+
+		const altContainer = container.querySelector('.message-renderer-alt-retry-container');
+		assert.ok(altContainer!.classList.contains('hidden'), 'alt container hidden when only active provider in list');
 	});
 });
