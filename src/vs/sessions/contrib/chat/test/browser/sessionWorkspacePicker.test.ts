@@ -191,7 +191,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Restore is honored synchronously: the picker shows the checked entry
 		// while we wait to see if the connection comes up. The grace-period
 		// fallback (covered in a separate test) only fires later.
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
@@ -212,7 +212,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// e.g. SSH host is unreachable and the status was set before the picker
 		// could subscribe. The picker should fall back to no selection after
 		// the grace period so the view pane drops the stale session.
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -236,7 +236,7 @@ suite('WorkspacePicker - Connection Status', () => {
 	}));
 
 	test('restored remote that connects within grace period keeps selection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -249,9 +249,9 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		// Connection succeeds quickly.
 		await timeout(100);
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connecting, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
 		await timeout(500);
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 
 		// Advance past the grace period — should not fall back since we connected.
 		await timeout(10_000);
@@ -262,7 +262,7 @@ suite('WorkspacePicker - Connection Status', () => {
 	test('user pick during connect cancels the fallback', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// If the user picks a different workspace while the restore-grace-period
 		// timer is running, the timer must not later clear the user's selection.
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
@@ -291,7 +291,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// SSH remote: provider registers in Disconnected state and immediately
 		// starts connecting. We restore the checked entry immediately rather than
 		// falling back to a different workspace and swapping later.
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
@@ -307,11 +307,11 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Connection attempt starts (no fallback while connecting).
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connecting, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// After connection completes, selection is unchanged.
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
@@ -319,7 +319,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		// Real SSH remote lifecycle: starts Disconnected, transitions Connecting,
 		// then fails back to Disconnected. The picker must clear the selection
 		// and fire onDidSelectWorkspace(undefined) so the view pane calls unsetNewSession().
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -336,18 +336,18 @@ suite('WorkspacePicker - Connection Status', () => {
 		disposables.add(picker.onDidSelectWorkspace(e => events.push(e)));
 
 		// SSH tunnel begins.
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connecting, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection preserved while connecting');
 
 		// SSH tunnel fails.
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
 
 		assertSelectedProvider(picker, undefined, 'Selection cleared after connection failure');
 		assert.deepStrictEqual(events, [undefined], 'onDidSelectWorkspace fired with undefined');
 	});
 
 	test('restore picks connected remote provider', () => {
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -362,7 +362,7 @@ suite('WorkspacePicker - Connection Status', () => {
 	});
 
 	test('disconnect preserves selection (renders grayed; no auto-clear)', () => {
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -375,12 +375,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect — selection is preserved (the user picked it; we keep honoring it).
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection should be preserved on disconnect');
 	});
 
 	test('reconnect keeps the selection (no extra event fires)', () => {
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
@@ -393,8 +393,8 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect / reconnect cycle — selection preserved throughout.
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
-		remoteStatus.set(RemoteAgentHostConnectionStatus.Connected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
 			picker.selectedProject?.workspace.repositories[0]?.uri.path,
@@ -404,7 +404,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('checked is globally unique after persist', () => {
 		const localProvider = createMockProvider('local-1');
-		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());

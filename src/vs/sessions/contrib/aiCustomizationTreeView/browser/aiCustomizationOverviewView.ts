@@ -57,6 +57,7 @@ export class AICustomizationOverviewView extends ViewPane {
 	private sectionsContainer!: HTMLElement;
 	private readonly sections: ISectionSummary[] = [];
 	private readonly countElements = new Map<AICustomizationManagementSection, HTMLElement>();
+	private readonly sectionElements = new Map<AICustomizationManagementSection, HTMLElement>();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -117,12 +118,14 @@ export class AICustomizationOverviewView extends ViewPane {
 	private renderSections(): void {
 		DOM.clearNode(this.sectionsContainer);
 		this.countElements.clear();
+		this.sectionElements.clear();
 
 		for (const section of this.sections) {
 			const sectionElement = DOM.append(this.sectionsContainer, $('.overview-section'));
 			sectionElement.tabIndex = 0;
 			sectionElement.setAttribute('role', 'button');
-			sectionElement.setAttribute('aria-label', `${section.label}: ${section.count} items`);
+			sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
+			this.sectionElements.set(section.id, sectionElement);
 
 			const iconElement = DOM.append(sectionElement, $('.section-icon'));
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(section.icon));
@@ -215,11 +218,19 @@ export class AICustomizationOverviewView extends ViewPane {
 		this.updateCountElements();
 	}
 
+	private getSectionAriaLabel(section: ISectionSummary): string {
+		return localize('overviewSectionAriaLabelWithCount', "{0}, {1} items", section.label, section.count);
+	}
+
 	private updateCountElements(): void {
 		for (const section of this.sections) {
 			const countElement = this.countElements.get(section.id);
 			if (countElement) {
 				countElement.textContent = `${section.count}`;
+			}
+			const sectionElement = this.sectionElements.get(section.id);
+			if (sectionElement) {
+				sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
 			}
 		}
 	}

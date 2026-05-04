@@ -12,6 +12,7 @@ import { agentHostAuthority } from '../../../../platform/agentHost/common/agentH
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../platform/agentHost/common/agentHostPermissionService.js';
 import { type ProtectedResourceMetadata } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -161,11 +162,17 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Update connection status on all providers (including those
 		// that are reconnecting and don't have an active connection).
 		for (const [address, provider] of this._providerInstances) {
+			// Preserve incompatible state — set by the SSH catch and the
+			// generic WebSocket connect failure path. Otherwise this loop
+			// would overwrite it back to `disconnected` on the next event.
+			if (RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				continue;
+			}
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (connectionInfo) {
 				provider.setConnectionStatus(connectionInfo.status);
 			} else {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
 	}
@@ -223,7 +230,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const sshConfigHost = entry.connection.sshConfigHost;
 			// Skip if already connected or reconnecting
 			const hasConnection = this._remoteAgentHostService.connections.some(
-				c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 			);
 			if (hasConnection || this._pendingSSHReconnects.has(sshConfigHost)) {
 				continue;
@@ -239,10 +246,19 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}).catch(err => {
 				this._pendingSSHReconnects.delete(sshConfigHost);
 				this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
+				const provider = this._providerInstances.get(address);
+				// Surface protocol-version mismatches on the provider so the
+				// workspace picker can show the host's message and the user
+				// can read it. Other errors stay as the existing disconnected
+				// state.
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					provider?.setConnectionStatus(incompatible);
+				}
 				// Host is unreachable — unpublish any cached sessions we
 				// were showing so the UI doesn't list stale entries for a
 				// host we cannot currently reach.
-				this._providerInstances.get(address)?.unpublishCachedSessions();
+				provider?.unpublishCachedSessions();
 			});
 		}
 	}
@@ -251,7 +267,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const currentConnections = this._remoteAgentHostService.connections;
 		const connectedAddresses = new Set(
 			currentConnections
-				.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected)
+				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status))
 				.map(c => c.address)
 		);
 		const allAddresses = new Set(currentConnections.map(c => c.address));
@@ -272,7 +288,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Add or update connections
 		for (const connectionInfo of currentConnections) {
 			// Only set up contribution state for connected entries
-			if (connectionInfo.status !== RemoteAgentHostConnectionStatus.Connected) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
 				continue;
 			}
 			const existing = this._connections.get(connectionInfo.address);

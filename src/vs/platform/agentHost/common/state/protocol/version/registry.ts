@@ -11,78 +11,110 @@ import { NotificationType, type ProtocolNotification } from '../notifications.js
 
 // ─── Protocol Version Constants ──────────────────────────────────────────────
 
-/** The current protocol version that new code speaks. */
-export const PROTOCOL_VERSION = 1;
+/**
+ * The current protocol version that new code speaks.
+ *
+ * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
+ */
+export const PROTOCOL_VERSION = '0.1.0';
 
-/** The oldest protocol version the implementation maintains compatibility with. */
-export const MIN_PROTOCOL_VERSION = 1;
+// ─── SemVer Comparison ───────────────────────────────────────────────────────
+
+/**
+ * Parses a `MAJOR.MINOR.PATCH` SemVer string into its three numeric
+ * components. Pre-release and build metadata are not supported and MUST NOT
+ * be present in protocol version strings.
+ *
+ * Throws if `version` is not a well-formed `MAJOR.MINOR.PATCH` string.
+ */
+function parseSemver(version: string): readonly [number, number, number] {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+	if (!match) {
+		throw new Error(`Invalid protocol version: ${version}`);
+	}
+	return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+}
+
+/**
+ * Compares two `MAJOR.MINOR.PATCH` SemVer strings.
+ *
+ * Returns a negative number if `a < b`, zero if `a === b`, and a positive
+ * number if `a > b`.
+ */
+export function compareProtocolVersions(a: string, b: string): number {
+	const [aMajor, aMinor, aPatch] = parseSemver(a);
+	const [bMajor, bMinor, bPatch] = parseSemver(b);
+	return (aMajor - bMajor) || (aMinor - bMinor) || (aPatch - bPatch);
+}
 
 // ─── Exhaustive Action → Version Map ─────────────────────────────────────────
 
 /**
  * Maps every action type to the protocol version that introduced it.
  * Adding a new action to `StateAction` without adding it here is a compile error.
+ *
+ * Versions are SemVer `MAJOR.MINOR.PATCH` strings (see `PROTOCOL_VERSION`).
  */
-export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: number } = {
-	[ActionType.RootAgentsChanged]: 1,
-	[ActionType.RootActiveSessionsChanged]: 1,
-	[ActionType.SessionReady]: 1,
-	[ActionType.SessionCreationFailed]: 1,
-	[ActionType.SessionTurnStarted]: 1,
-	[ActionType.SessionDelta]: 1,
-	[ActionType.SessionResponsePart]: 1,
-	[ActionType.SessionToolCallStart]: 1,
-	[ActionType.SessionToolCallDelta]: 1,
-	[ActionType.SessionToolCallReady]: 1,
-	[ActionType.SessionToolCallConfirmed]: 1,
-	[ActionType.SessionToolCallComplete]: 1,
-	[ActionType.SessionToolCallResultConfirmed]: 1,
-	[ActionType.SessionToolCallContentChanged]: 1,
-	[ActionType.SessionTurnComplete]: 1,
-	[ActionType.SessionTurnCancelled]: 1,
-	[ActionType.SessionError]: 1,
-	[ActionType.SessionTitleChanged]: 1,
-	[ActionType.SessionUsage]: 1,
-	[ActionType.SessionReasoning]: 1,
-	[ActionType.SessionModelChanged]: 1,
-	[ActionType.SessionServerToolsChanged]: 1,
-	[ActionType.SessionActiveClientChanged]: 1,
-	[ActionType.SessionActiveClientToolsChanged]: 1,
-	[ActionType.SessionPendingMessageSet]: 1,
-	[ActionType.SessionPendingMessageRemoved]: 1,
-	[ActionType.SessionQueuedMessagesReordered]: 1,
-	[ActionType.SessionInputRequested]: 1,
-	[ActionType.SessionInputAnswerChanged]: 1,
-	[ActionType.SessionInputCompleted]: 1,
-	[ActionType.SessionCustomizationsChanged]: 1,
-	[ActionType.SessionCustomizationToggled]: 1,
-	[ActionType.SessionTruncated]: 1,
-	[ActionType.SessionIsReadChanged]: 1,
-	[ActionType.SessionIsArchivedChanged]: 1,
-	[ActionType.SessionActivityChanged]: 1,
-	[ActionType.SessionDiffsChanged]: 1,
-	[ActionType.SessionConfigChanged]: 1,
-	[ActionType.SessionMetaChanged]: 1,
-	[ActionType.RootTerminalsChanged]: 1,
-	[ActionType.RootConfigChanged]: 1,
-	[ActionType.TerminalData]: 1,
-	[ActionType.TerminalInput]: 1,
-	[ActionType.TerminalResized]: 1,
-	[ActionType.TerminalClaimed]: 1,
-	[ActionType.TerminalTitleChanged]: 1,
-	[ActionType.TerminalCwdChanged]: 1,
-	[ActionType.TerminalExited]: 1,
-	[ActionType.TerminalCleared]: 1,
-	[ActionType.TerminalCommandDetectionAvailable]: 1,
-	[ActionType.TerminalCommandExecuted]: 1,
-	[ActionType.TerminalCommandFinished]: 1,
+export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string } = {
+	[ActionType.RootAgentsChanged]: '0.1.0',
+	[ActionType.RootActiveSessionsChanged]: '0.1.0',
+	[ActionType.SessionReady]: '0.1.0',
+	[ActionType.SessionCreationFailed]: '0.1.0',
+	[ActionType.SessionTurnStarted]: '0.1.0',
+	[ActionType.SessionDelta]: '0.1.0',
+	[ActionType.SessionResponsePart]: '0.1.0',
+	[ActionType.SessionToolCallStart]: '0.1.0',
+	[ActionType.SessionToolCallDelta]: '0.1.0',
+	[ActionType.SessionToolCallReady]: '0.1.0',
+	[ActionType.SessionToolCallConfirmed]: '0.1.0',
+	[ActionType.SessionToolCallComplete]: '0.1.0',
+	[ActionType.SessionToolCallResultConfirmed]: '0.1.0',
+	[ActionType.SessionToolCallContentChanged]: '0.1.0',
+	[ActionType.SessionTurnComplete]: '0.1.0',
+	[ActionType.SessionTurnCancelled]: '0.1.0',
+	[ActionType.SessionError]: '0.1.0',
+	[ActionType.SessionTitleChanged]: '0.1.0',
+	[ActionType.SessionUsage]: '0.1.0',
+	[ActionType.SessionReasoning]: '0.1.0',
+	[ActionType.SessionModelChanged]: '0.1.0',
+	[ActionType.SessionServerToolsChanged]: '0.1.0',
+	[ActionType.SessionActiveClientChanged]: '0.1.0',
+	[ActionType.SessionActiveClientToolsChanged]: '0.1.0',
+	[ActionType.SessionPendingMessageSet]: '0.1.0',
+	[ActionType.SessionPendingMessageRemoved]: '0.1.0',
+	[ActionType.SessionQueuedMessagesReordered]: '0.1.0',
+	[ActionType.SessionInputRequested]: '0.1.0',
+	[ActionType.SessionInputAnswerChanged]: '0.1.0',
+	[ActionType.SessionInputCompleted]: '0.1.0',
+	[ActionType.SessionCustomizationsChanged]: '0.1.0',
+	[ActionType.SessionCustomizationToggled]: '0.1.0',
+	[ActionType.SessionTruncated]: '0.1.0',
+	[ActionType.SessionIsReadChanged]: '0.1.0',
+	[ActionType.SessionIsArchivedChanged]: '0.1.0',
+	[ActionType.SessionActivityChanged]: '0.1.0',
+	[ActionType.SessionDiffsChanged]: '0.1.0',
+	[ActionType.SessionConfigChanged]: '0.1.0',
+	[ActionType.SessionMetaChanged]: '0.1.0',
+	[ActionType.RootTerminalsChanged]: '0.1.0',
+	[ActionType.RootConfigChanged]: '0.1.0',
+	[ActionType.TerminalData]: '0.1.0',
+	[ActionType.TerminalInput]: '0.1.0',
+	[ActionType.TerminalResized]: '0.1.0',
+	[ActionType.TerminalClaimed]: '0.1.0',
+	[ActionType.TerminalTitleChanged]: '0.1.0',
+	[ActionType.TerminalCwdChanged]: '0.1.0',
+	[ActionType.TerminalExited]: '0.1.0',
+	[ActionType.TerminalCleared]: '0.1.0',
+	[ActionType.TerminalCommandDetectionAvailable]: '0.1.0',
+	[ActionType.TerminalCommandExecuted]: '0.1.0',
+	[ActionType.TerminalCommandFinished]: '0.1.0',
 };
 
 /**
  * Returns whether the given action type is known to the specified protocol version.
  */
-export function isActionKnownToVersion(action: StateAction, clientVersion: number): boolean {
-	return ACTION_INTRODUCED_IN[action.type] <= clientVersion;
+export function isActionKnownToVersion(action: StateAction, clientVersion: string): boolean {
+	return compareProtocolVersions(ACTION_INTRODUCED_IN[action.type], clientVersion) <= 0;
 }
 
 // ─── Exhaustive Notification → Version Map ─────────────────────────────────
@@ -91,42 +123,19 @@ export function isActionKnownToVersion(action: StateAction, clientVersion: numbe
  * Maps every notification type to the protocol version that introduced it.
  * Adding a new notification to `ProtocolNotification` without adding it here
  * is a compile error.
+ *
+ * Versions are SemVer `MAJOR.MINOR.PATCH` strings (see `PROTOCOL_VERSION`).
  */
-export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotification['type']]: number } = {
-	[NotificationType.SessionAdded]: 1,
-	[NotificationType.SessionRemoved]: 1,
-	[NotificationType.SessionSummaryChanged]: 1,
-	[NotificationType.AuthRequired]: 1,
+export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotification['type']]: string } = {
+	[NotificationType.SessionAdded]: '0.1.0',
+	[NotificationType.SessionRemoved]: '0.1.0',
+	[NotificationType.SessionSummaryChanged]: '0.1.0',
+	[NotificationType.AuthRequired]: '0.1.0',
 };
 
 /**
  * Returns whether the given notification type is known to the specified protocol version.
  */
-export function isNotificationKnownToVersion(notification: ProtocolNotification, clientVersion: number): boolean {
-	return NOTIFICATION_INTRODUCED_IN[notification.type] <= clientVersion;
-}
-
-// ─── Capabilities ────────────────────────────────────────────────────────────
-
-/**
- * Feature capabilities gated by protocol version.
- */
-export interface ProtocolCapabilities {
-	/** v1 — always present */
-	readonly sessions: true;
-	/** v1 — always present */
-	readonly tools: true;
-	/** v1 — always present */
-	readonly permissions: true;
-}
-
-/**
- * Derives capabilities from a protocol version number.
- */
-export function capabilitiesForVersion(_version: number): ProtocolCapabilities {
-	return {
-		sessions: true,
-		tools: true,
-		permissions: true,
-	};
+export function isNotificationKnownToVersion(notification: ProtocolNotification, clientVersion: string): boolean {
+	return compareProtocolVersions(NOTIFICATION_INTRODUCED_IN[notification.type], clientVersion) <= 0;
 }
