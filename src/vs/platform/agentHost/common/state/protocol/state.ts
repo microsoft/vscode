@@ -213,6 +213,13 @@ export interface SessionModelInfo {
 	 * {@link ModelSelection.config} when creating or changing sessions.
 	 */
 	configSchema?: ConfigSchema;
+	/**
+	 * Additional provider-specific metadata for this model.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `pricing` key may carry model pricing metadata.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -774,14 +781,17 @@ export const enum TurnState {
 }
 
 /**
- * Type of a message attachment.
+ * Discriminant for {@link MessageAttachment} variants.
  *
  * @category Turn Types
  */
-export const enum AttachmentType {
-	File = 'file',
-	Directory = 'directory',
-	Selection = 'selection',
+export const enum MessageAttachmentKind {
+	/** A simple, opaque attachment whose representation is described by the producer. */
+	Simple = 'simple',
+	/** An attachment whose data is embedded inline as a base64 string. */
+	EmbeddedResource = 'embeddedResource',
+	/** An attachment that references a resource by URI. */
+	Resource = 'resource',
 }
 
 /**
@@ -830,6 +840,13 @@ export interface ActiveTurn {
 }
 
 /**
+ * A user message and its associated attachments.
+ *
+ * Attachments MAY be referenced inside {@link UserMessage.text} via their
+ * {@link MessageAttachmentBase.rangeStart}/{@link MessageAttachmentBase.rangeEnd}
+ * fields. Attachments without a range are still associated with the message
+ * but do not correspond to a specific span in the text.
+ *
  * @category Turn Types
  */
 export interface UserMessage {
@@ -840,16 +857,117 @@ export interface UserMessage {
 }
 
 /**
+ * Common fields shared by all {@link MessageAttachment} variants.
+ *
  * @category Turn Types
  */
-export interface MessageAttachment {
-	/** Attachment type */
-	type: AttachmentType;
-	/** File/directory URI */
-	uri: URI;
-	/** Display name */
-	displayName?: string;
+export interface MessageAttachmentBase {
+	/**
+	 * A human-readable label for the attachment (e.g. the filename of a file
+	 * attachment). Used for display in UI.
+	 */
+	label: string;
+
+	/**
+	 * If defined, the start of the range in {@link UserMessage.text} that
+	 * references this attachment. The range is the half-open interval
+	 * `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+	 * units.
+	 *
+	 * When present, `rangeEnd` MUST also be present and MUST be greater than or
+	 * equal to `rangeStart`.
+	 */
+	rangeStart?: number;
+
+	/**
+	 * The end of the range in {@link UserMessage.text} that references this
+	 * attachment. See {@link rangeStart}.
+	 */
+	rangeEnd?: number;
+
+	/**
+	 * Advisory display hint for clients rendering this attachment. Recognized
+	 * values include:
+	 *
+	 * - `'image'`: the attachment is an image
+	 * - `'document'`: the attachment is a textual document
+	 * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+	 * - `'directory'`: the attachment is a folder
+	 * - `'selection'`: the attachment is a selection within a document
+	 *
+	 * Implementations MAY provide additional values; clients SHOULD fall back
+	 * to a reasonable default when an unknown value is encountered.
+	 */
+	displayKind?: string;
+
+	/**
+	 * Additional implementation-defined metadata for the attachment.
+	 *
+	 * If the attachment was produced by the `completions` command, the client
+	 * MUST preserve every property of `_meta` originally returned by the agent
+	 * host when sending the user message containing the accepted completion.
+	 */
+	_meta?: Record<string, unknown>;
 }
+
+/**
+ * A simple, opaque attachment whose model representation is described by
+ * the producer.
+ *
+ * @category Turn Types
+ */
+export interface SimpleMessageAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Simple;
+
+	/**
+	 * Representation of the attachment as it should be shown to the model.
+	 *
+	 * If the attachment was produced by the client, this property MUST be
+	 * defined so the agent host can correctly interpret the attachment. This
+	 * property MAY be omitted when the attachment originated from a
+	 * `completions` response.
+	 */
+	modelRepresentation?: string;
+}
+
+/**
+ * An attachment whose data is embedded inline as a base64 string.
+ *
+ * Use this for small binary payloads (e.g. a pasted image) that should be
+ * delivered with the user message itself rather than fetched separately.
+ *
+ * @category Turn Types
+ */
+export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.EmbeddedResource;
+	/** Base64-encoded binary data */
+	data: string;
+	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
+	contentType: string;
+}
+
+/**
+ * An attachment that references a resource by URI. The content is not
+ * delivered inline; consumers can fetch it via `resourceRead` when needed.
+ *
+ * @category Turn Types
+ */
+export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
+	/** Discriminant */
+	type: MessageAttachmentKind.Resource;
+}
+
+/**
+ * An attachment associated with a {@link UserMessage}.
+ *
+ * @category Turn Types
+ */
+export type MessageAttachment =
+	| SimpleMessageAttachment
+	| MessageEmbeddedResourceAttachment
+	| MessageResourceAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
@@ -863,6 +981,7 @@ export const enum ResponsePartKind {
 	ContentRef = 'contentRef',
 	ToolCall = 'toolCall',
 	Reasoning = 'reasoning',
+	SystemNotification = 'systemNotification',
 }
 
 /**
@@ -932,7 +1051,30 @@ export interface ReasoningResponsePart {
 /**
  * @category Response Parts
  */
-export type ResponsePart = MarkdownResponsePart | ResourceReponsePart | ToolCallResponsePart | ReasoningResponsePart;
+export type ResponsePart =
+	| MarkdownResponsePart
+	| ResourceReponsePart
+	| ToolCallResponsePart
+	| ReasoningResponsePart
+	| SystemNotificationResponsePart;
+
+/**
+ * A system notification surfaced as part of the response stream.
+ *
+ * System notifications are messages authored by the agent harness
+ * that need to be visible to both the agent (for situational awareness) and
+ * the user (for transcript continuity). Examples include "background subagent
+ * X completed" or "task Y was cancelled".
+ *
+ * @category Response Parts
+ */
+export interface SystemNotificationResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.SystemNotification;
+	/** The text of the system notification */
+	content: StringOrMarkdown;
+}
+
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
