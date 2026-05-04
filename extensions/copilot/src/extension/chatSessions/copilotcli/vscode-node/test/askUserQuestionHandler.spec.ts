@@ -34,7 +34,7 @@ const logService = new class extends mock<import('../../../../../platform/log/co
 }();
 
 function makeHandler(tool: ICopilotTool<unknown> | undefined) {
-	return new UserQuestionHandler(logService, makeToolsService(tool));
+	return new UserQuestionHandler(makeToolsService(tool));
 }
 
 const toolInvocationToken = {} as import('vscode').ChatParticipantToolToken;
