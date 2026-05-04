@@ -133,6 +133,8 @@ export class IssueReporterOverlay {
 	private includeSettings = true;
 	private settingsContent: string | undefined;
 	private workspaceSettingsContent: string | undefined;
+	private diagnosticBulkToggleButton: Button | undefined;
+	private diagnosticSectionStates: (() => boolean)[] = [];
 
 	// Navigation
 	private stepIndicator!: HTMLElement;
@@ -1432,9 +1434,15 @@ export class IssueReporterOverlay {
 		const diagContainer = append(details as HTMLElement, $('div.review-diagnostics'));
 
 		const modelData = this.model.getData();
+		let diagnosticSectionCount = 0;
+		const diagnosticSectionStates: (() => boolean)[] = [];
+		this.diagnosticBulkToggleButton = undefined;
+		this.diagnosticSectionStates = diagnosticSectionStates;
 
 		// System Info
 		if (modelData.versionInfo || modelData.systemInfo) {
+			diagnosticSectionCount++;
+			diagnosticSectionStates.push(() => this.includeSystemInfo);
 			this.createDiagSection(diagContainer, {
 				id: 'system-info',
 				label: localize('systemInformation', "System Information"),
@@ -1468,6 +1476,8 @@ export class IssueReporterOverlay {
 		}
 
 		if (modelData.fileOnExtension && modelData.extensionData) {
+			diagnosticSectionCount++;
+			diagnosticSectionStates.push(() => this.includeExtensionData);
 			this.createDiagSection(diagContainer, {
 				id: 'extension-data',
 				label: localize('extensionData', "Extension Data"),
@@ -1486,6 +1496,8 @@ export class IssueReporterOverlay {
 		// Extensions (non-theme only)
 		const nonThemeExtensions = (modelData.allExtensions ?? []).filter(e => !e.isTheme && !e.isBuiltin);
 		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace && nonThemeExtensions.length > 0) {
+			diagnosticSectionCount++;
+			diagnosticSectionStates.push(() => this.includeExtensions);
 			this.createDiagSection(diagContainer, {
 				id: 'extensions',
 				label: localize('extensions', "Extensions ({0})", nonThemeExtensions.length),
@@ -1514,6 +1526,8 @@ export class IssueReporterOverlay {
 
 		// Experiments
 		if (modelData.experimentInfo) {
+			diagnosticSectionCount++;
+			diagnosticSectionStates.push(() => this.includeExperiments);
 			this.createDiagSection(diagContainer, {
 				id: 'experiments',
 				label: localize('abExperiments', "A/B Experiments"),
@@ -1531,6 +1545,8 @@ export class IssueReporterOverlay {
 
 		// Settings
 		if (this.settingsContent) {
+			diagnosticSectionCount++;
+			diagnosticSectionStates.push(() => this.includeSettings);
 			this.createDiagSection(diagContainer, {
 				id: 'settings',
 				label: localize('settings', "Settings"),
@@ -1561,6 +1577,8 @@ export class IssueReporterOverlay {
 			performanceDescription.textContent = localize('additionalPerformanceDataDescription', "Optionally include currently running processes and workspace metadata to help diagnose performance issues.");
 
 			if (modelData.processInfo) {
+				diagnosticSectionCount++;
+				diagnosticSectionStates.push(() => this.includeProcessInfo);
 				this.createDiagSection(performanceContainer, {
 					id: 'process-info',
 					label: localize('runningProcesses', "Currently Running Processes"),
@@ -1580,6 +1598,8 @@ export class IssueReporterOverlay {
 			}
 
 			if (modelData.workspaceInfo) {
+				diagnosticSectionCount++;
+				diagnosticSectionStates.push(() => this.includeWorkspaceInfo);
 				this.createDiagSection(performanceContainer, {
 					id: 'workspace-info',
 					label: localize('workspaceMetadata', "Workspace Metadata"),
@@ -1597,6 +1617,24 @@ export class IssueReporterOverlay {
 				const loading = append(performanceContainer, $('div.review-diag-loading'));
 				loading.textContent = localize('loadingWorkspaceInfo', "Loading workspace metadata...");
 			}
+		}
+
+		if (diagnosticSectionCount > 0) {
+			const heading = document.createElement('div');
+			heading.className = 'review-diag-heading';
+			const title = append(heading, $('h3.review-diag-heading-title'));
+			title.textContent = localize('additionalInformation', "Additional Information");
+			if (diagnosticSectionCount > 1) {
+				const bulkActions = append(heading, $('div.review-diag-bulk-actions'));
+				const toggleAllButton = this.disposables.add(new Button(bulkActions, { ...defaultButtonStyles, secondary: true }));
+				toggleAllButton.element.classList.add('review-diag-toggle-all');
+				this.diagnosticBulkToggleButton = toggleAllButton;
+				this.updateDiagnosticBulkToggleButton();
+				this.disposables.add(toggleAllButton.onDidClick(() => {
+					this.setAllDiagnosticSectionsIncluded(!this.areAllVisibleDiagnosticSectionsIncluded());
+				}));
+			}
+			diagContainer.prepend(heading);
 		}
 
 		// Align all title widths dynamically to the widest title
@@ -1632,6 +1670,42 @@ export class IssueReporterOverlay {
 		}
 	}
 
+	private areAllVisibleDiagnosticSectionsIncluded(): boolean {
+		return this.diagnosticSectionStates.length > 0 && this.diagnosticSectionStates.every(getState => getState());
+	}
+
+	private updateDiagnosticBulkToggleButton(): void {
+		if (!this.diagnosticBulkToggleButton) {
+			return;
+		}
+		const allChecked = this.areAllVisibleDiagnosticSectionsIncluded();
+		this.diagnosticBulkToggleButton.label = allChecked
+			? localize('excludeAllExtraAttachments', "Exclude All")
+			: localize('includeAllExtraAttachments', "Include All");
+		this.diagnosticBulkToggleButton.element.setAttribute('aria-label', allChecked
+			? localize('excludeAllExtraAttachmentsAria', "Exclude all additional issue data from this issue")
+			: localize('includeAllExtraAttachmentsAria', "Include all additional issue data in this issue"));
+	}
+
+	private setAllDiagnosticSectionsIncluded(included: boolean): void {
+		this.includeSystemInfo = included;
+		this.includeExtensionData = included;
+		this.includeExtensions = included;
+		this.includeExperiments = included;
+		this.includeSettings = included;
+		this.includeProcessInfo = included;
+		this.includeWorkspaceInfo = included;
+		this.model.update({
+			includeSystemInfo: included,
+			includeExtensionData: included,
+			includeExtensions: included,
+			includeExperiments: included,
+			includeProcessInfo: included,
+			includeWorkspaceInfo: included,
+		});
+		this.updateReviewDetails();
+	}
+
 	private createDiagSection(parent: HTMLElement, opts: {
 		id: string;
 		label: string;
@@ -1654,6 +1728,7 @@ export class IssueReporterOverlay {
 		checkLabel.textContent = localize('includeInIssue', "Include in issue");
 		this.disposables.add(checkbox.onChange(() => {
 			opts.onToggle(checkbox.checked);
+			this.updateDiagnosticBulkToggleButton();
 			this.updateStepUI();
 		}));
 
@@ -1785,7 +1860,7 @@ export class IssueReporterOverlay {
 			return;
 		}
 		this.screenshots.push(screenshot);
-		this.updateScreenshotThumbnails();
+		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
 
@@ -1945,7 +2020,7 @@ export class IssueReporterOverlay {
 
 		editor.onDidSave(annotatedDataUrl => {
 			screenshot.annotatedDataUrl = annotatedDataUrl;
-			this.updateScreenshotThumbnails();
+			this.updateAttachmentViews();
 		});
 
 		editor.onDidCancel(() => {
@@ -2393,9 +2468,16 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
-		this.updateScreenshotThumbnails();
+		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
+	}
+
+	private updateAttachmentViews(): void {
+		this.updateScreenshotThumbnails();
+		if (this.currentStep === WizardStep.Review) {
+			this.updateReviewDetails();
+		}
 	}
 
 	dispose(): void {

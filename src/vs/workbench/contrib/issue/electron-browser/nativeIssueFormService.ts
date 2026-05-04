@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -43,9 +44,10 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IGitHubUploadService githubUploadService: IGitHubUploadService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
+		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService, environmentService, githubUploadService, configurationService, editorService);
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService, environmentService, githubUploadService, configurationService, editorService, clipboardService);
 	}
 
 	// override to grab platform info before routing

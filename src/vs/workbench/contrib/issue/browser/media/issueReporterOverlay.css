@@ -971,6 +971,33 @@
 	gap: 6px;
 }
 
+.review-diag-heading {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+}
+
+.review-diag-heading-title {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.review-diag-bulk-actions {
+	display: flex;
+	justify-content: flex-start;
+	margin-bottom: 2px;
+}
+
+.review-diag-toggle-all.monaco-button {
+	font-size: 12px;
+	padding: 2px 8px;
+	width: auto;
+	flex: none;
+}
+
 .review-diag-group {
 	border: 1px solid var(--vscode-input-border, #444);
 	border-radius: 4px;
