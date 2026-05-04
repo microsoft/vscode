@@ -219,9 +219,7 @@ export class AICustomizationOverviewView extends ViewPane {
 	}
 
 	private getSectionAriaLabel(section: ISectionSummary): string {
-		return section.count > 0
-			? localize('overviewSectionAriaLabelWithCount', "{0}, {1} items", section.label, section.count)
-			: section.label;
+		return localize('overviewSectionAriaLabelWithCount', "{0}, {1} items", section.label, section.count);
 	}
 
 	private updateCountElements(): void {
