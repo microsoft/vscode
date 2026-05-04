@@ -689,24 +689,22 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._resourceSubscribers.has(resource)) {
 			return;
 		}
-		const parsed = parseSubagentSessionUri(resource);
-		let evictionTarget: URI;
-		if (parsed) {
-			evictionTarget = parsed.parentSession;
-			if (this._resourceSubscribers.has(evictionTarget)) {
+		// Walk up the subagent ancestry: the SDK session and its turn tree are
+		// owned by the root session, so eviction must target the root.
+		let evictionTarget = resource;
+		{
+			let parsed;
+			while ((parsed = parseSubagentSessionUri(evictionTarget))) {
+				evictionTarget = parsed.parentSession;
+			}
+		}
+		// Don't evict if the root or any of its subagent descendants still has subscribers.
+		if (this._resourceSubscribers.has(evictionTarget)) {
+			return;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
 				return;
-			}
-			for (const subscribedUri of this._resourceSubscribers.keys()) {
-				if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
-					return;
-				}
-			}
-		} else {
-			evictionTarget = resource;
-			for (const subscribedUri of this._resourceSubscribers.keys()) {
-				if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
-					return;
-				}
 			}
 		}
 		const evictionTargetKey = evictionTarget.toString();
