@@ -149,6 +149,8 @@ import { IWorkspaceListenerService } from '../../workspaceRecorder/common/worksp
 import { WorkspacListenerService } from '../../workspaceRecorder/vscode-node/workspaceListenerService';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
 import { registerServices as registerCommonServices } from '../vscode/services';
+import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -174,6 +176,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	builder.define(IRequestLogger, new SyncDescriptor(RequestLogger));
 	builder.define(INativeEnvService, new SyncDescriptor(NativeEnvServiceImpl));
+	builder.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
 
 	builder.define(IFetcherService, new SyncDescriptor(FetcherService, [undefined]));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
