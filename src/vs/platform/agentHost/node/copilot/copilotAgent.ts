@@ -150,6 +150,7 @@ export interface IExitPlanModeResponse {
 export interface ICopilotModelInfo {
 	readonly id: string;
 	readonly name: string;
+	readonly billing?: { readonly multiplier?: number };
 	readonly capabilities?: {
 		readonly supports?: { readonly vision?: boolean };
 		readonly limits?: { readonly max_context_window_tokens?: number };
@@ -640,6 +641,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createThinkingLevelConfigSchema(m.supportedReasoningEfforts, m.defaultReasoningEffort),
 			policyState: m.policy?.state as PolicyState | undefined,
+			_meta: typeof m.billing?.multiplier === 'number' ? {
+				pricing: `${m.billing.multiplier}x`,
+				multiplierNumeric: m.billing.multiplier,
+			} : undefined,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
 		return result;

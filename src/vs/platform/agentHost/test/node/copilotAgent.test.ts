@@ -8,6 +8,7 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -136,6 +137,7 @@ class TestCopilotClient implements ICopilotClient {
 
 	constructor(
 		private readonly _sessions: Awaited<ReturnType<ICopilotClient['listSessions']>>,
+		private readonly _models: Awaited<ReturnType<ICopilotClient['listModels']>> = [],
 	) { }
 
 	async start(): Promise<void> { }
@@ -144,7 +146,7 @@ class TestCopilotClient implements ICopilotClient {
 		this.listSessionCallCount++;
 		return this._sessions;
 	}
-	async listModels(): ReturnType<ICopilotClient['listModels']> { return []; }
+	async listModels(): ReturnType<ICopilotClient['listModels']> { return this._models; }
 	async getSessionMetadata(sessionId: string): ReturnType<ICopilotClient['getSessionMetadata']> {
 		this.getSessionMetadataCalls.push(sessionId);
 		return this._sessions.find(s => s.sessionId === sessionId);
@@ -352,6 +354,34 @@ suite('CopilotAgent', () => {
 				() => agent.createSession({ workingDirectory: URI.file('/workspace') }),
 				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
 			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('models include billing multiplier metadata when SDK provides it', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				billing: { multiplier: 1.5 },
+				capabilities: { limits: { max_context_window_tokens: 128000 }, supports: { vision: true } },
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models, [{
+				provider: 'copilotcli',
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				maxContextWindow: 128000,
+				supportsVision: true,
+				configSchema: undefined,
+				policyState: undefined,
+				_meta: { pricing: '1.5x', multiplierNumeric: 1.5 },
+			}]);
 		} finally {
 			await disposeAgent(agent);
 		}
