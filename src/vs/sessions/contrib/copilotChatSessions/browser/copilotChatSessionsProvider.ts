@@ -918,8 +918,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 				if (!base?.pullRequest || !this._gitHubService) {
 					return base;
 				}
-				const prModel = this._gitHubService.getPullRequest(base.owner, base.repo, base.pullRequest.number);
-				const livePR = prModel.pullRequest.read(reader);
+				const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+				const livePR = prModelRef.object.pullRequest.read(reader);
 				if (!livePR) {
 					return base;
 				}

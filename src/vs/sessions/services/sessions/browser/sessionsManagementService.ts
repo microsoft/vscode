@@ -201,7 +201,8 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
-		this.logService.info(`[SessionsManagement] openChat: ${chatUri.toString()} provider=${session.providerId}`);
+		const t0 = Date.now();
+		this.logService.trace(`[SessionsManagement] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
 
@@ -220,20 +221,23 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// If the chat is untitled (not yet sent), show the new-chat-in-session view
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
 			this._isNewChatInSessionContext.set(true);
+			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
 		this._isNewChatInSessionContext.set(false);
 		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
+		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const t0 = Date.now();
 		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
-			this.logService.warn(`[SessionsManagement] openSession: session not found: ${sessionResource.toString()}`);
+			this.logService.warn(`[SessionsManagement] openSession: session not found uri=${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
-		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
+		this.logService.trace(`[SessionsManagement] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
@@ -242,6 +246,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const activeChat = this._activeSession.get()?.activeChat.get();
 		const openUri = activeChat?.resource ?? sessionData.resource;
 		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
 	unsetNewSession(): void {

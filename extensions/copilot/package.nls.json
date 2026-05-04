@@ -393,6 +393,7 @@
 	"github.copilot.config.codesearch.agent.enabled": "Enable code search capabilities in agent mode.",
 	"github.copilot.config.agent.temperature": "Temperature setting for agent mode requests.",
 	"github.copilot.config.agent.omitFileAttachmentContents": "Omit summarized file contents from file attachments in agent mode, to encourage the agent to properly read and explore.",
+	"github.copilot.config.agent.backgroundTodoAgent.enabled": "Enable background todo agent that automatically maintains a todo list during agent sessions.\n\n**Note**: This is an advanced experimental setting.",
 	"github.copilot.config.agent.largeToolResultsToDisk.enabled": "When enabled, large tool results are written to disk instead of being included directly in the context, helping manage context window usage.",
 	"github.copilot.config.agent.largeToolResultsToDisk.thresholdBytes": "The size threshold in bytes above which tool results are written to disk. Only applies when largeToolResultsToDisk.enabled is true.",
 	"github.copilot.config.instantApply.shortContextModelName": "Model name for short context instant apply.",

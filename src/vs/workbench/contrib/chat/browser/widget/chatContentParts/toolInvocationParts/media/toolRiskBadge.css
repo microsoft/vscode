@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Risk subtitle: a slim row that sits between the confirmation header and
+ * the main content (e.g. the terminal command box). Renders an icon at the
+ * risk level's accent color followed by the LLM-generated explanation in
+ * the regular foreground color. The whole row is muted with reduced opacity
+ * so it reads as supporting context, not a primary action. */
+
+.chat-confirmation-widget2 > .tool-risk-badge {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding: 4px 8px 6px 8px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-foreground);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	background: transparent;
+	user-select: none;
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-icon {
+	flex: 0 0 auto;
+	font-size: 13px;
+	color: var(--tool-risk-accent, var(--vscode-descriptionForeground));
+	transform: translateY(1px);
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-text {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge.loading {
+	opacity: 0.7;
+}
+
+/* Neutral (low-risk): no icon, dimmed explanation only. */
+.chat-confirmation-widget2 > .tool-risk-badge.neutral {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge.neutral .tool-risk-icon {
+	display: none;
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge.orange {
+	--tool-risk-accent: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge.red {
+	--tool-risk-accent: var(--vscode-editorError-foreground, #f14c4c);
+}

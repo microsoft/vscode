@@ -16,7 +16,7 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
-import { NextCursorLinePrediction, NextCursorLinePredictionCursorPlacement } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
+import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
@@ -1199,8 +1199,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const nextCursorLineOneBased = nextCursorLineZeroBased + 1;
 		const nextCursorLine = promptPieces.activeDoc.documentAfterEditsLines.at(nextCursorLineZeroBased);
 
-		const cursorPlacement = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionCursorPlacement, this.expService);
-		const nextCursorColumn = XtabProvider.getNextCursorColumn(nextCursorLine, cursorPlacement);
+		const nextCursorColumn = XtabProvider.getNextCursorColumn(nextCursorLine);
 
 		switch (nextCursorLinePrediction) {
 			case NextCursorLinePrediction.Jump: {
@@ -1565,19 +1564,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}, [edits, []]);
 	}
 
-	public static getNextCursorColumn(nextCursorLine: string | undefined, cursorPlacement: NextCursorLinePredictionCursorPlacement): number {
-		let nextCursorColumn: number;
-		switch (cursorPlacement) {
-			case NextCursorLinePredictionCursorPlacement.BeforeLine:
-				nextCursorColumn = (nextCursorLine?.match(/^(\s*)/)?.at(1)?.length ?? 0) + 1;
-				break;
-			case NextCursorLinePredictionCursorPlacement.AfterLine:
-				nextCursorColumn = (nextCursorLine?.length ?? 0) + 1;
-				break;
-			default:
-				assertNever(cursorPlacement);
-		}
-		return nextCursorColumn;
+	public static getNextCursorColumn(nextCursorLine: string | undefined): number {
+		return (nextCursorLine?.match(/^(\s*)/)?.at(1)?.length ?? 0) + 1;
 	}
 }
 

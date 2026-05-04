@@ -141,6 +141,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return await this._isSandboxConfiguredEnabled();
 	}
 
+	public async isSandboxAllowNetworkEnabled(): Promise<boolean> {
+		if (!(await this._isSandboxConfiguredEnabled())) {
+			return false;
+		}
+		return this._isSandboxAllowNetworkConfigured();
+	}
+
 	public async getOS(): Promise<OperatingSystem> {
 		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
 		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
@@ -160,6 +167,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
 
+		// Check if the command would attempt to access any blocked network domains before wrapping it in the sandbox.
 		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
 		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
 			return {
@@ -430,6 +438,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
+		if (this._isSandboxAllowNetworkConfigured()) {
+			return { blockedDomains: [], deniedDomains: [] };
+		}
+
 		const domains = this._extractDomains(command);
 		if (domains.length === 0) {
 			return { blockedDomains: [], deniedDomains: [] };
@@ -507,7 +519,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (os === OperatingSystem.Windows) {
 			return false;
 		}
-		return this._isSandboxEnabled(this._getSettingValue<AgentSandboxEnabledValue | boolean>(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off);
+		const value = this._getSandboxConfiguredEnabledValue();
+		return value === true || value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
 	}
 
 	private async _resolveSrtPath(): Promise<void> {
@@ -520,18 +533,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._appRoot = remoteEnv.appRoot.path;
 			this._execPath = remoteEnv.execPath;
 		}
-		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
 
-		if (await this.isEnabled() && !this._tempDir) {
+		if ((await this.isEnabled()) && !this._tempDir) {
 			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			const allowedDomainsSetting = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains) ?? [];
-			const deniedDomainsSetting = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains, AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains) ?? [];
+			const allowNetwork = await this.isSandboxAllowNetworkEnabled();
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 				? this._getSettingValue<ITerminalSandboxFileSystemSetting>(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem) ?? {}
 				: {};
@@ -556,10 +568,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				denyWritePaths = this._resolveLinuxFileSystemPaths(linuxFileSystemSetting.denyWrite);
 			}
 			const sandboxSettings = {
-				network: {
-					allowedDomains: allowedDomainsSetting,
-					deniedDomains: deniedDomainsSetting
-				},
+				network: allowNetwork ? { allowedDomains: [], deniedDomains: [], enabled: false } : this.getResolvedNetworkDomains(),
 				filesystem: {
 					denyRead: denyReadPaths,
 					allowRead: allowReadPaths,
@@ -567,12 +576,18 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 					denyWrite: denyWritePaths,
 				},
 			};
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
 			this._sandboxConfigPath = configFileUri.path;
 			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
 			return this._sandboxConfigPath;
 		}
 		return undefined;
+	}
+
+	private _withoutNetworkRuntimeSetting(runtimeSetting: Record<string, unknown>): Record<string, unknown> {
+		const sanitizedRuntimeSetting = { ...runtimeSetting };
+		delete sanitizedRuntimeSetting.network;
+		return sanitizedRuntimeSetting;
 	}
 
 	private _mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {
@@ -726,8 +741,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 
-	private _isSandboxEnabled(value: AgentSandboxEnabledValue | boolean): boolean {
-		return value === true || value === AgentSandboxEnabledValue.On;
+	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue | boolean {
+		return this._getSettingValue<AgentSandboxEnabledValue | boolean>(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
+	}
+
+	private _isSandboxAllowNetworkConfigured(): boolean {
+		return this._getSandboxConfiguredEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 	}
 
 	private _getSettingValue<T>(settingId: TerminalChatAgentToolsSettingId | AgentNetworkDomainSettingId | AgentSandboxSettingId, ...deprecatedSettingIds: (TerminalChatAgentToolsSettingId | AgentNetworkDomainSettingId | AgentSandboxSettingId)[]): T | undefined {

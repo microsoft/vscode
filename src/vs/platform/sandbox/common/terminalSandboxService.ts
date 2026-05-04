@@ -71,6 +71,7 @@ export interface ISandboxDependencyInstallResult {
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
+	isSandboxAllowNetworkEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
 	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
 	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, commandKeywords?: readonly string[], cwd?: URI): Promise<ITerminalSandboxWrapResult>;
@@ -86,6 +87,10 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 
 	async isEnabled(): Promise<boolean> {
+		return false;
+	}
+
+	async isSandboxAllowNetworkEnabled(): Promise<boolean> {
 		return false;
 	}
 

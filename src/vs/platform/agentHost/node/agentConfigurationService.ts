@@ -168,7 +168,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession)?.summary.workingDirectory;
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.summary.workingDirectory;
 		}
 		return undefined;
 	}
@@ -247,7 +247,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			const parent = this._stateManager.getSessionState(parentInfo.parentSession)?.config?.values;
+			const parent = this._stateManager.getSessionState(parentInfo.parentSession.toString())?.config?.values;
 			if (parent) {
 				yield parent;
 			}

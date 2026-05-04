@@ -27,6 +27,7 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command, _requestUnsandboxedExecution) => {
 				return {
 					command,

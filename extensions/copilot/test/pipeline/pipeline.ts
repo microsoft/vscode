@@ -132,8 +132,10 @@ export async function runInputPipeline(opts: RunPipelineOptions, log = console.l
 			});
 		}
 
-		const { responses, errors: responseErrors } = generateAllResponses(responseFormat, responseInputs);
-		log(`  [4/5] Responses generated: ${responses.length} ok, ${responseErrors.length} errors`);
+		const { responses, errors: responseErrors } = generateAllResponses(responseFormat, responseInputs, log);
+		const droppedEditCount = responses.reduce((total, r) => total + (r.response.droppedEditCount ?? 0), 0);
+		const droppedSuffix = droppedEditCount > 0 ? `, ${droppedEditCount} oracle edit(s) dropped outside edit window` : '';
+		log(`  [4/5] Responses generated: ${responses.length} ok, ${responseErrors.length} errors${droppedSuffix}`);
 		logErrors(responseErrors.map(e => {
 			const p = processedByOriginalIndex.get(e.index);
 			return { error: `[sample ${e.index + rowOffset}, ${p?.row.activeDocumentLanguageId ?? '?'}] ${e.error}` };

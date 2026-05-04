@@ -59,8 +59,28 @@ function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInv
 	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), undefined);
 }
 
-function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], modelId?: Parameters<typeof rawTurnsToHistory>[4]) {
-	return rawTurnsToHistory(backendSession, turns, participantId, undefined, modelId);
+function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
+	return rawTurnsToHistory(backendSession, turns, participantId, undefined, lookup);
+}
+
+/**
+ * Builds a fake {@link TurnModelLookup} that namespaces ids with a fixed
+ * prefix and returns display names from a static map. `fallbackRawModelId`
+ * mirrors the real handler's "use summary.model when usage hasn't reported
+ * yet" behavior.
+ */
+function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): Parameters<typeof rawTurnsToHistory>[4] {
+	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
+	return {
+		toLanguageModelId: (raw) => {
+			const r = resolveRaw(raw);
+			return r ? `${prefix}${r}` : undefined;
+		},
+		toModelDisplayName: (raw) => {
+			const r = resolveRaw(raw);
+			return r ? displayNames[r] : undefined;
+		},
+	};
 }
 
 function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
@@ -110,12 +130,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.isComplete, true);
 		});
 
+		test('per-turn model id and display name flow from usage.model', () => {
+			const turn1 = createTurn({
+				id: 'turn-1',
+				userMessage: { text: 'first' },
+				usage: { model: 'gpt-5' },
+			});
+			const turn2 = createTurn({
+				id: 'turn-2',
+				userMessage: { text: 'second' },
+				usage: { model: 'opus-4.7' },
+			});
+
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' });
+			const history = turnsToHistory(URI.file('/'), [turn1, turn2], 'p', lookup);
+
+			assert.deepStrictEqual(
+				history.map(h => h.type === 'request'
+					? { type: h.type, modelId: h.modelId }
+					: { type: h.type, details: h.details }),
+				[
+					{ type: 'request', modelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'response', details: 'GPT-5' },
+					{ type: 'request', modelId: 'agent-host-copilot:opus-4.7' },
+					{ type: 'response', details: 'Claude Opus 4.7' },
+				],
+			);
+		});
+
+		test('falls back to session-level model when turn has no usage.model', () => {
+			const turn = createTurn({ userMessage: { text: 'first' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'gpt-5');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+
+			assert.deepStrictEqual(
+				history.map(h => h.type === 'request'
+					? { type: h.type, modelId: h.modelId }
+					: { type: h.type, details: h.details }),
+				[
+					{ type: 'request', modelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'response', details: 'GPT-5' },
+				],
+			);
+		});
+
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
 				userMessage: { text: 'Use restored model' },
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1', 'agent-host-copilot:gpt-5');
+			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1', lookup);
 
 			assert.deepStrictEqual(history[0], {
 				id: turn.id,

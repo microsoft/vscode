@@ -20,6 +20,7 @@ suite('SandboxedCommandLinePresenter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => enabled,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async command => ({
 				command,
 				isSandboxWrapped: false,

@@ -954,6 +954,7 @@
 		"--notebook-cell-output-font-size",
 		"--notebook-diff-view-viewport-slider",
 		"--notebook-find-horizontal-padding",
+		"--tool-risk-accent",
 		"--notebook-find-width",
 		"--notebook-editor-font-family",
 		"--notebook-editor-font-size",

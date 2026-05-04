@@ -213,6 +213,15 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(sandboxHelperService.callCount, 0, 'Dependency checks should not be called for isEnabled');
 	});
 
+	test('should report enabled when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), true, 'Allow network mode should keep sandboxing enabled');
+		strictEqual(await sandboxService.isSandboxAllowNetworkEnabled(), true, 'Allow network mode should report network access allowed');
+	});
+
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
@@ -260,6 +269,31 @@ suite('TerminalSandboxService - network domains', () => {
 			allowedDomains: ['example.com', '*.github.com'],
 			deniedDomains: ['blocked.example.com']
 		});
+	});
+
+	test('should disable runtime network config when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowedDomains: ['should-not-win.example'],
+				deniedDomains: ['should-not-win-blocked.example'],
+				allowUnixSockets: true,
+			},
+			allowPty: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+		strictEqual(config.allowPty, true, 'Non-network runtime settings should still be merged');
 	});
 
 	test('should write configured runtime values to sandbox config root', async () => {
@@ -708,6 +742,21 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
 	});
 
+	test('should skip domain checks when configured to allow network', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Allow network mode should keep the command sandbox wrapped');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Allow network mode should not require unsandbox confirmation for configured domains');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Allow network mode should not report blocked domains');
+		strictEqual(wrapResult.deniedDomains, undefined, 'Allow network mode should not report denied domains');
+	});
+
 	test('should match uppercase hostnames when checking allowlisted domains', async () => {
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -857,44 +906,6 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
 		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
-	});
-
-	test('should not fall back to deprecated chat.agent.sandbox setting due to namespace conflicts', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, undefined);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
-			allowWrite: ['/tmp']
-		});
-		const namespaceValue = { fileSystem: { linux: { allowWrite: ['/tmp'] } } };
-		const originalInspect = configurationService.inspect.bind(configurationService);
-		configurationService.inspect = <T>(key: string) => {
-			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
-				return {
-					value: namespaceValue,
-					defaultValue: false,
-					userValue: namespaceValue,
-					userLocalValue: namespaceValue,
-					userRemoteValue: undefined,
-					workspaceValue: undefined,
-					workspaceFolderValue: undefined,
-					memoryValue: undefined,
-					policyValue: undefined,
-				} as ReturnType<typeof originalInspect<T>>;
-			}
-			return originalInspect<T>(key);
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), false, 'Child settings under chat.agent.sandbox should not be treated as the deprecated boolean setting');
-	});
-
-	test('should fall back to deprecated chat.agent.sandbox setting in user scope', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, undefined);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, true);
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated chat.agent.sandbox should still be respected when only the user scope is set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {

@@ -5,7 +5,7 @@
 
 import { parse as parseJSONC } from '../../../../base/common/jsonc.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -17,7 +17,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchThemeService } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { IThemeImporterService, COLOR_THEME_SETTINGS_ID } from '../common/themeImporter.js';
+import { IThemeImporterService, IThemePreviewResult, COLOR_THEME_SETTINGS_ID } from '../common/themeImporter.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../workbench/services/environment/electron-browser/environmentService.js';
 
 /**
@@ -38,6 +38,7 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 	declare readonly _serviceBrand: undefined;
 
 	private _parentThemePromise: Promise<IParentThemeInfo | undefined> | undefined;
+	private _previewPromise: Promise<IThemePreviewResult | undefined> | undefined;
 
 	constructor(
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -59,60 +60,73 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 		return themeInfo?.settingsId;
 	}
 
-	async previewVSCodeTheme(): Promise<IDisposable> {
+	async previewVSCodeTheme(): Promise<IThemePreviewResult | undefined> {
+		if (!this._previewPromise) {
+			this._previewPromise = this._doPreview();
+			// Clear cache if preview resolved to undefined so callers can retry
+			this._previewPromise.then(result => {
+				if (!result) {
+					this._previewPromise = undefined;
+				}
+			});
+		}
+		return this._previewPromise;
+	}
+
+	private async _doPreview(): Promise<IThemePreviewResult | undefined> {
 		try {
 			const theme = await this._getVSCodeTheme();
 			if (!theme) {
-				return Disposable.None;
+				return undefined;
 			}
 
 			const installed = await this._installFromHostLocation(theme);
+			await this._setTheme(theme.settingsId);
 
-			// Apply the theme regardless of whether an install was needed
-			await this._applyTheme(theme.settingsId);
-
-			if (!installed) {
-				return Disposable.None;
-			}
-
-			return toDisposable(() => {
-				const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
-				this.extensionManagementService.uninstall(installed, { profileLocation }).catch(err => {
-					this.logService.warn('[VSCodeThemeImporter] Failed to uninstall preview extension:', err);
-				});
-			});
+			return {
+				apply: () => this._apply(theme),
+				reset: () => {
+					this._previewPromise = undefined;
+					return this._reset(installed);
+				},
+			};
 		} catch (err) {
 			this.logService.error('[VSCodeThemeImporter] Failed to preview theme:', err);
-			return Disposable.None;
+			return undefined;
 		}
 	}
 
-	async importVSCodeTheme(): Promise<void> {
+	private async _apply(theme: IParentThemeInfo): Promise<void> {
 		try {
-			const theme = await this._getVSCodeTheme();
-			if (!theme) {
+			if (!theme.extensionLocation) {
 				return;
 			}
 
-			// Step 1: Install from host location (preview — immediate availability)
-			await this._installFromHostLocation(theme);
-			await this._applyTheme(theme.settingsId);
+			// Copy extension to Agents app's own extensions directory
+			const extensionsHome = URI.file(this.environmentService.extensionsPath);
+			const folderName = theme.extensionLocation.path.split('/').pop()!;
+			const targetLocation = joinPath(extensionsHome, folderName);
 
-			// Step 2: Copy extension to Agents app's own extensions directory
-			if (theme.extensionLocation) {
-				const extensionsHome = URI.file(this.environmentService.extensionsPath);
-				const folderName = theme.extensionLocation.path.split('/').pop()!;
-				const targetLocation = joinPath(extensionsHome, folderName);
+			this.logService.info(`[VSCodeThemeImporter] Copying extension to ${targetLocation.toString()}`);
+			await this.fileService.copy(theme.extensionLocation, targetLocation, true);
 
-				this.logService.info(`[VSCodeThemeImporter] Copying extension to ${targetLocation.toString()}`);
-				await this.fileService.copy(theme.extensionLocation, targetLocation, true);
-
-				// Step 3: Replace install from the copied location
-				const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
-				await this.extensionManagementService.installFromLocation(targetLocation, profileLocation);
-			}
+			// Replace install from the copied location
+			const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
+			await this.extensionManagementService.installFromLocation(targetLocation, profileLocation);
 		} catch (err) {
-			this.logService.error('[VSCodeThemeImporter] Failed to import theme:', err);
+			this.logService.error('[VSCodeThemeImporter] Failed to apply theme:', err);
+		}
+	}
+
+	private async _reset(installed: ILocalExtension | undefined): Promise<void> {
+		if (!installed) {
+			return;
+		}
+		try {
+			const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
+			await this.extensionManagementService.uninstall(installed, { profileLocation });
+		} catch (err) {
+			this.logService.warn('[VSCodeThemeImporter] Failed to uninstall preview extension:', err);
 		}
 	}
 
@@ -136,7 +150,7 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 		return this.extensionManagementService.installFromLocation(theme.extensionLocation, profileLocation);
 	}
 
-	private async _applyTheme(themeSettingsId: string): Promise<void> {
+	private async _setTheme(themeSettingsId: string): Promise<void> {
 		const allThemes = await this.themeService.getColorThemes();
 		const match = allThemes.find(t => t.settingsId === themeSettingsId);
 		if (match) {
@@ -211,6 +225,7 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 	private async _readVSCodeThemeId(): Promise<string | undefined> {
 		const hostDataHome = this.environmentService.parentAppUserRoamingDataHome;
 		if (!hostDataHome) {
+			this.logService.warn('[VSCodeThemeImporter] Host user data home is not available');
 			return undefined;
 		}
 
@@ -222,7 +237,7 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 			if (typeof themeId === 'string') {
 				return themeId;
 			}
-			this.logService.warn('[VSCodeThemeImporter] workbench.colorTheme is not set in host settings.json', themeId);
+			this.logService.warn('[VSCodeThemeImporter] workbench.colorTheme is not set in host settings.json', themeId, settingsUri.toString());
 			return undefined;
 		} catch (e) {
 			this.logService.warn('[VSCodeThemeImporter] Failed to read host settings.json, falling back to default theme', getErrorMessage(e));

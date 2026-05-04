@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -103,30 +102,12 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 		@IGitHubService gitHubService: IGitHubService,
 	) {
 		super();
 
-		const ciModelObs = derived(this, reader => {
-			const session = sessionManagementService.activeSession.read(reader);
-			if (!session) {
-				return undefined;
-			}
-			const gitHubInfo = session.gitHubInfo.read(reader);
-			if (!gitHubInfo?.pullRequest) {
-				return undefined;
-			}
-			const prModel = gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-			const pr = prModel.pullRequest.read(reader);
-			if (!pr) {
-				return undefined;
-			}
-			return gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, pr.headSha);
-		});
-
 		this._register(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
-			const ciModel = ciModelObs.read(reader);
+			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
 			if (!ciModel) {
 				return false;
 			}
@@ -167,18 +148,11 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		const gitHubInfo = activeSession.gitHubInfo.get();
-		if (!gitHubInfo?.pullRequest) {
+		const ciModel = gitHubService.activeSessionPullRequestCIObs.get();
+		if (!ciModel) {
 			return;
 		}
 
-		const prModel = gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		const pr = prModel.pullRequest.get();
-		if (!pr) {
-			return;
-		}
-
-		const ciModel = gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number, pr.headSha);
 		const checks = ciModel.checks.get();
 		const failedChecks = getFailedChecks(checks);
 		if (failedChecks.length === 0) {
