@@ -331,3 +331,40 @@ suite('skill events', () => {
 		});
 	});
 });
+
+suite('rg / grep search tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('rg invocation/past tense use "Searching for {pattern}" wording', () => {
+		const inv = text(getInvocationMessage('rg', 'Search', { pattern: 'foo' }));
+		const past = text(getPastTenseMessage('rg', 'Search', { pattern: 'foo' }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Searching for `foo`',
+			past: 'Searched for `foo`',
+		});
+	});
+
+	test('rg without a pattern falls back to a generic search message (not the raw tool name)', () => {
+		const inv = text(getInvocationMessage('rg', 'Search', undefined));
+		assert.strictEqual(inv, 'Searching files');
+	});
+
+	test('grep keeps "Searching for {pattern}" wording', () => {
+		const inv = text(getInvocationMessage('grep', 'Search', { pattern: 'bar' }));
+		const past = text(getPastTenseMessage('grep', 'Search', { pattern: 'bar' }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Searching for `bar`',
+			past: 'Searched for `bar`',
+		});
+	});
+
+	test('getToolInputString returns pattern for both grep and rg', () => {
+		assert.strictEqual(getToolInputString('grep', { pattern: 'abc' }, undefined), 'abc');
+		assert.strictEqual(getToolInputString('rg', { pattern: 'abc' }, undefined), 'abc');
+	});
+});

@@ -23,7 +23,7 @@ function mockAgent(uri: URI, name: string): vscode.ChatCustomAgent {
 }
 
 function mockSkill(uri: URI, name: string): vscode.ChatSkill {
-	return { uri, name, source: 'local' } satisfies vscode.ChatSkill;
+	return { uri, name, source: 'local', disableModelInvocation: false } satisfies vscode.ChatSkill;
 }
 
 class FakeChatSessionCustomizationType {

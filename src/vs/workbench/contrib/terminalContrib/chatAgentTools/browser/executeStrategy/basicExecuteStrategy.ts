@@ -118,9 +118,28 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
+			// Capture any command that is already executing in the terminal at
+			// strategy entry. We may send ETX (Ctrl+C) below to clear pending
+			// input from a prior interaction, which kills that prior command
+			// and produces an `onCommandFinished` event with exit code 130.
+			// Without this filter, the race below would resolve with the prior
+			// command's finished event before our new command has even started —
+			// causing the new command to be reported as having instantly exited
+			// 130 and cascading to every subsequent command on the same terminal.
+			//
+			// Compare by marker identity rather than command object identity
+			// because `executingCommandObject` creates a new wrapper each call
+			// via `promoteToFullCommand()`, while `onCommandFinished` creates
+			// another. Both share the same xterm `IMarker` from
+			// `commandStartMarker`.
+			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			const onCommandFinishedFiltered = staleMarker
+				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
+				: this._commandDetection.onCommandFinished;
+
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval, this._logService);
 			const onDone = Promise.race([
-				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+				Event.toPromise(onCommandFinishedFiltered, store).then(e => {
 					// When shell integration is basic, it means that the end execution event is
 					// often misfired since we don't have command line verification. Because of this
 					// we make sure the prompt is idle after the end execution event happens.
@@ -172,10 +191,22 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			);
 
 			if (this._hasReceivedUserInput()) {
-				this._log('Command timed out, sending SIGINT and retrying');
-				// Send SIGINT (Ctrl+C)
-				await this._instance.sendText('\x03', false);
-				await waitForIdle(this._instance.onData, 100);
+				// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
+				// command is still executing. Sending Ctrl+C at an idle prompt can be
+				// misinterpreted by the shell as cancelling the command we are about
+				// to send via sendText, producing spurious "Command exited with code
+				// 130" results for what should be the next, unrelated command.
+				if (this._commandDetection.executingCommandObject !== undefined) {
+					this._log('Previous command still executing with pending input, sending SIGINT before retrying');
+					await this._instance.sendText('\x03', false);
+					await waitForIdle(this._instance.onData, 100);
+				} else {
+					// Use Ctrl+U (kill line) to clear any pending input on the prompt
+					// without killing any running command. No-op on a clean prompt.
+					this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
+					await this._instance.sendText('\x15', false);
+					await waitForIdle(this._instance.onData, 100);
+				}
 			}
 
 			// Execute the command

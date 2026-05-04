@@ -42,9 +42,10 @@ export interface ExternalIngestFileSet {
 	readonly checkpoint: string;
 }
 
-export function computeCheckpointHash(files: readonly { readonly docSha: Uint8Array }[]): string {
-	const hash = crypto.createHash('sha1');
+export function computeCheckpointHash(files: readonly { readonly uri: URI; readonly docSha: Uint8Array }[]): string {
+	const hash = crypto.createHash('sha256');
 	for (const file of files) {
+		hash.update(file.uri.toString());
 		hash.update(file.docSha);
 	}
 	return hash.digest().toString('base64');

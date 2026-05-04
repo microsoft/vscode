@@ -213,12 +213,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.state = updateService.state;
@@ -252,12 +250,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
-			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && !state.error && await this.hostService.hadLastFocus()) {
-					this.onUpdateNotAvailable();
-				}
-				break;
-
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
@@ -288,10 +280,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		this.state = state;
-	}
-
-	private onUpdateNotAvailable(): void {
-		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	private registerGlobalActivityActions(): void {

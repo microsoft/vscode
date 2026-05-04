@@ -13,6 +13,7 @@ import { CancellationToken } from '../../../../../util/vs/base/common/cancellati
 import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
 import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
@@ -585,5 +586,49 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Both images exceed the 2.5MB shared budget and should be replaced with placeholders
 		expect(serialized).toContain('context image budget exceeded');
 		expect(serialized).not.toContain('image_url');
+	});
+
+	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {
+		// Regression test for issue #312813: ensure sendInvokedToolTelemetry uses DI to instantiate
+		// PrimitiveToolResult so that @IPromptEndpoint is properly injected when rendering images.
+		// Previously, it used raw BasePromptRenderer which bypassed DI, causing 'Cannot read properties
+		// of undefined (reading "supportsVision")' when a tool result contained an image.
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const telemetryService = accessor.get(ITelemetryService);
+		const configService = accessor.get(IConfigurationService);
+
+		// Disable image uploads in test environment to avoid auth requirement
+		await configService.setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// Import the function we're testing
+		const { sendInvokedToolTelemetry } = await import('../toolCalling');
+
+		// Create a tool result with an image
+		const imageData = new Uint8Array(1024);
+		const toolResult = new LanguageModelToolResult([
+			new LanguageModelTextPart('Tool executed successfully'),
+			LanguageModelDataPart.image(imageData, 'image/png'),
+		]);
+
+		// This should not throw — the endpoint and all services must be properly injected so that
+		// onImage() can read this.endpoint.supportsVision without crashing.
+		// The function is fire-and-forget (returns undefined), so we just verify it doesn't throw.
+		expect(() => {
+			sendInvokedToolTelemetry(
+				instantiationService,
+				endpoint as any, // endpoint satisfies IChatEndpoint
+				telemetryService,
+				'testTool',
+				toolResult,
+			);
+		}).not.toThrow();
+
+		// Give async rendering a moment to complete without unhandled rejection
+		await new Promise(resolve => setTimeout(resolve, 100));
 	});
 });

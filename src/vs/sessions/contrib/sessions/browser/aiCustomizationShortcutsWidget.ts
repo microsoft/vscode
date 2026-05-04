@@ -6,6 +6,7 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
@@ -21,7 +22,6 @@ import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/b
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -44,7 +44,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -63,7 +62,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			container.classList.add('collapsed');
 		}
 
-		// Header (clickable to toggle)
+		// Header
 		const header = DOM.append(container, $('.ai-customization-header'));
 		header.classList.toggle('collapsed', isCollapsed);
 
@@ -82,11 +81,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		headerButton.element.setAttribute('aria-expanded', String(!isCollapsed));
 		headerButton.label = localize('customizations', "Customizations");
 		this._headerButton = headerButton;
-
-		const chevronContainer = DOM.append(headerButton.element, $('span.customization-link-counts'));
-		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
-		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
 
 		const headerActions = DOM.append(header, $('.ai-customization-header-actions'));
 		const openOverviewLabel = localize('openCustomizationsOverview', "Open Customizations Overview");
@@ -107,6 +101,18 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			e?.preventDefault();
 			this._openWelcomePage();
 		}));
+
+		// Chevron at far right (outside the link button so it sits to the
+		// right of the home overview action). Clicking the chevron toggles
+		// collapse — same as clicking the header label.
+		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
+		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
+		chevronContainer.type = 'button';
+		chevronContainer.setAttribute('aria-label', toggleCollapseLabel);
+		chevronContainer.title = toggleCollapseLabel;
+		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
+		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
 
 		// Toolbar container
 		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
@@ -143,7 +149,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				} else if (config.isMcp) {
 					total += this.mcpService.servers.read(reader).length;
 				} else if (config.isPlugins) {
-					total += this.agentPluginService.plugins.read(reader).length;
+					total += this.itemsModel.getPluginCount().read(reader);
 				}
 			}
 			return total;
@@ -172,6 +178,13 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
+		this._register(Gesture.addTarget(chevronContainer));
+		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(DOM.addDisposableListener(chevronContainer, eventType, e => {
+				DOM.EventHelper.stop(e, true);
+				toggleCollapse();
+			}));
+		}
 	}
 
 	private async _openWelcomePage(): Promise<void> {

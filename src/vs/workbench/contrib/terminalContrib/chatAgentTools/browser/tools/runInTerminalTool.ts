@@ -276,13 +276,14 @@ export async function createRunInTerminalToolData(
 	const terminalSandboxService = accessor.get(ITerminalSandboxService);
 
 	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
-	const [shell, os, isSandboxEnabled] = await Promise.all([
+	const [shell, os, isSandboxEnabled, isSandboxAllowNetworkEnabled] = await Promise.all([
 		profileFetcher.getCopilotShell(),
 		profileFetcher.osBackend,
 		terminalSandboxService.isEnabled(),
+		terminalSandboxService.isSandboxAllowNetworkEnabled(),
 	]);
 
-	const networkDomains = isSandboxEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
+	const networkDomains = isSandboxEnabled && !isSandboxAllowNetworkEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
@@ -483,6 +484,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
+
+	/**
+	 * Terminal IDs currently being disposed by `kill_terminal`. Used to
+	 * suppress redundant steering messages in `_registerCompletionNotification`'s
+	 * `onDisposed` handler — the agent already receives the output through the
+	 * `kill_terminal` tool result.
+	 */
+	private static readonly _killedByTool = new Set<string>();
 	public static getBackgroundOutput(id: string): string {
 		const execution = RunInTerminalTool._activeExecutions.get(id);
 		if (!execution) {
@@ -513,6 +522,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return true;
 	}
 
+	/**
+	 * Marks a terminal ID as being killed by the `kill_terminal` tool so that
+	 * the `onDisposed` handler in `_registerCompletionNotification` skips the
+	 * redundant steering message.
+	 */
+	public static markKilledByTool(id: string): void {
+		RunInTerminalTool._killedByTool.add(id);
+	}
+
 	private _resolveExecutionOptions(args: IRunInTerminalInputParams): IResolvedExecutionOptions {
 		const mode = args.mode ?? (args.isBackground ? 'async' : 'sync');
 		switch (mode) {
@@ -527,8 +545,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * Controls whether this tool wires up sandbox-specific command-line
 	 * behavior, including both the {@link CommandLineSandboxRewriter} and the
 	 * {@link CommandLineSandboxAnalyzer}. This is separate from
-	 * ITerminalSandboxService.isEnabled(), which reports whether terminal
-	 * sandboxing is currently enabled for the running window.
+	 * ITerminalSandboxService.isEnabled(), which reports the current terminal
+	 * sandboxing enablement for the running window.
 	 */
 	protected get _enableCommandLineSandboxRewriting() {
 		return true;
@@ -653,8 +671,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.checkForSandboxingPrereqs()
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-		const isTerminalSandboxEnabled = sandboxPrereqs.enabled;
-		const explicitUnsandboxRequest = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
+		const isSandboxEnabled = sandboxPrereqs.enabled;
+		const explicitUnsandboxRequest = isSandboxEnabled && args.requestUnsandboxedExecution === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
 
@@ -994,10 +1012,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, token: CancellationToken): Promise<boolean> {
+	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
+		}
+
+		// In Autopilot/Bypass Approvals modes, follow the picker
+		if (sessionResource && isSessionAutoApproveLevel(sessionResource, this._configurationService, this._chatWidgetService, this._chatService)) {
+			return true;
 		}
 
 		const request = chatModel.getRequests().at(-1);
@@ -1044,6 +1067,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				undefined,
 				undefined,
 				() => resolveOnce(false),
+				riskAssessment,
 			);
 
 			chatModel.acceptResponseProgress(request, part);
@@ -1634,7 +1658,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 			const rewrittenRetryReason = retryRewriteResult.requestUnsandboxedExecutionReason ?? retryReason;
 			const retryConfirmationCommand = toolSpecificData.presentationOverrides?.commandLine ?? command;
-			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, token);
+			const retryRiskAssessment = {
+				toolId: TerminalToolId.RunInTerminal,
+				parameters: { ...args, command: retryRewriteResult.rewrittenCommand, requestUnsandboxedExecution: true },
+			};
+			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, retryRiskAssessment, token);
 			if (shouldRetry) {
 				const retryToolSpecificData: IChatTerminalToolInvocationData = {
 					...toolSpecificData,
@@ -1680,9 +1708,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const resultText: string[] = [];
 		if (!didSandboxWrapCommand) {
 			if (didUserEditCommand) {
-				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+				resultText.push(`Note: The user manually edited the command to \`${command}\` (terminal ID=${termId}), and this is the output of running that command instead:\n`);
 			} else if (didToolEditCommand) {
-				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+				// If the tool wrapped the command with `nohup` (POSIX) or `Start-Process`
+				// (Windows) to detach a background process, stdin is no longer connected.
+				// Tell the model so it does not try to drive interactive programs through it.
+				const wasDetachedToBackground = /(^|\s)nohup\s|Start-Process\b/.test(command);
+				const stdinHint = wasDetachedToBackground
+					? ' Note that stdin is closed for detached background processes; do not try to send input via send_to_terminal — re-run with mode="sync" instead if interactive input is required.'
+					: '';
+				resultText.push(`Note: The tool simplified the command to \`${command}\` (terminal ID=${termId}).${stdinHint} This is the output of running that command instead:\n`);
 			}
 			if (isBackgroundExecution && !executionOptions.persistentSession) {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
@@ -2302,6 +2337,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// _activeExecutions.
 		const executionForDisposal = RunInTerminalTool._activeExecutions.get(termId);
 		store.add(terminalInstance.onDisposed(() => {
+			// If kill_terminal is disposing this terminal, the agent will
+			// receive the output through the normal tool-result flow —
+			// skip the redundant steering message.
+			if (RunInTerminalTool._killedByTool.has(termId)) {
+				disposeNotification();
+				return;
+			}
 			if (handleSessionCancelled()) {
 				return;
 			}
@@ -2431,13 +2473,14 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	}
 
 	private _createStrategy(commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		const isSyncMode = !this._isBackground;
 		switch (this._toolTerminal.shellIntegrationQuality) {
 			case ShellIntegrationQuality.None:
 				return this._instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
 			case ShellIntegrationQuality.Basic:
 				return this._instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
 			case ShellIntegrationQuality.Rich:
-				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
+				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection, isSyncMode);
 		}
 	}
 

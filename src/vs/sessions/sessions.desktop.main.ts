@@ -203,6 +203,8 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './services/vscode/electron-browser/themeImporterService.js';
+
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';

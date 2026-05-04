@@ -12,7 +12,7 @@ import { refineServiceDecorator } from '../../instantiation/common/instantiation
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from '../common/userDataProfile.js';
+import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile, AGENTS_WINDOW_PROFILE_ID } from '../common/userDataProfile.js';
 import { UserDataProfilesService } from '../node/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IStateService } from '../../state/node/state.js';
@@ -23,6 +23,7 @@ import { join, resolve } from '../../../base/common/path.js';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	createAgentsWindowProfile(): Promise<IUserDataProfile>;
 	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined;
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void;
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[];
@@ -40,10 +41,10 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService productService: IProductService,
 	) {
 		super(stateService, uriIdentityService, environmentService, fileService, logService);
-		this.agentPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, environmentService.userHome, productService.dataFolderName));
+		this.agentPluginsHome = URI.file(getAgentPluginsPath(environmentService.args, joinPath(environmentService.userHome, productService.dataFolderName)));
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
@@ -54,11 +55,11 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		if (!(process as INodeProcess).isEmbeddedApp) {
 			return defaultProfile;
 		}
-		const hostUserRoamingDataHome = this.environmentService.hostUserRoamingDataHome;
+		const hostUserRoamingDataHome = this.environmentService.parentAppUserRoamingDataHome;
 		if (!hostUserRoamingDataHome) {
 			return defaultProfile;
 		}
-		const hostAgentPluginsHome = getHostAgentPluginsPath(this.nativeEnvironmentService, this.productService);
+		const hostAgentPluginsHome = getParentAppAgentPluginsPath(this.nativeEnvironmentService);
 		return {
 			...defaultProfile,
 			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
@@ -66,6 +67,15 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
 			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentPluginsHome
 		};
+	}
+
+	async createAgentsWindowProfile(): Promise<IUserDataProfile> {
+		const existing = this.profiles.find(p => p.id === AGENTS_WINDOW_PROFILE_ID);
+		if (existing) {
+			return existing;
+		}
+
+		return this.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents');
 	}
 
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {
@@ -77,30 +87,15 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 }
 
-function getHostAgentPluginsPath(environmentService: INativeEnvironmentService, productService: IProductService): string | undefined {
-	if (!(process as INodeProcess).isEmbeddedApp) {
+function getParentAppAgentPluginsPath(environmentService: INativeEnvironmentService): string | undefined {
+	const hostUserHome = environmentService.parentAppUserHome;
+	if (!hostUserHome) {
 		return undefined;
 	}
-	if (!environmentService.isBuilt) {
-		return undefined;
-	}
-
-	const quality = productService.quality;
-	let hostDataFolderName: string;
-	if (quality === 'stable') {
-		hostDataFolderName = '.vscode';
-	} else if (quality === 'insider') {
-		hostDataFolderName = '.vscode-insiders';
-	} else if (quality === 'exploration') {
-		hostDataFolderName = '.vscode-exploration';
-	} else {
-		return undefined;
-	}
-
-	return getAgentPluginsPath(environmentService.args, environmentService.userHome, hostDataFolderName);
+	return getAgentPluginsPath(environmentService.args, hostUserHome);
 }
 
-function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI, dataFolderName: string): string {
+function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI): string {
 	const cliAgentPluginsDir = args['agent-plugins-dir'];
 	if (cliAgentPluginsDir) {
 		return resolve(cliAgentPluginsDir);
@@ -116,5 +111,5 @@ function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI, dataFolderNa
 		return join(vscodePortable, 'agent-plugins');
 	}
 
-	return joinPath(userHome, dataFolderName, 'agent-plugins').fsPath;
+	return joinPath(userHome, 'agent-plugins').fsPath;
 }

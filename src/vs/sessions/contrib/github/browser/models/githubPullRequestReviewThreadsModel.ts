@@ -4,14 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestReviewThreadsModel]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
+
+export class GitHubPullRequestReviewThreadsModelReferenceCollection extends ReferenceCollection<GitHubPullRequestReviewThreadsModel> {
+	private readonly _fetcher: GitHubPRFetcher;
+
+	constructor(
+		apiClient: GitHubApiClient,
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+		this._fetcher = new GitHubPRFetcher(apiClient);
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestReviewThreadsModel {
+		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][createReferencedObject] Creating PR review threads model for ${key}`);
+		return new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this._fetcher, this._logService);
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubPullRequestReviewThreadsModel): void {
+		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][destroyReferencedObject] Disposing PR review threads model for ${key}`);
+		object.dispose();
+	}
+}
 
 /**
  * Reactive model for GitHub pull request review threads. Review threads are
@@ -23,8 +46,10 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
 	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
 
+	private _refreshPromise: Promise<void> | undefined = undefined;
+
+	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
-	private _disposed = false;
 
 	constructor(
 		readonly owner: string,
@@ -41,7 +66,26 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	/**
 	 * Refresh review thread data.
 	 */
-	async refresh(): Promise<void> {
+	refresh(force = false): Promise<void> {
+		if (force && this._refreshPromise) {
+			return this._refreshPromise.then(() => this.refresh(true));
+		}
+
+		if (force) {
+			return this._refresh();
+		}
+
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh()
+				.finally(() => {
+					this._refreshPromise = undefined;
+				});
+		}
+
+		return this._refreshPromise;
+	}
+
+	private async _refresh(): Promise<void> {
 		try {
 			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
 			this._reviewThreads.set(data, undefined);
@@ -55,7 +99,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo);
-		await this.refresh();
+		await this.refresh(true);
 		return comment;
 	}
 
@@ -64,33 +108,36 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async resolveThread(threadId: string): Promise<void> {
 		await this._fetcher.resolveThread(this.owner, this.repo, threadId);
-		await this.refresh();
+		await this.refresh(true);
 	}
 
 	/**
 	 * Start periodic polling. Each cycle refreshes review thread data.
 	 */
-	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.cancel();
-		this._pollScheduler.schedule(intervalMs);
-	}
+	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
+		if (this._pollingClientCount++ === 0) {
+			this._pollScheduler.schedule(intervalMs);
+		}
 
-	/**
-	 * Stop periodic polling.
-	 */
-	stopPolling(): void {
-		this._pollScheduler.cancel();
+		return toDisposable(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			if (--this._pollingClientCount === 0) {
+				this._pollScheduler.cancel();
+			}
+		});
 	}
 
 	private async _poll(): Promise<void> {
 		await this.refresh();
-		if (!this._disposed) {
+		if (!this._store.isDisposed && this._pollingClientCount > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
 	override dispose(): void {
-		this._disposed = true;
 		super.dispose();
 	}
 }

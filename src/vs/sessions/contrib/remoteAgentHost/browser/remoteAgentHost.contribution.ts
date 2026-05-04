@@ -12,6 +12,7 @@ import { agentHostAuthority } from '../../../../platform/agentHost/common/agentH
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { AgentHostLocalFilePermissionsSettingId } from '../../../../platform/agentHost/common/agentHostPermissionService.js';
 import { type ProtectedResourceMetadata } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -41,6 +42,7 @@ import { resolveCustomizationRefs } from '../../../../workbench/contrib/chat/bro
 import { IAgentHostFileSystemService } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -423,6 +425,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			return undefined;
 		};
+		const isNewSession = (sessionResource: URI): boolean => {
+			const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+			return provider?.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
+		};
 
 		// Chat session contribution
 		agentStore.add(this._chatSessionsService.registerChatSessionContribution({
@@ -484,6 +490,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
 			resolveWorkingDirectory,
+			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, loggedConnection, resources),
 			customizations,
 		}));
@@ -617,6 +624,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			items: { type: 'string' },
 			description: nls.localize('chat.remoteAgentTunnels', "Additional dev tunnel names to look for when connecting to remote agent hosts. These are looked up in addition to tunnels automatically enumerated from your account."),
 			default: [],
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostLocalFilePermissionsSettingId]: {
+			type: 'object',
+			description: nls.localize('chat.agentHost.localFilePermissions', "Per-host filesystem grants for remote agent hosts. Maps a remote agent host address to URI strings and the access mode the host has been granted (`r` for read, `rw` for read and write). Hosts cannot read or write any files outside the granted URIs without prompting; a URI grant covers descendants. This setting is normally maintained by the agent-host permission prompts and rarely edited by hand."),
+			additionalProperties: {
+				type: 'object',
+				additionalProperties: {
+					type: 'string',
+					enum: ['r', 'rw'],
+					enumDescriptions: [
+						nls.localize('chat.agentHost.localFilePermissions.read', "Read-only access."),
+						nls.localize('chat.agentHost.localFilePermissions.readWrite', "Read and write access."),
+					],
+				},
+			},
+			default: {},
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},

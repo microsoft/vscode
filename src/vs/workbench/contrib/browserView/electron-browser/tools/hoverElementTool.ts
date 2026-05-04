@@ -9,12 +9,13 @@ import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { createBrowserPageLink, DEFAULT_ELEMENT_LABEL, errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, DEFAULT_ELEMENT_LABEL, errorResult, getSessionId, playwrightInvoke } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const HoverElementToolData: IToolData = {
 	id: 'hover_element',
-	toolReferenceName: 'hoverElement',
+	toolReferenceName: BrowserChatToolReferenceName.HoverElement,
 	displayName: localize('hoverElementTool.displayName', 'Hover Element'),
 	userDescription: localize('hoverElementTool.userDescription', 'Hover over an element in a browser page'),
 	modelDescription: 'Hover over an element in a browser page. Provide either a Playwright selector or an element reference.',
@@ -69,6 +70,7 @@ export class HoverElementTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IHoverElementToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
@@ -83,6 +85,6 @@ export class HoverElementTool implements IToolImpl {
 			return errorResult('Either a "ref" or "selector" parameter is required.');
 		}
 
-		return playwrightInvoke(this.playwrightService, params.pageId, (page, sel) => page.locator(sel).hover(), selector);
+		return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, sel) => page.locator(sel).hover(), selector);
 	}
 }

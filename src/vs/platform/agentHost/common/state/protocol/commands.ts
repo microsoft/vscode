@@ -98,6 +98,13 @@ export interface ReconnectReplayResult {
 	type: ReconnectResultType.Replay;
 	/** Missed action envelopes since `lastSeenServerSeq` */
 	actions: ActionEnvelope[];
+	/**
+	 * URIs from `ReconnectParams.subscriptions` that the server cannot resume.
+	 * This includes resources that no longer exist (e.g. disposed sessions or
+	 * terminals) as well as resources the client is no longer permitted to
+	 * observe. Clients SHOULD drop these from their local subscription set.
+	 */
+	missing: URI[];
 }
 
 /**
@@ -620,6 +627,59 @@ export interface ResourceDeleteParams {
  * An empty object on success.
  */
 export interface ResourceDeleteResult {
+}
+
+// ─── resourceRequest ─────────────────────────────────────────────────────────
+
+/**
+ * Requests permission to access a resource on the receiver's filesystem.
+ *
+ * `resourceRequest` is symmetrical and MAY be sent in either direction: a
+ * client asks the server to grant access to a server-side resource, or a
+ * server asks the client to grant access to a client-side resource. The
+ * receiver decides whether to allow, deny, or prompt the user for the
+ * requested access.
+ *
+ * If the receiver denies access, it MUST respond with `PermissionDenied`
+ * (-32009). The error data MAY include a `ResourceRequestParams` value
+ * describing the access the caller would need to be granted for the
+ * operation to succeed; see `PermissionDeniedErrorData` in
+ * `types/errors.ts`.
+ *
+ * After a successful `resourceRequest`, the caller MAY use the corresponding
+ * `resource*` commands (e.g. `resourceRead`, `resourceWrite`) to perform the
+ * operation. Receivers MAY rescind access at any time by returning
+ * `PermissionDenied` on subsequent operations.
+ *
+ * Either `read`, `write`, or both SHOULD be set to `true`. A request with
+ * neither flag set is treated as `read: true` by receivers.
+ *
+ * @category Commands
+ * @method resourceRequest
+ * @direction Client ↔ Server
+ * @messageType Request
+ * @version 1
+ * @throws `PermissionDenied` (`-32009`) if access is denied.
+ */
+export interface ResourceRequestParams {
+	/**
+	 * Resource URI being requested. Typically a `file:` URI on the receiver's
+	 * filesystem, but any URI scheme that the receiver mediates access to is
+	 * allowed.
+	 */
+	uri: URI;
+	/** Whether the caller needs read access to the resource. */
+	read?: boolean;
+	/** Whether the caller needs write access to the resource. */
+	write?: boolean;
+}
+
+/**
+ * Result of the `resourceRequest` command.
+ *
+ * An empty object on success.
+ */
+export interface ResourceRequestResult {
 }
 
 // ─── resourceMove ────────────────────────────────────────────────────────────

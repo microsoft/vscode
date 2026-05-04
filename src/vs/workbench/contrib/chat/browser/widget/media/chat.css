@@ -1859,10 +1859,110 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+/* Split model picker layout */
+.chat-input-picker-item:has(.model-picker-split) {
+	overflow: visible;
+}
+
+.chat-input-picker-item .action-label.model-picker-split {
+	padding: 0 6px;
+	gap: 2px;
+	overflow: visible;
+	height: auto;
+	border-radius: 0;
+	position: relative;
+}
+
+/* Dividers: only in the workbench chat input toolbar (not in the agents app) */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before {
+	left: 0;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	right: 0;
+}
+
+/* Hide right divider when the model picker is the last item (e.g. Copilot CLI with no tool config button) */
+.interactive-session .chat-input-toolbar .chat-input-picker-item:last-child .action-label.model-picker-split::after {
+	content: none;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section {
+	display: flex;
+	align-items: center;
+	height: 16px;
+	padding: 3px 5px;
+	border-radius: 4px;
+	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
+	white-space: nowrap;
+}
+
+/* Prevent double hover: disable the outer container hover so only individual sections highlight */
+.chat-input-picker-item .action-label.model-picker-split:hover,
+.chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
+	background-color: transparent !important;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+	min-width: 0;
+	flex-shrink: 1;
+	overflow: hidden;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
+.chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+	flex-shrink: 0;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
+	font-size: 12px;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
+	margin-left: 2px;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
+	cursor: default;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
+	background-color: transparent;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
+	color: var(--vscode-disabledForeground);
 }
 
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
