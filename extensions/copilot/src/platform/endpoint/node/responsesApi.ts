@@ -332,9 +332,9 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const toolSearchCallIds = new Set<string>();
 	const toolSearchLoadedTools = new Set<string>();
-	// Only pre-scan when history will be sliced; otherwise the serialization loop
-	// below visits each tool_search_call before its result and populates these
-	// sets in order on its own.
+	// Only pre-scan when history will be sliced (matches the slicing block below);
+	// otherwise the serialization loop visits each tool_search_call before its
+	// result and populates these sets in order on its own.
 	const willSliceHistory = markerIndex !== undefined || latestCompactionMessageIndex !== undefined;
 	if (willSliceHistory) {
 		for (const message of messages) {
