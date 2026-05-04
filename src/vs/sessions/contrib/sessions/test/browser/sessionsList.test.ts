@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { getRelativeVisibleSession, groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -154,6 +154,39 @@ suite('Sessions - SessionsList Helpers', () => {
 			const sorted = sortSessions(sessions, SessionsSorting.Updated);
 
 			assert.deepStrictEqual(sorted.map(s => s.sessionId), ['b', 'c', 'a']);
+		});
+	});
+
+	suite('getRelativeVisibleSession', () => {
+
+		test('returns adjacent sessions and wraps around the visible list', () => {
+			const sessions = [
+				createSession('first', {}),
+				createSession('second', {}),
+				createSession('third', {}),
+			];
+
+			assert.deepStrictEqual([
+				getRelativeVisibleSession(sessions, sessions[0], true)?.sessionId,
+				getRelativeVisibleSession(sessions, sessions[1], false)?.sessionId,
+				getRelativeVisibleSession(sessions, sessions[2], true)?.sessionId,
+				getRelativeVisibleSession(sessions, sessions[0], false)?.sessionId,
+			], ['second', 'first', 'first', 'third']);
+		});
+
+		test('uses the list ends when there is no active visible session', () => {
+			const sessions = [
+				createSession('first', {}),
+				createSession('second', {}),
+			];
+
+			assert.deepStrictEqual([
+				getRelativeVisibleSession(sessions, undefined, true)?.sessionId,
+				getRelativeVisibleSession(sessions, undefined, false)?.sessionId,
+				getRelativeVisibleSession(sessions, createSession('missing', {}), true)?.sessionId,
+				getRelativeVisibleSession(sessions, createSession('missing', {}), false)?.sessionId,
+				getRelativeVisibleSession([], undefined, true)?.sessionId,
+			], ['first', 'second', 'first', 'second', undefined]);
 		});
 	});
 

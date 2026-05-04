@@ -30,6 +30,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
+		content.push(localize('sessionsChat.switchSessions', "Switch to the next or previous agent session with {0} and {1}. When reviewing files in the modal editor, these keybindings navigate to the next or previous file instead.", '<keybinding:workbench.action.agentSessions.nextSession>', '<keybinding:workbench.action.agentSessions.previousSession>'));
 		content.push(localize('sessionsChat.customizations', "Focus the Chat Customizations view{0}.", `<keybinding:${FOCUS_AI_CUSTOMIZATION_VIEW_ID}>`));
 
 		return new AccessibleContentProvider(

@@ -15,12 +15,13 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorPartModalContext, EditorPartModalNavigationContext, EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID } from '../../../../../workbench/browser/parts/editor/editorCommands.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection, getRelativeVisibleSession } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
@@ -69,6 +70,10 @@ KeybindingsRegistry.registerKeybindingRule({
 //  Open Session at Index (Ctrl/Cmd+1..9)
 
 const OPEN_SESSION_AT_INDEX_COMMAND_ID = 'sessionsViewPane.openSessionAtIndex';
+const OPEN_NEXT_SESSION_COMMAND_ID = 'workbench.action.agentSessions.nextSession';
+const OPEN_PREVIOUS_SESSION_COMMAND_ID = 'workbench.action.agentSessions.previousSession';
+const sessionsWindowWithoutModalEditor = ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalContext.negate());
+const sessionsWindowModalEditorNavigation = ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalNavigationContext);
 
 function digitToKeyCode(digit: number): KeyCode {
 	switch (digit) {
@@ -109,6 +114,89 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 CommandsRegistry.registerCommand({
 	id: OPEN_SESSION_AT_INDEX_COMMAND_ID,
 	handler: openSessionAtIndex
+});
+
+const openRelativeSession = async (accessor: ServicesAccessor, next: boolean): Promise<void> => {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId) ?? await viewsService.openView<SessionsView>(SessionsViewId, false);
+	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
+	const target = getRelativeVisibleSession(visible, sessionsManagementService.activeSession.get(), next);
+	if (target) {
+		await sessionsManagementService.openSession(target.resource);
+	}
+};
+
+registerAction2(class OpenNextSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_NEXT_SESSION_COMMAND_ID,
+			title: localize2('openNextAgentSession', "Open Next Agent Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: IsSessionsWindowContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight]
+				},
+				when: sessionsWindowWithoutModalEditor,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return openRelativeSession(accessor, true);
+	}
+});
+
+registerAction2(class OpenPreviousSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_PREVIOUS_SESSION_COMMAND_ID,
+			title: localize2('openPreviousAgentSession', "Open Previous Agent Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: IsSessionsWindowContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft]
+				},
+				when: sessionsWindowWithoutModalEditor,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return openRelativeSession(accessor, false);
+	}
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 20,
+	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight]
+	},
+	when: sessionsWindowModalEditorNavigation,
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 20,
+	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft]
+	},
+	when: sessionsWindowModalEditorNavigation,
 });
 
 // Ctrl/Cmd+1..8 open the Nth session, Ctrl/Cmd+9 opens the last session

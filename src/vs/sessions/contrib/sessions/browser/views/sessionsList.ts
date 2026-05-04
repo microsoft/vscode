@@ -68,6 +68,23 @@ export enum SessionsSorting {
 	Updated = 'updated',
 }
 
+export function getRelativeVisibleSession(visibleSessions: readonly ISession[], activeSession: ISession | undefined, next: boolean): ISession | undefined {
+	if (visibleSessions.length === 0) {
+		return undefined;
+	}
+	if (!activeSession) {
+		return next ? visibleSessions[0] : visibleSessions[visibleSessions.length - 1];
+	}
+
+	const activeIndex = visibleSessions.findIndex(session => session.sessionId === activeSession.sessionId);
+	if (activeIndex === -1) {
+		return next ? visibleSessions[0] : visibleSessions[visibleSessions.length - 1];
+	}
+
+	const offset = next ? 1 : -1;
+	return visibleSessions[(activeIndex + offset + visibleSessions.length) % visibleSessions.length];
+}
+
 export interface ISessionSection {
 	readonly id: string;
 	readonly label: string;
