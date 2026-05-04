@@ -396,11 +396,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		let vscodeThemeBtn: HTMLElement | undefined;
 		let isVSCodeThemeSelected = false;
 		let previewResult: IThemePreviewResult | undefined;
+		const disposePreview = () => {
+			previewResult?.dispose();
+			previewResult = undefined;
+		};
 		for (const theme of themes) {
 			const card = this._createThemeCard(stepDisposables, themeGrid, theme, themeCards, selectedThemeId, id => {
 				selectedThemeId = id;
 				isVSCodeThemeSelected = false;
-				previewResult?.reset();
+				disposePreview();
 				if (vscodeThemeBtn) {
 					vscodeThemeBtn.classList.remove('selected');
 					vscodeThemeBtn.setAttribute('aria-checked', 'false');
@@ -437,8 +441,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				previewResult = await this.themeImporterService.previewVSCodeTheme();
 				vscodeThemeBtn!.textContent = labelText;
 			};
-			// Reset preview on step teardown (escape)
-			stepDisposables.add(toDisposable(() => { previewResult?.reset(); }));
+			// Dispose preview on step teardown (escape)
+			stepDisposables.add(toDisposable(disposePreview));
 			stepDisposables.add(Gesture.addTarget(vscodeThemeBtn));
 			for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
 				stepDisposables.add(addDisposableListener(vscodeThemeBtn, eventType, selectVSCodeTheme));
