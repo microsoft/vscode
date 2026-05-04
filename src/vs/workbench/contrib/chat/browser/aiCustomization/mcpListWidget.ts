@@ -23,7 +23,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -528,9 +528,11 @@ export class McpListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const isBridged = this.harnessService.activeHarness.get() !== SessionType.Local;
 						const label = element.type === 'builtin-item' ? element.label : element.server.label;
-						return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}, Bridged", label) : label;
+						return derived(reader => {
+							const isBridged = this.harnessService.activeHarness.read(reader) !== SessionType.Local;
+							return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}, {1}", label, localize('bridged', "Bridged")) : label;
+						});
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");
