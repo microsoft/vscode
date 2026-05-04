@@ -17,6 +17,7 @@ import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProt
 import { IAgentHostPermissionService } from '../../common/agentHostPermissionService.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ContentEncoding } from '../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type SessionActiveClientChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -221,6 +222,62 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		await rejected;
 		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('initialize handshake offers PROTOCOL_VERSION as a SemVer array', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const connectPromise = client.connect();
+
+		transport.connectDeferred.complete();
+		// `connect()` chains through several awaits before posting the
+		// initialize request — yield until it shows up.
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		assert.strictEqual(sent.method, 'initialize');
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string };
+		assert.deepStrictEqual(params.protocolVersions, [PROTOCOL_VERSION]);
+		assert.strictEqual(typeof params.clientId, 'string');
+
+		// Reply with a successful handshake so `connect()` resolves and the
+		// test can finish cleanly.
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connectPromise;
+	});
+
+	test('rejects connect when host returns UnsupportedProtocolVersion (-32005)', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const connectPromise = client.connect();
+
+		transport.connectDeferred.complete();
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			error: {
+				code: AhpErrorCodes.UnsupportedProtocolVersion,
+				message: 'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
+				data: { supportedVersions: ['0.2.0'] },
+			},
+		});
+
+		await assertRemoteProtocolError(connectPromise, {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
+			data: { supportedVersions: ['0.2.0'] },
+		});
 	});
 
 	test('sends shutdown as a JSON-RPC request shape', async () => {

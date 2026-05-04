@@ -135,7 +135,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private _outputChannelId: string | undefined;
 	get outputChannelId(): string | undefined { return this._outputChannelId; }
 
-	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
+	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	/**

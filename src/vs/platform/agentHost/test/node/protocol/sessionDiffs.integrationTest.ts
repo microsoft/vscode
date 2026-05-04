@@ -11,7 +11,7 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedNotification, SessionDiffsChangedAction } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	dispatchTurnStarted,
@@ -68,7 +68,7 @@ const hasGit = (() => {
 		this.timeout(15_000);
 
 		// Create a session whose working directory is the tmp git repo.
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-git-diffs' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
 
 		const workingDirectory = URI.file(tmpRoot).toString();
 		await client.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
