@@ -150,6 +150,19 @@ export interface IGitHubInfo {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+export interface ISessionChangeset {
+	/** Unique identifier for the changeset. */
+	readonly id: string;
+	/** Display label for the changeset. */
+	readonly label: string;
+	/** Optional description for the changeset. */
+	readonly description?: string;
+	/** Whether the changeset is enabled. */
+	readonly enabled: IObservable<boolean>;
+	/** File changes associated with this changeset. */
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -169,6 +182,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -213,6 +228,8 @@ export interface ISession {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the session. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
