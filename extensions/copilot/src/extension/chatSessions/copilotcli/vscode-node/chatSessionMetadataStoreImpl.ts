@@ -352,7 +352,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await createDirectoryIfNotExists(this.fileSystemService, dirUri);
 		const content = new TextEncoder().encode(JSON.stringify(details, null, 2));
 		await this.fileSystemService.writeFile(fileUri, content);
-		this.logService.trace(`[ChatSessionMetadataStore] Wrote request details for session ${sessionId}`);
 	}
 
 	async storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void> {
@@ -498,7 +497,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			this._cache[sessionId] = { ...merged, writtenToDisc: true };
 			this._updateFolderIndex(sessionId, this._cache[sessionId]);
 			this.updateGlobalStorage();
-			this.logService.trace(`[ChatSessionMetadataStore] Wrote metadata for session ${sessionId}`);
 		});
 	}
 
@@ -570,7 +568,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 		const content = new TextEncoder().encode(JSON.stringify(toWrite, null, 2));
 		await this.fileSystemService.writeFile(this._cacheFile, content);
-		this.logService.trace(`[ChatSessionMetadataStore] Wrote bulk metadata file with ${Object.keys(toWrite).length} session(s)`);
 	}
 
 	/**

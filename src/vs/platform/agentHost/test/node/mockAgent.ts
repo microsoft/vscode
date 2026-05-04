@@ -132,7 +132,7 @@ export class MockAgent implements IAgent {
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		const subagentInfo = parseSubagentSessionUri(session.toString());
+		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
 		}
@@ -682,7 +682,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		const subagentInfo = parseSubagentSessionUri(session.toString());
+		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
 		}
