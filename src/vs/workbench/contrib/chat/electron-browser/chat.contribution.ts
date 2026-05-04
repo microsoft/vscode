@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { timeout } from '../../../../base/common/async.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { resolve } from '../../../../base/common/path.js';
@@ -32,7 +33,7 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { AgentHostContribution } from '../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
-import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
@@ -255,19 +256,17 @@ registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, Wo
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 
-// How long to wait for the agent host to surface an AgentInfo before giving
-// up and falling back to the umbrella scheme. Long enough for normal startup,
-// short enough to avoid hanging automation indefinitely if the agent host is
-// disabled or fails to start.
+// How long to wait for the agent host to surface an AgentInfo before
+// throwing an error. Long enough for normal startup, short enough to avoid
+// hanging automation indefinitely if the agent host is disabled or fails
+// to start.
 const AGENT_HOST_REGISTRATION_TIMEOUT_MS = 30_000;
 
 function getCopilotAgentInfo(rootState: RootState | Error | undefined): AgentInfo | undefined {
 	if (!rootState || rootState instanceof Error) {
 		return undefined;
 	}
-	// Prefer the canonical `copilotcli` provider if present; fall back to the
-	// first agent so this also works for forks that use a different provider id.
-	return rootState.agents.find(a => a.provider === 'copilotcli') ?? rootState.agents[0];
+	return rootState.agents.find(a => a.provider === 'copilotcli');
 }
 
 /**
@@ -286,6 +285,8 @@ async function resolveAgentHostSessionType(agentHostService: IAgentHostService):
 	}
 
 	// Wait for the first non-empty root state, capped by a timeout.
+	// The subscription must be disposed on both success and timeout to avoid leaks.
+	const cts = new CancellationTokenSource();
 	const waitForAgent = new Promise<AgentInfo | undefined>(res => {
 		const sub = agentHostService.rootState.onDidChange(state => {
 			const found = getCopilotAgentInfo(state);
@@ -294,12 +295,23 @@ async function resolveAgentHostSessionType(agentHostService: IAgentHostService):
 				res(found);
 			}
 		});
+		cts.token.onCancellationRequested(() => {
+			sub.dispose();
+			res(undefined);
+		});
 	});
 	const resolved = await Promise.race([
 		waitForAgent,
-		timeout(AGENT_HOST_REGISTRATION_TIMEOUT_MS).then(() => undefined),
+		timeout(AGENT_HOST_REGISTRATION_TIMEOUT_MS).then(() => {
+			cts.cancel();
+			cts.dispose();
+			return undefined;
+		}),
 	]);
-	return resolved ? `agent-host-${resolved.provider}` : AgentSessionProviders.AgentHostCopilot;
+	if (!resolved) {
+		throw new Error('Agent host did not register a copilotcli agent within the timeout period. Ensure the agent host is enabled and running.');
+	}
+	return `agent-host-${resolved.provider}`;
 }
 
 // Open a new Agent Host session at the given position. Shared by the session
@@ -315,7 +327,7 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 	const sessionType = await resolveAgentHostSessionType(agentHostService);
 	return instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, {
 		type: sessionType,
-		displayName: sessionType,
+		displayName: getAgentSessionProviderName(sessionType),
 		position,
 	}));
 }
