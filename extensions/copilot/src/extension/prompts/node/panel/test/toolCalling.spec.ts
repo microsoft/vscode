@@ -600,6 +600,10 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const endpointProvider = accessor.get(IEndpointProvider);
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
 		const telemetryService = accessor.get(ITelemetryService);
+		const configService = accessor.get(IConfigurationService);
+
+		// Disable image uploads in test environment to avoid auth requirement
+		await configService.setConfig(ConfigKey.EnableChatImageUpload, false);
 
 		// Import the function we're testing
 		const { sendInvokedToolTelemetry } = await import('../toolCalling');
