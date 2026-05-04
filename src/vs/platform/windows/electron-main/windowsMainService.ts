@@ -1571,6 +1571,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
+			isEmbeddedApp: this.environmentMainService.isEmbeddedApp,
 			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
 			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
