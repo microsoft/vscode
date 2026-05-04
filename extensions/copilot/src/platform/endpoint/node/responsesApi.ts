@@ -332,20 +332,26 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const toolSearchCallIds = new Set<string>();
 	const toolSearchLoadedTools = new Set<string>();
-	for (const message of messages) {
-		if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
-			for (const toolCall of message.toolCalls) {
-				if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
-					toolSearchCallIds.add(toolCall.id);
+	// Only pre-scan when history will be sliced; otherwise the serialization loop
+	// below visits each tool_search_call before its result and populates these
+	// sets in order on its own.
+	const willSliceHistory = markerIndex !== undefined || latestCompactionMessageIndex !== undefined;
+	if (willSliceHistory) {
+		for (const message of messages) {
+			if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
+				for (const toolCall of message.toolCalls) {
+					if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+						toolSearchCallIds.add(toolCall.id);
+					}
 				}
-			}
-		} else if (message.role === Raw.ChatRole.Tool && message.toolCallId && toolSearchCallIds.has(message.toolCallId) && toolsMap) {
-			const resultText = message.content
-				.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
-				.map(c => c.text)
-				.join('');
-			for (const t of buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch)) {
-				toolSearchLoadedTools.add(t.name);
+			} else if (message.role === Raw.ChatRole.Tool && message.toolCallId && toolSearchCallIds.has(message.toolCallId) && toolsMap) {
+				const resultText = message.content
+					.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+					.map(c => c.text)
+					.join('');
+				for (const t of buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch)) {
+					toolSearchLoadedTools.add(t.name);
+				}
 			}
 		}
 	}
