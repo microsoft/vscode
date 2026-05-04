@@ -607,7 +607,7 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		// and tolerates zero or more trailing spaces — xterm's `translateToString(trimRight=true)`
 		// strips trailing whitespace from non-wrapped buffer lines, so a real `Password: ` prompt
 		// is captured from the buffer as `Password:` with no trailing space.
-		/password:\s*$/i,
+		/password(?: for [^:]+)?:\s*$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
 		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with
