@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -567,6 +568,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.searchQuery = this.searchInput.value;
 			this.delayedFilter.trigger(() => {
 				const matchCount = this.filterItems();
+				this.announceItemCount(matchCount);
 				if (this.searchQuery.trim()) {
 					this.telemetryService.publicLog2<CustomizationEditorSearchEvent, CustomizationEditorSearchClassification>('chatCustomizationEditor.search', {
 						section: this.currentSection,
@@ -769,9 +771,10 @@ export class AICustomizationListWidget extends Disposable {
 		if (!modelSection) {
 			this.currentSectionSubscription.clear();
 			this.allItems = [];
-			this.filterItems();
+			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(0);
 			this.updateAddButton();
+			this.announceItemCount(matchCount);
 			return;
 		}
 
@@ -784,6 +787,9 @@ export class AICustomizationListWidget extends Disposable {
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
+		// Announce the current count to screen readers so users know how many
+		// items are in the list when a section is opened.
+		this.announceItemCount(this.applySearchFilter(this.allItems).length);
 	}
 
 	/**
@@ -1056,6 +1062,68 @@ export class AICustomizationListWidget extends Disposable {
 			case AICustomizationManagementSection.Prompts:
 			default:
 				return localize('prompt', "Prompt");
+		}
+	}
+
+	/**
+	 * Announces the current number of items (after search filtering) to
+	 * screen readers via an aria status message. Called when the section
+	 * is loaded and after the search filter changes so assistive technology
+	 * users hear the count, including "no results".
+	 */
+	private announceItemCount(count: number): void {
+		const isFiltering = this.searchQuery.trim().length > 0;
+		aria.status(this.getCountAnnouncement(this.currentSection, count, isFiltering));
+	}
+
+	private getCountAnnouncement(section: AICustomizationManagementSection, count: number, isFiltering: boolean): string {
+		switch (section) {
+			case AICustomizationManagementSection.Agents:
+				if (isFiltering) {
+					if (count === 0) { return localize('countAgentsNoResults', "No agents found"); }
+					if (count === 1) { return localize('countAgentsOneResult', "1 agent found"); }
+					return localize('countAgentsResults', "{0} agents found", count);
+				}
+				if (count === 0) { return localize('countAgentsNone', "No agents"); }
+				if (count === 1) { return localize('countAgentsOne', "1 agent"); }
+				return localize('countAgents', "{0} agents", count);
+			case AICustomizationManagementSection.Skills:
+				if (isFiltering) {
+					if (count === 0) { return localize('countSkillsNoResults', "No skills found"); }
+					if (count === 1) { return localize('countSkillsOneResult', "1 skill found"); }
+					return localize('countSkillsResults', "{0} skills found", count);
+				}
+				if (count === 0) { return localize('countSkillsNone', "No skills"); }
+				if (count === 1) { return localize('countSkillsOne', "1 skill"); }
+				return localize('countSkills', "{0} skills", count);
+			case AICustomizationManagementSection.Instructions:
+				if (isFiltering) {
+					if (count === 0) { return localize('countInstructionsNoResults', "No instructions found"); }
+					if (count === 1) { return localize('countInstructionsOneResult', "1 instruction file found"); }
+					return localize('countInstructionsResults', "{0} instruction files found", count);
+				}
+				if (count === 0) { return localize('countInstructionsNone', "No instructions"); }
+				if (count === 1) { return localize('countInstructionsOne', "1 instruction file"); }
+				return localize('countInstructions', "{0} instruction files", count);
+			case AICustomizationManagementSection.Hooks:
+				if (isFiltering) {
+					if (count === 0) { return localize('countHooksNoResults', "No hooks found"); }
+					if (count === 1) { return localize('countHooksOneResult', "1 hook found"); }
+					return localize('countHooksResults', "{0} hooks found", count);
+				}
+				if (count === 0) { return localize('countHooksNone', "No hooks"); }
+				if (count === 1) { return localize('countHooksOne', "1 hook"); }
+				return localize('countHooks', "{0} hooks", count);
+			case AICustomizationManagementSection.Prompts:
+			default:
+				if (isFiltering) {
+					if (count === 0) { return localize('countPromptsNoResults', "No prompts found"); }
+					if (count === 1) { return localize('countPromptsOneResult', "1 prompt found"); }
+					return localize('countPromptsResults', "{0} prompts found", count);
+				}
+				if (count === 0) { return localize('countPromptsNone', "No prompts"); }
+				if (count === 1) { return localize('countPromptsOne', "1 prompt"); }
+				return localize('countPrompts', "{0} prompts", count);
 		}
 	}
 
