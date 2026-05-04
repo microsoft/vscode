@@ -74,7 +74,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _commandReadAllowKeywords: readonly string[] = [];
 	private _commandCwd: URI | undefined;
 	private _os: OperatingSystem = OS;
-	private _defaultWritePaths: string[] = ['~/.npm'];
+	private _defaultWritePaths: string[] = [];
 	private static readonly _sandboxTempDirName = 'tmp';
 	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
 	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
