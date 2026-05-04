@@ -30,6 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
+const MAX_BODY_BYTES = 750 * 1024;
 
 interface LocalManifestFixture {
 	readonly fixtureId: string;
@@ -232,16 +233,51 @@ function generateMarkdown(
 		lines.push('');
 		lines.push('Fixtures that failed to render — no screenshot was produced.');
 		lines.push('');
+		const reservedForFooter = 200;
+		const usedBytes = () => Buffer.byteLength(lines.join('\n'), 'utf8');
+		let truncatedAt = -1;
 		for (let i = 0; i < errored.length; i++) {
 			const entry = errored[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
-			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`);
+			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`;
+			const fullStack = entry.errorStack ?? entry.errorMessage;
+			const fullBlock = `${header}\n\n\`\`\`\n${fullStack}\n\`\`\`\n\n</details>\n`;
+
+			const remainingBudget = MAX_BODY_BYTES - usedBytes() - reservedForFooter;
+			if (Buffer.byteLength(fullBlock, 'utf8') <= remainingBudget) {
+				lines.push(header);
+				lines.push('');
+				lines.push('```');
+				lines.push(fullStack);
+				lines.push('```');
+				lines.push('');
+				lines.push('</details>');
+				lines.push('');
+				continue;
+			}
+
+			const minimalBlock = `${header}\n\n\`\`\`\n…\n\`\`\`\n\n</details>\n`;
+			const minimalBudget = remainingBudget - Buffer.byteLength(minimalBlock, 'utf8');
+			if (minimalBudget < 0) {
+				truncatedAt = i;
+				break;
+			}
+			const truncationMarker = '\n…(truncated)';
+			const stackBudget = minimalBudget + Buffer.byteLength('…', 'utf8') - Buffer.byteLength(truncationMarker, 'utf8');
+			const truncatedStack = stackBudget > 0
+				? fullStack.slice(0, stackBudget) + truncationMarker
+				: '…(truncated)';
+			lines.push(header);
 			lines.push('');
 			lines.push('```');
-			lines.push(entry.errorStack ?? entry.errorMessage);
+			lines.push(truncatedStack);
 			lines.push('```');
 			lines.push('');
 			lines.push('</details>');
+			lines.push('');
+		}
+		if (truncatedAt !== -1) {
+			lines.push(`_…and ${errored.length - truncatedAt} more errored fixture(s) omitted to stay under the ${Math.round(MAX_BODY_BYTES / 1024)}KB body limit. See workflow logs for the full list._`);
 			lines.push('');
 		}
 	}
