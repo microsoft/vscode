@@ -167,6 +167,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 				parentAppUserDataDir: configuration.parentAppUserDataDir,
 				parentAppUserHomeDir: configuration.parentAppUserHomeDir
 			},
-			productService);
+			productService,
+			!!configuration.isEmbeddedApp);
 	}
 }

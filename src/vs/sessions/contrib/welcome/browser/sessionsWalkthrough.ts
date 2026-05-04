@@ -14,6 +14,7 @@ import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -96,6 +97,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
@@ -409,7 +411,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Show a VS Code theme option as a radio-style button inside the radiogroup
 		if (parentThemeSettingsId) {
-			const parentName = this.productService.embedded?.nameShort ?? 'VS Code';
+			const parentName = this.environmentService.parentAppNameShort ?? 'VS Code';
 			const option = append(themeGrid, $('.sessions-walkthrough-vscode-theme-option'));
 			vscodeThemeBtn = append(option, $('div.sessions-walkthrough-vscode-theme-radio'));
 			vscodeThemeBtn.setAttribute('role', 'radio');

@@ -442,6 +442,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	homeDir: string;
 	tmpDir: string;
 	userDataDir: string;
+	isEmbeddedApp?: boolean;
 	parentAppUserDataDir?: string;
 	parentAppUserHomeDir?: string;
 
