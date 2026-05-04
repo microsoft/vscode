@@ -207,32 +207,32 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined! };
 
-			itemActions.editAction = new Action(
+			itemActions.editAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.edit',
 				nls.localize('editComment', "Edit"),
 				ThemeIcon.asClassName(Codicon.edit),
 				true,
 				(): void => { this._startEditing(comment, text, itemActions); },
-			);
+			));
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
 
 			if (comment.canConvertToAgentFeedback) {
-				itemActions.convertAction = new Action(
+				itemActions.convertAction = this._eventStore.add(new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Convert to Agent Feedback"),
 					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
-				);
+				));
 				actionBar.push(itemActions.convertAction, { icon: true, label: false });
 			}
-			itemActions.removeAction = new Action(
+			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				() => this._removeComment(comment),
-			);
+			));
 			actionBar.push(itemActions.removeAction, { icon: true, label: false });
 
 			itemHeader.appendChild(actionBarContainer);

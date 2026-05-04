@@ -14,6 +14,7 @@ export interface IProxyModelsService {
 
 	readonly models: WireTypes.ModelList.t | undefined;
 	readonly nesModels: WireTypes.Model.t[] | undefined;
+	readonly cursorJumpModels: WireTypes.Model.t[] | undefined;
 	readonly instantApplyModels: WireTypes.Model.t[] | undefined;
 }
 
@@ -29,6 +30,10 @@ export class NullProxyModelsService implements IProxyModelsService {
 	}
 
 	get nesModels(): WireTypes.Model.t[] | undefined {
+		return undefined;
+	}
+
+	get cursorJumpModels(): WireTypes.Model.t[] | undefined {
 		return undefined;
 	}
 

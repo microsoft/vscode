@@ -7,10 +7,12 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileType } from '../../../files/common/files.js';
+import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
-import { ContentEncoding, type ResourceListResult, type ResourceReadResult } from '../../common/state/protocol/commands.js';
+import { ContentEncoding, type ResourceListResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult } from '../../common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -285,5 +287,176 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		assert.strictEqual(stat.type, FileType.File);
 		const bytes = await provider.readFile(wrapped);
 		assert.strictEqual(VSBuffer.wrap(bytes).toString(), 'stub-content');
+	});
+});
+
+suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Stub connection whose individual operations can be configured to throw.
+	 * Records every `resourceRequest` call so tests can assert URI translation
+	 * and the read/write flags forwarded to the receiver.
+	 */
+	class ConfigurableConnection implements IRemoteFilesystemConnection {
+		readError: unknown | undefined;
+		writeError: unknown | undefined;
+		listError: unknown | undefined;
+		deleteError: unknown | undefined;
+		moveError: unknown | undefined;
+		requestError: unknown | undefined;
+		readonly requestCalls: ResourceRequestParams[] = [];
+		hasResourceRequest = true;
+
+		async resourceRead(): Promise<ResourceReadResult> {
+			if (this.readError) { throw this.readError; }
+			return { data: '', encoding: ContentEncoding.Utf8 };
+		}
+		async resourceList(): Promise<ResourceListResult> {
+			if (this.listError) { throw this.listError; }
+			return { entries: [] };
+		}
+		async resourceWrite(): Promise<{}> {
+			if (this.writeError) { throw this.writeError; }
+			return {};
+		}
+		async resourceDelete(): Promise<{}> {
+			if (this.deleteError) { throw this.deleteError; }
+			return {};
+		}
+		async resourceMove(): Promise<{}> {
+			if (this.moveError) { throw this.moveError; }
+			return {};
+		}
+		// Defined as a property so we can `delete` it to simulate a connection
+		// without resourceRequest support (e.g. older protocol clients).
+		resourceRequest? = async (params: ResourceRequestParams): Promise<ResourceRequestResult> => {
+			this.requestCalls.push(params);
+			if (this.requestError) { throw this.requestError; }
+			return {};
+		};
+	}
+
+	function setup(opts: { withResourceRequest?: boolean } = {}) {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new ConfigurableConnection();
+		if (opts.withResourceRequest === false) {
+			connection.hasResourceRequest = false;
+			delete connection.resourceRequest;
+		}
+		// Use a non-`local` authority so file URIs actually go through the
+		// AHP wrapping; toAgentHostUri short-circuits 'local'+file:// to
+		// return the URI unchanged, which would bypass the provider entirely.
+		disposables.add(provider.registerAuthority('remote', connection));
+		return { provider, connection };
+	}
+
+	function permissionDenied(uri: string): ProtocolError {
+		return new ProtocolError(AhpErrorCodes.PermissionDenied, 'denied', { request: { uri, read: true } });
+	}
+
+	test('readFile maps PermissionDenied to NoPermissions (not FileNotFound)', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/secret');
+		connection.readError = permissionDenied(wrapped.toString());
+
+		try {
+			await provider.readFile(wrapped);
+			assert.fail('expected readFile to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
+	});
+
+	test('readFile still maps generic errors to FileNotFound', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/missing');
+		connection.readError = new Error('boom');
+
+		try {
+			await provider.readFile(wrapped);
+			assert.fail('expected readFile to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.FileNotFound,
+			);
+		}
+	});
+
+	test('writeFile / delete / rename / readdir all surface NoPermissions on PermissionDenied', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/no-write');
+		const denied = permissionDenied(wrapped.toString());
+		connection.writeError = denied;
+		connection.deleteError = denied;
+		connection.moveError = denied;
+		connection.listError = denied;
+
+		const codes: (FileSystemProviderErrorCode | undefined)[] = [];
+		const collect = async (op: () => Promise<unknown>) => {
+			try {
+				await op();
+			} catch (err) {
+				codes.push(toFileSystemProviderErrorCode(err instanceof Error ? err : undefined));
+			}
+		};
+		await collect(() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }));
+		await collect(() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }));
+		await collect(() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }));
+		await collect(() => provider.readdir(wrapped));
+
+		assert.deepStrictEqual(codes, [
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+			FileSystemProviderErrorCode.NoPermissions,
+		]);
+	});
+
+	test('requestResourceAccess forwards the decoded URI and access flags', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/etc/foo');
+
+		await provider.requestResourceAccess(wrapped, { read: true, write: true });
+
+		assert.deepStrictEqual(connection.requestCalls, [
+			{ uri: URI.file('/etc/foo').toString(), read: true, write: true },
+		]);
+	});
+
+	test('requestResourceAccess throws Unavailable when the connection has no resourceRequest', async () => {
+		const { provider } = setup({ withResourceRequest: false });
+		const wrapped = agentHostUri('remote', '/etc/foo');
+
+		try {
+			await provider.requestResourceAccess(wrapped, { read: true });
+			assert.fail('expected requestResourceAccess to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.Unavailable,
+			);
+		}
+	});
+
+	test('requestResourceAccess maps PermissionDenied to NoPermissions', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/etc/foo');
+		connection.requestError = permissionDenied(wrapped.toString());
+
+		try {
+			await provider.requestResourceAccess(wrapped, { read: true });
+			assert.fail('expected requestResourceAccess to reject');
+		} catch (err) {
+			assert.strictEqual(
+				toFileSystemProviderErrorCode(err instanceof Error ? err : undefined),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
 	});
 });

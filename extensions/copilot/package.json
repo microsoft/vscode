@@ -3862,6 +3862,15 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.claude47OpusPrompt.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.gpt54ConcisePrompt.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4383,6 +4392,16 @@
 						"tags": [
 							"advanced",
 							"experimental"
+						]
+					},
+					"github.copilot.chat.agent.backgroundTodoAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.agent.backgroundTodoAgent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
