@@ -46,7 +46,12 @@ export const AhpErrorCodes = {
 	SessionAlreadyExists: -32003,
 	/** The operation requires no active turn, but one is in progress */
 	TurnInProgress: -32004,
-	/** The client's protocol version is not supported by the server */
+	/**
+	 * The server cannot speak any of the protocol versions offered by the
+	 * client in `InitializeParams.protocolVersions`. The `data` field of the
+	 * JSON-RPC error MAY be an `UnsupportedProtocolVersionErrorData` advertising
+	 * the protocol versions the server is willing to speak.
+	 */
 	UnsupportedProtocolVersion: -32005,
 	/** The requested content URI does not exist */
 	ContentNotFound: -32006,
@@ -123,6 +128,24 @@ export interface PermissionDeniedErrorData {
 }
 
 /**
+ * Details carried in the `data` field of an `UnsupportedProtocolVersion`
+ * (-32005) error.
+ *
+ * @category Error Details
+ * @version 1
+ */
+export interface UnsupportedProtocolVersionErrorData {
+	/**
+	 * Protocol versions the server is willing to speak.
+	 *
+	 * Each entry is either a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH`
+	 * string (e.g. `"0.1.0"`) or a [SemVer range](https://semver.org/#spec-item-11)
+	 * constraint (e.g. `">=0.1.0 <0.3.0"` or `"^0.2.0"`).
+	 */
+	supportedVersions: string[];
+}
+
+/**
  * Maps each AHP error code that carries structured `data` to the type of
  * that data.
  *
@@ -135,6 +158,7 @@ export interface PermissionDeniedErrorData {
 export interface AhpErrorDetailsMap {
 	[AhpErrorCodes.AuthRequired]: AuthRequiredErrorData;
 	[AhpErrorCodes.PermissionDenied]: PermissionDeniedErrorData;
+	[AhpErrorCodes.UnsupportedProtocolVersion]: UnsupportedProtocolVersionErrorData;
 }
 
 /** AHP error codes that carry a structured `data` payload. */

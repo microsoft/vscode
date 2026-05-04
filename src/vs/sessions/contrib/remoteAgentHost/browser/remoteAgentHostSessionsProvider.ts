@@ -13,9 +13,10 @@ import { IObservable, observableValue } from '../../../../base/common/observable
 import { isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -135,7 +136,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private _outputChannelId: string | undefined;
 	get outputChannelId(): string | undefined { return this._outputChannelId; }
 
-	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
+	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	/**
@@ -221,6 +222,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			icon: Codicon.remote,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
+			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
 
 		this._loadCachedSessions();
@@ -566,5 +568,88 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			// dialog was cancelled or failed
 		}
 		return undefined;
+	}
+
+	/**
+	 * Enumerate subdirectories below {@link _defaultDirectory}, filtered
+	 * by a case-insensitive substring query. Backs the inline folder
+	 * list rendered by the mobile workspace picker sheet so users can
+	 * pick a folder without opening a separate file-dialog.
+	 *
+	 * The query supports light path navigation: a `/` in the query is
+	 * treated as a path delimiter, listing children of `<default>/<prefix>`
+	 * and matching the part after the last slash. So typing `projects/`
+	 * drills into the `projects` directory, and `projects/foo` lists
+	 * children of `projects` whose name contains `foo`.
+	 *
+	 * Hidden directories (those starting with `.`) are omitted, results
+	 * are sorted by name, and the cancellation token is honored before
+	 * and after the network round-trip so stale queries don't surface
+	 * after the user has typed more characters.
+	 */
+	private async _listRemoteFolders(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]> {
+		// Establish a connection on demand if a hook is available; if it
+		// fails or is unavailable, return empty so the sheet renders an
+		// empty result rather than throwing.
+		if (!this._connection && this._connectOnDemand) {
+			try {
+				await this._connectOnDemand();
+			} catch {
+				return [];
+			}
+		}
+		if (!this._connection || token.isCancellationRequested) {
+			return [];
+		}
+
+		const rootAgentHostUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+
+		// Parse path navigation out of the query. Anything before the
+		// last `/` is a relative directory we descend into; the part
+		// after is the filter we apply to that directory's children.
+		const trimmed = query.trim();
+		const lastSlash = trimmed.lastIndexOf('/');
+		let listingAgentHostUri = rootAgentHostUri;
+		let filter = trimmed;
+		if (lastSlash >= 0) {
+			const subPath = trimmed.slice(0, lastSlash).replace(/^\/+|\/+$/g, '');
+			filter = trimmed.slice(lastSlash + 1);
+			if (subPath) {
+				listingAgentHostUri = URI.joinPath(rootAgentHostUri, subPath);
+			}
+		}
+		const listingOriginalUri = fromAgentHostUri(listingAgentHostUri);
+
+		let entries;
+		try {
+			const result = await this._connection.resourceList(listingOriginalUri);
+			entries = result.entries;
+		} catch {
+			return [];
+		}
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const lowerFilter = filter.toLocaleLowerCase();
+		const folders: ISessionWorkspace[] = [];
+		for (const entry of entries) {
+			if (entry.type !== 'directory') {
+				continue;
+			}
+			if (entry.name.startsWith('.')) {
+				continue;
+			}
+			if (lowerFilter && !entry.name.toLocaleLowerCase().includes(lowerFilter)) {
+				continue;
+			}
+			const childUri = URI.joinPath(listingAgentHostUri, entry.name);
+			// Use a folder icon for inline list rows — `Codicon.remote`
+			// is the right choice for the host-level browse action,
+			// but per-folder rows read better as folder glyphs.
+			folders.push({ ...this._buildWorkspaceFromUri(childUri), icon: Codicon.folder });
+		}
+		folders.sort((a, b) => a.label.localeCompare(b.label));
+		return folders;
 	}
 }

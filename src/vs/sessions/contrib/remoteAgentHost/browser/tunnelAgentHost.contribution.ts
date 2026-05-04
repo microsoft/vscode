@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import * as nls from '../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -204,7 +205,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// Surface as "Connecting" until the first silent status check or an
 		// auto-connect attempt determines the real state; otherwise the picker
 		// flashes "Offline" for every cached tunnel on startup.
-		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		this._providerInstances.set(address, provider);
@@ -216,17 +217,23 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _updateConnectionStatuses(): void {
 		for (const [address, provider] of this._providerInstances) {
+			// Preserve incompatible state until the user retries — otherwise
+			// the catch in `_connectTunnel` would set it and the `finally`
+			// block immediately overwrite it back to `disconnected`.
+			if (RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				continue;
+			}
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (connectionInfo) {
 				provider.setConnectionStatus(connectionInfo.status);
 			} else if (this._pendingConnects.has(address)) {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 			} else if (!this._initialStatusChecked) {
 				// Keep the initial "Connecting" state so the picker doesn't
 				// flash "Offline" before the first silent status check runs.
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 			} else {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
 	}
@@ -237,7 +244,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _wireConnections(): void {
 		for (const [address, provider] of this._providerInstances) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(
-				c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 			);
 			if (connectionInfo) {
 				const connection = this._remoteAgentHostService.getConnection(address);
@@ -271,6 +278,12 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		if (options.userInitiated) {
 			this._tunnelService.clearAutoConnectSuppression(tunnelId);
+			// Clear any sticky `incompatible` state so this attempt can
+			// transition through `connecting` and report a fresh result.
+			const provider = this._providerInstances.get(address);
+			if (provider && RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			}
 		}
 
 		// A new attempt is starting — cancel any scheduled reconnect timer;
@@ -321,6 +334,18 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				// (`_pendingConnects.has(address)`) would silently bail and
 				// we'd never re-arm the timer, leaving the tunnel stuck.
 				this._pendingConnects.delete(address);
+
+				// Protocol version mismatch is a deterministic failure that
+				// cannot be fixed by retrying. Surface it on the provider so
+				// the workspace picker can show the host's message, and stop
+				// scheduling reconnects until the user manually retries via
+				// the picker's Manage menu.
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					this._providerInstances.get(address)?.setConnectionStatus(incompatible);
+					this._resetReconnectState(address);
+					throw err;
+				}
 
 				// Auth failures are not worth retrying — a fresh token must
 				// be acquired by the user or by a session-change event. Pause
@@ -401,8 +426,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// Only schedule a reconnect on an explicit Connected→Disconnected
 			// transition. If the address is absent from the connection list,
 			// the user (or another code path) removed it — honour that.
-			const wasConnected = previous === RemoteAgentHostConnectionStatus.Connected;
-			const isExplicitlyDisconnected = current === RemoteAgentHostConnectionStatus.Disconnected;
+			const wasConnected = RemoteAgentHostConnectionStatus.isConnected(previous);
+			const isExplicitlyDisconnected = RemoteAgentHostConnectionStatus.isDisconnected(current);
 
 			if (wasConnected && isExplicitlyDisconnected && !this._pendingConnects.has(address)) {
 				this._logService.info(`[TunnelAgentHost] Connection lost for ${address}, scheduling reconnect`);
@@ -449,7 +474,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		const live = this._remoteAgentHostService.connections.find(c => c.address === address);
-		if (live && live.status === RemoteAgentHostConnectionStatus.Connected) {
+		if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
 			this._clearReconnectBackoff(address);
 			return;
 		}
@@ -483,7 +508,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				return;
 			}
 			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
-			if (live && live.status === RemoteAgentHostConnectionStatus.Connected) {
+			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
 				this._clearReconnectBackoff(address);
 				return;
 			}
@@ -694,7 +719,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				continue;
 			}
 			const live = this._remoteAgentHostService.connections.find(c => c.address === address);
-			if (live && live.status === RemoteAgentHostConnectionStatus.Connected) {
+			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
 				continue;
 			}
 
@@ -779,7 +804,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			for (const [address, provider] of this._providerInstances) {
 				// Skip tunnels that already have an active relay connection
 				const hasConnection = this._remoteAgentHostService.connections.some(
-					c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+					c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 				);
 				if (hasConnection) {
 					continue;
@@ -788,7 +813,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 				const info = onlineTunnelMap.get(tunnelId);
 				if (info && info.hostConnectionCount > 0) {
-					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connected);
+					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 
 					// If we paused reconnects because the host had gone
 					// offline, the status check is our cue to resume —
@@ -803,7 +828,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 						this._scheduleReconnect(address, /*immediate*/ true);
 					}
 				} else {
-					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 					// Host is not online — drop any cached sessions we were
 					// showing for it so the UI doesn't list stale entries.
 					provider.unpublishCachedSessions();
@@ -823,7 +848,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 							continue;
 						}
 						const alreadyConnected = this._remoteAgentHostService.connections.some(
-							c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+							c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 						);
 						if (!alreadyConnected) {
 							this._connectTunnel(address, { userInitiated: false });

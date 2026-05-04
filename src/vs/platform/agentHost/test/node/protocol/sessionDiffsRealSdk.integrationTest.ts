@@ -25,7 +25,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import type { SessionState } from '../../../common/state/sessionState.js';
 import type { SessionAddedNotification, SessionDiffsChangedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
@@ -100,7 +100,7 @@ function resolveGitHubToken(): string {
 
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-git-diffs' }, 30_000);
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-git-diffs' }, 30_000);
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-diff-${Date.now()}` }).toString();

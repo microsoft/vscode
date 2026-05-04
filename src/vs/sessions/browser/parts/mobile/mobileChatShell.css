@@ -324,7 +324,25 @@
 	margin-top: auto;
 }
 
-/* ---- Phone Layout: Chat Welcome Page ---- */
+/* ---- Phone Layout: Chat Welcome Page ----
+ *
+ * The mobile welcome page is laid out as a vertical stack:
+ *
+ *  - Hero (centered, flex: 1)
+ *      hexagon logo
+ *      "Start by picking a"  (muted label)
+ *      [ <icon> workspace  v ]  (prominent pill picker)
+ *
+ *  - Chat input (pinned to bottom, edge-to-edge, 16px corners)
+ *      "What problem are you solving?" + send button
+ *
+ *  - Bottom config chip row (horizontally scrollable, just below input)
+ *      [ Mode v ]  [ Permissions v ]  [ Worktree v ]  ...
+ *
+ * Each pill picker uses the same chip style: rounded background, subtle
+ * border, ~36-40px touch target, label always visible (the row scrolls
+ * horizontally rather than collapsing to icon-only on narrow viewports).
+ */
 
 /* Make the welcome page a flex column that fills the chat area */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container {
@@ -340,7 +358,9 @@
 	flex: 1 !important;
 	min-height: 0 !important;
 	max-width: 100% !important;
-	padding-bottom: 20px !important;
+	/* Honor the iOS home indicator: at least 16px gutter, more when the
+	 * device exposes a safe-area inset. */
+	padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
 }
 
 /* Workspace picker centered vertically with icon above */
@@ -364,6 +384,7 @@
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
+	opacity: 0.85;
 }
 
 .vs .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
@@ -376,19 +397,43 @@
 	display: flex !important;
 	flex-direction: column !important;
 	align-items: center !important;
-	gap: 8px !important;
+	gap: 12px !important;
 	font-size: 16px !important;
 }
 
 .agent-sessions-workbench.phone-layout .session-workspace-picker-label {
-	font-size: 18px;
-	opacity: 0.6;
+	font-size: 17px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.85;
 }
 
-/* Input slot pinned to the bottom */
+/* Promote the central workspace picker into a prominent pill so the empty
+ * state has a clearly tappable hero affordance, mirroring the inspiration
+ * design's "<icon> workspace v" chip. */
+.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+	height: auto;
+	min-height: 36px;
+	padding: 2px 6px;
+	font-size: 17px;
+	border-radius: 999px;
+	background-color: var(--vscode-toolbar-hoverBackground, transparent);
+	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
+	gap: 4px;
+	touch-action: manipulation;
+}
+
+.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:active {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
+}
+
+/* Input slot pinned to the bottom. Flex `order` puts the chip row
+ * (order: 1) above the input (order: 2) without restructuring the DOM,
+ * matching the iOS pattern where contextual config chips sit between
+ * the conversation and the composer. */
 .agent-sessions-workbench.phone-layout .new-chat-input-container {
+	order: 2 !important;
 	flex-shrink: 0 !important;
-	padding: 0 0 8px 0 !important;
+	padding: 0 !important;
 	max-width: 100% !important;
 }
 
@@ -398,9 +443,194 @@
 	max-width: 100% !important;
 }
 
-/* Hide the local mode bar (Copilot CLI / Default Approvals / Branch) on phone */
-.agent-sessions-workbench.phone-layout .new-chat-bottom-container {
+/* ---- Phone Layout: Config Chip Row ----
+ *
+ * The desktop ".new-chat-bottom-container" is a tight inline strip with
+ * `space-between` justification — readable on a wide canvas but cramped
+ * on a phone. On phone we re-style it as a horizontally scrollable row
+ * of rounded "chip" pills. The row holds the session-type / control-menu
+ * pickers on the left and the repo-config menu items on the right, but
+ * on phone they all flow in the same scrolling lane so the user can
+ * swipe through every chip without crowding.
+ *
+ * Positioned ABOVE the input via flex `order: 1` (input is `order: 2`)
+ * to mirror the iOS pattern where contextual chips sit between the
+ * conversation and the composer.
+ *
+ * IMPLEMENTATION NOTE — specificity over `!important`
+ *
+ * The chips live inside two parallel toolbar wrappers:
+ *   .new-chat-controls-container > div > .monaco-toolbar
+ *      > .monaco-action-bar > .actions-container > .action-item
+ *        > .sessions-chat-picker-slot                      (Approvals)
+ *   .new-chat-repo-config-container > .monaco-toolbar
+ *      > .monaco-action-bar > .actions-container > .action-item
+ *        > .sessions-chat-agent-host-config
+ *          > .sessions-chat-picker-slot[]                  (Branch + Worktree)
+ *
+ * The desktop sheet `chatWidget.css` already sets `display: flex`,
+ * `min-width: 0` and `overflow: hidden` at every level so labels can
+ * ellipsize. To override those WITHOUT escalating to `!important`, this
+ * file uses selectors that prepend `.agent-sessions-workbench.phone-layout`
+ * (and where needed `.new-chat-widget-container`) so each phone rule's
+ * specificity beats the desktop equivalent. Concretely the floor we have
+ * to beat is
+ *   `.new-chat-widget-container .new-chat-bottom-container
+ *     .monaco-action-bar .action-item .action-label`        (0,5,0)
+ * and the phone selectors below land at 0,6,0 / 0,7,0.
+ *
+ * The "every container along the chain becomes `min-width: max-content`"
+ * pattern is what makes the chip row scroll horizontally instead of
+ * compressing — each layer transmits its content width up to the
+ * outermost `.new-chat-bottom-container`, which has `overflow-x: auto`.
+ */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container.revealed .new-chat-bottom-container {
+	order: 1;
+	display: flex;
+	flex-direction: row;
+	flex-shrink: 0;
+	/* Keep all chips on a single line and let `overflow-x: auto`
+	 * handle the horizontal scroll when long labels (e.g. a long
+	 * branch name) overflow the viewport. */
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 6px;
+	/* Tight insets so the chip row reads as a compact strip docked just
+	 * above the input — matches the inset of the input box itself. */
+	padding: 6px 12px 8px;
+	/* Pin the lane to the viewport's available width so it never grows
+	 * past it. Without `width: 100%` + `min-width: 0` the flex layout
+	 * above lets the lane stretch with its inline children, and
+	 * `overflow-x: auto` never triggers because there's no clipped
+	 * overflow to scroll. */
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	/* Reserve a fixed height that fits a single row of chips with a
+	 * little vertical breathing room. Using `height` (rather than
+	 * `min-height`) keeps the hero icon stable across provider swaps
+	 * and chip-load transitions. */
+	height: 50px;
+	box-sizing: border-box;
+	overflow-x: auto;
+	overflow-y: visible;
+	-webkit-overflow-scrolling: touch;
+	/* Explicitly opt into horizontal panning. */
+	touch-action: pan-x;
+	scrollbar-width: none;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container::-webkit-scrollbar {
 	display: none;
+}
+
+/* When there are no contextual chips to show — i.e. the session-type
+ * trigger is hidden (single agent type) AND both contributed toolbars
+ * have no action items — keep the lane in flow but invisible, so the
+ * hero icon above doesn't visibly jump as the user moves between
+ * providers with different chip configurations. The reserved `height`
+ * on `.new-chat-bottom-container` then dominates the vertical layout
+ * below the hero. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container:not(:has(.sessions-chat-picker-slot > .action-label:not(.hidden))):not(:has(.monaco-action-bar .action-item)) {
+	visibility: hidden;
+}
+
+/* Each container along the chain from `.new-chat-bottom-container` down
+ * to the actual chip slot lays its children out inline and refuses to
+ * shrink. Only the leaf `.sessions-chat-picker-slot` is pinned to its
+ * content size — the chain's `flex-shrink: 0` is enough to stop the
+ * desktop's `min-width: 0; overflow: hidden` (set in `chatWidget.css`)
+ * from compressing the chips, while NOT propagating `min-width:
+ * max-content` upward into the workbench shell (which would push the
+ * whole column wider than the viewport).
+ *
+ * Note: this keeps the desktop DOM intact (no `display: contents`
+ * flattening) and only relies on the standard
+ * `.monaco-action-bar > .actions-container > .action-item` chain that's
+ * part of monaco's public structure. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-toolbar,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-agent-host-config {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 6px;
+}
+
+/* The leaf chip slot is the only level that needs `min-width:
+ * max-content` — it ensures the chip's natural width wins over any
+ * lingering desktop `min-width: 0`, so a long branch label keeps its
+ * intrinsic size and the lane's `overflow-x: auto` clips/scrolls the
+ * row instead of the chips compressing. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot {
+	flex-shrink: 0;
+	min-width: max-content;
+}
+
+/* Chip-pill style for each picker / toolbar action item in the chip row.
+ * Each chip is a rounded, touch-friendly pill with a subtle background,
+ * styled to match the iOS reference: compact padding, no visible border,
+ * tight chevron pinned to the label.
+ *
+ * Two selectors are listed because action-bar items render their label
+ * one level deeper than `.sessions-chat-picker-slot`. Both land at
+ * specificity 0,7,0 (action-bar path) / 0,6,0 (slot path), which beats
+ * the desktop floor at 0,5,0 / 0,4,0 — no `!important` required. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+	display: inline-flex;
+	align-items: center;
+	height: auto;
+	min-height: 30px;
+	min-width: 0;
+	padding: 2px 6px;
+	border-radius: 999px;
+	background-color: var(--vscode-toolbar-hoverBackground, transparent);
+	border: 1px solid transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	line-height: 1;
+	overflow: visible;
+	white-space: nowrap;
+	/* `pan-x` allows horizontal panning to bubble up to the scrolling
+	 * chip lane while still suppressing browser double-tap-zoom on the
+	 * chip itself. `manipulation` would block our custom scroll
+	 * gesture from reaching the lane. */
+	touch-action: pan-x;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label:active,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:active {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
+}
+
+/* Tune codicon sizing inside chips so the icon, label, and chevron
+ * read at a comfortable size for touch but stay tight to the label,
+ * matching the iOS reference proportions. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
+	font-size: 13px;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.7;
+}
+
+/* The chip row scrolls horizontally, so we never want to collapse labels
+ * to icon-only — keep them visible regardless of viewport width. This
+ * overrides the desktop `@container (max-width: 330px)` query that
+ * hides `.sessions-chat-dropdown-label` to make icon-only chips. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label .sessions-chat-dropdown-label {
+	display: inline;
+	margin-left: 4px;
 }
 
 /* Also hide the sessions-chat-widget's DnD overlay on phone */

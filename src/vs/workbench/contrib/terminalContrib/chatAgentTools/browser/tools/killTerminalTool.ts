@@ -69,9 +69,6 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 		// Dispose the terminal instance (this kills the process)
 		execution.instance.dispose();
 
-		// Remove the execution from tracking
-		RunInTerminalTool.removeExecution(args.id);
-
 		const outputSummary = finalOutput
 			? `Final output before termination:\n${finalOutput}`
 			: 'No output was captured.';

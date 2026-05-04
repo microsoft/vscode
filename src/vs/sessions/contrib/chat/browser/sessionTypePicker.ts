@@ -19,15 +19,15 @@ import { Emitter } from '../../../../base/common/event.js';
 
 export class SessionTypePicker extends Disposable {
 
-	private _sessionType: string | undefined;
-	private readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
+	protected _sessionType: string | undefined;
+	protected readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
-	private _supportedSessionTypes: ISessionType[] = [];
-	private _allProviderSessionTypes: ISessionType[] = [];
+	protected _supportedSessionTypes: ISessionType[] = [];
+	protected _allProviderSessionTypes: ISessionType[] = [];
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -98,7 +98,12 @@ export class SessionTypePicker extends Disposable {
 		}));
 	}
 
-	private _showPicker(): void {
+	/**
+	 * Override hook for mobile subclasses. Receives the trigger element so
+	 * the override can decide where to anchor (or that it doesn't need
+	 * anchoring at all, e.g. for a bottom sheet).
+	 */
+	protected _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}

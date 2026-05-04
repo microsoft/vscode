@@ -40,7 +40,7 @@ import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus } from '../../prompt/common/conversation';
-import { IBuildPromptContext } from '../../prompt/common/intents';
+import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
@@ -339,12 +339,18 @@ export class AgentIntent extends EditCodeIntent {
 			return {};
 		}
 
+		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
 			history,
 			chatVariables: new ChatVariablesCollection([]),
 			query: '',
 			toolCallRounds: [],
 			conversation,
+			tools: {
+				availableTools,
+				toolReferences: request.toolReferences.map(InternalToolReference.from),
+				toolInvocationToken: request.toolInvocationToken,
+			},
 		};
 
 		try {
@@ -354,6 +360,7 @@ export class AgentIntent extends EditCodeIntent {
 				endpoint,
 				location: ChatLocation.Agent,
 				promptContext,
+				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
 

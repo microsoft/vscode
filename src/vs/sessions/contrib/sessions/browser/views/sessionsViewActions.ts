@@ -18,6 +18,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
@@ -634,7 +635,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^agenthost-/),
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}
