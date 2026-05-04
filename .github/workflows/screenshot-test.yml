@@ -64,6 +64,7 @@ jobs:
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
       - name: Log fixture errors
+        if: always()
         run: |
           MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
           if [ ! -f "$MANIFEST" ]; then

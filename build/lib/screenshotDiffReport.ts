@@ -33,9 +33,11 @@ const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
 
 interface LocalManifestFixture {
 	readonly fixtureId: string;
-	readonly imageHash: string;
-	readonly imagePath: string;
+	readonly imageHash?: string;
+	readonly imagePath?: string;
 	readonly labels?: readonly string[];
+	readonly hasError?: boolean;
+	readonly error?: { readonly message?: string; readonly stack?: string } | string;
 }
 
 interface LocalManifest {
@@ -73,10 +75,16 @@ interface RemovedDiffEntry extends DiffEntry {
 	readonly beforeHash: string;
 }
 
+interface ErroredDiffEntry extends DiffEntry {
+	readonly errorMessage: string;
+	readonly errorStack?: string;
+}
+
 interface DiffResult {
 	readonly changed: readonly ChangedDiffEntry[];
 	readonly added: readonly AddedDiffEntry[];
 	readonly removed: readonly RemovedDiffEntry[];
+	readonly errored: readonly ErroredDiffEntry[];
 }
 
 function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
@@ -96,8 +104,23 @@ function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResu
 	const changed: ChangedDiffEntry[] = [];
 	const added: AddedDiffEntry[] = [];
 	const removed: RemovedDiffEntry[] = [];
+	const errored: ErroredDiffEntry[] = [];
 
 	for (const cur of local.fixtures) {
+		if (cur.hasError || !cur.imageHash || !cur.imagePath) {
+			const rawError = cur.error;
+			const errorMessage = typeof rawError === 'string'
+				? rawError
+				: rawError?.message ?? 'unknown error (no image hash produced)';
+			const errorStack = typeof rawError === 'object' ? rawError?.stack : undefined;
+			errored.push({
+				fixtureId: cur.fixtureId,
+				labels: cur.labels,
+				errorMessage,
+				errorStack,
+			});
+			continue;
+		}
 		const baseEntry = baseByFixture.get(cur.fixtureId);
 		if (!baseEntry) {
 			added.push({
@@ -129,7 +152,7 @@ function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResu
 		}
 	}
 
-	return { changed, added, removed };
+	return { changed, added, removed, errored };
 }
 
 function loadImageUrl(serviceUrl: string, hash: string): string {
@@ -145,8 +168,9 @@ function generateMarkdown(
 	const changed = diff.changed.filter(e => shouldIncludeInReport(e.labels));
 	const added = diff.added.filter(e => shouldIncludeInReport(e.labels));
 	const removed = diff.removed.filter(e => shouldIncludeInReport(e.labels));
+	const errored = diff.errored.filter(e => shouldIncludeInReport(e.labels));
 
-	if (changed.length === 0 && added.length === 0 && removed.length === 0) {
+	if (changed.length === 0 && added.length === 0 && removed.length === 0 && errored.length === 0) {
 		return '';
 	}
 
@@ -203,7 +227,30 @@ function generateMarkdown(
 		}
 	}
 
+	if (errored.length > 0) {
+		lines.push(`### Errored (${errored.length})`);
+		lines.push('');
+		lines.push('Fixtures that failed to render — no screenshot was produced.');
+		lines.push('');
+		for (let i = 0; i < errored.length; i++) {
+			const entry = errored[i];
+			const open = i < EXPAND_FIRST_N ? ' open' : '';
+			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`);
+			lines.push('');
+			lines.push('```');
+			lines.push(entry.errorStack ?? entry.errorMessage);
+			lines.push('```');
+			lines.push('');
+			lines.push('</details>');
+			lines.push('');
+		}
+	}
+
 	return lines.join('\n');
+}
+
+function escapeMarkdown(text: string): string {
+	return text.replace(/[\r\n]+/g, ' ').replace(/[<>]/g, c => c === '<' ? '&lt;' : '&gt;');
 }
 
 function main(): void {
@@ -226,7 +273,7 @@ function main(): void {
 	const base = JSON.parse(fs.readFileSync(baseManifestPath, 'utf8')) as BaseCommitResponse;
 
 	const diff = diffManifests(local, base);
-	console.error(`Compare result: ${diff.changed.length} changed, ${diff.added.length} added, ${diff.removed.length} removed.`);
+	console.error(`Compare result: ${diff.changed.length} changed, ${diff.added.length} added, ${diff.removed.length} removed, ${diff.errored.length} errored.`);
 
 	const tmpDir = path.join(__dirname, '../../.tmp');
 	fs.mkdirSync(tmpDir, { recursive: true });
