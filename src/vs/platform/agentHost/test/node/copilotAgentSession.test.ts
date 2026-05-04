@@ -201,6 +201,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
+		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: () => undefined,
 		updateRootConfig: () => { /* no-op */ },
@@ -210,6 +211,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
+		tmpDir: URI.file('/mock-tmp'),
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
@@ -448,6 +450,76 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('auto-approves read of Copilot SDK large-tool-output temp files', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			// Layout 1: <timestamp>-copilot-tool-output-<id>.txt
+			const result1 = await session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', '1730000000000-copilot-tool-output-abc123.txt'),
+				toolCallId: 'tc-tool-output-1',
+			});
+			assert.strictEqual(result1.kind, 'approve-once');
+
+			// Layout 2: copilot-tool-output-<timestamp>-<id>.txt
+			const result2 = await session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-2',
+			});
+			assert.strictEqual(result2.kind, 'approve-once');
+
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve tool-output-named files outside tmpdir', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/some/other/dir', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-outside',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tool-output-outside', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('does not auto-approve unrelated files inside tmpdir', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', 'something-else.txt'),
+				toolCallId: 'tc-tmp-other',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tmp-other', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('does not auto-approve write to a tool-output temp path', async () => {
+			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'write',
+				fileName: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'tc-tool-output-write',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+
+			assert.ok(session.respondToPermissionRequest('tc-tool-output-write', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
 		test('write permission outside working directory fires tool_ready', async () => {
 			const { session, signals, waitForSignal } = await createAgentSession(disposables);
 
@@ -680,6 +752,30 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			assert.strictEqual(signals.length, 0);
+		});
+
+		test('report_intent surfaces as session activity', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-intent-1',
+				toolName: 'report_intent',
+				arguments: { intent: 'Reading repo docs' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.strictEqual(signals.length, 1);
+			const signal = signals[0];
+			assert.ok(isAction(signal, ActionType.SessionActivityChanged));
+			if (isAction(signal, ActionType.SessionActivityChanged)) {
+				assert.strictEqual((signal.action as { activity: string | undefined }).activity, 'Reading repo docs');
+			}
+
+			// Going idle clears the activity.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const clearSignal = signals.find((s, i) => i > 0 && isAction(s, ActionType.SessionActivityChanged));
+			assert.ok(clearSignal, 'expected activity to be cleared on idle');
+			if (clearSignal && isAction(clearSignal, ActionType.SessionActivityChanged)) {
+				assert.strictEqual((clearSignal.action as { activity: string | undefined }).activity, undefined);
+			}
 		});
 
 		test('tool_complete event produces past-tense message', async () => {
@@ -1182,6 +1278,38 @@ suite('CopilotAgentSession', () => {
 				pastTenseMessage: 'did it',
 			});
 			await handlerPromise;
+		});
+
+		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
+			// Regression: when a client tool runs inside a subagent the
+			// permission-flow `pending_confirmation` must carry the
+			// parentToolCallId from the originating tool_start. Without it
+			// the host has no way to route the resulting
+			// SessionToolCallReady to the subagent session and emits a
+			// stray ready against the parent session (no preceding
+			// SessionToolCallStart).
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+				arguments: {},
+				parentToolCallId: 'tc-parent-subagent',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+			assert.strictEqual(permSignals.length, 1);
+			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
+
+			session.respondToPermissionRequest('tc-sub-client', false);
+			await resultPromise;
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {

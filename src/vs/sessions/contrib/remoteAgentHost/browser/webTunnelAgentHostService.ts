@@ -30,6 +30,8 @@ const LOG_PREFIX = '[WebTunnelAgentHost]';
 
 /** Storage key for recently used tunnel cache. */
 const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
+/** Storage key for tunnels the user explicitly disconnected. */
+const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
 
 /**
  * Web (browser) implementation of {@link ITunnelAgentHostService}.
@@ -201,6 +203,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			name: tunnel.name,
 			authProvider,
 		});
+		this.clearAutoConnectSuppression(tunnel.tunnelId);
 		this._storeCachedTunnels(filtered.slice(0, 20));
 		this._onDidChangeTunnels.fire();
 	}
@@ -208,7 +211,26 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 	removeCachedTunnel(tunnelId: string): void {
 		const cached = this.getCachedTunnels();
 		this._storeCachedTunnels(cached.filter(t => t.tunnelId !== tunnelId));
+		this.clearAutoConnectSuppression(tunnelId);
 		this._onDidChangeTunnels.fire();
+	}
+
+	isAutoConnectSuppressed(tunnelId: string): boolean {
+		return this._getAutoConnectSuppressedTunnels().has(tunnelId);
+	}
+
+	suppressAutoConnect(tunnelId: string): void {
+		const suppressed = this._getAutoConnectSuppressedTunnels();
+		suppressed.add(tunnelId);
+		this._storeAutoConnectSuppressedTunnels(suppressed);
+	}
+
+	clearAutoConnectSuppression(tunnelId: string): void {
+		const suppressed = this._getAutoConnectSuppressedTunnels();
+		if (!suppressed.delete(tunnelId)) {
+			return;
+		}
+		this._storeAutoConnectSuppressedTunnels(suppressed);
 	}
 
 	private _storeCachedTunnels(tunnels: ICachedTunnel[]): void {
@@ -216,6 +238,30 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			this._storageService.remove(CACHED_TUNNELS_KEY, StorageScope.APPLICATION);
 		} else {
 			this._storageService.store(CACHED_TUNNELS_KEY, JSON.stringify(tunnels), StorageScope.APPLICATION, StorageTarget.USER);
+		}
+	}
+
+	private _getAutoConnectSuppressedTunnels(): Set<string> {
+		const raw = this._storageService.get(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, StorageScope.APPLICATION);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (!Array.isArray(parsed)) {
+				return new Set();
+			}
+			return new Set(parsed.filter(item => typeof item === 'string'));
+		} catch {
+			return new Set();
+		}
+	}
+
+	private _storeAutoConnectSuppressedTunnels(tunnelIds: Set<string>): void {
+		if (tunnelIds.size === 0) {
+			this._storageService.remove(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, StorageScope.APPLICATION);
+		} else {
+			this._storageService.store(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, JSON.stringify([...tunnelIds]), StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 }

@@ -479,6 +479,8 @@ function resolveModelTurnContent(span: ICompletedSpanData): vscode.ChatDebugEven
 	content.status = spanStatusToString(span.status.code as SpanStatusCode);
 	content.durationInMillis = span.endTime - span.startTime;
 	content.timeToFirstTokenInMillis = asNumber(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN]);
+	content.requestId = asString(span.attributes[GenAiAttr.RESPONSE_ID]);
+	content.requestOptions = asString(span.attributes[CopilotChatAttr.REQUEST_OPTIONS]);
 	content.maxInputTokens = asNumber(span.attributes[CopilotChatAttr.MAX_PROMPT_TOKENS]);
 	content.maxOutputTokens = asNumber(span.attributes[GenAiAttr.REQUEST_MAX_TOKENS]);
 	content.inputTokens = asNumber(span.attributes[GenAiAttr.USAGE_INPUT_TOKENS]);
@@ -676,7 +678,7 @@ function entryToModelTurnEvent(entry: IDebugLogEntry): vscode.ChatDebugModelTurn
 	evt.durationInMillis = entry.dur;
 	evt.timeToFirstTokenInMillis = entry.attrs.ttft as number | undefined;
 	evt.maxOutputTokens = entry.attrs.maxTokens as number | undefined;
-	evt.requestName = entry.name;
+	evt.requestName = (entry.attrs.debugName as string | undefined) ?? entry.name;
 	evt.status = entry.status === 'error' ? 'error' : 'success';
 	return evt;
 }
@@ -807,6 +809,8 @@ async function resolveModelTurnEntry(
 	content.status = entry.status === 'error' ? 'error' : 'success';
 	content.durationInMillis = entry.dur;
 	content.timeToFirstTokenInMillis = entry.attrs.ttft as number | undefined;
+	content.requestId = entry.attrs.responseId as string | undefined;
+	content.requestOptions = entry.attrs.requestOptions as string | undefined;
 	content.maxOutputTokens = entry.attrs.maxTokens as number | undefined;
 	content.inputTokens = entry.attrs.inputTokens as number | undefined;
 	content.outputTokens = entry.attrs.outputTokens as number | undefined;

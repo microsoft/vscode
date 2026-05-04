@@ -21,6 +21,7 @@ interface IQuotaConfig {
 	unlimited: boolean;
 	usageBasedBilling?: boolean;
 	resetAt?: number;
+	entitlement?: number;
 }
 
 function createEntitlementService(opts: {
@@ -297,5 +298,82 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Monthly Limit']);
+	});
+
+	// --- HOVER: CREDIT FRACTIONS ---
+
+	test('Hover shows credit fractions when entitlement is available', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false, entitlement: 2000 },
+			completions: { percentRemaining: 70, unlimited: false, entitlement: 5000 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 2);
+
+		// Before hover: shows percentages
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Hover: shows credit fractions
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+		const chatValue = quotaPercentages[0].querySelector('.quota-value');
+		assert.ok(chatValue?.textContent?.includes('/'));
+
+		// Mouse leave: reverts to percentage
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+	});
+
+	test('Hover is a no-op when entitlement is not available', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			completions: { percentRemaining: 70, unlimited: false },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 2);
+
+		// Before hover: shows percentages
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Hover: still shows percentages (no entitlement data)
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+	});
+
+	test('Focus shows credit fractions (keyboard accessibility)', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false, entitlement: 2000 },
+			completions: { percentRemaining: 70, unlimited: false, entitlement: 5000 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 2);
+
+		// Before focus: shows percentages
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Focus: shows credit fractions
+		quotaPercentages[0].dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+		const chatValue = quotaPercentages[0].querySelector('.quota-value');
+		assert.ok(chatValue?.textContent?.includes('/'));
+
+		// Blur: reverts to percentage
+		quotaPercentages[0].dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+	});
+
+	test('Quota percentage element is keyboard-focusable', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false, entitlement: 2000 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentage = dashboard.element.querySelector('.quota-indicator:not(.included) .quota-percentage') as HTMLElement;
+		assert.ok(quotaPercentage);
+		assert.strictEqual(quotaPercentage.tabIndex, 0);
 	});
 });
