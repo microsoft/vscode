@@ -153,7 +153,7 @@ import { CustomEditorLabelService, ICustomEditorLabelService } from '../../servi
 import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
-import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, IVisibleEditorsChangeEvent, PreferredGroup } from '../../services/editor/common/editorService.js';
 import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -1050,7 +1050,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidActiveEditorChange: Event<void> = Event.None;
-	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent> = Event.None;
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
 	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
