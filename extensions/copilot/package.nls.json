@@ -353,6 +353,7 @@
 	"github.copilot.config.responsesApi.promptCacheKey.enabled": "Enables prompt cache key being set for the Responses API.",
 	"github.copilot.config.responsesApi.toolSearchTool.enabled": "Enable tool search for OpenAI Responses API models. When enabled, tools are dynamically discovered and loaded on-demand using embeddings-based search, reducing context window usage when many tools are available.",
 	"github.copilot.config.updated53CodexPrompt.enabled": "Enables the updated prompt for gpt-5.3-codex model.",
+	"github.copilot.config.claude47OpusPrompt.enabled": "Enables the updated system prompt tuned for the Claude Opus 4.7 model.",
 	"github.copilot.config.gpt54ConcisePrompt.enabled": "Enables the concise prompt experiment for gpt-5.4 model.",
 	"github.copilot.config.gpt54LargePrompt.enabled": "Enables the large prompt experiment for gpt-5.4 model.",
 	"github.copilot.config.anthropic.tools.websearch.enabled": "Enable Anthropic's native web search tool for BYOK Claude models. When enabled, allows Claude to search the web for current information. \n\n**Note**: This is an experimental feature only available for BYOK Anthropic Claude models.",
