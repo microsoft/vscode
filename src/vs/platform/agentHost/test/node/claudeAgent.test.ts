@@ -132,8 +132,19 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
 
+	/**
+	 * Programmable rejection for {@link listSessions}. Set per test to
+	 * simulate the SDK dynamic import failing (corrupt postinstall,
+	 * missing optional dep). Mirror of {@link startupRejection}.
+	 */
+	listSessionsRejection: Error | undefined;
+
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		this.listSessionsCallCount++;
+		if (this.listSessionsRejection) {
+			const err = this.listSessionsRejection;
+			throw err;
+		}
 		return this.sessionList;
 	}
 
@@ -2009,6 +2020,31 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('listSessions returns an empty list (does not reject) when the SDK fails to load', async () => {
+		// Copilot-reviewer comment: `AgentService.listSessions` fans out
+		// across providers via `Promise.all` (agentService.ts:202-204).
+		// If our SDK dynamic import rejects (corrupt install, missing
+		// optional dep) and we let it propagate, every other provider's
+		// session list disappears too \u2014 the sibling Copilot provider
+		// goes blank. Catching here keeps Claude's row empty while
+		// Copilot's row still surfaces.
+		const sdk = new FakeClaudeAgentSdkService();
+		sdk.listSessionsRejection = new Error('simulated SDK load failure');
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[ICopilotApiService, new FakeCopilotApiService()],
+			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[ISessionDataService, createNullSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		const result = await agent.listSessions();
+		assert.deepStrictEqual(result, []);
+	});
+
 	test('shutdown is idempotent and returns the same memoized promise on concurrent calls', async () => {
 		// Phase 6+ INVARIANT: the SDK Query subprocess for each live
 		// session is aborted inside `shutdown()`. If two callers race
@@ -2207,6 +2243,76 @@ suite('ClaudeAgent', () => {
 		agent.dispose();
 
 		assert.strictEqual(proxyDisposed, true);
+	});
+
+	test('agent.dispose() during a racing first sendMessage aborts the provisional and disposes the WarmQuery', async () => {
+		// Copilot reviewer: `dispose()` did not abort provisional
+		// AbortControllers. If a `sendMessage` was racing materialize
+		// (parked inside `_writeCustomizationDirectory`), `dispose()`
+		// would synchronously dispose `_sessions` and remove provisional
+		// records via teardown — but the materialize sequencer
+		// continuation, having already passed the post-startup abort
+		// gate, would resume past the persist step and call
+		// `_sessions.set(...)` on an already-disposed DisposableMap,
+		// orphaning the WarmQuery subprocess. The fix adds a
+		// `provisional.abortController.abort()` step before
+		// `super.dispose()` so the post-customization-write abort gate
+		// catches the race and asyncDisposes the WarmQuery.
+		const persistGate = new DeferredPromise<void>();
+		let persistEntered = false;
+		const blockingDb = new TestSessionDatabase();
+		const originalSetMetadata = blockingDb.setMetadata.bind(blockingDb);
+		blockingDb.setMetadata = async (key, value) => {
+			persistEntered = true;
+			await persistGate.p;
+			await originalSetMetadata(key, value);
+		};
+
+		const proxy = new FakeClaudeProxyService();
+		const api = new FakeCopilotApiService();
+		api.models = async () => [...ALL_MODELS];
+		const sdk = new FakeClaudeAgentSdkService();
+		const sessionData = createSessionDataService(blockingDb);
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[ICopilotApiService, api],
+			[IClaudeProxyService, proxy],
+			[ISessionDataService, sessionData],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentHostGitService, createNoopGitService()],
+		);
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
+
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		const send = agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		const settle: { rejected?: unknown } = {};
+		const sendDone = send.then(() => { settle.rejected = false; }, err => { settle.rejected = err; });
+
+		while (!persistEntered) {
+			await new Promise<void>(resolve => setImmediate(resolve));
+		}
+
+		// Now dispose the WHOLE AGENT while persist is parked. This is
+		// the path the reviewer flagged: provisional AbortController
+		// must be aborted so the post-customization-write gate catches.
+		agent.dispose();
+
+		persistGate.complete();
+		await sendDone;
+
+		assert.deepStrictEqual({
+			rejectedIsCancellation: isCancellationError(settle.rejected),
+			warmQueryDisposed: sdk.warmQueries[0]?.asyncDisposeCount === 1,
+		}, {
+			rejectedIsCancellation: true,
+			warmQueryDisposed: true,
+		});
 	});
 
 	// #endregion

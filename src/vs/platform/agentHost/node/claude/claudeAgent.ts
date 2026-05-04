@@ -612,7 +612,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// `Promise.all`-with-throwing-mapper pattern at copilotAgent.ts:519
 		// has a latent bug; we follow AgentService.listSessions's resilient
 		// pattern (`agentService.ts:188-204`) instead.
-		const sdkEntries = await this._sdkService.listSessions();
+		//
+		// `AgentService.listSessions` fans out across all providers via
+		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
+		// import fails (corrupt install, missing optional dep) and we let
+		// it reject, *every* provider's session list disappears — the
+		// sibling Copilot provider gets nuked too. Catch and log instead.
+		let sdkEntries: readonly SDKSessionInfo[];
+		try {
+			sdkEntries = await this._sdkService.listSessions();
+		} catch (err) {
+			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);
+			return [];
+		}
 		return Promise.all(sdkEntries.map(async entry => {
 			try {
 				const sessionUri = AgentSession.uri(this.id, entry.sessionId);
@@ -812,12 +824,30 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// is disposed. After proxy disposal the proxy may rebind on a
 		// different port and a still-running subprocess would silently
 		// lose its endpoint. See `IClaudeProxyHandle` doc in
-		// `claudeProxyService.ts`. We honour that ordering by calling
-		// `super.dispose()` first — it synchronously disposes the
+		// `claudeProxyService.ts`.
+		//
+		// Step 1: abort every provisional AbortController. These are
+		// the same controllers wired into `Options.abortController` at
+		// materialize time (sdk.d.ts:982), so any in-flight
+		// `await sdk.startup()` will reject and any sequencer-queued
+		// `_materializeProvisional` continuation will trip its
+		// post-startup or post-customization-write abort gates,
+		// disposing the WarmQuery without ever reaching
+		// `_sessions.set(...)`. Without this step, dispose during a
+		// concurrent first `sendMessage` could orphan a WarmQuery
+		// subprocess. (Copilot reviewer: dispose lifecycle.)
+		//
+		// Step 2: `super.dispose()` synchronously disposes the
 		// `_sessions` DisposableMap, firing each session wrapper's
-		// `dispose()` — and only then releasing the proxy handle. This
-		// is locked by test "dispose awaits shutdown before releasing
-		// the proxy handle".
+		// `dispose()` (which interrupts/asyncDisposes its WarmQuery).
+		//
+		// Step 3: only then release the proxy handle, preserving the
+		// wrapper-before-proxy ordering invariant. This is locked by
+		// test "dispose disposes the proxy handle and is idempotent".
+		for (const provisional of this._provisionalSessions.values()) {
+			provisional.abortController.abort();
+		}
+		this._provisionalSessions.clear();
 		super.dispose();
 		this._proxyHandle?.dispose();
 		this._proxyHandle = undefined;
