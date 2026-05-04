@@ -10,6 +10,7 @@ import { LanguageModelTextPart } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { decodeStatefulMarker, StatefulMarkerContainer } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../platform/endpoint/common/thinkingDataContainer';
+import type { ThinkingData } from '../../../platform/thinking/common/thinking';
 import { SafetyRules } from '../../prompts/node/base/safetyRules';
 import { EditorIntegrationRules } from '../../prompts/node/panel/editorIntegrationRules';
 import { imageDataPartToTSX, ToolResult } from '../../prompts/node/panel/toolCalling';
@@ -41,10 +42,29 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 				// There should only be one string part per message
 				const content = filteredContent.find(part => part instanceof LanguageModelTextPart);
 				const toolCalls = filteredContent.filter(part => part instanceof vscode.LanguageModelToolCallPart);
-				const thinking = filteredContent.find(part => part instanceof vscode.LanguageModelThinkingPart);
+				const thinkingParts = filteredContent.filter((part): part is vscode.LanguageModelThinkingPart => part instanceof vscode.LanguageModelThinkingPart);
+				// Concatenate text across parts; id/metadata typically arrive in the final part, so last-wins.
+				let aggregatedThinking: ThinkingData | undefined;
+				if (thinkingParts.length > 0) {
+					let id = '';
+					let text = '';
+					let metadata: { readonly [key: string]: any } | undefined;
+					for (const part of thinkingParts) {
+						if (part.id) {
+							id = part.id;
+						}
+						text += Array.isArray(part.value) ? part.value.join('') : part.value;
+						if (part.metadata) {
+							metadata = part.metadata;
+						}
+					}
+					if (id || text || metadata) {
+						aggregatedThinking = { id, text, metadata: metadata ? { ...metadata } : undefined };
+					}
+				}
 
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
-				const thinkingElement = thinking && thinking.id && <ThinkingDataContainer thinking={{ id: thinking.id, text: thinking.value, metadata: thinking.metadata }} />;
+				const thinkingElement = aggregatedThinking && <ThinkingDataContainer thinking={aggregatedThinking} />;
 				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content?.value}{thinkingElement}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {
 				for (const part of message.content) {
