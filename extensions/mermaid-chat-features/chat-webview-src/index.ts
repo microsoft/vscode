@@ -2,72 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import mermaid, { MermaidConfig } from 'mermaid';
+import { initializeMermaidWebview } from './mermaidWebview';
+import { VsCodeApi } from './vscodeApi';
 
-function getMermaidTheme() {
-	return document.body.classList.contains('vscode-dark') || (document.body.classList.contains('vscode-high-contrast') && !document.body.classList.contains('vscode-high-contrast-light'))
-		? 'dark'
-		: 'default';
-}
+declare function acquireVsCodeApi(): VsCodeApi;
+const vscode = acquireVsCodeApi();
 
-type State = {
-	readonly diagramText: string;
-	readonly theme: 'dark' | 'default';
-};
 
-let state: State | undefined = undefined;
+async function main() {
+	await initializeMermaidWebview(vscode);
 
-function init() {
-	const diagram = document.querySelector('.mermaid');
-	if (!diagram) {
-		return;
+	// Set up the "Open in Editor" button
+	const openBtn = document.querySelector('.open-in-editor-btn');
+	if (openBtn) {
+		openBtn.addEventListener('click', e => {
+			e.stopPropagation();
+			vscode.postMessage({ type: 'openInEditor' });
+		});
 	}
-
-	const theme = getMermaidTheme();
-	state = {
-		diagramText: diagram.textContent ?? '',
-		theme
-	};
-
-	const config: MermaidConfig = {
-		startOnLoad: true,
-		theme,
-	};
-	mermaid.initialize(config);
 }
-
-function tryUpdate() {
-	const newTheme = getMermaidTheme();
-	if (state?.theme === newTheme) {
-		return;
-	}
-
-	const diagramNode = document.querySelector('.mermaid');
-	if (!diagramNode || !(diagramNode instanceof HTMLElement)) {
-		return;
-	}
-
-	state = {
-		diagramText: state?.diagramText ?? '',
-		theme: newTheme
-	};
-
-	// Re-render
-	diagramNode.textContent = state?.diagramText ?? '';
-	delete diagramNode.dataset.processed;
-
-	mermaid.initialize({
-		theme: newTheme,
-	});
-	mermaid.run({
-		nodes: [diagramNode]
-	});
-}
-
-// Update when theme changes
-new MutationObserver(() => {
-	tryUpdate();
-}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
-init();
-
+main();

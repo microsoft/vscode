@@ -14,7 +14,7 @@ import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from '../common/de
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from '../../../../platform/debug/common/extensionHostDebug.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -55,30 +55,30 @@ export class RawDebugSession implements IDisposable {
 	private startTime = 0;
 	private didReceiveStoppedEvent = false;
 
+	private readonly toDispose = new DisposableStore();
+
 	// DAP events
-	private readonly _onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
-	private readonly _onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
-	private readonly _onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-	private readonly _onDidTerminateDebugee = new Emitter<DebugProtocol.TerminatedEvent>();
-	private readonly _onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
-	private readonly _onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
-	private readonly _onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
-	private readonly _onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-	private readonly _onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
-	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
-	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
-	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
-	private readonly _onDidInvalidated = new Emitter<DebugProtocol.InvalidatedEvent>();
-	private readonly _onDidInvalidateMemory = new Emitter<DebugProtocol.MemoryEvent>();
-	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
-	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
+	private readonly _onDidInitialize = this.toDispose.add(new Emitter<DebugProtocol.InitializedEvent>());
+	private readonly _onDidStop = this.toDispose.add(new Emitter<DebugProtocol.StoppedEvent>());
+	private readonly _onDidContinued = this.toDispose.add(new Emitter<DebugProtocol.ContinuedEvent>());
+	private readonly _onDidTerminateDebugee = this.toDispose.add(new Emitter<DebugProtocol.TerminatedEvent>());
+	private readonly _onDidExitDebugee = this.toDispose.add(new Emitter<DebugProtocol.ExitedEvent>());
+	private readonly _onDidThread = this.toDispose.add(new Emitter<DebugProtocol.ThreadEvent>());
+	private readonly _onDidOutput = this.toDispose.add(new Emitter<DebugProtocol.OutputEvent>());
+	private readonly _onDidBreakpoint = this.toDispose.add(new Emitter<DebugProtocol.BreakpointEvent>());
+	private readonly _onDidLoadedSource = this.toDispose.add(new Emitter<DebugProtocol.LoadedSourceEvent>());
+	private readonly _onDidProgressStart = this.toDispose.add(new Emitter<DebugProtocol.ProgressStartEvent>());
+	private readonly _onDidProgressUpdate = this.toDispose.add(new Emitter<DebugProtocol.ProgressUpdateEvent>());
+	private readonly _onDidProgressEnd = this.toDispose.add(new Emitter<DebugProtocol.ProgressEndEvent>());
+	private readonly _onDidInvalidated = this.toDispose.add(new Emitter<DebugProtocol.InvalidatedEvent>());
+	private readonly _onDidInvalidateMemory = this.toDispose.add(new Emitter<DebugProtocol.MemoryEvent>());
+	private readonly _onDidCustomEvent = this.toDispose.add(new Emitter<DebugProtocol.Event>());
+	private readonly _onDidEvent = this.toDispose.add(new Emitter<DebugProtocol.Event>());
 
 	// DA events
-	private readonly _onDidExitAdapter = new Emitter<AdapterEndEvent>();
+	private readonly _onDidExitAdapter = this.toDispose.add(new Emitter<AdapterEndEvent>());
 	private debugAdapter: IDebugAdapter | null;
 	private stoppedSinceLastStep = false;
-
-	private toDispose: IDisposable[] = [];
 
 	constructor(
 		debugAdapter: IDebugAdapter,
@@ -93,11 +93,11 @@ export class RawDebugSession implements IDisposable {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
 
-		this.toDispose.push(this.debugAdapter.onError(err => {
+		this.toDispose.add(this.debugAdapter.onError(err => {
 			this.shutdown(err);
 		}));
 
-		this.toDispose.push(this.debugAdapter.onExit(code => {
+		this.toDispose.add(this.debugAdapter.onExit(code => {
 			if (code !== 0) {
 				this.shutdown(new Error(`exit code: ${code}`));
 			} else {
@@ -834,6 +834,6 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose(this.toDispose);
+		this.toDispose.dispose();
 	}
 }

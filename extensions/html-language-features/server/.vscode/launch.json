@@ -15,13 +15,9 @@
 			"name": "Unit Tests",
 			"type": "node",
 			"request": "launch",
-			"program": "${workspaceFolder}/../../../node_modules/mocha/bin/_mocha",
+			"program": "${workspaceFolder}/test/index.js",
 			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"999999",
-				"--colors"
-			],
+			"args": [],
 			"cwd": "${workspaceFolder}",
 			"runtimeExecutable": null,
 			"runtimeArgs": [],

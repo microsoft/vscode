@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-inline-anchor-widget {
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border: 0.5px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	margin: 0 1px;
 	padding: 1px 3px;
@@ -12,11 +12,11 @@
 	width: fit-content;
 	font-weight: normal;
 	text-decoration: none;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-inline-anchor-widget .icon-label {
 	padding: 0 3px;
-	text-wrap: wrap;
 
 	.label-suffix {
 		color: var(--vscode-peekViewTitleDescription-foreground);
@@ -60,9 +60,9 @@
 	flex-shrink: 0;
 }
 
-/* Link-style appearance - no box, no icon */
-.chat-inline-anchor-widget.link-style,
-.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.link-style {
+/* Link-style appearance - no box, no icon (controlled by parent container class) */
+.chat-inline-references-link-style .chat-inline-anchor-widget,
+.chat-inline-references-link-style .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
 	border: none;
 	background-color: transparent;
 	padding: 0;
@@ -70,15 +70,15 @@
 	color: var(--vscode-textLink-foreground);
 }
 
-.chat-inline-anchor-widget.link-style:hover {
+.chat-inline-references-link-style .chat-inline-anchor-widget:hover {
 	background-color: transparent;
 	text-decoration: underline;
 }
 
-.chat-inline-anchor-widget.link-style .icon {
+.chat-inline-references-link-style .chat-inline-anchor-widget .icon {
 	display: none;
 }
 
-.chat-inline-anchor-widget.link-style .icon-label {
+.chat-inline-references-link-style .chat-inline-anchor-widget .icon-label {
 	padding: 0;
 }

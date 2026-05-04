@@ -254,7 +254,7 @@ export async function searchFilesAndFolders(
 
 	let searchResult: ISearchComplete | undefined;
 	try {
-		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,${pattern}}` }, token);
+		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,**/${segmentMatchPattern}}` }, token);
 	} catch (e) {
 		if (!isCancellationError(e)) {
 			throw e;

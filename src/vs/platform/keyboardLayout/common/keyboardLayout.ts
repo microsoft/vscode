@@ -132,13 +132,13 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 
 		if (/^com\.apple\.keylayout\./.test(macLayout.id)) {
 			return {
-				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/, ' '),
+				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/g, ' '),
 				description: ''
 			};
 		}
 		if (/^.*inputmethod\./.test(macLayout.id)) {
 			return {
-				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/, ' '),
+				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/g, ' '),
 				description: `Input Method (${macLayout.lang})`
 			};
 		}

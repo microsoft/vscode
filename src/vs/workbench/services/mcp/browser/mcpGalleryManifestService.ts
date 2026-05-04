@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { McpGalleryManifestService as McpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifestService.js';
+import { McpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifestService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
@@ -78,9 +78,9 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 
 		this.mcpGalleryManifest = manifest;
 		if (this.mcpGalleryManifest) {
-			this.logService.info('MCP Registry configured:', this.mcpGalleryManifest.url);
+			this.logService.trace('MCP Registry configured:', this.mcpGalleryManifest.url);
 		} else {
-			this.logService.info('No MCP Registry configured');
+			this.logService.trace('No MCP Registry configured');
 		}
 		this.currentStatus = this.mcpGalleryManifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 		this._onDidChangeMcpGalleryManifest.fire(this.mcpGalleryManifest);

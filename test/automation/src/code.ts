@@ -36,6 +36,7 @@ export interface LaunchOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
+	readonly extensionDevelopmentPath?: string;
 }
 
 interface ICodeInstance {
@@ -268,6 +269,21 @@ export class Code {
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		await this.poll(() => this.driver.click(selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
+	}
+
+	/**
+	 * Clicks an element using Playwright's actionability-checked `page.click` (which
+	 * re-verifies `elementFromPoint` right before dispatching, so the element can't
+	 * shift under the click), with a stable-coordinates fallback when actionability
+	 * checks fail due to an overlay intercepting pointer events. Unlike
+	 * {@link waitAndClick} this does not poll/retry the click — it waits for the
+	 * element to exist first, then attempts a single click. Use for elements that
+	 * may shift due to siblings being inserted asynchronously (e.g. status bar items
+	 * in the editor area when extensions register a language status item).
+	 */
+	async robustClick(selector: string): Promise<void> {
+		await this.waitForElement(selector);
+		await this.driver.robustClick(selector);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {

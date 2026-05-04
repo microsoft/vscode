@@ -17,9 +17,17 @@ export interface ICommandLineRewriterOptions {
 	cwd: URI | undefined;
 	shell: string;
 	os: OperatingSystem;
+	isBackground?: boolean;
+	requestUnsandboxedExecution?: boolean;
 }
 
 export interface ICommandLineRewriterResult {
 	rewritten: string;
 	reasoning: string;
+	//for scenarios where we want to show a different command in the chat UI than what is actually run in the terminal
+	forDisplay?: string;
+	isSandboxWrapped?: boolean;
+	requiresUnsandboxConfirmation?: boolean;
+	blockedDomains?: string[];
+	deniedDomains?: string[];
 }

@@ -1,7 +1,8 @@
 src/**
 test/**
 out/**
-tsconfig.json
+tsconfig*.json
+**/*.tsbuildinfo
 build/**
-extension.webpack.config.js
+esbuild*.mts
 package-lock.json

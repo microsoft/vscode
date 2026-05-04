@@ -16,8 +16,6 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { UserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 const associatedRemoteProfilesKey = 'associatedRemoteProfiles';
 
@@ -42,8 +40,6 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IFileService private readonly fileService: IFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -61,7 +57,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 			return;
 		}
 
-		this.remoteUserDataProfilesService = new UserDataProfilesService(environment.profiles.all, environment.profiles.home, connection.getChannel('userDataProfiles'), this.environmentService, this.fileService, this.uriIdentityService, this.logService);
+		this.remoteUserDataProfilesService = new UserDataProfilesService(environment.profiles.all, environment.profiles.home, connection.getChannel('userDataProfiles'));
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeLocalProfiles(e)));
 
 		// Associate current local profile with remote profile

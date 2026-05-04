@@ -89,6 +89,7 @@ export class UnifiedQuickAccess extends Disposable {
 	private _tabBarContainer: HTMLElement | undefined;
 	private _isInternalValueChange = false; // Flag to prevent recursive tab detection
 	private _isUpdatingSendToAgent = false; // Guard to prevent infinite loop
+	private _arrivedViaShortcut: '<' | '>' | undefined; // Track if we arrived at current tab via shortcut key
 	private _sendToAgentTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _sendButton: HTMLButtonElement | undefined;
 	private _sendButtonLabel: HTMLSpanElement | undefined;
@@ -158,6 +159,20 @@ export class UnifiedQuickAccess extends Disposable {
 			if (this._isInternalValueChange) {
 				return;
 			}
+
+			// Check if user removed the shortcut character (including when input is emptied) - switch back to Files
+			if (this._arrivedViaShortcut) {
+				const shortcut = this._arrivedViaShortcut;
+				if (!value.startsWith(shortcut)) {
+					const filesTab = this._tabs.find(t => t.id === 'files');
+					if (filesTab && filesTab !== this._currentTab) {
+						this._arrivedViaShortcut = undefined;
+						this._switchTab(filesTab, picker, false);
+						return;
+					}
+				}
+			}
+
 			const matchingTab = this._detectTabFromValue(value);
 			if (matchingTab && matchingTab !== this._currentTab) {
 				this._switchTab(matchingTab, picker, true);
@@ -185,10 +200,15 @@ export class UnifiedQuickAccess extends Disposable {
 				(item as IQuickPickItem & { id?: string }).id !== SEND_TO_AGENT_ID
 			);
 
-			// Get the filter text
-			const filterText = this._currentTab
-				? picker.value.substring(this._currentTab.prefix.length).trim()
-				: picker.value.trim();
+			// Get the filter text (without prefix or shortcut character)
+			let filterText: string;
+			if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
+				filterText = picker.value.substring(1).trim();
+			} else if (this._currentTab) {
+				filterText = picker.value.substring(this._currentTab.prefix.length).trim();
+			} else {
+				filterText = picker.value.trim();
+			}
 
 			// Send to agent if:
 			// 1. Send-to-agent item is explicitly selected, OR
@@ -205,6 +225,7 @@ export class UnifiedQuickAccess extends Disposable {
 			this._providerCts = undefined;
 			this._currentPicker = undefined;
 			this._currentTab = undefined;
+			this._arrivedViaShortcut = undefined;
 			// Clear any pending timeout
 			if (this._sendToAgentTimeout) {
 				clearTimeout(this._sendToAgentTimeout);
@@ -407,12 +428,17 @@ export class UnifiedQuickAccess extends Disposable {
 	}
 
 	/**
-	 * Send the current message to a new agent session (strips prefix).
+	 * Send the current message to a new agent session (strips prefix or shortcut character).
 	 */
 	private async _sendMessage(value: string): Promise<void> {
-		// Strip any prefix from the value
+		// Strip any prefix or shortcut character from the value
 		let message = value;
-		if (this._currentTab) {
+
+		// First, strip shortcut character if we arrived via shortcut
+		if (this._arrivedViaShortcut && message.startsWith(this._arrivedViaShortcut)) {
+			message = message.substring(1).trim();
+		} else if (this._currentTab) {
+			// Otherwise strip the normal prefix
 			if (value.startsWith(this._currentTab.prefix)) {
 				message = value.substring(this._currentTab.prefix.length).trim();
 			}
@@ -446,10 +472,16 @@ export class UnifiedQuickAccess extends Disposable {
 			return;
 		}
 
-		// Get the filter text (without prefix)
-		const filterText = this._currentTab
-			? picker.value.substring(this._currentTab.prefix.length).trim()
-			: picker.value.trim();
+		// Get the filter text (without prefix or shortcut character)
+		let filterText: string;
+		if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
+			// Strip shortcut character
+			filterText = picker.value.substring(1).trim();
+		} else if (this._currentTab) {
+			filterText = picker.value.substring(this._currentTab.prefix.length).trim();
+		} else {
+			filterText = picker.value.trim();
+		}
 
 		// Use full input if filter text is empty but there's input (user typed without prefix)
 		const fullInput = picker.value.trim();
@@ -529,16 +561,40 @@ export class UnifiedQuickAccess extends Disposable {
 		// Update picker value (with flag to prevent recursive tab detection)
 		this._isInternalValueChange = true;
 		if (preserveFilterText && previousTab) {
-			// User typed a prefix - keep the filter text, just change prefix
-			const filterText = picker.value.substring(previousTab.prefix.length);
-			picker.value = tab.prefix + filterText;
+			// User typed a shortcut prefix - normalize the value to show just the shortcut character
+			const currentValue = picker.value;
+
+			// Strip previous tab's prefix if present
+			let filterText = currentValue;
+			if (currentValue.startsWith(previousTab.prefix)) {
+				filterText = currentValue.substring(previousTab.prefix.length);
+			}
+
+			// Handle shortcut transitions - ensure only one shortcut char is shown
+			if (this._arrivedViaShortcut === '<' && tab.id === 'agentSessions') {
+				// Strip any leading "<" chars and set just one
+				filterText = filterText.replace(/^<+/, '');
+				picker.value = '<' + filterText;
+			} else if (this._arrivedViaShortcut === '>' && tab.id === 'commands') {
+				// Strip any leading ">" chars and set just one
+				filterText = filterText.replace(/^>+/, '');
+				picker.value = '>' + filterText;
+			} else {
+				// Normal prefix-based switching
+				picker.value = tab.prefix + filterText;
+			}
 		} else if (previousTab) {
 			// User clicked tab - keep current text but strip old prefix (don't add new prefix)
 			const currentValue = picker.value;
 			if (currentValue.startsWith(previousTab.prefix)) {
 				picker.value = currentValue.substring(previousTab.prefix.length);
 			}
-			// else: keep current value as-is
+			// Also strip shortcut character if present
+			if (picker.value.startsWith('<') || picker.value.startsWith('>')) {
+				picker.value = picker.value.substring(1);
+			}
+			// Clear shortcut tracking when switching via click
+			this._arrivedViaShortcut = undefined;
 		}
 		// else: first tab activation, value already set
 		this._isInternalValueChange = false;
@@ -552,8 +608,27 @@ export class UnifiedQuickAccess extends Disposable {
 	/**
 	 * Detect which tab matches the current value based on prefix.
 	 * Only switches away from current tab if user explicitly typed a different prefix.
+	 * Supports shortcut keys: ">" for Commands, "<" for Sessions.
 	 */
 	private _detectTabFromValue(value: string): IUnifiedQuickAccessTab | undefined {
+		// Check for "<" shortcut to switch to Sessions (from Files or Commands)
+		if (value === '<' || value.startsWith('<')) {
+			const sessionsTab = this._tabs.find(t => t.id === 'agentSessions');
+			if (sessionsTab && this._currentTab?.id !== 'agentSessions') {
+				this._arrivedViaShortcut = '<';
+				return sessionsTab;
+			}
+		}
+
+		// Check for ">" shortcut to switch to Commands (from Files or Sessions)
+		if (value === '>' || value.startsWith('>')) {
+			const commandsTab = this._tabs.find(t => t.id === 'commands');
+			if (commandsTab && this._currentTab?.id !== 'commands') {
+				this._arrivedViaShortcut = '>';
+				return commandsTab;
+			}
+		}
+
 		// Don't auto-switch if current tab matches (user is just typing)
 		if (this._currentTab && value.startsWith(this._currentTab.prefix)) {
 			return this._currentTab;
@@ -596,9 +671,15 @@ export class UnifiedQuickAccess extends Disposable {
 		const [provider] = this._getOrInstantiateProvider(tab.prefix);
 
 		if (provider) {
-			// Configure filtering - strip the tab's prefix from the filter value
+			// Configure filtering - strip the tab's prefix or shortcut character from the filter value
 			const tabPrefix = tab.prefix;
+			const arrivedViaShortcut = this._arrivedViaShortcut;
 			picker.filterValue = (value: string) => {
+				// If arrived via shortcut, strip the shortcut character
+				if (arrivedViaShortcut && value.startsWith(arrivedViaShortcut)) {
+					return value.substring(1);
+				}
+				// Otherwise strip the normal prefix
 				if (value.startsWith(tabPrefix)) {
 					return value.substring(tabPrefix.length);
 				}

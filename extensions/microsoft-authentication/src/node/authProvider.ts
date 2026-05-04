@@ -170,7 +170,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer, options?.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -200,7 +200,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer, options.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
@@ -228,7 +228,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			supportedClient: isSupportedClient(callbackUri),
-			isBrokerSupported: cachedPca.isBrokerAvailable
+			isBrokerSupported: cachedPca.isBrokerAvailable,
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -314,7 +315,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer, options?.clientId);
 		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -337,7 +338,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
 
-		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer, options.clientId);
 		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -364,7 +365,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			isBrokerSupported: cachedPca.isBrokerAvailable,
-			supportedClient: isSupportedClient(callbackUri)
+			supportedClient: isSupportedClient(callbackUri),
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();

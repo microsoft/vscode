@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawn, spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, webkit } from 'playwright';
+import { Browser, chromium, Page, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -32,10 +32,15 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
+	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
+	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
+	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
+	private currentTestName: string | undefined;
+	private screenshotCounter = 0;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -45,6 +50,7 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
+		screenshotsDir: string | undefined;
 	}>) {
 	}
 
@@ -61,15 +67,12 @@ export class TestContext {
 	/**
 	 * Returns the OS temp directory with expanded long names on Windows.
 	 */
-	public readonly osTempDir = (function () {
+	public readonly osTempDir = (() => {
 		let tempDir = fs.realpathSync(os.tmpdir());
 
 		// On Windows, expand short 8.3 file names to long names
 		if (os.platform() === 'win32') {
-			const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
-			if (result.status === 0 && result.stdout) {
-				tempDir = result.stdout.trim();
-			}
+			tempDir = fs.realpathSync.native(tempDir);
 		}
 
 		return tempDir;
@@ -89,6 +92,8 @@ export class TestContext {
 
 		const self = this;
 		return test(name, async function () {
+			self.currentTestName = name;
+			self.screenshotCounter = 0;
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -103,6 +108,8 @@ export class TestContext {
 				throw error;
 
 			} finally {
+				self.currentTestName = undefined;
+
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
 
@@ -137,8 +144,25 @@ export class TestContext {
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
 		this.consoleOutputs.push(line);
-		console.error(line);
+		console.error(`##vso[task.logissue type=error]${line}`);
 		throw new Error(message);
+	}
+
+	/**
+	 * Logs a warning message with a timestamp.
+	 */
+	public warn(message: string) {
+		const line = `[${new Date().toISOString()}] WARNING: ${message}`;
+		this.consoleOutputs.push(line);
+		console.warn(`##vso[task.logissue type=warning]${line}`);
+	}
+
+	/**
+	 * Returns a promise that resolves after the specified delay in milliseconds.
+	 * @param delay The delay in milliseconds to wait before resolving the promise.
+	 */
+	private timeout(delay: number) {
+		return new Promise(resolve => setTimeout(resolve, delay));
 	}
 
 	/**
@@ -149,6 +173,51 @@ export class TestContext {
 		this.log(`Created temp directory: ${tempDir}`);
 		this.tempDirs.add(tempDir);
 		return tempDir;
+	}
+
+	/**
+	 * Creates a new temporary directory in WSL and returns its path.
+	 */
+	public createWslTempDir(): string {
+		const tempDir = `/tmp/vscode-sanity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		this.log(`Creating WSL temp directory: ${tempDir}`);
+		this.runNoErrors('wsl', 'mkdir', '-p', tempDir);
+		this.wslTempDirs.add(tempDir);
+		return tempDir;
+	}
+
+	/**
+	 * Deletes a directory in WSL.
+	 * @param dir The WSL directory path to delete.
+	 */
+	public deleteWslDir(dir: string): void {
+		this.log(`Deleting WSL directory: ${dir}`);
+		this.runNoErrors('wsl', 'rm', '-rf', dir);
+	}
+
+	/**
+	 * Converts a Windows path to a WSL path.
+	 * @param windowsPath The Windows path to convert (e.g., 'C:\Users\test').
+	 * @returns The WSL path (e.g., '/mnt/c/Users/test').
+	 */
+	public toWslPath(windowsPath: string): string {
+		return windowsPath
+			.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`)
+			.replaceAll('\\', '/');
+	}
+
+	/**
+	 * Returns the name of the default WSL distribution.
+	 * @returns The default WSL distribution name (e.g., 'Ubuntu').
+	 */
+	public getDefaultWslDistro(): string {
+		const result = this.runNoErrors('wsl', '--list', '--quiet');
+		const distro = result.stdout.trim().split('\n')[0].replace(/\0/g, '').trim();
+		if (!distro) {
+			this.error('No WSL distribution found');
+		}
+		this.log(`Default WSL distribution: ${distro}`);
+		return distro;
 	}
 
 	/**
@@ -171,10 +240,19 @@ export class TestContext {
 				fs.rmSync(dir, { recursive: true, force: true });
 				this.log(`Deleted temp directory: ${dir}`);
 			} catch (error) {
-				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.tempDirs.clear();
+
+		for (const dir of this.wslTempDirs) {
+			try {
+				this.deleteWslDir(dir);
+			} catch (error) {
+				this.warn(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+			}
+		}
+		this.wslTempDirs.clear();
 	}
 
 	/**
@@ -189,8 +267,8 @@ export class TestContext {
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = Math.pow(2, attempt - 1) * 1000;
-				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				this.warn(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
 			}
 
 			try {
@@ -208,7 +286,7 @@ export class TestContext {
 				return response as Response & { body: NodeJS.ReadableStream };
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
 			}
 		}
 
@@ -245,19 +323,10 @@ export class TestContext {
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
 		this.log(`Downloading ${url} to ${filePath}`);
-		const { body } = await this.fetchNoErrors(url);
-
-		const stream = fs.createWriteStream(filePath);
-		await new Promise<void>((resolve, reject) => {
-			body.on('error', reject);
-			stream.on('error', reject);
-			stream.on('finish', resolve);
-			body.pipe(stream);
-		});
-
+		this.runNoErrors('curl', '-fSL', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '-o', filePath, url);
 		this.log(`Downloaded ${url} to ${filePath}`);
-		this.validateSha256Hash(filePath, sha256hash);
 
+		this.validateSha256Hash(filePath, sha256hash);
 		return filePath;
 	}
 
@@ -288,15 +357,50 @@ export class TestContext {
 		}
 
 		this.log(`Validating Authenticode signature for ${filePath}`);
+		this.validateAuthenticodeSignaturesForFiles([filePath]);
+	}
 
-		const result = this.run('powershell', '-Command', `Get-AuthenticodeSignature "${filePath}" | Select-Object -ExpandProperty Status`);
-		if (result.error !== undefined) {
-			this.error(`Failed to run Get-AuthenticodeSignature: ${result.error.message}`);
+	/**
+	 * Collects all files matching the Authenticode include pattern from the specified directory recursively.
+	 */
+	private collectAuthenticodeFiles(dir: string, files: string[]): void {
+		const entries = fs.readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				this.collectAuthenticodeFiles(filePath, files);
+			} else if (TestContext.authenticodeInclude.test(entry.name)) {
+				files.push(filePath);
+			}
+		}
+	}
+
+	/**
+	 * Validates Authenticode signatures for the specified list of files in a single PowerShell call.
+	 */
+	private validateAuthenticodeSignaturesForFiles(files: string[]): void {
+		if (files.length === 0) {
+			return;
 		}
 
-		const status = result.stdout.trim();
-		if (status !== 'Valid') {
-			this.error(`Authenticode signature is not valid for ${filePath}: ${status}`);
+		const fileList = files.map(file => `"${file}"`).join(',');
+		const command = `@(${fileList}) | ForEach-Object { $sig = Get-AuthenticodeSignature $_; "$($sig.Path)|$($sig.Status)" }`;
+		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
+
+		const invalid: string[] = [];
+		for (const line of result.stdout.trim().split('\n')) {
+			const [, filePath, status] = /^(.+)\|(\w+)$/.exec(line.trim()) ?? [];
+			if (filePath) {
+				if (status === 'Valid') {
+					this.log(`Authenticode signature is valid for ${filePath}`);
+				} else {
+					invalid.push(`${filePath}: ${status}`);
+				}
+			}
+		}
+
+		if (invalid.length > 0) {
+			this.error(`Authenticode signatures are not valid for:\n${invalid.join('\n')}`);
 		}
 	}
 
@@ -310,15 +414,88 @@ export class TestContext {
 			return;
 		}
 
-		const files = fs.readdirSync(dir, { withFileTypes: true });
-		for (const file of files) {
-			const filePath = path.join(dir, file.name);
-			if (file.isDirectory()) {
-				this.validateAllAuthenticodeSignatures(filePath);
-			} else if (TestContext.authenticodeInclude.test(file.name)) {
-				this.validateAuthenticodeSignature(filePath);
+		const files: string[] = [];
+		this.collectAuthenticodeFiles(dir, files);
+		this.log(`Found ${files.length} file(s) to validate Authenticode signatures`);
+		this.validateAuthenticodeSignaturesForFiles(files);
+	}
+
+	/**
+	 * Collects all files matching the VersionInfo include pattern from the specified directory recursively.
+	 */
+	private collectVersionInfoFiles(dir: string, files: string[]): void {
+		const entries = fs.readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				this.collectVersionInfoFiles(filePath, files);
+			} else if (TestContext.versionInfoInclude.test(entry.name)) {
+				if (TestContext.versionInfoExclude.test(entry.name)) {
+					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Validates that a Windows binary has a non-empty ProductName in VersionInfo.
+	 * @param filePath The path to the file to validate.
+	 */
+	public validateVersionInfo(filePath: string) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
+			this.log(`Skipping VersionInfo validation for ${filePath} (signing checks disabled)`);
+			return;
+		}
+
+		this.log(`Validating VersionInfo for ${filePath}`);
+		this.validateVersionInfoForFiles([filePath]);
+	}
+
+	/**
+	 * Validates VersionInfo ProductName for the specified list of files in a single PowerShell call.
+	 */
+	private validateVersionInfoForFiles(files: string[]): void {
+		if (files.length === 0) {
+			return;
+		}
+
+		const fileList = files.map(file => `"${file}"`).join(',');
+		const command = `@(${fileList}) | ForEach-Object { $vi = (Get-Item $_).VersionInfo; "$($_.ToString())|$($vi.ProductName)" }`;
+		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
+
+		const invalid: string[] = [];
+		for (const line of result.stdout.trim().split('\n')) {
+			const [, filePath, productName] = /^(.+)\|(.*)$/.exec(line.trim()) ?? [];
+			if (filePath) {
+				if (productName && productName.trim().length > 0) {
+					this.log(`VersionInfo ProductName is set for ${filePath}: ${productName.trim()}`);
+				} else {
+					invalid.push(filePath);
+				}
+			}
+		}
+
+		if (invalid.length > 0) {
+			this.error(`VersionInfo ProductName is missing or empty for:\n${invalid.join('\n')}`);
+		}
+	}
+
+	/**
+	 * Validates that all .exe, .dll, .node and .msi binaries in the specified directory have a non-empty ProductName in VersionInfo.
+	 * @param dir The directory to scan for binary files.
+	 */
+	public validateAllVersionInfo(dir: string) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
+			this.log(`Skipping VersionInfo validation for ${dir} (signing checks disabled)`);
+			return;
+		}
+
+		const files: string[] = [];
+		this.collectVersionInfoFiles(dir, files);
+		this.log(`Found ${files.length} file(s) to validate VersionInfo`);
+		this.validateVersionInfoForFiles(files);
 	}
 
 	/**
@@ -333,13 +510,24 @@ export class TestContext {
 
 		this.log(`Validating codesign signature for ${filePath}`);
 
-		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose', filePath);
+		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose=2', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to run codesign: ${result.error.message}`);
 		}
 
 		if (result.status !== 0) {
 			this.error(`Codesign signature is not valid for ${filePath}: ${result.stderr}`);
+		}
+
+		this.log(`Validating notarization for ${filePath}`);
+
+		const notaryResult = this.run('spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=2', filePath);
+		if (notaryResult.error !== undefined) {
+			this.error(`Failed to run spctl: ${notaryResult.error.message}`);
+		}
+
+		if (notaryResult.status !== 0) {
+			this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
 		}
 	}
 
@@ -356,9 +544,7 @@ export class TestContext {
 		const files = fs.readdirSync(dir, { withFileTypes: true });
 		for (const file of files) {
 			const filePath = path.join(dir, file.name);
-			if (TestContext.codesignExclude.test(filePath)) {
-				this.log(`Skipping codesign validation for excluded file: ${filePath}`);
-			} else if (file.isDirectory()) {
+			if (file.isDirectory()) {
 				// For .app bundles, validate the bundle itself, not its contents
 				if (file.name.endsWith('.app') || file.name.endsWith('.framework')) {
 					this.validateCodesignSignature(filePath);
@@ -416,6 +602,38 @@ export class TestContext {
 	}
 
 	/**
+	 * Mounts a macOS DMG file and returns the mount point.
+	 * @param dmgPath The path to the DMG file.
+	 * @returns The path to the mounted volume.
+	 */
+	public mountDmg(dmgPath: string): string {
+		this.log(`Mounting DMG ${dmgPath}`);
+		const result = this.runNoErrors('hdiutil', 'attach', dmgPath, '-nobrowse', '-readonly');
+
+		// Parse the output to find the mount point (last column of the last line)
+		const lines = result.stdout.trim().split('\n');
+		const lastLine = lines[lines.length - 1];
+		const mountPoint = lastLine.split('\t').pop()?.trim();
+
+		if (!mountPoint || !fs.existsSync(mountPoint)) {
+			this.error(`Failed to find mount point for DMG ${dmgPath}`);
+		}
+
+		this.log(`Mounted DMG at ${mountPoint}`);
+		return mountPoint;
+	}
+
+	/**
+	 * Unmounts a macOS DMG volume.
+	 * @param mountPoint The path to the mounted volume.
+	 */
+	public unmountDmg(mountPoint: string): void {
+		this.log(`Unmounting DMG ${mountPoint}`);
+		this.runNoErrors('hdiutil', 'detach', mountPoint);
+		this.log(`Unmounted DMG ${mountPoint}`);
+	}
+
+	/**
 	 * Runs a command synchronously.
 	 * @param command The command to run.
 	 * @param args Optional arguments for the command.
@@ -446,6 +664,58 @@ export class TestContext {
 	}
 
 	/**
+	 * Runs a command with sudo if not running as root, and ensures it succeeds.
+	 * @param command The command to run.
+	 * @param args Optional arguments for the command.
+	 * @returns The result of the spawnSync call.
+	 */
+	private runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
+		if (this.isRootUser) {
+			return this.runNoErrors(command, ...args);
+		} else {
+			return this.runNoErrors('sudo', command, ...args);
+		}
+	}
+
+	/**
+	 * Runs a dpkg command with retries if the frontend lock is busy, and ensures it succeeds.
+	 */
+	private async runDpkgNoErrors(...args: string[]) {
+		const command = this.isRootUser ? 'dpkg' : 'sudo';
+		const commandArgs = this.isRootUser ? args : ['dpkg', ...args];
+		const maxRetries = 5;
+		let lastError: string | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt - 1) * 1000;
+				this.log(`Retrying dpkg command (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
+			}
+
+			const result = this.run(command, ...commandArgs);
+			if (result.error !== undefined) {
+				lastError = `Failed to run command: ${result.error.message}`;
+				break;
+			}
+
+			if (result.status === 0) {
+				return;
+			}
+
+			lastError = `Command exited with code ${result.status}: ${result.stderr}`;
+			const output = `${result.stdout}${result.stderr}`;
+			if (!TestContext.dpkgLockError.test(output)) {
+				break;
+			}
+
+			this.log(`dpkg lock is busy, waiting for the other package manager process to finish`);
+		}
+
+		this.error(lastError ?? `Command failed after ${maxRetries} attempts because the dpkg frontend lock remained busy`);
+	}
+
+	/**
 	 * Kills a process and all its child processes.
 	 * @param pid The process ID to kill.
 	 */
@@ -467,7 +737,7 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['PROGRAMFILES'] || '';
+			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
 		} else {
 			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
 		}
@@ -529,7 +799,7 @@ export class TestContext {
 		this.runNoErrors(uninstallerPath, '/silent');
 		this.log(`Uninstalled VS Code from ${appDir} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 2000));
+		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
 			this.error(`Installation directory still exists after uninstall: ${appDir}`);
 		}
@@ -540,13 +810,9 @@ export class TestContext {
 	 * @param packagePath The path to the DEB file.
 	 * @returns The path to the installed VS Code executable.
 	 */
-	public installDeb(packagePath: string): string {
+	public async installDeb(packagePath: string): Promise<string> {
 		this.log(`Installing ${packagePath} using DEB package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
-		}
+		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -563,14 +829,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/share', name, name);
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-r', name);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-r', name);
-		}
+		await this.runDpkgNoErrors('-r', name);
 		this.log(`Uninstalled DEB package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -583,11 +845,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-i', packagePath);
-		}
+		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -604,14 +862,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/bin', name);
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-e', name);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-e', name);
-		}
+		this.runSudoNoErrors('rpm', '-e', name);
 		this.log(`Uninstalled RPM package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -624,11 +878,7 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
-		} else {
-			this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
-		}
+		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -646,14 +896,10 @@ export class TestContext {
 		const packagePath = path.join('/snap/bin', name);
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'remove', name);
-		} else {
-			this.runNoErrors('sudo', 'snap', 'remove', name);
-		}
+		this.runSudoNoErrors('snap', 'remove', name);
 		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -684,18 +930,22 @@ export class TestContext {
 		switch (os.platform()) {
 			case 'darwin': {
 				let appName: string;
+				let binaryName: string;
 				switch (this.options.quality) {
 					case 'stable':
 						appName = 'Visual Studio Code.app';
+						binaryName = 'Code';
 						break;
 					case 'insider':
 						appName = 'Visual Studio Code - Insiders.app';
+						binaryName = 'Code - Insiders';
 						break;
 					case 'exploration':
 						appName = 'Visual Studio Code - Exploration.app';
+						binaryName = 'Code - Exploration';
 						break;
 				}
-				filePath = path.join(dir, appName, 'Contents/MacOS/Electron');
+				filePath = path.join(dir, appName, 'Contents/MacOS', binaryName);
 				break;
 			}
 			case 'linux': {
@@ -740,6 +990,60 @@ export class TestContext {
 	}
 
 	/**
+	 * Validates that the Agents app binary exists in the specified installation directory.
+	 * @param dir The directory of the VS Code installation.
+	 * @returns The path to the Agents entry point executable.
+	 */
+	public validateAgentsEntryPoint(dir: string): void {
+		let filePath: string = '';
+
+		switch (os.platform()) {
+			case 'darwin': {
+				let appName: string;
+				let agentsAppName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						// Agents app is not included in stable yet.
+						// appName = 'Visual Studio Code.app';
+						// agentsAppName = 'Visual Studio Code Agents.app';
+						return;
+					case 'insider':
+						appName = 'Visual Studio Code - Insiders.app';
+						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
+						break;
+					case 'exploration':
+						appName = 'Visual Studio Code - Exploration.app';
+						agentsAppName = 'Visual Studio Code Agents - Exploration.app';
+						break;
+				}
+				filePath = path.join(dir, appName, 'Contents', 'Applications', agentsAppName);
+				break;
+			}
+			case 'win32': {
+				let exeName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						// Agents app is not included in stable yet.
+						// exeName = 'Agents.exe';
+						return;
+					case 'insider':
+						exeName = 'Agents - Insiders.exe';
+						break;
+					case 'exploration':
+						exeName = 'Agents - Exploration.exe';
+						break;
+				}
+				filePath = path.join(dir, exeName);
+				break;
+			}
+		}
+
+		if (!filePath || !fs.existsSync(filePath)) {
+			this.error(`Agents entry point does not exist: ${filePath}`);
+		}
+	}
+
+	/**
 	 * Returns the entry point executable for the VS Code CLI in the specified directory.
 	 * @param dir The directory containing unpacked CLI files.
 	 * @returns The path to the CLI entry point executable.
@@ -773,9 +1077,10 @@ export class TestContext {
 	/**
 	 * Returns the entry point executable for the VS Code server in the specified directory.
 	 * @param dir The directory containing unpacked server files.
+	 * @param forWsl If true, returns the Linux entry point (for running in WSL on Windows).
 	 * @returns The path to the server entry point executable.
 	 */
-	public getServerEntryPoint(dir: string): string {
+	public getServerEntryPoint(dir: string, forWsl = false): string {
 		let filename: string;
 		switch (this.options.quality) {
 			case 'stable':
@@ -789,7 +1094,7 @@ export class TestContext {
 				break;
 		}
 
-		if (os.platform() === 'win32') {
+		if (os.platform() === 'win32' && !forWsl) {
 			filename += '.cmd';
 		}
 
@@ -828,17 +1133,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns the tunnel URL for the VS Code server including vscode-version parameter.
-	 * @param baseUrl The base URL for the VS Code server.
-	 * @returns The tunnel URL with vscode-version parameter.
-	 */
-	public getTunnelUrl(baseUrl: string): string {
-		const url = new URL(baseUrl);
-		url.searchParams.set('vscode-version', this.options.commit);
-		return url.toString();
-	}
-
-	/**
 	 * Launches a web browser for UI testing.
 	 * @returns The launched Browser instance.
 	 */
@@ -858,8 +1152,48 @@ export class TestContext {
 			default: {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
-				return await chromium.launch({ headless, executablePath });
+				return await chromium.launch({
+					headless,
+					executablePath,
+					args: [
+						'--disable-gpu',
+						'--disable-gpu-compositing',
+						'--disable-software-rasterizer',
+						'--no-zygote',
+					]
+				});
 			}
+		}
+	}
+
+	/**
+	 * Awaits a page promise and sets the default timeout.
+	 * @param pagePromise The promise that resolves to a Page.
+	 * @returns The page with the timeout configured.
+	 */
+	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
+		const page = await pagePromise;
+		page.setDefaultTimeout(3 * 60 * 1000);
+		return page;
+	}
+
+	/**
+	 * Captures a screenshot of the current page if one is active.
+	 */
+	public async captureScreenshot(page: Page) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}-${++this.screenshotCounter}.png`);
+			await page.screenshot({ path: screenshotPath, fullPage: true });
+			this.log(`Screenshot saved to: ${screenshotPath}`);
+		} catch (e) {
+			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	}
 
@@ -886,6 +1220,25 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the tunnel URL for the VS Code server.
+	 * @param baseUrl The base URL for *vscode.dev/tunnel connection.
+	 * @param workspaceDir Optional folder path to open
+	 * @returns The tunnel URL with folder in pathname.
+	 */
+	public getTunnelUrl(baseUrl: string, workspaceDir?: string): string {
+		const url = new URL(baseUrl);
+		url.searchParams.set('vscode-version', this.options.commit);
+		if (workspaceDir) {
+			let folder = workspaceDir.replaceAll('\\', '/');
+			if (!folder.startsWith('/')) {
+				folder = `/${folder}`;
+			}
+			url.pathname = url.pathname.replace(/\/+$/, '') + folder;
+		}
+		return url.toString();
+	}
+
+	/**
 	 * Returns a random alphanumeric token of length 10.
 	 */
 	public getRandomToken(): string {
@@ -897,5 +1250,84 @@ export class TestContext {
 	 */
 	public getUniquePort(): string {
 		return String(this.nextPort++);
+	}
+
+	/**
+	 * Returns the default WSL server extensions directory path.
+	 * @returns The path to the extensions directory (e.g., '~/.vscode-server-insiders/extensions').
+	 */
+	public getWslServerExtensionsDir(): string {
+		let serverDir: string;
+		switch (this.options.quality) {
+			case 'stable':
+				serverDir = '.vscode-server';
+				break;
+			case 'insider':
+				serverDir = '.vscode-server-insiders';
+				break;
+			case 'exploration':
+				serverDir = '.vscode-server-exploration';
+				break;
+		}
+		return `~/${serverDir}/extensions`;
+	}
+
+	/**
+	 * Runs a VS Code command-line application (such as server or CLI).
+	 * @param name The name of the app as it will appear in logs.
+	 * @param command Command to run.
+	 * @param args Arguments for the command.
+	 * @param onLine Callback to handle output lines.
+	 */
+	public async runCliApp(name: string, command: string, args: string[], onLine: (text: string) => Promise<boolean | void | undefined>) {
+		this.log(`Starting ${name} with command line: ${command} ${args.join(' ')}`);
+
+		const app = spawn(command, args, {
+			shell: /\.(sh|cmd)$/.test(command),
+			detached: !this.capabilities.has('windows'),
+			stdio: ['ignore', 'pipe', 'pipe']
+		});
+
+		try {
+			await new Promise<void>((resolve, reject) => {
+				app.stderr.on('data', (data) => {
+					const text = `[${name}] ${data.toString().trim()}`;
+					if (/ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)) {
+						this.log(text);
+					} else {
+						reject(new Error(text));
+					}
+				});
+
+				let terminated = false;
+				app.stdout.on('data', (data) => {
+					const text = data.toString().trim();
+					if (/\berror\b/.test(text)) {
+						reject(new Error(`[${name}] ${text}`));
+					}
+
+					for (const line of text.split('\n')) {
+						this.log(`[${name}] ${line}`);
+						onLine(line).then((result) => {
+							if (terminated = !!result) {
+								this.log(`Terminating ${name} process`);
+								resolve();
+							}
+						}).catch(reject);
+					}
+				});
+
+				app.on('error', reject);
+				app.on('exit', (code) => {
+					if (code === 0) {
+						resolve();
+					} else if (!terminated) {
+						reject(new Error(`[${name}] Exited with code ${code}`));
+					}
+				});
+			});
+		} finally {
+			this.killProcessTree(app.pid!);
+		}
 	}
 }

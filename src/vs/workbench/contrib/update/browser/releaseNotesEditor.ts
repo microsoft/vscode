@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/releasenoteseditor.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
@@ -119,7 +119,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
-				undefined,
+				Codicon.vscode,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
@@ -213,7 +213,7 @@ export class ReleaseNotesManager extends Disposable {
 					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
 					text = file ? file.substring(file.indexOf('#')) : undefined;
 				} else {
-					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+					text = await asTextOrError(await this._requestService.request({ url, callSite: 'releaseNotesEditor.fetchReleaseNotes' }, CancellationToken.None));
 				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
@@ -266,7 +266,7 @@ export class ReleaseNotesManager extends Disposable {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer);
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality);
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -531,6 +531,7 @@ export class ReleaseNotesManager extends Disposable {
 							margin-left: 0;
 						}
 					}
+
 				</style>
 			</head>
 			<body>
@@ -611,17 +612,61 @@ export class ReleaseNotesManager extends Disposable {
 	}
 }
 
+/**
+ * Processes conditional blocks in the release notes markdown.
+ *
+ * Conditional blocks use a single HTML comment with the format:
+ * ```
+ * <!-- %IF CONDITION %
+ * Content only visible when CONDITION is active.
+ * %ENDIF % -->
+ * ```
+ *
+ * Supported conditions:
+ * - `IN_PRODUCT` - Content shown in VS Code (both Stable and Insiders)
+ * - `WEB` - Content shown on the website only
+ * - `STABLE` - Content shown in VS Code Stable only
+ * - `INSIDERS` - Content shown in VS Code Insiders only
+ *
+ * On the website, the entire block is a single HTML comment, so the
+ * content is hidden by default. The website renderer would activate
+ * `WEB` blocks by stripping the comment markers.
+ */
+export function processConditionalBlocks(text: string, activeConditions: ReadonlySet<string>): string {
+	return text.replace(
+		/<!--\s*%IF\s+(\w+)\s*%([\s\S]*?)%ENDIF\s*%\s*-->/gi,
+		(_match, condition: string, content: string) => {
+			if (activeConditions.has(condition.toUpperCase())) {
+				// Strip comment markers, reveal content
+				return content;
+			}
+			// Remove the entire block
+			return '';
+		}
+	);
+}
+
 export async function renderReleaseNotesMarkdown(
 	text: string,
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
 	simpleSettingRenderer: SimpleSettingRenderer,
+	quality?: string,
 ): Promise<TrustedHTML> {
 	// Remove HTML comment markers around table of contents navigation
 	text = text
 		.toString()
 		.replace(/<!--\s*TOC\s*/gi, '')
 		.replace(/\s*Navigation End\s*-->/gi, '');
+
+	// Process conditional blocks based on active conditions
+	const activeConditions = new Set<string>(['IN_PRODUCT']);
+	if (quality === 'stable') {
+		activeConditions.add('STABLE');
+	} else if (quality === 'insider') {
+		activeConditions.add('INSIDERS');
+	}
+	text = processConditionalBlocks(text, activeConditions);
 
 	return renderMarkdownDocument(text, extensionService, languageService, {
 		sanitizerConfig: {

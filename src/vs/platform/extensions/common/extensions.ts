@@ -203,6 +203,8 @@ export interface IChatFileContribution {
 	readonly path: string;
 	readonly name?: string;
 	readonly description?: string;
+	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IExtensionContributions {
@@ -235,6 +237,8 @@ export interface IExtensionContributions {
 	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;

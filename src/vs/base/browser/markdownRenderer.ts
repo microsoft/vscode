@@ -66,6 +66,25 @@ export interface MarkdownSanitizerConfig {
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
+/**
+ * Returns a human-readable tooltip string for a link href.
+ * For file:// URIs, converts to a decoded OS file system path to avoid
+ * showing raw URL-encoded paths (e.g. "C:\Users\..." instead of "file:///c%3A/Users/...").
+ */
+function getLinkTitle(href: string): string {
+	try {
+		const parsed = URI.parse(href);
+		if (parsed.scheme === Schemas.file) {
+			const path = parsed.fsPath;
+			const fragment = parsed.fragment;
+			return escapeDoubleQuotes(fragment ? `${path}#${fragment}` : path);
+		}
+	} catch {
+		// fall through
+	}
+	return '';
+}
+
 const defaultMarkedRenderers = Object.freeze({
 	image: ({ href, title, text }: marked.Tokens.Image): string => {
 		let dimensions: string[] = [];
@@ -103,6 +122,12 @@ const defaultMarkedRenderers = Object.freeze({
 
 		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
 		href = removeMarkdownEscapes(href);
+
+		// For file:// URIs without an explicit title, show the decoded OS path instead of
+		// the raw URL-encoded URI (e.g. display "C:\Users\..." instead of "file:///c%3A/Users/...")
+		if (!title && href.startsWith(`${Schemas.file}:`)) {
+			title = getLinkTitle(href);
+		}
 
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')

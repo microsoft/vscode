@@ -11,7 +11,8 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Local,
 			supportedClient: true,
-			isBrokerSupported: false
+			isBrokerSupported: false,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 3);
@@ -24,7 +25,8 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Local,
 			supportedClient: true,
-			isBrokerSupported: true
+			isBrokerSupported: true,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 1);
@@ -35,7 +37,8 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Remote,
 			supportedClient: true,
-			isBrokerSupported: false
+			isBrokerSupported: false,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 2);
@@ -47,7 +50,8 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Local,
 			supportedClient: false,
-			isBrokerSupported: false
+			isBrokerSupported: false,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 2);
@@ -59,7 +63,8 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Remote,
 			supportedClient: false,
-			isBrokerSupported: false
+			isBrokerSupported: false,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 1);
@@ -70,10 +75,24 @@ suite('getMsalFlows', () => {
 		const query: IMsalFlowQuery = {
 			extensionHost: ExtensionHost.Local,
 			supportedClient: false,
-			isBrokerSupported: true
+			isBrokerSupported: true,
+			isPortableMode: false
 		};
 		const flows = getMsalFlows(query);
 		assert.strictEqual(flows.length, 1);
 		assert.strictEqual(flows[0].label, 'default');
+	});
+
+	test('should exclude protocol handler flow in portable mode', () => {
+		const query: IMsalFlowQuery = {
+			extensionHost: ExtensionHost.Local,
+			supportedClient: true,
+			isBrokerSupported: false,
+			isPortableMode: true
+		};
+		const flows = getMsalFlows(query);
+		assert.strictEqual(flows.length, 2);
+		assert.strictEqual(flows[0].label, 'default');
+		assert.strictEqual(flows[1].label, 'device code');
 	});
 });

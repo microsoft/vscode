@@ -13,30 +13,18 @@ import { EditorOption } from '../../../../../editor/common/config/editorOptions.
 import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { $, addDisposableListener, clearNode, getTotalWidth } from '../../../../../base/browser/dom.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { overviewRulerRangeHighlight } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
-import { ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import * as nls from '../../../../../nls.js';
-import { basename } from '../../../../../base/common/resources.js';
-
-/**
- * Simple diff info interface for explanation widgets
- * Does not require chat editing session methods like keep/undo
- */
-export interface IExplanationDiffInfo {
-	readonly changes: readonly (LineRangeMapping | DetailedLineRangeMapping)[];
-	readonly identical: boolean;
-	readonly originalModel: ITextModel;
-	readonly modifiedModel: ITextModel;
-}
+import { IExplanationDiffInfo, IChangeExplanation as IChangeExplanationModel, IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 /**
  * Explanation data for a single change hunk
@@ -147,6 +135,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		diffInfo: IExplanationDiffInfo,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _viewsService: IViewsService,
+		private readonly _chatSessionResource?: URI,
 	) {
 		super();
 
@@ -361,14 +350,19 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			// Reply button click handler
 			this._eventStore.add(addDisposableListener(replyButton, 'click', async (e) => {
 				e.stopPropagation();
-				const chatWidget = this._chatWidgetService.lastFocusedWidget;
+				const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, 1);
+				let chatWidget: IChatWidget | undefined;
+				if (this._chatSessionResource) {
+					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource);
+				} else {
+					await this._viewsService.openView(ChatViewId, true);
+					chatWidget = this._chatWidgetService.lastFocusedWidget;
+				}
 				if (chatWidget) {
-					const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, 1);
 					chatWidget.attachmentModel.addContext(
 						chatWidget.attachmentModel.asFileVariableEntry(this._uri, range)
 					);
 				}
-				await this._viewsService.openView(ChatViewId, true);
 			}));
 
 			// Click on item to mark as read
@@ -417,30 +411,20 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 	}
 
 	/**
-	 * Sets the explanation for a specific change index.
-	 * Called by the manager after batch generation completes.
+	 * Sets the explanation for a change matching the given line number range.
+	 * @returns true if a matching explanation was found and updated
 	 */
-	setExplanation(changeIndex: number, explanation: string): void {
-		if (changeIndex >= 0 && changeIndex < this._explanations.length) {
-			const exp = this._explanations[changeIndex];
-			exp.explanation = explanation;
-			exp.loading = false;
-			this._updateExplanationText(changeIndex);
-		}
-	}
-
-	/**
-	 * Marks all explanations as failed to generate.
-	 */
-	setAllFailed(): void {
+	setExplanationByLineNumber(startLineNumber: number, endLineNumber: number, explanation: string): boolean {
 		for (let i = 0; i < this._explanations.length; i++) {
 			const exp = this._explanations[i];
-			if (exp.loading) {
-				exp.explanation = nls.localize('failedToGenerateExplanation', "Failed to generate explanation.");
+			if (exp.startLineNumber === startLineNumber && exp.endLineNumber === endLineNumber) {
+				exp.explanation = explanation;
 				exp.loading = false;
 				this._updateExplanationText(i);
+				return true;
 			}
 		}
+		return false;
 	}
 
 	/**
@@ -560,12 +544,15 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	private readonly _widgets: ChatEditingExplanationWidget[] = [];
 	private _visible: boolean = false;
 
-	private _modelUri: URI | undefined;
+	private _chatSessionResource: URI | undefined;
+	private _diffInfo: IExplanationDiffInfo | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _viewsService: IViewsService,
+		modelManager: IChatEditingExplanationModelManager,
+		private readonly _modelUri: URI,
 	) {
 		super();
 
@@ -587,21 +574,34 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 				}
 			}
 		}));
+
+		// Observe state from model manager
+		this._register(autorun(r => {
+			const state = modelManager.state.read(r);
+			const uriState = state.get(this._modelUri);
+
+			if (uriState) {
+				// Update diffInfo and chatSessionResource from state
+				this._diffInfo = uriState.diffInfo;
+				this._chatSessionResource = uriState.chatSessionResource;
+
+				// Ensure widgets are created
+				if (this._widgets.length === 0 && this._diffInfo) {
+					this._createWidgets(this._diffInfo, this._chatSessionResource);
+				}
+				// Handle explanation state changes
+				if (uriState.progress === 'complete') {
+					this._handleExplanations(this._modelUri, uriState.explanations);
+				}
+				this.show();
+			} else {
+				this.hide();
+			}
+		}));
 	}
 
-	/**
-	 * Updates the diff info and generates explanations.
-	 * Creates widgets immediately and starts LLM generation.
-	 * @param visible Whether widgets should be visible (default: false)
-	 */
-	update(diffInfo: IExplanationDiffInfo, visible: boolean = false): void {
-		this._modelUri = diffInfo.modifiedModel.uri;
-
-		// Clear existing widgets
-		this._clearWidgets();
-
+	private _createWidgets(diffInfo: IExplanationDiffInfo, chatSessionResource: URI | undefined): void {
 		if (diffInfo.identical || diffInfo.changes.length === 0) {
-			this._visible = visible;
 			return;
 		}
 
@@ -616,16 +616,14 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 				diffInfo,
 				this._chatWidgetService,
 				this._viewsService,
+				chatSessionResource,
 			);
 			this._widgets.push(widget);
 			this._register(widget);
 
 			// Layout at the first change in the group
 			widget.layout(group[0].modified.startLineNumber);
-			widget.toggle(visible);
 		}
-
-		this._visible = visible;
 
 		// Relayout on scroll/layout changes
 		this._register(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
@@ -635,135 +633,22 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 		}));
 	}
 
-	/**
-	 * Gets the widgets managed by this manager.
-	 */
-	get widgets(): readonly ChatEditingExplanationWidget[] {
-		return this._widgets;
-	}
-
-	/**
-	 * Generates explanations for all changes directly from diff info in a single LLM request.
-	 * This is a static function that can be called after creating widget managers.
-	 */
-	static async generateExplanations(
-		widgets: readonly ChatEditingExplanationWidget[],
-		diffInfo: IExplanationDiffInfo,
-		languageModelsService: ILanguageModelsService,
-		cancellationToken: import('../../../../../base/common/cancellation.js').CancellationToken
-	): Promise<void> {
-		if (diffInfo.changes.length === 0) {
+	private _handleExplanations(uri: URI, explanations: readonly IChangeExplanationModel[]): void {
+		if (!this._modelUri || uri.toString() !== this._modelUri.toString()) {
 			return;
 		}
 
-		// Build change data directly from diffInfo
-		const fileName = basename(diffInfo.modifiedModel.uri);
-		const changeData = diffInfo.changes.map(change => {
-			const { originalText, modifiedText } = getChangeTexts(change, diffInfo);
-			return {
-				startLineNumber: change.modified.startLineNumber,
-				endLineNumber: change.modified.endLineNumberExclusive - 1,
-				originalText,
-				modifiedText,
-			};
-		});
-
-		try {
-			// Select a high-end model for better understanding of all changes together
-			let models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'claude-3.5-sonnet' });
-			if (!models.length) {
-				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o' });
-			}
-			if (!models.length) {
-				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4' });
-			}
-			if (!models.length) {
-				// Fallback to any available model
-				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
-			}
-			if (!models.length) {
-				for (const widget of widgets) {
-					widget.setAllFailed();
+		// Map explanations to widgets by matching line numbers
+		for (const explanation of explanations) {
+			for (const widget of this._widgets) {
+				// Try to set the explanation on the widget - it will match by line number
+				if (widget.setExplanationByLineNumber(
+					explanation.startLineNumber,
+					explanation.endLineNumber,
+					explanation.explanation
+				)) {
+					break; // Found the matching widget, no need to check others
 				}
-				return;
-			}
-
-			// Build a prompt with all changes
-			const changesDescription = changeData.map((data, index) => {
-				return `=== CHANGE ${index} (File: ${fileName}, Lines ${data.startLineNumber}-${data.endLineNumber}) ===
-BEFORE:
-${data.originalText || '(empty)'}
-
-AFTER:
-${data.modifiedText || '(empty)'}`;
-			}).join('\n\n');
-
-			const prompt = `Analyze these ${changeData.length} code changes and provide a brief explanation for each one.
-
-${changesDescription}
-
-Respond with a JSON array containing exactly ${changeData.length} objects, one for each change in order.
-Each object should have an "explanation" field with a brief sentence (max 15 words) explaining what changed and why.
-Be specific about the actual code changes. Return ONLY valid JSON, no markdown.
-
-Example response format:
-[{"explanation": "Added null check to prevent crash"}, {"explanation": "Renamed variable for clarity"}]`;
-
-			const response = await languageModelsService.sendChatRequest(
-				models[0],
-				new ExtensionIdentifier('core'),
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				cancellationToken
-			);
-
-			let responseText = '';
-			for await (const part of response.stream) {
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							responseText += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					responseText += part.value;
-				}
-			}
-
-			await response.result;
-
-			// Parse the JSON response
-			try {
-				// Handle potential markdown wrapping
-				let jsonText = responseText.trim();
-				if (jsonText.startsWith('```')) {
-					jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-				}
-
-				const explanations: { explanation: string }[] = JSON.parse(jsonText);
-
-				// Map explanations back to widgets based on change indices
-				let changeIndex = 0;
-				for (const widget of widgets) {
-					const count = widget.explanationCount;
-					for (let i = 0; i < count; i++) {
-						const parsed = explanations[changeIndex];
-						const explanation = parsed?.explanation?.trim() || nls.localize('codeWasModified', "Code was modified.");
-						widget.setExplanation(i, explanation);
-						changeIndex++;
-					}
-				}
-			} catch {
-				// JSON parsing failed, set generic message for all
-				for (const widget of widgets) {
-					for (let i = 0; i < widget.explanationCount; i++) {
-						widget.setExplanation(i, nls.localize('codeWasModified', "Code was modified."));
-					}
-				}
-			}
-		} catch {
-			for (const widget of widgets) {
-				widget.setAllFailed();
 			}
 		}
 	}

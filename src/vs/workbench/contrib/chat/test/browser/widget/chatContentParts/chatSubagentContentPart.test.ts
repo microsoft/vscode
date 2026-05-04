@@ -13,16 +13,17 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { ChatTreeItem } from '../../../../browser/chat.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -40,7 +41,6 @@ suite('ChatSubagentContentPart', () => {
 	let mockHoverService: IHoverService;
 	let mockListPool: CollapsibleListPool;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 	let announcedToolProgressKeys: Set<string>;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
@@ -52,7 +52,8 @@ suite('ChatSubagentContentPart', () => {
 		};
 
 		return {
-			element: mockElement as ChatTreeItem,
+			element: mockElement as IChatResponseViewModel,
+			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],
@@ -61,7 +62,6 @@ suite('ChatSubagentContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -141,17 +141,19 @@ suite('ChatSubagentContentPart', () => {
 				prompt: 'Test prompt'
 			},
 			originMessage: undefined,
-			invocationMessage: options.invocationMessage ?? 'Running subagent...',
+			invocationMessage: options.invocationMessage ?? 'Running subagent',
 			pastTenseMessage: undefined,
 			source: ToolDataSource.Internal,
 			toolId: options.toolId ?? RunSubagentTool.Id,
 			toolCallId: toolCallId,
-			subAgentInvocationId: options.subAgentInvocationId ?? 'test-subagent-id',
+			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			toolSpecificDataKind: observableValue('test', (options.toolSpecificData ?? { kind: 'subagent' }).kind),
+			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({
 				toolId: options.toolId ?? RunSubagentTool.Id,
-				subAgentInvocationId: options.subAgentInvocationId ?? 'test-subagent-id',
+				subAgentInvocationId: options.subAgentInvocationId,
 				toolSpecificData: options.toolSpecificData,
 				isComplete: stateType === IChatToolInvocation.StateKind.Completed
 			})
@@ -176,7 +178,7 @@ suite('ChatSubagentContentPart', () => {
 				result: 'Test result text'
 			},
 			originMessage: undefined,
-			invocationMessage: 'Running subagent...',
+			invocationMessage: 'Running subagent',
 			pastTenseMessage: undefined,
 			resultDetails: undefined,
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
@@ -184,7 +186,7 @@ suite('ChatSubagentContentPart', () => {
 			toolCallId: options.subAgentInvocationId ?? 'test-tool-call-id',
 			toolId: options.toolId ?? RunSubagentTool.Id,
 			source: ToolDataSource.Internal,
-			subAgentInvocationId: options.subAgentInvocationId ?? 'test-subagent-id',
+			subAgentInvocationId: options.subAgentInvocationId,
 			kind: 'toolInvocationSerialized'
 		};
 	}
@@ -231,7 +233,6 @@ suite('ChatSubagentContentPart', () => {
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 		announcedToolProgressKeys = new Set();
 	});
 
@@ -246,14 +247,13 @@ suite('ChatSubagentContentPart', () => {
 	): ChatSubagentContentPart {
 		const part = store.add(instantiationService.createInstance(
 			ChatSubagentContentPart,
-			idOverride ?? toolInvocation.subAgentInvocationId!,
+			idOverride ?? toolInvocation.subAgentInvocationId ?? toolInvocation.toolCallId,
 			toolInvocation,
 			context,
 			mockMarkdownRenderer,
 			mockListPool,
 			mockEditorPool,
 			() => 500,
-			mockCodeBlockModelCollection,
 			announcedToolProgressKeys
 		));
 
@@ -275,7 +275,7 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getCollapseButtonLabel(button: HTMLElement): HTMLElement | undefined {
-		const label = button.lastElementChild;
+		const label = button.querySelector('.monaco-button-mdlabel');
 		return isHTMLElement(label) ? label : undefined;
 	}
 
@@ -308,15 +308,6 @@ suite('ChatSubagentContentPart', () => {
 			const part = createPart(toolInvocation, context);
 
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed by default');
-		});
-
-		test('should be focusable via tabIndex', () => {
-			const toolInvocation = createMockToolInvocation();
-			const context = createMockRenderContext(false);
-
-			const part = createPart(toolInvocation, context);
-
-			assert.strictEqual(part.domNode.tabIndex, 0, 'Should be focusable');
 		});
 	});
 
@@ -359,6 +350,100 @@ suite('ChatSubagentContentPart', () => {
 			const labelElement = getCollapseButtonLabel(button);
 			const buttonText = labelElement?.textContent ?? button.textContent ?? '';
 			assert.ok(buttonText.includes('Subagent:'), 'Title should use default Subagent prefix');
+		});
+	});
+
+	suite('Late metadata updates', () => {
+		// The parent subagent tool is often constructed before
+		// `subagent_started` (which carries the real agentName) arrives.
+		// The autorun in `watchToolCompletion` re-reads metadata when state
+		// changes and updates the title if the description transitioned from
+		// the default placeholder to a real value, or if the agentName
+		// changed to a real value. These tests cover that branch directly.
+
+		function getTitleText(part: ChatSubagentContentPart): string {
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelElement = getCollapseButtonLabel(button);
+			return labelElement?.textContent ?? button.textContent ?? '';
+		}
+
+		function getSettableState(toolInvocation: IChatToolInvocation): ReturnType<typeof observableValue<IChatToolInvocation.State>> {
+			return toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+		}
+
+		function setToolSpecificData(toolInvocation: IChatToolInvocation, data: IChatSubagentToolInvocationData): void {
+			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
+		}
+
+		test('default description with no agentName → real description arrives later → title updates', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent' /* no description, no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Subagent:'), 'Title should start with default prefix');
+
+			// Late metadata: real description arrives via SessionToolCallContentChanged
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should reflect the new description');
+		});
+
+		test('real description already set → agentName arrives later → title updates (regression)', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase' /* no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should start with the real description');
+			assert.ok(!getTitleText(part).includes('CodeSearchAgent'), 'Title should not yet have agent name');
+
+			// Late metadata: agentName arrives via subagent_started after the
+			// description has already been set (the bug we fixed).
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should reflect the new agent name');
+		});
+
+		test('agentName already set → empty agentName arrives → title NOT cleared', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should start with the agent name');
+
+			// A subsequent update arrives with no agentName field — the part
+			// must NOT clear the previously-set name.
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should still have the agent name');
+		});
+
+		test('real description already set → no further changes → title preserved', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			const before = getTitleText(part);
+
+			// Trigger the autorun without changing toolSpecificData.
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.strictEqual(getTitleText(part), before, 'Title should be unchanged when no metadata changed');
 		});
 	});
 
@@ -421,7 +506,60 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed after markAsInactive');
 		});
 
+		test('markAsInactive should change default description to past tense', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					// no description — should use the default "Running subagent"
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Before marking inactive, title should show "Running subagent"
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelBefore = getCollapseButtonLabel(button);
+			const textBefore = labelBefore?.textContent ?? button.textContent ?? '';
+			assert.ok(textBefore.includes('Running subagent'), 'Title should show "Running subagent" before completion');
+
+			part.markAsInactive();
+
+			// After marking inactive, title should show "Ran subagent"
+			const labelAfter = getCollapseButtonLabel(button);
+			const textAfter = labelAfter?.textContent ?? button.textContent ?? '';
+			assert.ok(textAfter.includes('Ran subagent'), 'Title should show "Ran subagent" after completion');
+			assert.ok(!textAfter.includes('Running subagent'), 'Title should no longer show "Running subagent"');
+		});
+
+		test('markAsInactive should keep custom description unchanged', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Searching the codebase',
+					agentName: 'Explorer',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			part.markAsInactive();
+
+			// After marking inactive, title should still show the custom description
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const label = getCollapseButtonLabel(button);
+			const text = label?.textContent ?? button.textContent ?? '';
+			assert.ok(text.includes('Searching the codebase'), 'Title should keep custom description after completion');
+		});
+
 		test('finalizeTitle should update button icon to check', () => {
+			// Enable the showCheckmarks setting so the check icon is visible
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, true);
+
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
 
@@ -493,7 +631,6 @@ suite('ChatSubagentContentPart', () => {
 			const toolInvocation = createMockToolInvocation({
 				toolId: RunSubagentTool.Id,
 				toolCallId: sharedToolCallId,
-				subAgentInvocationId: 'call-abc'
 			});
 			const context = createMockRenderContext(false);
 
@@ -502,14 +639,13 @@ suite('ChatSubagentContentPart', () => {
 			const otherInvocation = createMockToolInvocation({
 				toolId: RunSubagentTool.Id,
 				toolCallId: sharedToolCallId,
-				subAgentInvocationId: 'call-abc'
 			});
 
 			const result = part.hasSameContent(otherInvocation, [], context.element);
 			assert.strictEqual(result, true, 'Should match runSubagent tool using toolCallId as effective ID');
 		});
 
-		test('should return false for non-subagent content', () => {
+		test('should return true for markdownContent (allowing grouping)', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
 
@@ -521,7 +657,7 @@ suite('ChatSubagentContentPart', () => {
 			};
 
 			const result = part.hasSameContent(markdownContent, [], context.element);
-			assert.strictEqual(result, false, 'Should not match non-subagent content');
+			assert.strictEqual(result, true, 'Should match markdownContent to allow grouping');
 		});
 	});
 
@@ -538,7 +674,7 @@ suite('ChatSubagentContentPart', () => {
 			const button = getCollapseButton(part);
 			assert.ok(button, 'Should have collapse button');
 			const loadingIcon = getCollapseButtonIcon(button);
-			assert.ok(loadingIcon?.classList.contains('codicon-loading'), 'Should have loading spinner while streaming');
+			assert.ok(loadingIcon?.classList.contains('codicon-circle-filled'), 'Should have circle-filled icon while streaming');
 		});
 	});
 
@@ -895,6 +1031,201 @@ suite('ChatSubagentContentPart', () => {
 		});
 	});
 
+	suite('appendMarkdownItem', () => {
+		test('should append markdown item to expanded subagent part', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-id',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part first
+			const button = getCollapseButton(part);
+			button?.click();
+			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false, 'Should be expanded');
+
+			// Create a mock markdown content with edit pill
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Edited file.ts' }
+			};
+
+			// Create a mock DOM node for the markdown
+			const markdownDomNode = mainWindow.document.createElement('div');
+			markdownDomNode.className = 'chat-codeblock-button';
+			markdownDomNode.textContent = 'file.ts';
+
+			let disposeCallCount = 0;
+			const mockDisposable = { dispose: () => { disposeCallCount++; } };
+
+			// Append markdown item
+			part.appendMarkdownItem(
+				() => ({ domNode: markdownDomNode, disposable: mockDisposable }),
+				'codeblock-123',
+				markdownContent,
+				undefined
+			);
+
+			// Verify the markdown was appended
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			const appendedElement = wrapper.querySelector('.chat-codeblock-button');
+			assert.ok(appendedElement, 'Appended markdown element should exist in wrapper');
+			assert.strictEqual(appendedElement.textContent, 'file.ts', 'Should have correct content');
+		});
+
+		test('should not render markdown item when part is collapsed', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-defer',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Part is collapsed by default
+			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should start collapsed');
+
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Deferred edit' }
+			};
+
+			let factoryCalled = false;
+			const markdownDomNode = mainWindow.document.createElement('div');
+			markdownDomNode.className = 'deferred-edit';
+			markdownDomNode.textContent = 'deferred.ts';
+
+			const mockDisposable = { dispose: () => { } };
+
+			// Append markdown item while collapsed - factory should not be called
+			part.appendMarkdownItem(
+				() => {
+					factoryCalled = true;
+					return { domNode: markdownDomNode, disposable: mockDisposable };
+				},
+				'codeblock-deferred',
+				markdownContent,
+				undefined
+			);
+
+			// Factory should not be called when collapsed
+			assert.strictEqual(factoryCalled, false, 'Factory should not be called when collapsed');
+		});
+
+		test('should append multiple markdown items with same codeblock ID', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-dedup',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part
+			const button = getCollapseButton(part);
+			button?.click();
+
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Same codeblock' }
+			};
+
+			const sharedCodeblockId = 'codeblock-same-id';
+
+			// Append first item
+			const firstNode = mainWindow.document.createElement('div');
+			firstNode.className = 'first-item';
+			firstNode.textContent = 'first item content';
+			part.appendMarkdownItem(
+				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
+				sharedCodeblockId,
+				markdownContent,
+				undefined
+			);
+
+			// Append second item with same codeblock ID
+			const secondNode = mainWindow.document.createElement('div');
+			secondNode.className = 'second-item';
+			secondNode.textContent = 'second item content';
+			part.appendMarkdownItem(
+				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
+				sharedCodeblockId,
+				markdownContent,
+				undefined
+			);
+
+			// Both items are added (no built-in deduplication by codeblock ID)
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			const firstItems = wrapper.querySelectorAll('.first-item');
+			const secondItems = wrapper.querySelectorAll('.second-item');
+			// Implementation does not deduplicate - both items exist
+			assert.strictEqual(firstItems.length, 1, 'First item should exist');
+			assert.strictEqual(secondItems.length, 1, 'Second item should exist');
+		});
+
+		test('should handle multiple different codeblock IDs', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-multi',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part
+			const button = getCollapseButton(part);
+			button?.click();
+
+			// Append first item
+			const firstNode = mainWindow.document.createElement('div');
+			firstNode.className = 'item-one';
+			firstNode.textContent = 'first item content';
+			part.appendMarkdownItem(
+				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
+				'codeblock-1',
+				{ kind: 'markdownContent', content: { value: 'First' } },
+				undefined
+			);
+
+			// Append second item with different ID
+			const secondNode = mainWindow.document.createElement('div');
+			secondNode.className = 'item-two';
+			secondNode.textContent = 'second item content';
+			part.appendMarkdownItem(
+				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
+				'codeblock-2',
+				{ kind: 'markdownContent', content: { value: 'Second' } },
+				undefined
+			);
+
+			// Both should exist
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			assert.ok(wrapper.querySelector('.item-one'), 'First item should exist');
+			assert.ok(wrapper.querySelector('.item-two'), 'Second item should exist');
+		});
+	});
+
 	suite('Auto-expand on confirmation', () => {
 		test('should auto-expand when tool state becomes WaitingForConfirmation', () => {
 			const toolInvocation = createMockToolInvocation({
@@ -1177,6 +1508,98 @@ suite('ChatSubagentContentPart', () => {
 			buttonText = labelElement?.textContent ?? button?.textContent ?? '';
 			assert.ok(buttonText.includes('Reading config.ts'),
 				'Title should still include tool message after completion');
+		});
+	});
+
+	suite('Model name tooltip', () => {
+		test('should set up hover with model name from serialized toolSpecificData', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				return { dispose: () => { } };
+			};
+
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o'
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			createPart(serializedInvocation, context);
+
+			// Should have set up a hover with the model name
+			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('GPT-4o'));
+			assert.ok(modelHover, 'Should set up hover with model name');
+		});
+
+		test('should not set up hover when no model name is available', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				return { dispose: () => { } };
+			};
+
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					// no modelName
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			createPart(serializedInvocation, context);
+
+			// Should not have set up any hover with model info
+			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Model:'));
+			assert.strictEqual(modelHover, undefined, 'Should not set up model hover when no model name');
+		});
+
+		test('should set up hover when tool completes and toolSpecificData has modelName', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				return { dispose: () => { } };
+			};
+
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+				prompt: 'Do stuff',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			createPart(toolInvocation, context);
+
+			// No model hover initially (no modelName yet)
+			const initialHover = setupDelayedHoverCalls.find(c => c.content.includes('Model:'));
+			assert.strictEqual(initialHover, undefined, 'Should not have model hover initially');
+
+			// Simulate invoke() setting modelName on toolSpecificData
+			toolSpecificData.modelName = 'Claude Sonnet 4';
+
+			// Simulate tool completion
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+
+			// Should now have a hover with the model name
+			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Claude Sonnet 4'));
+			assert.ok(modelHover, 'Should set up hover with model name after completion');
 		});
 	});
 });

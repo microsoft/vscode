@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { dirname, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatExternalPathConfirmationContribution } from '../../common/tools/builtinTools/chatExternalPathConfirmation.js';
 import { ChatUrlFetchingConfirmationContribution } from '../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
@@ -21,6 +27,10 @@ export class NativeBuiltinToolsContribution extends Disposable implements IWorkb
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
+		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 
@@ -48,8 +58,38 @@ export class NativeBuiltinToolsContribution extends Disposable implements IWorkb
 					return { path: params.path, isDirectory: true };
 				}
 				return undefined;
+			},
+			labelService,
+			async (pathUri: URI) => {
+				// Walk up from the path looking for a .git folder to find the repository root
+				let dir = dirname(pathUri);
+				for (let i = 0; i < 100; i++) {
+					try {
+						if (await fileService.exists(URI.joinPath(dir, '.git'))) {
+							return dir;
+						}
+					} catch {
+						// ignore permission errors etc.
+					}
+					const parent = dirname(dir);
+					if (extUriBiasedIgnorePathCase.isEqual(parent, dir)) {
+						return undefined;
+					}
+					dir = parent;
+				}
+				return undefined;
+			},
+			storageService,
+			async () => {
+				const result = await fileDialogService.showOpenDialog({
+					canSelectFolders: true,
+					canSelectFiles: false,
+					canSelectMany: false,
+				});
+				return result?.[0];
 			}
 		);
+		this._register(externalPathConfirmation);
 
 		this._register(confirmationService.registerConfirmationContribution(
 			'copilot_readFile',

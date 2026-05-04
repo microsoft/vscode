@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -637,7 +637,7 @@ class ProfileWidget extends Disposable {
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
 		this.profileTitle.textContent = profileElement.name;
-		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isSystem));
+		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isDefault));
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.name) {
 				this.profileTitle.textContent = profileElement.name;
@@ -984,7 +984,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		const renderName = (profileElement: ProfileTreeElement) => {
 			nameInput.value = profileElement.root.name;
 			nameInput.validate();
-			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault || profileElement.root.profile.isSystem);
+			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault);
 			if (profileElement.root.disabled || isSystemProfile) {
 				nameInput.disable();
 			} else {
@@ -2249,6 +2249,10 @@ export class UserDataProfilesEditorInput extends EditorInput {
 			this._dirty = dirty;
 			this._onDidChangeDirty.fire();
 		}
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.RequiresModal;
 	}
 
 	constructor(

@@ -13,9 +13,8 @@ import { memoize } from '../../../../base/common/decorators.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { isWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -43,6 +42,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly machineId: string;
 	readonly sqmId: string;
 	readonly devDeviceId: string;
+	readonly isPortable: boolean;
 
 	// --- Paths
 	readonly execPath: string;
@@ -69,6 +69,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get devDeviceId() { return this.configuration.devDeviceId; }
+
+	@memoize
+	get isPortable() { return this.configuration.isPortable; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
@@ -149,14 +152,22 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
 
 	@memoize
-	get agentSessionsWindow(): boolean | undefined {
-		return isWorkspaceIdentifier(this.configuration.workspace) && isEqual(this.configuration.workspace.configPath, this.agentSessionsWorkspace);
-	}
+	get isSessionsWindow(): boolean { return !!this.configuration.isSessionsWindow; }
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService
 	) {
-		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
+		super(
+			configuration,
+			{
+				homeDir: configuration.homeDir,
+				tmpDir: configuration.tmpDir,
+				userDataDir: configuration.userDataDir,
+				parentAppUserDataDir: configuration.parentAppUserDataDir,
+				parentAppUserHomeDir: configuration.parentAppUserHomeDir
+			},
+			productService,
+			!!configuration.isEmbeddedApp);
 	}
 }

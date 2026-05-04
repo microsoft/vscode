@@ -605,6 +605,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		transaction((tx) => {
+			this._waitsForLastEdits.set(!isLastEdits, tx);
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 			if (!isLastEdits) {
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
@@ -615,6 +616,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
+
+		if (isLastEdits && this._shouldAutoSave()) {
+			await this.modifiedResourceRef.object.save({
+				reason: SaveReason.AUTO,
+				skipSaveParticipants: true,
+			});
+		}
 	}
 
 	private disposeDeletedCellEntries() {
@@ -911,17 +919,28 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
+	private _safeCreateSnapshot(model: NotebookTextModel): string {
+		try {
+			return createSnapshot(model, this.transientOptions, this.configurationService);
+		} catch (e) {
+			this.loggingService.error('Notebook Chat', `Error creating snapshot: ${e instanceof Error ? e.message : e}`);
+			return this.initialContent;
+		}
+	}
+
 	public getCurrentSnapshot() {
-		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		return this._safeCreateSnapshot(this.modifiedModel);
 	}
 
 	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+		const original = this._safeCreateSnapshot(this.originalModel);
+		const current = this.getCurrentSnapshot();
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
 			snapshotUri: getNotebookSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
-			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
-			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
+			original,
+			current,
 			state: this.state.get(),
 			telemetryInfo: this.telemetryInfo,
 		};
@@ -943,6 +962,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (restoreToDisk) {
 			this.restoreSnapshotInModifiedModel(snapshot.current);
 		}
+		this.initializeModelsFromDiff();
+	}
+
+	async resetEditTrackerToInitialContent() {
+		if (this.initialContent) {
+			restoreSnapshot(this.originalModel, this.initialContent);
+		}
+
+		this.updateCellDiffInfo([], undefined);
 		this.initializeModelsFromDiff();
 	}
 
@@ -1076,6 +1104,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		return edits;
+	}
+
+	private _shouldAutoSave() {
+		return this.modifiedURI.scheme !== Schemas.untitled;
 	}
 
 	async save(): Promise<void> {

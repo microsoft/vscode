@@ -20,7 +20,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, ResourcesDropHandler } from '../../dnd.js';
-import { IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
+import { IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
 import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
@@ -181,7 +181,7 @@ class DropOverlay extends Themable {
 				// Position overlay and conditionally enable or disable
 				// editor group splitting support based on setting and
 				// keymodifiers used.
-				let splitOnDragAndDrop = !!this.editorGroupService.partOptions.splitOnDragAndDrop;
+				let splitOnDragAndDrop = !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
 				if (this.isToggleSplitOperation(e)) {
 					splitOnDragAndDrop = !splitOnDragAndDrop;
 				}
@@ -316,7 +316,7 @@ class DropOverlay extends Themable {
 					// Optimization: if we move the last editor of an editor group
 					// and we are configured to close empty editor groups, we can
 					// rather move the entire editor group according to the direction
-					if (this.editorGroupService.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
+					if (this.groupView.groupsView.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
 						targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
 					}
 
@@ -383,7 +383,7 @@ class DropOverlay extends Themable {
 	}
 
 	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean, enableSplitting: boolean): void {
-		const preferSplitVertically = this.editorGroupService.partOptions.openSideBySideDirection === 'right';
+		const preferSplitVertically = this.groupView.groupsView.partOptions.openSideBySideDirection === 'right';
 
 		const editorControlWidth = this.groupView.element.clientWidth;
 		const editorControlHeight = this.groupView.element.clientHeight - this.getOverlayOffsetHeight();
@@ -523,7 +523,7 @@ class DropOverlay extends Themable {
 	private getOverlayOffsetHeight(): number {
 
 		// With tabs and opened editors: use the area below tabs as drop target
-		if (!this.groupView.isEmpty && this.editorGroupService.partOptions.showTabs === 'multiple') {
+		if (!this.groupView.isEmpty && this.groupView.groupsView.partOptions.showTabs === 'multiple') {
 			return this.groupView.titleHeight.offset;
 		}
 
@@ -571,6 +571,7 @@ export class EditorDropTarget extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	constructor(
+		private readonly groupsView: IEditorGroupsView,
 		private readonly container: HTMLElement,
 		private readonly delegate: IEditorDropTargetDelegate,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -618,6 +619,14 @@ export class EditorDropTarget extends Themable {
 				event.dataTransfer.dropEffect = 'none';
 				return; // unsupported transfer
 			}
+		}
+
+		// Check if dropping into group is allowed
+		if (!this.groupsView.partOptions.allowDropIntoGroup) {
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'none';
+			}
+			return;
 		}
 
 		// Signal DND start

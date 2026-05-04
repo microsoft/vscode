@@ -21,11 +21,12 @@ import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import { suggestNativePreview } from './ui/suggestNativePreview';
 import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
 import * as temp from './utils/temp.electron';
-import { conditionalRegistration, requireGlobalConfiguration, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
 import { DisposableStore } from './utils/dispose';
 
 export function activate(
@@ -48,9 +49,8 @@ export function activate(
 		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
 		context.subscriptions.push(experimentTelemetryReporter);
 
-		// Currently we have no experiments, but creating the service adds the appropriate
-		// shared properties to the ExperimentationTelemetryReporter we just created.
-		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+		const experimentationService = new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+		suggestNativePreview(context, experimentationService);
 	}
 
 	// Register features that work in both TSGO and non-TSGO modes
@@ -60,7 +60,7 @@ export function activate(
 
 	// Conditionally register features based on whether TSGO is enabled
 	context.subscriptions.push(conditionalRegistration([
-		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
+		requireGlobalUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' }),
 		requireHasVsCodeExtension(tsNativeExtensionId),
 	], () => {
 		// TSGO. Only register a small set of features that don't use TS Server

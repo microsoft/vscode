@@ -31,11 +31,11 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	private _activeShellIntegrations: Map</*instanceId*/number, InternalTerminalShellIntegration> = new Map();
 
-	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
+	protected readonly _onDidChangeTerminalShellIntegration = this._register(new Emitter<vscode.TerminalShellIntegrationChangeEvent>());
 	readonly onDidChangeTerminalShellIntegration = this._onDidChangeTerminalShellIntegration.event;
-	protected readonly _onDidStartTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionStartEvent>();
+	protected readonly _onDidStartTerminalShellExecution = this._register(new Emitter<vscode.TerminalShellExecutionStartEvent>());
 	readonly onDidStartTerminalShellExecution = this._onDidStartTerminalShellExecution.event;
-	protected readonly _onDidEndTerminalShellExecution = new Emitter<vscode.TerminalShellExecutionEndEvent>();
+	protected readonly _onDidEndTerminalShellExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	readonly onDidEndTerminalShellExecution = this._onDidEndTerminalShellExecution.event;
 
 	constructor(

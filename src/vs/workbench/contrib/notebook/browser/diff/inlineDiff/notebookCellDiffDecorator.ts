@@ -26,7 +26,7 @@ import { InlineDecoration, InlineDecorationType } from '../../../../../../editor
 //TODO: allow client to set read-only - chateditsession should set read-only while making changes
 export class NotebookCellDiffDecorator extends DisposableStore {
 	private _viewZones: string[] = [];
-	private readonly throttledDecorator = new ThrottledDelayer(50);
+	private readonly throttledDecorator = this.add(new ThrottledDelayer(50));
 	private diffForPreviouslyAppliedDecorators?: IDocumentDiff;
 
 	private readonly perEditorDisposables = this.add(new DisposableStore());

@@ -185,6 +185,10 @@ pub enum Commands {
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
 	CommandShell(CommandShellArgs),
+
+	/// Manage agent host sessions.
+	#[clap(name = "agent")]
+	Agent(AgentArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -216,9 +220,132 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+	/// The workspace folder to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_folder: Option<String>,
+	/// The workspace to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_workspace: Option<String>,
+	/// Disables telemetry.
+	#[clap(long)]
+	pub disable_telemetry: bool,
 	/// Use a specific commit SHA for the client.
 	#[clap(long)]
 	pub commit_id: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentHostArgs {
+	/// Host to listen on, defaults to 'localhost'
+	#[clap(long)]
+	pub host: Option<String>,
+	/// Port to listen on. If 0 is passed a random free port is picked.
+	#[clap(long, default_value_t = 0)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Expose the agent host over a dev tunnel.
+	#[clap(long)]
+	pub tunnel: bool,
+	/// Sets the machine name for the tunnel.
+	#[clap(long)]
+	pub name: Option<String>,
+	/// Randomly name the machine for the tunnel.
+	#[clap(long)]
+	pub random_name: bool,
+
+	/// Optional details to connect to an existing tunnel.
+	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
+	pub existing_tunnel: ExistingTunnelArgs,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentArgs {
+	#[clap(subcommand)]
+	pub subcommand: Option<AgentSubcommand>,
+
+	/// Agent host arguments used when no subcommand is given.
+	#[clap(flatten)]
+	pub host_args: AgentHostArgs,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSubcommand {
+	/// Start a local agent host server.
+	Host(AgentHostArgs),
+
+	/// List active sessions on a running agent host.
+	Ps(AgentPsArgs),
+
+	/// Cancel the active turn of a session.
+	Stop(AgentStopArgs),
+
+	/// Forcefully kill the running agent host process tree.
+	Kill,
+
+	/// Stream live session events.
+	Logs(AgentLogsArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentPsArgs {
+	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+
+	/// Output results as JSON instead of a human-readable table.
+	#[clap(long)]
+	pub json: bool,
+
+	/// Show all sessions, including idle and archived ones.
+	#[clap(long, short)]
+	pub all: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentStopArgs {
+	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentLogsArgs {
+	/// Session URI to stream events for (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

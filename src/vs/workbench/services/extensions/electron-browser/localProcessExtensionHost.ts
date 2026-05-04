@@ -19,7 +19,7 @@ import { BufferedEmitter } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { acquirePort } from '../../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import * as nls from '../../../../nls.js';
 import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
+import { extensionHostGraceTimeMs, IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -32,7 +32,7 @@ import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from '.
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
-import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { createMessageOfType, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -83,6 +83,10 @@ export class ExtensionHostProcess {
 		return this._extensionHostStarter.enableInspectPort(this._id);
 	}
 
+	public waitForExit(maxWaitTimeMs: number): Promise<void> {
+		return this._extensionHostStarter.waitForExit(this._id, maxWaitTimeMs);
+	}
+
 	public kill(): Promise<void> {
 		return this._extensionHostStarter.kill(this._id);
 	}
@@ -107,6 +111,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 	// State
 	private _terminating: boolean;
+	private _mainProcessHandlesExtHostShutdown: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _inspectListener: IExtensionInspectInfo | null;
@@ -142,6 +147,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._terminating = false;
+		this._mainProcessHandlesExtHostShutdown = false;
 
 		this._inspectListener = null;
 		this._extensionHostProcess = null;
@@ -161,11 +167,41 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	public override dispose(): void {
-		if (this._terminating) {
-			return;
+		if (!this._terminating) {
+			this._terminating = true;
 		}
-		this._terminating = true;
 		super.dispose();
+		this._messageProtocol = null;
+	}
+
+	public async disconnect(): Promise<void> {
+		this._terminating = true;
+
+		// Send the Terminate message so the extension host can run
+		// deactivation handlers and exit gracefully.
+		if (this._messageProtocol) {
+			try {
+				const protocol = await Promise.race([
+					this._messageProtocol.then(protocol => protocol, () => undefined),
+					timeout(1000).then(() => undefined)
+				]);
+				protocol?.send(createMessageOfType(MessageType.Terminate));
+			} catch {
+				// ignore - extension host may have already exited
+			}
+		}
+
+		// For the restart case where the main process does not handle the
+		// extension host shutdown, signal the main process to start the grace
+		// timer (fire-and-forget). After the timeout the extension host will
+		// be forcefully killed if it hasn't exited on its own. For all
+		// window-lifecycle shutdown reasons (close/quit/reload/load), the
+		// main process already handles this via
+		// WindowUtilityProcess.registerWindowListeners.
+		if (this._extensionHostProcess && !this._mainProcessHandlesExtHostShutdown) {
+			this._extensionHostProcess.waitForExit(extensionHostGraceTimeMs).catch(() => { /* best-effort */ });
+		}
+
 		this._messageProtocol = null;
 	}
 
@@ -249,8 +285,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
+		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -268,7 +304,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/([^\s]+)/);
 			if (inspectorUrlMatch) {
 				const [, host, port, auth] = inspectorUrlMatch;
-				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
+				const devtoolsUrl = `devtools://devtools/bundled/js_app.html?v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
 					console.debug(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}
@@ -479,15 +515,17 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 				appName: this._productService.nameLong,
-				appHost: this._productService.embedderIdentifier || 'desktop',
+				appHost: this._productService.telemetryAppName || this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: this._environmentService.isPortable,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,
@@ -590,6 +628,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {
+		this._mainProcessHandlesExtHostShutdown = true;
+
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
 		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {

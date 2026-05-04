@@ -159,7 +159,13 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as TransferQuickPickItem).handle));
 				}));
 				store.add(quickPick.onDidTriggerItemButton((e) => {
-					this._proxy.$onDidTriggerItemButton(sessionId, (e.item as TransferQuickPickItem).handle, (e.button as TransferQuickInputButton).handle);
+					const transferButton = e.button as TransferQuickInputButton;
+					this._proxy.$onDidTriggerItemButton(
+						sessionId,
+						(e.item as TransferQuickPickItem).handle,
+						transferButton.handle,
+						transferButton.toggle?.checked
+					);
 				}));
 			}
 

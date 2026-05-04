@@ -22,13 +22,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
  * Checks if a model content change event was caused only by typing or pasting.
  * Returns false for AI edits, refactorings, undo/redo, etc.
  */
-function isTypingOrPasteEdit(event: IModelContentChangedEvent): boolean {
+function isUserEdit(event: IModelContentChangedEvent): boolean {
 	if (event.isUndoing || event.isRedoing || event.isFlush) {
 		return false;
 	}
 
 	for (const source of event.detailedReasons) {
-		if (!isTypingOrPasteSource(source)) {
+		if (!isUserEditSource(source)) {
 			return false;
 		}
 	}
@@ -36,13 +36,14 @@ function isTypingOrPasteEdit(event: IModelContentChangedEvent): boolean {
 	return event.detailedReasons.length > 0;
 }
 
-function isTypingOrPasteSource(source: TextModelEditSource): boolean {
+const userEditKinds = new Set(['type', 'paste', 'cut', 'executeCommands', 'executeCommand', 'compositionType', 'compositionEnd']);
+function isUserEditSource(source: TextModelEditSource): boolean {
 	const metadata = source.metadata;
 	if (metadata.source !== 'cursor') {
 		return false;
 	}
-	const kind = (metadata as { kind?: string }).kind;
-	return kind === 'type' || kind === 'paste' || kind === 'compositionType' || kind === 'compositionEnd';
+	const kind = metadata.kind;
+	return userEditKinds.has(kind);
 }
 
 type WordState = {
@@ -74,9 +75,9 @@ class ModelSymbolRenameTracker extends Disposable {
 
 		// Listen to content changes - only reset on non-typing/paste edits
 		this._register(this._model.onDidChangeContent(e => {
-			if (!isTypingOrPasteEdit(e)) {
-				// Non-typing/paste edit occurred - reset tracking and start a new
-				// rename tracking at the current cursor position (if any)
+			if (!isUserEdit(e)) {
+				// Non-user edit has occurred - reset rename tracking at
+				// the current cursor position (if any)
 				const position = this._lastCursorPosition;
 				this.reset();
 				if (position !== undefined) {

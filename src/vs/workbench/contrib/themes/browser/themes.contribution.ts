@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from '..
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from '../../../services/themes/common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
@@ -557,6 +557,90 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.tryNewDefaultThemes',
+			title: localize2('tryNewDefaultThemes', "Try New Default Themes"),
+			category: Categories.Preferences,
+			f1: true,
+		});
+	}
+	override async run(accessor: ServicesAccessor) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const previousTheme = themeService.getColorTheme();
+		const allThemes = await themeService.getColorThemes();
+		const newThemeSettingsIds = new Set([ThemeSettingDefaults.COLOR_THEME_LIGHT, ThemeSettingDefaults.COLOR_THEME_DARK]);
+		const themes = allThemes.filter(t => newThemeSettingsIds.has(t.settingsId));
+
+		const items: IQuickPickItem[] = themes.map(t => ({
+			id: t.id,
+			label: t.label,
+			description: t.description,
+		}));
+
+		const disposables = new DisposableStore();
+		const picker = disposables.add(quickInputService.createQuickPick<IQuickPickItem>());
+		picker.items = items;
+		picker.placeholder = localize('pickNewTheme', "Pick a new default theme");
+		picker.canSelectMany = false;
+
+		const preferredId = (previousTheme.type === ColorScheme.LIGHT || previousTheme.type === ColorScheme.HIGH_CONTRAST_LIGHT) ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const activeItem = items.find(i => themes.find(t => t.id === i.id)?.settingsId === preferredId);
+		if (activeItem) {
+			picker.activeItems = [activeItem];
+		}
+
+		disposables.add(picker.onDidChangeActive(selected => {
+			if (selected[0]) {
+				const theme = themes.find(t => t.id === selected[0].id);
+				if (theme) {
+					themeService.setColorTheme(theme, 'preview');
+				}
+			}
+		}));
+
+		disposables.add(picker.onDidAccept(() => {
+			const selected = picker.activeItems[0];
+			const theme = selected ? themes.find(t => t.id === selected.id) : undefined;
+
+			picker.hide();
+
+			if (!theme) {
+				return;
+			}
+
+			(async () => {
+				try {
+					await themeService.setColorTheme(theme, 'auto');
+					await configurationService.updateValue(ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettingDefaults.COLOR_THEME_LIGHT);
+					await configurationService.updateValue(ThemeSettings.PREFERRED_DARK_THEME, ThemeSettingDefaults.COLOR_THEME_DARK);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						onUnexpectedError(error);
+					}
+				}
+			})();
+		}));
+
+		const result = new Promise<void>(resolve => {
+			disposables.add(picker.onDidHide(() => {
+				if (!picker.selectedItems.length) {
+					themeService.setColorTheme(previousTheme, undefined);
+				}
+				resolve();
+			}));
+		}).finally(() => disposables.dispose());
+
+		picker.show();
+
+		return result;
+	}
+});
+
 CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
@@ -602,13 +686,18 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	return (<any>i)['type'] !== 'separator';
 }
 
+const defaultThemeDescriptions: Record<string, string> = {
+	[ThemeSettingDefaults.COLOR_THEME_LIGHT]: localize('defaultLight', "Default Light"),
+	[ThemeSettingDefaults.COLOR_THEME_DARK]: localize('defaultDark', "Default Dark"),
+};
+
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
 	const settingId = theme.settingsId ?? undefined;
 	const item: ThemeItem = {
 		id: theme.id,
 		theme: theme,
 		label: theme.label,
-		description: theme.description || (theme.label === settingId ? undefined : settingId),
+		description: defaultThemeDescriptions[settingId ?? ''] ?? theme.description ?? (theme.label === settingId ? undefined : settingId),
 	};
 	if (theme.extensionData) {
 		item.buttons = [configureButton];
@@ -617,7 +706,15 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 }
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
+	const pinnedIds = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
+	const sorter = (t1: ThemeItem, t2: ThemeItem) => {
+		const pin1 = pinnedIds.has(t1.theme?.settingsId ?? '');
+		const pin2 = pinnedIds.has(t2.theme?.settingsId ?? '');
+		if (pin1 !== pin2) {
+			return pin1 ? -1 : 1;
+		}
+		return t1.label.localeCompare(t2.label);
+	};
 	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });

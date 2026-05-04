@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../../base/browser/dom.js';
-import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -14,19 +14,19 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
-import { IChatMarkdownContent, IChatThinkingPart } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ThinkingDisplayMode } from '../../../../common/constants.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { ChatTreeItem } from '../../../../browser/chat.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
 suite('ChatThinkingContentPart', () => {
@@ -49,7 +49,8 @@ suite('ChatThinkingContentPart', () => {
 		};
 
 		return {
-			element: mockElement as ChatTreeItem,
+			element: mockElement as IChatResponseViewModel,
+			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],
@@ -58,7 +59,6 @@ suite('ChatThinkingContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: {} as CodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -95,7 +95,7 @@ suite('ChatThinkingContentPart', () => {
 		// Mock the anchor service
 		mockAnchorService = {
 			_serviceBrand: undefined,
-			register: () => ({ dispose: () => { } }),
+			register: () => toDisposable(() => { }),
 			lastFocusedAnchor: undefined
 		};
 		instantiationService.stub(IChatMarkdownAnchorService, mockAnchorService);
@@ -107,7 +107,7 @@ suite('ChatThinkingContentPart', () => {
 			showDelayedHover: () => undefined,
 			showAndFocusLastHover: () => { },
 			hideHover: () => { },
-			setupDelayedHover: () => ({ dispose: () => { } }),
+			setupDelayedHover: () => toDisposable(() => { }),
 			setupManagedHover: () => ({ dispose: () => { }, show: () => { }, hide: () => { }, update: () => { } }),
 			showManagedHover: () => undefined,
 			isHovered: () => false,
@@ -121,7 +121,7 @@ suite('ChatThinkingContentPart', () => {
 			getLanguageModelIds: () => [],
 			lookupLanguageModel: () => undefined,
 			selectLanguageModels: async () => [],
-			registerLanguageModelChat: () => ({ dispose: () => { } }),
+			registerLanguageModelChat: () => toDisposable(() => { }),
 			sendChatRequest: async () => ({ stream: (async function* () { })(), result: Promise.resolve({}) }),
 			computeTokenLength: async () => 0
 		} as unknown as ILanguageModelsService;
@@ -150,7 +150,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), true, 'Should be collapsed by default');
 		});
@@ -168,7 +168,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			assert.ok(part.domNode.classList.contains('chat-thinking-box'), 'Should have chat-thinking-box class');
 		});
@@ -186,7 +186,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
 			assert.ok(button, 'Should have collapse button');
@@ -209,7 +209,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// In collapsed mode, content wrapper should not be initialized
 			const contentList = part.domNode.querySelector('.chat-used-context-list');
@@ -229,7 +229,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Click the button to expand
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
@@ -248,7 +248,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('should start expanded when streaming (not complete)', () => {
-			const content = createThinkingPart('**Analyzing**');
+			const content = createThinkingPart('**Analyzing**\nSome detailed reasoning about the code structure');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -260,7 +260,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// In CollapsedPreview mode, should be expanded while streaming
 			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false,
@@ -280,11 +280,56 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// When complete, should be collapsed
 			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), true,
 				'Should be collapsed when complete');
+		});
+
+		test('should be collapsed when streamingCompleted is true even if element.isComplete is false (look-ahead completion)', () => {
+			// This tests the scenario where we know the thinking part is complete
+			// based on look-ahead (subsequent non-pinnable parts exist), but the
+			// overall response is still in progress
+			const content = createThinkingPart('**Finished analyzing**');
+			const context = createMockRenderContext(false); // element.isComplete = false
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true // streamingCompleted = true (look-ahead detected this thinking is done)
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// Even though element.isComplete is false, this thinking part should be
+			// collapsed because streamingCompleted is true (determined by look-ahead)
+			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), true,
+				'Should be collapsed when streamingCompleted is true, even if element.isComplete is false');
+		});
+
+		test('should use lazy rendering when streamingCompleted is true even if element.isComplete is false', () => {
+			// Verify lazy rendering is triggered when streamingCompleted=true and element.isComplete=false
+			const content = createThinkingPart('**Looking ahead completed**');
+			const context = createMockRenderContext(false); // element.isComplete = false
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true // streamingCompleted = true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// Content should not be rendered because it's collapsed (lazy rendering)
+			const contentList = part.domNode.querySelector('.chat-used-context-list');
+			assert.strictEqual(contentList, null, 'Content should not be rendered when streamingCompleted=true (collapsed = lazy)');
 		});
 	});
 
@@ -306,7 +351,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'),
 				'Should have fixed mode class');
@@ -325,7 +370,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Fixed mode should initialize content immediately (eager rendering)
 			// The scrollable element should be present
@@ -346,7 +391,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			const scrollable = part.domNode.querySelector('.monaco-scrollable-element');
 			assert.ok(scrollable, 'Should have scrollable container');
@@ -371,7 +416,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// First expand to render content
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
@@ -399,7 +444,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Expand first
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
@@ -432,7 +477,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			let factoryCalled = false;
 			const factory = () => {
@@ -451,7 +496,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('appendItem should render immediately when expanded', () => {
-			const content = createThinkingPart('**Working**');
+			const content = createThinkingPart('**Working**\nSome detailed analysis of the problem');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -463,7 +508,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Expand first
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
@@ -497,7 +542,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			let factoryCalled = false;
 			const factory = () => {
@@ -532,7 +577,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			let factoryCalled = false;
 			const factory = () => {
@@ -565,7 +610,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			const appendOrder: string[] = [];
 
@@ -647,7 +692,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Append tool1 while collapsed (lazy)
 			let tool1Rendered = false;
@@ -744,7 +789,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Step 1: Tool1 arrives while collapsed - should be lazy
 			part.appendItem(() => {
@@ -831,7 +876,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Step 1: New thinking section arrives while collapsed
 			const thinkingContent1 = createThinkingPart('**Starting analysis**', 'thinking-2');
@@ -889,7 +934,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Only call setupThinkingContainer, no subsequent updateThinking
 			const thinkingContent = createThinkingPart('**Analyzing files**', 'thinking-2');
@@ -939,8 +984,27 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after markAsInactive');
 		});
 
+		test('dispose should set isActive to false', () => {
+			const content = createThinkingPart('**Active thinking**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			assert.strictEqual(part.getIsActive(), true, 'Should start as active');
+
+			part.dispose();
+
+			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after dispose');
+		});
+
 		test('collapseContent should collapse the part', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			// Use CollapsedPreview to start expanded
@@ -955,7 +1019,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Should be expanded initially
 			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false);
@@ -979,13 +1043,94 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			part.finalizeTitleIfDefault();
 
 			// The button should now show a check icon
 			const iconElement = part.domNode.querySelector('.codicon-check');
 			assert.ok(iconElement, 'Should have check icon after finalization');
+		});
+
+		test('finalizeTitleIfDefault should retain initial thinking title', () => {
+			const content = createThinkingPart('**Reviewed renderer state**\nChecked completed response rendering');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				generatedTitle: 'Reviewed renderer state',
+				label: 'Reviewed renderer state',
+				ariaLabel: 'Reviewed renderer state',
+			});
+		});
+
+		test('finalizeTitleIfDefault should retain restored terminal title', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const terminalTool: IChatToolInvocationSerialized = {
+				kind: 'toolInvocationSerialized',
+				toolId: 'run_in_terminal',
+				toolCallId: 'terminal-call-1',
+				invocationMessage: 'Running npm test',
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: 'Ran npm test',
+				isAttachedToThinking: false,
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'shellscript',
+				}
+			};
+
+			part.appendItem(() => ({ domNode: $('div.test-terminal-tool') }), terminalTool.toolId, terminalTool);
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				contentGeneratedTitle: content.generatedTitle,
+				toolGeneratedTitle: terminalTool.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				contentGeneratedTitle: 'Ran npm test',
+				toolGeneratedTitle: 'Ran npm test',
+				label: 'Ran npm test',
+				ariaLabel: 'Ran npm test',
+			});
 		});
 	});
 
@@ -1085,26 +1230,8 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
-		test('should be focusable via tabIndex', () => {
-			const content = createThinkingPart('**Content**');
-			const context = createMockRenderContext(false);
-
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
-
-			assert.strictEqual(part.domNode.tabIndex, 0, 'Should be focusable');
-		});
-
 		test('should have proper aria-expanded attribute', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -1116,7 +1243,7 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
 			assert.ok(button, 'Button should exist');
@@ -1141,11 +1268,583 @@ suite('ChatThinkingContentPart', () => {
 			));
 
 			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add({ dispose: () => part.domNode.remove() });
+			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			// Should have loading spinner icon
-			const loadingIcon = part.domNode.querySelector('.codicon-loading');
-			assert.ok(loadingIcon, 'Should have loading spinner while streaming');
+			// Should have circle-filled icon (not loading spinner) while streaming
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
+		});
+
+		function createMockStreamingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+			return {
+				kind: 'toolInvocation',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: undefined,
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Streaming,
+					partialInput: observableValue('partialInput', undefined),
+					streamingMessage: observableValue('streamingMessage', undefined),
+				}),
+				toolSpecificDataKind: observableValue('test', undefined),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as IChatToolInvocation;
+		}
+
+		function createMockExecutingToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocation {
+			return {
+				kind: 'toolInvocation',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+				isAttachedToThinking: false,
+				generatedTitle: undefined,
+				state: observableValue('state', {
+					type: IChatToolInvocation.StateKind.Executing,
+					confirmed: { type: 0 },
+					progress: observableValue('progress', { progress: 0 }),
+					parameters: {},
+					confirmationMessages: undefined,
+				}),
+				toolSpecificDataKind: observableValue('test', undefined),
+				toJSON: () => ({} as IChatToolInvocationSerialized),
+			} as IChatToolInvocation;
+		}
+
+		function createMockSerializedImageToolInvocation(toolId: string, invocationMessage: string, toolCallId: string): IChatToolInvocationSerialized {
+			return {
+				kind: 'toolInvocationSerialized',
+				toolId,
+				toolCallId,
+				invocationMessage,
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				resultDetails: {
+					output: {
+						type: 'data',
+						mimeType: 'image/png',
+						base64Data: 'AQID'
+					}
+				},
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: undefined,
+				isAttachedToThinking: false,
+			};
+		}
+
+		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingReplaceTool = createMockStreamingToolInvocation(
+				'copilot_replaceString', 'Replace String in File', 'call-1'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Replace tool';
+				return { domNode: div };
+			}, streamingReplaceTool.toolId, streamingReplaceTool);
+
+			// The title should show "Editing files" instead of "Replace String in File"
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Editing files'), `Title should contain "Editing files" but got "${labelText}"`);
+		});
+
+		test('should show original message for non-edit streaming tools', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingReadTool = createMockStreamingToolInvocation(
+				'copilot_readFile', 'Reading file.ts', 'call-2'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Read tool';
+				return { domNode: div };
+			}, streamingReadTool.toolId, streamingReadTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Reading file.ts'), `Title should contain "Reading file.ts" but got "${labelText}"`);
+		});
+
+		test('should show original message for non-streaming edit tools', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			// Non-streaming (executing) edit tool should show its invocation message
+			const executingReplaceTool = createMockExecutingToolInvocation(
+				'copilot_replaceString', 'Replacing 5 lines in file.ts', 'call-3'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Replace tool';
+				return { domNode: div };
+			}, executingReplaceTool.toolId, executingReplaceTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Replacing 5 lines in file.ts'), `Title should contain "Replacing 5 lines in file.ts" but got "${labelText}"`);
+		});
+
+		test('should keep original message for create_file tool even when streaming', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const streamingCreateTool = createMockStreamingToolInvocation(
+				'copilot_createFile', 'Creating newFile.ts', 'call-4'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Create tool';
+				return { domNode: div };
+			}, streamingCreateTool.toolId, streamingCreateTool);
+
+			const button = part.domNode.querySelector('.chat-used-context-label .monaco-button');
+			assert.ok(button, 'Should have collapse button');
+			const labelText = button.querySelector('.icon-label')?.textContent ?? button.textContent ?? '';
+			assert.ok(labelText.includes('Creating newFile.ts'), `Title should contain "Creating newFile.ts" but got "${labelText}"`);
+		});
+
+		test('should show external resources for serialized image tools when initially collapsed and hide them when expanded', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const serializedImageTool = createMockSerializedImageToolInvocation(
+				'chat_screenshot', 'Captured screenshot', 'image-call-1'
+			);
+
+			part.appendItem(() => {
+				const div = $('div.test-item');
+				div.textContent = 'Image tool';
+				return { domNode: div };
+			}, serializedImageTool.toolId, serializedImageTool);
+
+			const externalResources = part.domNode.querySelector('.chat-thinking-external-resources') as HTMLElement;
+			assert.ok(externalResources, 'Should render external resources container');
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources while initially collapsed');
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button, 'Should have expand button');
+			button.click();
+
+			assert.strictEqual(externalResources.style.display, 'none', 'Should hide external resources when expanded');
+
+			button.click();
+			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
+		});
+	});
+
+	suite('Diff aggregation in thinking header', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('should show diff stats in finalized title when onDidChangeDiff fires', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			// Fire diff event
+			diffEmitter.fire({ added: 10, removed: 3 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.ok(addedEl, 'Should render +N element');
+			assert.ok(removedEl, 'Should render -N element');
+			assert.strictEqual(addedEl?.textContent, '+10');
+			assert.strictEqual(removedEl?.textContent, '-3');
+		});
+
+		test('should aggregate diffs from multiple edit parts', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-1') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter1.event
+			);
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-2') }),
+				'edit-part-2',
+				undefined,
+				undefined,
+				diffEmitter2.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			diffEmitter1.fire({ added: 5, removed: 2 });
+			diffEmitter2.fire({ added: 8, removed: 1 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl?.textContent, '+13');
+			assert.strictEqual(removedEl?.textContent, '-3');
+		});
+
+		test('should not show diff stats when diff parts exist but have no changes', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+			diffEmitter.fire({ added: 0, removed: 0 });
+
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl, null);
+			assert.strictEqual(removedEl, null);
+		});
+
+		test('should include diff stats in aria-label', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter = store.add(new Emitter<IEditSessionDiffStats>());
+
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter.event
+			);
+
+			part.finalizeTitleIfDefault();
+			diffEmitter.fire({ added: 7, removed: 2 });
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.ok(button?.ariaLabel?.includes('7'), 'aria-label should include added count');
+			assert.ok(button?.ariaLabel?.includes('2'), 'aria-label should include removed count');
+		});
+
+		test('should not show diff stats when no diff events fired', () => {
+			const content = createThinkingPart('**Analyzing code**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const diffContainer = part.domNode.querySelector('.chat-thinking-title-diff');
+			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
+		});
+
+		test('removeEditPillByPartId cleans up lazy item and diff stats', () => {
+			const content = createThinkingPart('**Editing files**');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const diffEmitter1 = store.add(new Emitter<IEditSessionDiffStats>());
+			const diffEmitter2 = store.add(new Emitter<IEditSessionDiffStats>());
+
+			// Append two edit pills
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-1') }),
+				'edit-part-1',
+				undefined,
+				undefined,
+				diffEmitter1.event
+			);
+			part.appendItem(
+				() => ({ domNode: $('div.test-edit-pill-2') }),
+				'edit-part-2',
+				undefined,
+				undefined,
+				diffEmitter2.event
+			);
+
+			part.finalizeTitleIfDefault();
+
+			// Fire diff events for both
+			diffEmitter1.fire({ added: 5, removed: 2 });
+			diffEmitter2.fire({ added: 8, removed: 1 });
+
+			// Remove the first edit pill
+			part.removeEditPillByPartId('edit-part-1');
+
+			// Aggregated diff should only reflect the second pill now
+			const addedEl = part.domNode.querySelector('.label-added');
+			const removedEl = part.domNode.querySelector('.label-removed');
+			assert.strictEqual(addedEl?.textContent, '+8');
+			assert.strictEqual(removedEl?.textContent, '-1');
+		});
+	});
+
+	suite('eagerDisposable lifecycle', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('eagerDisposable is disposed when thinking part is disposed even if factory was never called', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			let disposed = false;
+			const eagerDisposable = toDisposable(() => { disposed = true; });
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: eagerDisposable,
+			});
+
+			// Append while collapsed — factory is NOT called
+			part.appendItem(factory, 'test-tool', undefined, undefined, undefined, eagerDisposable);
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			// Dispose the thinking part without ever expanding
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'eagerDisposable should be disposed with the thinking part');
+		});
+
+		test('eagerDisposable is disposed when thinking part is disposed after factory was called', () => {
+			const content = createThinkingPart('**Working**\nSome detailed analysis');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			let disposed = false;
+			const eagerDisposable = toDisposable(() => { disposed = true; });
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: eagerDisposable,
+			});
+
+			// Append while collapsed
+			part.appendItem(factory, 'test-tool', undefined, undefined, undefined, eagerDisposable);
+
+			// Expand to trigger factory call
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			// Dispose
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'eagerDisposable should be disposed even after being materialized');
+		});
+
+		test('appendItem without eagerDisposable disposes factory result on thinking part disposal', () => {
+			const content = createThinkingPart('**Working**\nSome detailed analysis');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			// Expand first so factory is called immediately
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			let disposed = false;
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: toDisposable(() => { disposed = true; }),
+			});
+
+			part.appendItem(factory, 'test-tool');
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'Factory disposable should be disposed with thinking part');
 		});
 	});
 });

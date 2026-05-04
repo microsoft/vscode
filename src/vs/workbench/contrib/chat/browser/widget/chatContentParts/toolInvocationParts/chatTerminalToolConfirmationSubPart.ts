@@ -8,18 +8,14 @@ import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js'
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { thenRegisterOrDispose, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -35,15 +31,17 @@ import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
-import type { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
+import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -77,12 +75,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		private readonly renderer: IMarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
-		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -90,8 +86,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
-		@ITextModelService textModelService: ITextModelService,
 		@IHoverService hoverService: IHoverService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super(toolInvocation);
 
@@ -153,23 +150,17 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this._register(this.modelService.createModel(
-			initialContent,
-			this.languageService.createById(languageId),
-			this._getUniqueCodeBlockUri(),
-			true
-		));
-		thenRegisterOrDispose(textModelService.createModelReference(model.uri), this._store);
-		const editor = this._register(this.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, this.codeBlockStartIndex);
+		const editor = this._register(this.editorPool.get(key));
 		editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			languageId,
+			text: initialContent,
 			renderOptions: codeBlockRenderOptions,
-			textModel: Promise.resolve(model),
 			chatSessionResource: this.context.element.sessionResource
 		}, this.currentWidthDelegate());
+		const model = editor.object.editor.getModel()!;
 		this.codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -177,13 +168,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			focus: () => editor.object.focus(),
 			ownerMarkdownPartId: this.codeblocksPartId,
 			uri: model.uri,
-			uriPromise: Promise.resolve(model.uri),
 			chatSessionResource: this.context.element.sessionResource
 		});
-		this._register(editor.object.onDidChangeContentHeight(() => {
-			editor.object.layout(this.currentWidthDelegate());
-		}));
-		this._register(model.onDidChangeContent(e => {
+		this._register(model.onDidChangeContent(() => {
 			const currentValue = model.getValue();
 			// Only set userEdited if the content actually differs from the initial value
 			// Prepend cd prefix back if it was extracted for display
@@ -203,16 +190,32 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
+
+		// LLM-generated risk assessment badge — slotted between the title and the
+		// message body of the confirmation widget via the `headerBanner` option.
+		const riskBadge = this._createRiskBadge(state.parameters);
+		const messageRoot = elements.root;
+
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
 			this.context,
 			{
 				title,
 				icon: Codicon.terminal,
-				message: elements.root,
+				message: messageRoot,
+				headerBanner: riskBadge,
 				buttons: this._createButtons(moreActions)
 			},
 		));
+
+		if (terminalData.requestUnsandboxedExecution) {
+			const reasonText = (terminalData.requestUnsandboxedExecutionReason && terminalData.requestUnsandboxedExecutionReason.trim())
+				|| localize('chat.terminal.unsandboxedExecution.defaultReason', "The model did not provide a reason for requesting unsandboxed execution.");
+			const unsandboxedReasonMarkdown = new MarkdownString(undefined, { supportThemeIcons: true });
+			unsandboxedReasonMarkdown.appendMarkdown(`$(${Codicon.info.id}) `);
+			unsandboxedReasonMarkdown.appendText(reasonText);
+			this._appendMarkdownPart(elements.disclaimer, unsandboxedReasonMarkdown, codeBlockRenderOptions);
+		}
 
 		if (disclaimer) {
 			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
@@ -222,7 +225,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		hasToolConfirmationKey.set(true);
 		this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 
-		this._register(confirmWidget.onDidClick(async button => {
+		this._register(confirmWidget.onDidClick(async ({ button, isTouchClick }) => {
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
@@ -383,7 +386,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 			if (doComplete) {
 				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				if (!isTouchClick) {
+					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 
@@ -395,6 +400,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
+
 		return [
 			{
 				...getLabelAndTooltip(localize('tool.allow', "Allow"), AcceptToolConfirmationActionId),
@@ -430,11 +436,38 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		return promptResult.result === true;
 	}
 
-	private _getUniqueCodeBlockUri() {
-		return URI.from({
-			scheme: Schemas.vscodeChatCodeBlock,
-			path: generateUuid(),
-		});
+	private _createRiskBadge(parameters: unknown): HTMLElement | undefined {
+		if (!this.riskAssessmentService.isEnabled()) {
+			return undefined;
+		}
+		const tool = this.languageModelToolsService.getTool(this.toolInvocation.toolId);
+		if (!tool) {
+			return undefined;
+		}
+		const widget = this._register(this.instantiationService.createInstance(ToolRiskBadgeWidget));
+		const cached = this.riskAssessmentService.getCached(tool, parameters);
+		if (cached) {
+			widget.setAssessment(cached);
+		} else {
+			widget.setLoading();
+			const cts = this._register(new CancellationTokenSource());
+			(async () => {
+				try {
+					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+					if (!result) {
+						widget.setHidden();
+						return;
+					}
+					widget.setAssessment(result);
+				} catch {
+					widget.setHidden();
+				}
+			})();
+		}
+		return widget.domNode;
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
@@ -450,7 +483,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.renderer,
 			undefined,
 			this.currentWidthDelegate(),
-			this.codeBlockModelCollection,
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);

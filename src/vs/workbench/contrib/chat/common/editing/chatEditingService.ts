@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorunSelfDisposable, IObservable, IReader, ISettableObservable } from '../../../../../base/common/observable.js';
+import { autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -25,6 +25,10 @@ import { ChatModel, IChatRequestDisablement, IChatResponseModel } from '../model
 import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
+
+export interface IChatEditingSessionProvider {
+	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+}
 
 export interface IChatEditingService {
 
@@ -49,32 +53,13 @@ export interface IChatEditingService {
 	 */
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
 
-	//#region related files
-
-	hasRelatedFilesProviders(): boolean;
-	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
-	getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
-
-	//#endregion
-}
-
-export interface IChatRequestDraft {
-	readonly prompt: string;
-	readonly files: readonly URI[];
-}
-
-export interface IChatRelatedFileProviderMetadata {
-	readonly description: string;
-}
-
-export interface IChatRelatedFile {
-	readonly uri: URI;
-	readonly description: string;
-}
-
-export interface IChatRelatedFilesProvider {
-	readonly description: string;
-	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
+	/**
+	 * Registers a provider that creates editing sessions for chat sessions
+	 * with the given URI scheme. When {@link createEditingSession} is called
+	 * for a chat model whose sessionResource matches the scheme, the provider
+	 * is used instead of the default implementation.
+	 */
+	registerEditingSessionProvider(scheme: string, provider: IChatEditingSessionProvider): IDisposable;
 }
 
 export interface WorkingSetDisplayMetadata {
@@ -116,13 +101,13 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
+	readonly supportsKeepUndo: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
-	readonly explanationWidgetVisible: ISettableObservable<boolean>;
 
 	show(previousChanges?: boolean): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
@@ -138,8 +123,8 @@ export interface IChatEditingSession extends IDisposable {
 	 * agents that make changes on-disk rather than streaming edits through the
 	 * chat session.
 	 */
-	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]>;
-	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
@@ -209,6 +194,21 @@ export interface IChatEditingSession extends IDisposable {
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+
+	/**
+	 * Triggers generation of explanations for all modified files in the session.
+	 */
+	triggerExplanationGeneration(): Promise<void>;
+
+	/**
+	 * Clears any active explanation generation.
+	 */
+	clearExplanations(): void;
+
+	/**
+	 * Whether explanations are currently being generated or displayed.
+	 */
+	hasExplanations(): boolean;
 }
 
 export function chatEditingSessionIsReady(session: IChatEditingSession): Promise<void> {
@@ -398,11 +398,6 @@ export interface IModifiedFileEntry {
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
-
-	/**
-	 * Whether explanation widgets should be visible for this entry
-	 */
-	readonly explanationWidgetVisible?: IObservable<boolean>;
 
 	/**
 	 * Number of changes for this file

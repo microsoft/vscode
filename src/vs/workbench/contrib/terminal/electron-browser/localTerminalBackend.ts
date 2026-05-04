@@ -37,6 +37,7 @@ import { IStatusbarService } from '../../../services/statusbar/browser/statusbar
 import { memoize } from '../../../../base/common/decorators.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -95,6 +96,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
@@ -294,7 +296,14 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	@memoize
 	async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._shellEnvironmentService.getShellEnv();
+		const env = { ... await this._shellEnvironmentService.getShellEnv() };
+
+		// If running in the context of an extension development host, include the environment derived from the launch configuration
+		if (this._environmentService.debugExtensionHost.env) {
+			terminalEnvironment.mergeEnvironments(env, this._environmentService.debugExtensionHost.env);
+		}
+
+		return env;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {

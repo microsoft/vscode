@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -25,6 +26,7 @@ import { IWorkbenchAssignmentService } from '../../../../../services/assignment/
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
@@ -44,8 +46,12 @@ import { ChatTransferService, IChatTransferService } from '../../../common/model
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
+import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
+import { IChatDebugService } from '../../../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -83,11 +89,16 @@ suite('ChatEditingService', function () {
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IMcpService, new TestMcpService());
+		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
+		collection.set(IChatDebugService, new ChatDebugServiceImpl());
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;
 			}
+		});
+		collection.set(IWorkspaceEditingService, new class extends mock<IWorkspaceEditingService>() {
+			override readonly onDidEnterWorkspace = Event.None;
 		});
 		collection.set(INotebookService, new class extends mock<INotebookService>() {
 			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {
@@ -139,7 +150,7 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+		const modelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 		const model = modelRef.object as ChatModel;
 		const session = editingService.createEditingSession(model, true);
 
@@ -160,7 +171,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+		const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 		const model = modelRef.object as ChatModel;
 		const session = model.editingSession;
 		if (!session) {
@@ -217,7 +228,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -251,7 +262,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -285,7 +296,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -321,7 +332,7 @@ suite('ChatEditingService', function () {
 
 			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');

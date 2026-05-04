@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -16,9 +17,10 @@ import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
+import { TerminalToolId } from '../toolIds.js';
 
 export const GetTaskOutputToolData: IToolData = {
-	id: 'get_task_output',
+	id: TerminalToolId.GetTaskOutput,
 	toolReferenceName: 'getTaskOutput',
 	legacyToolReferenceFullNames: ['runTasks/getTaskOutput'],
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
@@ -94,43 +96,56 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task \`{0}\`', taskLabel)) };
 		}
-		const store = new DisposableStore();
-		const terminalResults = await collectTerminalResults(
-			terminals,
-			task,
-			this._instantiationService,
-			invocation.context!,
-			_progress,
-			token,
-			store,
-			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks,
-			this._tasksService
-		);
-		store.dispose();
-		for (const r of terminalResults) {
-			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.getTaskOutputTool.get', {
-				taskId: args.id,
-				bufferLength: r.output.length ?? 0,
-				pollDurationMs: r.pollDurationMs ?? 0,
-				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
-				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
-				inputToolManualChars: r.inputToolManualChars ?? 0,
-				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
-				inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0,
-				inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0
-			});
+		const startMarkersByTerminalInstanceId = task.configurationProperties.isBackground
+			? new Map<number, IXtermMarker | undefined>()
+			: undefined;
+		if (startMarkersByTerminalInstanceId) {
+			// Background/watch tasks should read their current buffer when queried after start.
+			for (const terminal of terminals) {
+				startMarkersByTerminalInstanceId.set(terminal.instanceId, undefined);
+			}
 		}
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
-		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
-		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true, task.configurationProperties.isBackground);
+		const store = new DisposableStore();
+		try {
+			const terminalResults = await collectTerminalResults(
+				terminals,
+				task,
+				this._instantiationService,
+				invocation.context!,
+				_progress,
+				token,
+				store,
+				(terminalTask) => this._isTaskActive(terminalTask),
+				dependencyTasks,
+				this._tasksService,
+				startMarkersByTerminalInstanceId
+			);
+			for (const r of terminalResults) {
+				this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.getTaskOutputTool.get', {
+					taskId: args.id,
+					bufferLength: r.output.length ?? 0,
+					pollDurationMs: r.pollDurationMs ?? 0,
+					inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
+					inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
+					inputToolManualChars: r.inputToolManualChars ?? 0,
+					inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+					inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0,
+					inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0
+				});
+			}
+			const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+			const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+			const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
+			const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults, true, task.configurationProperties.isBackground);
 
-		return {
-			content: [{ kind: 'text', value: uniqueDetails }],
-			toolResultMessage,
-			toolResultDetails
-		};
+			return {
+				content: [{ kind: 'text', value: uniqueDetails }],
+				toolResultMessage,
+				toolResultDetails
+			};
+		} finally {
+			store.dispose();
+		}
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const busyTasks = await this._tasksService.getBusyTasks();

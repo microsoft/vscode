@@ -132,7 +132,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 	showDelayedHover(
 		options: IHoverOptions,
-		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
+		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId' | 'reducedDelay'>,
 	): IHoverWidget | undefined {
 		// Set `id` to default if it's undefined
 		if (options.id === undefined) {
@@ -177,7 +177,10 @@ export class HoverService extends Disposable implements IHoverService {
 		this._currentDelayedHoverWasShown = false;
 		this._currentDelayedHoverGroupId = lifecycleOptions?.groupId;
 
-		timeout(this._configurationService.getValue<number>('workbench.hover.delay')).then(() => {
+		const delay = lifecycleOptions?.reducedDelay
+			? this._configurationService.getValue<number>('workbench.hover.reducedDelay')
+			: this._configurationService.getValue<number>('workbench.hover.delay');
+		timeout(delay).then(() => {
 			if (hover.hover && !hover.hover.isDisposed) {
 				this._currentDelayedHoverWasShown = true;
 				this._showHover(hover, options);
@@ -225,7 +228,8 @@ export class HoverService extends Disposable implements IHoverService {
 		const store = new DisposableStore();
 		store.add(addDisposableListener(target, EventType.MOUSE_OVER, e => {
 			this.showDelayedHover(resolveHoverOptions(e), {
-				groupId: lifecycleOptions?.groupId
+				groupId: lifecycleOptions?.groupId,
+				reducedDelay: lifecycleOptions?.reducedDelay,
 			});
 		}));
 		if (lifecycleOptions?.setupKeyboardEvents) {
@@ -244,6 +248,7 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
+		this._currentDelayedHover?.dispose();
 		this._currentDelayedHover = undefined;
 
 		if (options.content === '') {
@@ -334,13 +339,13 @@ export class HoverService extends Disposable implements IHoverService {
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
-		if (options.persistence?.sticky) {
-			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
-				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
-					this._hideHoverAndDescendants(hover);
-				}
-			}));
-		} else {
+		hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
+			if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
+				this._hideHoverAndDescendants(hover);
+			}
+		}));
+
+		if (!options.persistence?.sticky) {
 			if ('targetElements' in options.target) {
 				for (const element of options.target.targetElements) {
 					hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this._hideHoverAndDescendants(hover)));
@@ -552,7 +557,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		if (targetElement.title !== '') {
 			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
-			console.trace('Stack trace:', targetElement.title);
+			// console.trace('Stack trace:', targetElement.title);
 			targetElement.title = '';
 		}
 
@@ -635,6 +640,16 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
+				return;
+			}
+			// Clean up stale reference if the hover was dismissed externally
+			if (hoverWidget?.isDisposed) {
+				hoverWidget = undefined;
+			}
+			// If focus is returning from a dismissed hover (e.g. Esc) or
+			// from window reactivation (e.g. Alt-tab), don't re-show.
+			const fromHover = isHTMLElement(e.relatedTarget) && e.relatedTarget.closest('.monaco-hover');
+			if (fromHover || !e.relatedTarget) {
 				return;
 			}
 			if (!eventIsRelatedToTarget(e, targetElement)) {
