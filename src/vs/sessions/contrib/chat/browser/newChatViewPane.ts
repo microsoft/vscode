@@ -29,7 +29,6 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { ScopedWorkspacePicker } from './scopedWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 
 // #region --- New Chat Widget ---
 
@@ -72,13 +71,6 @@ class NewChatWidget extends Disposable {
 			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
 			canSendRequest,
 			loading,
-			shouldExpandPromptSlashCommand: () => {
-				// Mirror what `_send()` does: it sends to the current active
-				// session, which can lag behind the workspace picker selection
-				// while trust approval or session-type discovery is in flight.
-				const providerId = this.sessionsManagementService.activeSession.get()?.providerId;
-				return !providerId || !ANY_AGENT_HOST_PROVIDER_RE.test(providerId);
-			},
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
