@@ -10,6 +10,23 @@ import { captureGlobalTimeApi, realTimeApi, TimeApi } from './timeApi.js';
 type AsGlobal<K extends keyof typeof globalThis> = (typeof globalThis)[K];
 
 /**
+ * Ensure `fn` carries an `originalFn` back-door pointing at the real
+ * (non-virtual) `setTimeout`. We prefer the existing tag on `fn`, then a tag
+ * inherited from `previousFn` (which may itself be a wrapper that already
+ * carried the back-door), and finally fall back to `realTimeApi.setTimeout`
+ * — which has its own `originalFn` set at module load.
+ */
+function ensureSetTimeoutOriginalFn(fn: TimeApi['setTimeout'], previousFn: TimeApi['setTimeout']): TimeApi['setTimeout'] {
+	const tagged = fn as TimeApi['setTimeout'] & { originalFn?: TimeApi['setTimeout'] };
+	if (!tagged.originalFn) {
+		const previousTagged = previousFn as TimeApi['setTimeout'] & { originalFn?: TimeApi['setTimeout'] };
+		const realTagged = realTimeApi.setTimeout as TimeApi['setTimeout'] & { originalFn?: TimeApi['setTimeout'] };
+		tagged.originalFn = previousTagged.originalFn ?? realTagged.originalFn ?? realTimeApi.setTimeout;
+	}
+	return tagged;
+}
+
+/**
  * Replace the global time APIs (`setTimeout`, `setInterval`, …, `Date`,
  * optionally `requestAnimationFrame`) with the ones from `api`. Returns a
  * disposable that restores the previous globals.
@@ -18,14 +35,16 @@ type AsGlobal<K extends keyof typeof globalThis> = (typeof globalThis)[K];
  * compose correctly (the disposable restores to whatever was current when
  * this call was made, not to the original real values).
  *
- * `api.setTimeout.originalFn` (if present) is preserved on the installed
- * function so callers like the component-explorer host can escape virtual
- * time when polling.
+ * `setTimeout.originalFn` is preserved on the installed function so callers
+ * like the component-explorer host can escape virtual time when polling.
+ * If `api.setTimeout` does not already carry `originalFn`, it is copied from
+ * the previous global (or defaulted to the real `setTimeout`) so wrapping
+ * APIs such as a logging wrapper don't drop the back-door.
  */
 export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 	const previous = captureGlobalTimeApi();
 
-	globalThis.setTimeout = api.setTimeout as unknown as AsGlobal<'setTimeout'>;
+	globalThis.setTimeout = ensureSetTimeoutOriginalFn(api.setTimeout, previous.setTimeout) as unknown as AsGlobal<'setTimeout'>;
 	globalThis.clearTimeout = api.clearTimeout as unknown as AsGlobal<'clearTimeout'>;
 	globalThis.setInterval = api.setInterval as unknown as AsGlobal<'setInterval'>;
 	globalThis.clearInterval = api.clearInterval as unknown as AsGlobal<'clearInterval'>;
@@ -40,7 +59,7 @@ export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 
 	return {
 		dispose: () => {
-			globalThis.setTimeout = previous.setTimeout as unknown as AsGlobal<'setTimeout'>;
+			globalThis.setTimeout = ensureSetTimeoutOriginalFn(previous.setTimeout, previous.setTimeout) as unknown as AsGlobal<'setTimeout'>;
 			globalThis.clearTimeout = previous.clearTimeout as unknown as AsGlobal<'clearTimeout'>;
 			globalThis.setInterval = previous.setInterval as unknown as AsGlobal<'setInterval'>;
 			globalThis.clearInterval = previous.clearInterval as unknown as AsGlobal<'clearInterval'>;
