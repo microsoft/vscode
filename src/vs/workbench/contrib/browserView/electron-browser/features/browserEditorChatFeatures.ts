@@ -355,7 +355,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			name: displayNameShort,
 			fullName: displayNameFull,
 			value: value,
-			modelDescription: 'Structured browser element context with HTML path, attributes, and computed styles.',
+			modelDescription: 'Structured browser element context with HTML path, outer HTML, dimensions, and computed styles.',
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
 			ancestors: elementData.ancestors,
@@ -389,19 +389,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		widget?.attachmentModel?.addContext(...toAttach);
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
-			attachCss: boolean;
 			attachImages: boolean;
 		};
 
 		type IntegratedBrowserAddElementToChatAddedClassification = {
-			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
 			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
 			owner: 'jruales';
 			comment: 'An element was successfully added to chat from Integrated Browser.';
 		};
 
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
-			attachCss: true,
 			attachImages
 		});
 	}
