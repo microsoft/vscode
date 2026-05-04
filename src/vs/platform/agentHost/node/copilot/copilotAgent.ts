@@ -281,6 +281,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+
+		// Scenario-automation escape hatch (mirrors the Copilot Chat extension's
+		// `VSCODE_COPILOT_CHAT_TOKEN` / `GITHUB_OAUTH_TOKEN` handling — see
+		// `extensions/copilot/src/platform/authentication/node/copilotTokenManager.ts`).
+		// When the eval harness pre-authenticates the host (`IS_SCENARIO_AUTOMATION=1`
+		// + a `GITHUB_OAUTH_TOKEN` in env), seed our token directly so the renderer
+		// never needs to drive an interactive GitHub sign-in (which would surface a
+		// device-code modal and fail the run with `X_BLOCKING_UI_ERROR`).
+		if (process.env.IS_SCENARIO_AUTOMATION === '1' && process.env.GITHUB_OAUTH_TOKEN) {
+			this._githubToken = process.env.GITHUB_OAUTH_TOKEN;
+			this._logService.info('[Copilot] Seeded auth token from GITHUB_OAUTH_TOKEN env var (scenario automation)');
+			void this._refreshModels();
+		}
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): ICopilotClient {
