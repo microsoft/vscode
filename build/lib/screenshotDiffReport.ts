@@ -3,9 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Fetches a screenshot diff from the service and prints the PR comment markdown to stdout.
-// Usage: node build/lib/screenshotDiffReport.ts <service-url> <owner> <repo> <base-sha> <current-sha>
-// Outputs nothing (exit 0) when there are no visual changes.
+// Diffs a locally rendered screenshot manifest against a base-commit manifest
+// and prints Markdown to stdout. Empty output (exit 0) means no reportable
+// changes. The base manifest is supplied as a file path — the caller is
+// responsible for fetching it (e.g. via curl from the screenshot service's
+// public /commits/<owner>/<repo>/<sha> endpoint).
+//
+// Usage:
+//   node build/lib/screenshotDiffReport.ts \
+//     <service-url> <base-sha> <current-sha> <base-manifest> <local-manifest>
+//
+// Both before- and after-images are referenced via the public /images/<hash>
+// endpoint of the screenshot service. After-images become available there
+// once the workflow's upload step has pushed them. Note: GitHub markdown
+// does not render `data:` URIs, so we cannot inline images as base64; for
+// runs that skip the upload (e.g. fork PRs) the after-image URL will 404
+// until the service has the hash, which is acceptable since fork PRs do
+// not post a PR comment.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,44 +31,126 @@ const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
 
-interface CompareEntry {
+interface LocalManifestFixture {
 	readonly fixtureId: string;
-	readonly imageUrl: string;
+	readonly imageHash: string;
+	readonly imagePath: string;
 	readonly labels?: readonly string[];
-	readonly changeCount?: number;
 }
 
-interface CompareChangedEntry {
-	readonly fixtureId: string;
-	readonly beforeImageUrl: string;
-	readonly afterImageUrl: string;
-	readonly labels?: readonly string[];
-	readonly changeCount?: number;
+interface LocalManifest {
+	readonly fixtures: readonly LocalManifestFixture[];
 }
 
-interface CompareResult {
-	readonly baseCommitSha: string;
-	readonly added: readonly CompareEntry[];
-	readonly removed: readonly CompareEntry[];
-	readonly changed: readonly CompareChangedEntry[];
-	readonly unchanged: readonly CompareEntry[];
+interface BaseFixture {
+	readonly fixtureId: string;
+	readonly imageHash: string;
+	readonly labels?: readonly string[];
+}
+
+interface BaseCommitResponse {
+	readonly commitSha: string;
+	readonly fixtures: readonly BaseFixture[];
+}
+
+interface DiffEntry {
+	readonly fixtureId: string;
+	readonly labels?: readonly string[];
+}
+
+interface ChangedDiffEntry extends DiffEntry {
+	readonly beforeHash: string;
+	readonly afterHash: string;
+	readonly afterPath: string;
+}
+
+interface AddedDiffEntry extends DiffEntry {
+	readonly afterHash: string;
+	readonly afterPath: string;
+}
+
+interface RemovedDiffEntry extends DiffEntry {
+	readonly beforeHash: string;
+}
+
+interface DiffResult {
+	readonly changed: readonly ChangedDiffEntry[];
+	readonly added: readonly AddedDiffEntry[];
+	readonly removed: readonly RemovedDiffEntry[];
 }
 
 function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
 	return !labels?.some(l => EXCLUDED_LABELS.has(l));
 }
 
-function generateMarkdown(result: CompareResult, baseSha: string, currentSha: string): string {
-	const changed = result.changed.filter(e => shouldIncludeInReport(e.labels));
-	const added = result.added.filter(e => shouldIncludeInReport(e.labels));
-	const removed = result.removed.filter(e => shouldIncludeInReport(e.labels));
+function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResult {
+	const baseByFixture = new Map<string, BaseFixture>();
+	for (const f of base.fixtures) {
+		baseByFixture.set(f.fixtureId, f);
+	}
+	const localByFixture = new Map<string, LocalManifestFixture>();
+	for (const f of local.fixtures) {
+		localByFixture.set(f.fixtureId, f);
+	}
+
+	const changed: ChangedDiffEntry[] = [];
+	const added: AddedDiffEntry[] = [];
+	const removed: RemovedDiffEntry[] = [];
+
+	for (const cur of local.fixtures) {
+		const baseEntry = baseByFixture.get(cur.fixtureId);
+		if (!baseEntry) {
+			added.push({
+				fixtureId: cur.fixtureId,
+				labels: cur.labels,
+				afterHash: cur.imageHash,
+				afterPath: cur.imagePath,
+			});
+			continue;
+		}
+		if (baseEntry.imageHash !== cur.imageHash) {
+			changed.push({
+				fixtureId: cur.fixtureId,
+				labels: cur.labels,
+				beforeHash: baseEntry.imageHash,
+				afterHash: cur.imageHash,
+				afterPath: cur.imagePath,
+			});
+		}
+	}
+
+	for (const baseEntry of base.fixtures) {
+		if (!localByFixture.has(baseEntry.fixtureId)) {
+			removed.push({
+				fixtureId: baseEntry.fixtureId,
+				labels: baseEntry.labels,
+				beforeHash: baseEntry.imageHash,
+			});
+		}
+	}
+
+	return { changed, added, removed };
+}
+
+function loadImageUrl(serviceUrl: string, hash: string): string {
+	return `${serviceUrl.replace(/\/$/, '')}/images/${hash}`;
+}
+
+function generateMarkdown(
+	diff: DiffResult,
+	serviceUrl: string,
+	baseSha: string,
+	currentSha: string,
+): string {
+	const changed = diff.changed.filter(e => shouldIncludeInReport(e.labels));
+	const added = diff.added.filter(e => shouldIncludeInReport(e.labels));
+	const removed = diff.removed.filter(e => shouldIncludeInReport(e.labels));
 
 	if (changed.length === 0 && added.length === 0 && removed.length === 0) {
 		return '';
 	}
 
 	const lines: string[] = [];
-
 	lines.push('## Screenshot Changes');
 	lines.push('');
 	lines.push(`**Base:** \`${baseSha.slice(0, 8)}\` **Current:** \`${currentSha.slice(0, 8)}\``);
@@ -70,7 +166,7 @@ function generateMarkdown(result: CompareResult, baseSha: string, currentSha: st
 			lines.push('');
 			lines.push('| Before | After |');
 			lines.push('|--------|-------|');
-			lines.push(`| ![before](${entry.beforeImageUrl}) | ![after](${entry.afterImageUrl}) |`);
+			lines.push(`| ![before](${loadImageUrl(serviceUrl, entry.beforeHash)}) | ![after](${loadImageUrl(serviceUrl, entry.afterHash)}) |`);
 			lines.push('');
 			lines.push('</details>');
 			lines.push('');
@@ -85,7 +181,7 @@ function generateMarkdown(result: CompareResult, baseSha: string, currentSha: st
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
 			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code></summary>`);
 			lines.push('');
-			lines.push(`![current](${entry.imageUrl})`);
+			lines.push(`![current](${loadImageUrl(serviceUrl, entry.afterHash)})`);
 			lines.push('');
 			lines.push('</details>');
 			lines.push('');
@@ -100,7 +196,7 @@ function generateMarkdown(result: CompareResult, baseSha: string, currentSha: st
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
 			lines.push(`<details${open}><summary><code>${entry.fixtureId}</code></summary>`);
 			lines.push('');
-			lines.push(`![baseline](${entry.imageUrl})`);
+			lines.push(`![baseline](${loadImageUrl(serviceUrl, entry.beforeHash)})`);
 			lines.push('');
 			lines.push('</details>');
 			lines.push('');
@@ -110,55 +206,43 @@ function generateMarkdown(result: CompareResult, baseSha: string, currentSha: st
 	return lines.join('\n');
 }
 
-async function fetchCompare(serviceUrl: string, owner: string, repo: string, baseSha: string, currentSha: string): Promise<CompareResult> {
-	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-	const token = process.env.SCREENSHOT_SERVICE_TOKEN;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-	const response = await fetch(`${serviceUrl}/compare`, {
-		method: 'POST',
-		headers,
-		body: JSON.stringify({ owner, repo, baseCommitSha: baseSha, currentCommitSha: currentSha }),
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => ({})) as { error?: string };
-		throw new Error(body.error ?? `Service returned ${response.status}`);
-	}
-
-	const result = await response.json() as CompareResult;
-
-	// Write result to .tmp for debugging
-	const tmpDir = path.join(__dirname, '../../.tmp');
-	fs.mkdirSync(tmpDir, { recursive: true });
-	fs.writeFileSync(path.join(tmpDir, 'screenshotDiffReport.json'), JSON.stringify(result, null, 2));
-
-	return result;
-}
-
-async function main(): Promise<void> {
-	const [serviceUrl, owner, repo, baseSha, currentSha] = process.argv.slice(2);
-	if (!serviceUrl || !owner || !repo || !baseSha || !currentSha) {
-		console.error('Usage: node build/lib/screenshotDiffReport.ts <service-url> <owner> <repo> <base-sha> <current-sha>');
+function main(): void {
+	const [serviceUrl, baseSha, currentSha, baseManifestPath, localManifestPath] = process.argv.slice(2);
+	if (!serviceUrl || !baseSha || !currentSha || !baseManifestPath || !localManifestPath) {
+		console.error('Usage: node build/lib/screenshotDiffReport.ts <service-url> <base-sha> <current-sha> <base-manifest> <local-manifest>');
 		process.exit(1);
 	}
 
-	const result = await fetchCompare(serviceUrl, owner, repo, baseSha, currentSha);
+	if (!fs.existsSync(localManifestPath)) {
+		console.error(`Local manifest not found: ${localManifestPath}`);
+		process.exit(1);
+	}
+	if (!fs.existsSync(baseManifestPath)) {
+		console.error(`Base manifest not found: ${baseManifestPath}. Skipping diff.`);
+		process.exit(0);
+	}
 
-	console.error(`Compare result: ${result.changed.length} changed, ${result.added.length} added, ${result.removed.length} removed, ${result.unchanged.length} unchanged`);
+	const local = JSON.parse(fs.readFileSync(localManifestPath, 'utf8')) as LocalManifest;
+	const base = JSON.parse(fs.readFileSync(baseManifestPath, 'utf8')) as BaseCommitResponse;
 
-	const markdown = generateMarkdown(result, baseSha, currentSha);
+	const diff = diffManifests(local, base);
+	console.error(`Compare result: ${diff.changed.length} changed, ${diff.added.length} added, ${diff.removed.length} removed.`);
+
+	const tmpDir = path.join(__dirname, '../../.tmp');
+	fs.mkdirSync(tmpDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(tmpDir, 'screenshotDiffReport.json'),
+		JSON.stringify(diff, null, 2),
+	);
+
+	const markdown = generateMarkdown(diff, serviceUrl, baseSha, currentSha);
 
 	if (!markdown) {
-		console.error('No reportable changes (all entries may be excluded by labels).');
+		console.error('No reportable changes.');
 		process.exit(0);
 	}
 
 	process.stdout.write(`${COMMENT_MARKER}\n${markdown}`);
 }
 
-main().catch(err => {
-	console.error(err instanceof Error ? err.message : err);
-	process.exit(1);
-});
+main();
