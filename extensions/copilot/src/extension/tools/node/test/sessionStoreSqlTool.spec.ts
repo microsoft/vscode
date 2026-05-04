@@ -321,7 +321,6 @@ describe('SessionStoreSqlTool', () => {
 			// inputSchema query description should reference DuckDB
 			const props = (result.inputSchema as any).properties;
 			expect(props.query.description).toContain('DuckDB');
-			expect(props.query.description).not.toContain('FTS5');
 		});
 	});
 

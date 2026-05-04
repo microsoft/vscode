@@ -77,7 +77,7 @@ Queries to run (do not explain what you will do first — start querying immedia
 
 **Step 2: Consider available features**
 
-Check `.github/skills/`, `.github/agents/`, and `.github/copilot-instructions.md` to see what custom configuration the user has. Look for gaps between what's available and what the user actually uses.
+If the current workspace has a `.github/` folder, check for `.github/copilot-instructions.md`, `.github/skills/`, and `.github/agents/` to see what custom configuration exists. Do NOT look outside the workspace. Look for gaps between what's available and what the user actually uses.
 
 **Step 3: Provide tips**
 

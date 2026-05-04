@@ -48,34 +48,9 @@ const SESSIONS_QUERY_CLOUD = `SELECT *
 	LIMIT 100`;
 
 /** Model description when cloud sync is enabled — uses DuckDB SQL syntax. */
-const CLOUD_MODEL_DESCRIPTION = `Interact with the cloud session store containing history from ALL past coding sessions across all devices and agents (VS Code, CLI, Copilot Coding Agent, PR reviews).
+const CLOUD_MODEL_DESCRIPTION = `Query the cloud session store containing ALL past coding sessions across devices and agents. Uses DuckDB SQL syntax (not SQLite). Use \`now() - INTERVAL '1 day'\` for date math, \`ILIKE\` for text search.
 
-Supports three actions via the \`action\` parameter:
-
-**action: 'query' (default)** — Execute a read-only DuckDB SQL query. Use this proactively when the user asks about what they've worked on, prior approaches, project history, sessions linked to PRs/issues/commits, or temporal queries.
-
-**IMPORTANT: Uses DuckDB SQL syntax.**
-- Date arithmetic: \`now() - INTERVAL '1 day'\`, \`now() - INTERVAL '7 days'\`
-- Use \`ILIKE\` (case-insensitive) for text search — no FTS5/MATCH
-- Use \`date_diff('minute', start, end)\` for duration calculations
-- Always use \`COALESCE()\` or \`WHERE column IS NOT NULL\` to guard against NULL values — many columns are nullable
-- GROUP BY is strict: every non-aggregated column in SELECT must appear in GROUP BY, or use \`ANY_VALUE(col)\` for columns where the exact value is not important
-- When using expressions like \`date_diff()\` in both SELECT and WHERE/HAVING, repeat the full expression — DuckDB does not allow aliases in WHERE
-- Only one query per call — do not combine multiple statements with semicolons
-
-Schema:
-- sessions — id, repository, branch, summary, agent_name (e.g. 'VS Code', 'cli', 'Copilot Coding Agent', 'Copilot Code Review'), agent_description, created_at, updated_at (TIMESTAMP). NOTE: cwd is always NULL in cloud. Always filter on updated_at (not created_at) for time ranges.
-- turns — session_id, turn_index, user_message, assistant_response, timestamp (TIMESTAMP). The richest source of what happened — always JOIN with sessions.
-- checkpoints — session_id, checkpoint_number, title, overview, created_at (TIMESTAMP)
-- session_files — session_id, file_path, tool_name (edit/create), turn_index, first_seen_at (TIMESTAMP)
-- session_refs — session_id, ref_type (commit/pr/issue), ref_value, turn_index, created_at (TIMESTAMP)
-- events — raw event table. Key columns: session_id, timestamp, type, user_content, assistant_content, tool_start_name, tool_complete_success, tool_complete_result_content, usage_model, usage_input_tokens, usage_output_tokens
-- tool_requests — session_id, tool_call_id, name, arguments_json
-- search_index — not available in cloud. Use ILIKE for text search instead.
-
-**action: 'standup'** — Pre-fetches last 24 hours of sessions, turns, files, and refs (merging local and cloud data). Returns a formatted data blob ready for standup summarisation. No \`query\` parameter needed.
-
-**action: 'reindex'** — Rebuilds the local session store by re-reading debug logs from disk, then syncs to cloud if enabled. Returns before/after stats. No \`query\` parameter needed.`;
+Actions: 'query' (execute DuckDB SQL), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index + cloud sync).`;
 
 class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 	public static readonly toolName = ToolName.SessionStoreSql;
@@ -160,29 +135,13 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 				} else if (!cloudResult) {
 					// Auth/network failure — fall back to local
 					source = 'local_fallback';
-					try {
-						rows = this._sessionStore.executeReadOnly(sql);
-					} catch (authErr) {
-						if (authErr instanceof Error && authErr.message.includes('authorizer')) {
-							rows = this._sessionStore.executeReadOnlyFallback(sql);
-						} else {
-							throw authErr;
-						}
-					}
+					rows = this._executeLocal(sql);
 				} else {
 					rows = cloudResult.rows;
 					truncated = cloudResult.truncated;
 				}
 			} else {
-				try {
-					rows = this._sessionStore.executeReadOnly(sql);
-				} catch (authErr) {
-					if (authErr instanceof Error && authErr.message.includes('authorizer')) {
-						rows = this._sessionStore.executeReadOnlyFallback(sql);
-					} else {
-						throw authErr;
-					}
-				}
+				rows = this._executeLocal(sql);
 			}
 
 			// Cap rows
@@ -200,6 +159,20 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			const message = err instanceof Error ? err.message : String(err);
 			this._sendTelemetry(source, 0, Date.now() - startTime, false, message.substring(0, 100));
 			return new LanguageModelToolResult([new LanguageModelTextPart(`Error: ${message}`)]);
+		}
+	}
+
+	/**
+	 * Execute a read-only SQL query against the local SQLite session store.
+	 */
+	private _executeLocal(sql: string): Record<string, unknown>[] {
+		try {
+			return this._sessionStore.executeReadOnly(sql);
+		} catch (authErr) {
+			if (authErr instanceof Error && authErr.message.includes('authorizer')) {
+				return this._sessionStore.executeReadOnlyFallback(sql);
+			}
+			throw authErr;
 		}
 	}
 
