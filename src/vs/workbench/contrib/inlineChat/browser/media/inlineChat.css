@@ -323,6 +323,11 @@
 	padding: 2px 0px;
 }
 
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
+.monaco-workbench .inline-chat .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+	display: none;
+}
+
 /* Termination card (zone widget) — aligned with overlay widget */
 
 .monaco-workbench .inline-chat-terminated-card {
