@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env as processEnv } from '../../../../../../base/common/process.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -162,21 +161,6 @@ export async function authenticateProtectedResources(
 }
 
 /**
- * Reads `GITHUB_OAUTH_TOKEN` from the host process environment when the
- * harness has flagged the run as `IS_SCENARIO_AUTOMATION=1`. Returns
- * `undefined` in any environment where `process.env` is unavailable
- * (e.g. pure web) or the markers are not set. Mirrors the Copilot Chat
- * extension's `isScenarioAutomation` + `GITHUB_OAUTH_TOKEN` handling in
- * `extensions/copilot/src/platform/authentication/node/copilotTokenManager.ts`.
- */
-function getScenarioAutomationGitHubToken(): string | undefined {
-	if (processEnv['IS_SCENARIO_AUTOMATION'] === '1' && processEnv['GITHUB_OAUTH_TOKEN']) {
-		return processEnv['GITHUB_OAUTH_TOKEN'];
-	}
-	return undefined;
-}
-
-/**
  * Prompts the user to authenticate one of the provided protected resources and
  * forwards the resulting token to the agent host connection.
  */
@@ -184,22 +168,6 @@ export async function resolveAuthenticationInteractively(
 	protectedResources: readonly ProtectedResourceMetadata[],
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
-	// Scenario-automation escape hatch — mirror the Copilot Chat extension's
-	// behavior of consuming `GITHUB_OAUTH_TOKEN` directly when running under
-	// `IS_SCENARIO_AUTOMATION=1`. Without this, the eval harness would surface
-	// a device-code modal here (since no `IAuthenticationService` session has
-	// been created in the headless run) and trip the harness's
-	// `X_BLOCKING_UI_ERROR` guard.
-	const automationToken = getScenarioAutomationGitHubToken();
-	if (automationToken) {
-		for (const resource of protectedResources) {
-			await options.authenticate({ resource: resource.resource, token: automationToken });
-			options.authTokenCache?.updateAndIsChanged(resource.resource, automationToken);
-			options.logService.info(`${options.logPrefix} Authenticated ${resource.resource} from GITHUB_OAUTH_TOKEN env var (scenario automation)`);
-			return true;
-		}
-	}
-
 	for (const resource of protectedResources) {
 		const resourceUri = URI.parse(resource.resource);
 		const token = await resolveTokenForResource(
