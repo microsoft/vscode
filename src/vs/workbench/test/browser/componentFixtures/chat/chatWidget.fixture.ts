@@ -161,33 +161,32 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
 	// the service synchronously when routing tool confirmations to the carousel.
-	let inputPart: ChatInputPart | undefined;
-	if (options.withInput) {
-		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
-		menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	// In production a chat widget always has an inputPart, so the fixture creates
+	// one unconditionally; `withInput` only controls whether it is rendered in DOM.
+	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
+	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
 
-		const inputOptions: IChatInputPartOptions = {
-			renderFollowups: false,
-			renderInputToolbarBelowInput: false,
-			renderWorkingSet: false,
-			menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
-			widgetViewKindTag: 'view',
-			inputEditorMinLines: 2,
-		};
-		const inputStyles: IChatInputStyles = {
-			overlayBackground: 'var(--vscode-editor-background)',
-			listForeground: 'var(--vscode-foreground)',
-			listBackground: 'var(--vscode-editor-background)',
-		};
+	const inputOptions: IChatInputPartOptions = {
+		renderFollowups: false,
+		renderInputToolbarBelowInput: false,
+		renderWorkingSet: false,
+		menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
+		widgetViewKindTag: 'view',
+		inputEditorMinLines: 2,
+	};
+	const inputStyles: IChatInputStyles = {
+		overlayBackground: 'var(--vscode-editor-background)',
+		listForeground: 'var(--vscode-foreground)',
+		listBackground: 'var(--vscode-editor-background)',
+	};
 
-		inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
-	}
+	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
@@ -195,11 +194,11 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
-		override readonly inputPart = inputPart!;
+		override readonly inputPart = inputPart;
 	}();
 	widgetHolder.current = fixtureWidget;
 
-	if (inputPart) {
+	if (options.withInput) {
 		inputPart.render(session, '', fixtureWidget);
 		inputPart.layout(720);
 		await new Promise(r => setTimeout(r, 50));

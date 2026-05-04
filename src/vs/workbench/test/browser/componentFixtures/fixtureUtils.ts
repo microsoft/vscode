@@ -6,7 +6,7 @@
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
-import { DisposableStore, DisposableTracker, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
@@ -92,7 +92,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
@@ -444,6 +444,38 @@ export class FixtureLogService extends NullLogService {
 }
 
 /**
+ * `ITextModelService` for fixtures that resolves URIs against `IModelService`.
+ * Models created via `createTextModel` (which uses `IModelService.createModel`)
+ * are automatically resolvable. URIs without a backing model fail loudly so
+ * that callers don't silently receive a null `textEditorModel`.
+ */
+export class FixtureTextModelService extends mock<ITextModelService>() {
+	constructor(@IModelService private readonly _modelService: IModelService) {
+		super();
+	}
+
+	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		const model = this._modelService.getModel(resource);
+		if (!model) {
+			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
+		}
+		return {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			object: { textEditorModel: model } as IResolvedTextEditorModel,
+			dispose() { },
+		};
+	}
+
+	override registerTextModelContentProvider(): IDisposable {
+		return { dispose() { } };
+	}
+
+	override canHandleResource(): boolean {
+		return false;
+	}
+}
+
+/**
  * Creates a TestInstantiationService with all services needed for CodeEditorWidget.
  * Additional services can be registered via the options callback.
  */
@@ -563,13 +595,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onSoundEnabledChanged: () => Event.None,
 	});
 
-	definePartialInstance(ITextModelService, {
-		_serviceBrand: undefined,
-		registerTextModelContentProvider: () => ({ dispose: () => { } }),
-		canHandleResource: () => false,
-		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		createModelReference: async () => ({ object: { textEditorModel: null }, dispose() { } } as any),
-	});
+	define(ITextModelService, FixtureTextModelService);
 
 	defineInstance(IAgentFeedbackService, {
 		_serviceBrand: undefined,
