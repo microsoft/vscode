@@ -43,6 +43,7 @@ import { IChatInputNotificationService } from '../../../../contrib/chat/browser/
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
+import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
@@ -173,7 +174,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() { override getAllChatSessionContributions() { return []; } override readonly onDidChangeSessionOptions = Event.None; override readonly onDidChangeOptionGroups = Event.None; override readonly onDidChangeAvailability = Event.None; override getCustomAgentTargetForSessionType() { return Target.Undefined; } override requiresCustomModelsForSessionType() { return false; } override getOptionGroupsForSessionType() { return []; } }());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }());
-	reg.defineInstance(IChatModeService, new class extends mock<IChatModeService>() { override readonly onDidChangeChatModes = Event.None; override getModes() { return { builtin: [], custom: [] }; } override findModeById() { return undefined; } }());
+	reg.defineInstance(IChatModeService, new MockChatModeService());
 	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());

@@ -18,12 +18,10 @@ import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, Modif
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
-import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
-import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 
 interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
@@ -41,9 +39,6 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos });
-			// Use the richer MockChatModeService (provides built-in modes) rather
-			// than the empty mock from registerChatFixtureServices.
-			reg.defineInstance(IChatModeService, new MockChatModeService());
 		},
 	});
 
