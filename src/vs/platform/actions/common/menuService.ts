@@ -292,7 +292,9 @@ class MenuInfo extends MenuInfoSnapshot {
 					if (isMenuItem) {
 						// MenuItemAction
 						const menuKeybinding = createConfigureKeybindingAction(this._commandService, this._keybindingService, item.command.id, item.when);
-						(activeActions ??= []).push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, this._contextKeyService, this._commandService));
+						const menuItemAction = new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, this._contextKeyService, this._commandService);
+						menuItemAction.keepOpen = !!item.keepOpen;
+						(activeActions ??= []).push(menuItemAction);
 					} else {
 						// SubmenuItemAction
 						const groups = new MenuInfo(item.submenu, this._hiddenStates, this._collectContextKeysForSubmenus, this._commandService, this._keybindingService, this._contextKeyService).createActionGroups(options);
