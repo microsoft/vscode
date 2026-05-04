@@ -460,9 +460,58 @@ suite('AgentHostPermissionService', () => {
 
 	// ---- Settings-scope inference ---------------------------------------
 
-	test('allowAlways persists into USER_LOCAL when the setting is already in USER_LOCAL', async () => {
-		// Override `inspect()` to report the value as living in userLocalValue
-		// (and not `userValue`). The service should write back to that scope.
+	test('allowAlways defaults to APPLICATION scope when no value is configured anywhere', async () => {
+		const { service, config } = createService();
+		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.allPending.get()[0].allowAlways();
+		await promise;
+
+		// The setting is registered as ConfigurationScope.APPLICATION, so a
+		// fresh write must land there — not in USER (which would be invisible
+		// to other windows that read this APPLICATION-scoped setting).
+		assert.strictEqual(config.lastUpdate?.target, ConfigurationTarget.APPLICATION);
+	});
+
+	test('allowAlways merges with existing APPLICATION-scoped grants instead of overwriting them', async () => {
+		// Pre-existing grant for `other-host` lives in APPLICATION scope.
+		// The service must read from APPLICATION when picking the merge
+		// base, otherwise it would build the next value from {} and clobber
+		// the existing `other-host` entry on write.
+		const config = new CapturingConfigurationService();
+		const existing: AgentHostPermissionsSetting = {
+			'other-host': { [URI.file('/etc/preexisting').toString()]: AgentHostAccessMode.ReadWrite },
+		};
+		const originalInspect = config.inspect.bind(config);
+		(config as { inspect: (key: string) => unknown }).inspect = (key: string) => {
+			if (key === AgentHostLocalFilePermissionsSettingId) {
+				return {
+					value: existing,
+					defaultValue: {},
+					applicationValue: existing,
+					overrideIdentifiers: [],
+				};
+			}
+			return originalInspect(key);
+		};
+		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
+
+		const promise = service.request('host', { uri: URI.file('/etc/foo').toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.allPending.get()[0].allowAlways();
+		await promise;
+
+		assert.strictEqual(config.lastUpdate?.target, ConfigurationTarget.APPLICATION);
+		const written = config.lastUpdate.value as AgentHostPermissionsSetting;
+		assert.deepStrictEqual(written, {
+			'other-host': { [URI.file('/etc/preexisting').toString()]: AgentHostAccessMode.ReadWrite },
+			'host': { [URI.file('/etc/foo').toString()]: AgentHostAccessMode.Read },
+		});
+	});
+
+	test('allowAlways persists into USER_LOCAL when a pre-existing value is in USER_LOCAL', async () => {
+		// Hand-edited or migrated entries living in USER_LOCAL are honoured
+		// rather than silently relocated to APPLICATION on the next write.
 		const config = new CapturingConfigurationService();
 		const originalInspect = config.inspect.bind(config);
 		(config as { inspect: (key: string) => unknown }).inspect = (key: string) => {

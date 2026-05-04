@@ -13,12 +13,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { RemoteAgentHostProtocolClient, RemoteAgentHostProtocolError } from '../../browser/remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 import { IAgentHostPermissionService } from '../../common/agentHostPermissionService.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ContentEncoding } from '../../common/state/protocol/commands.js';
 import { ActionType, type SessionActiveClientChangedAction } from '../../common/state/sessionActions.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
@@ -88,8 +88,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 			await promise;
 			assert.fail('Expected promise to reject');
 		} catch (error) {
-			if (!(error instanceof RemoteAgentHostProtocolError)) {
-				assert.fail(`Expected RemoteAgentHostProtocolError, got ${String(error)}`);
+			if (!(error instanceof ProtocolError)) {
+				assert.fail(`Expected ProtocolError, got ${String(error)}`);
 			}
 			assert.strictEqual(error.code, expected.code);
 			assert.strictEqual(error.message, expected.message);

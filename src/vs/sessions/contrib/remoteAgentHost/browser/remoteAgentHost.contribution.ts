@@ -629,7 +629,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[AgentHostLocalFilePermissionsSettingId]: {
 			type: 'object',
-			description: nls.localize('chat.agentHost.localFilePermissions', "Per-host filesystem grants for remote agent hosts. Maps a remote agent host address to URI strings and the access mode the host has been granted (`r` for read, `rw` for read and write). Hosts cannot read or write any files outside the granted URIs without prompting; an URI grant covers descendants. This setting is normally maintained by the agent-host permission prompts and rarely edited by hand."),
+			description: nls.localize('chat.agentHost.localFilePermissions', "Per-host filesystem grants for remote agent hosts. Maps a remote agent host address to URI strings and the access mode the host has been granted (`r` for read, `rw` for read and write). Hosts cannot read or write any files outside the granted URIs without prompting; a URI grant covers descendants. This setting is normally maintained by the agent-host permission prompts and rarely edited by hand."),
 			additionalProperties: {
 				type: 'object',
 				additionalProperties: {

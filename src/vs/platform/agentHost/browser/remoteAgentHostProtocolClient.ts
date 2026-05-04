@@ -25,7 +25,7 @@ import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRe
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding, ResourceRequestParams, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -33,24 +33,12 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffe
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
-export class RemoteAgentHostProtocolError extends Error {
+function connectionClosedError(address: string): ProtocolError {
+	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection closed: ${address}`);
+}
 
-	readonly code: number;
-	readonly data: unknown | undefined;
-
-	constructor(error: JsonRpcErrorResponse['error']) {
-		super(error.message);
-		this.code = error.code;
-		this.data = error.data;
-	}
-
-	static connectionClosed(address: string): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection closed: ${address}` });
-	}
-
-	static disposed(address: string): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection disposed: ${address}` });
-	}
+function connectionDisposedError(address: string): ProtocolError {
+	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection disposed: ${address}`);
 }
 
 interface IRemoteAgentHostExtensionCommandMap {
@@ -91,7 +79,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _pendingRequests = new Map<number, DeferredPromise<unknown>>();
 	private _nextRequestId = 1;
 	private _isClosed = false;
-	private _closeError: RemoteAgentHostProtocolError | undefined;
+	private _closeError: ProtocolError | undefined;
 
 	/**
 	 * Comparison keys of customization URIs we have already granted implicit
@@ -125,7 +113,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._transport = transport;
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
-		this._register(this._transport.onClose(() => this._handleClose(RemoteAgentHostProtocolError.connectionClosed(this._address))));
+		this._register(this._transport.onClose(() => this._handleClose(connectionClosedError(this._address))));
 
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
 			this._clientId,
@@ -142,7 +130,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	override dispose(): void {
-		this._handleClose(RemoteAgentHostProtocolError.disposed(this._address));
+		this._handleClose(connectionDisposedError(this._address));
 		super.dispose();
 	}
 
@@ -433,7 +421,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 	}
 
-	private _handleClose(error: RemoteAgentHostProtocolError): void {
+	private _handleClose(error: ProtocolError): void {
 		if (this._isClosed) {
 			return;
 		}
@@ -643,11 +631,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return deferred.p as Promise<IRemoteAgentHostExtensionCommandMap[M]['result']>;
 	}
 
-	private _toProtocolError(error: JsonRpcErrorResponse['error']): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError(error);
+	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {
+		return new ProtocolError(error.code, error.message, error.data);
 	}
 
-	private _rejectPendingRequests(error: RemoteAgentHostProtocolError): void {
+	private _rejectPendingRequests(error: ProtocolError): void {
 		for (const pending of this._pendingRequests.values()) {
 			pending.error(error);
 		}

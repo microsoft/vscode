@@ -329,19 +329,27 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 	}
 
 	/**
-	 * Inspect the setting and pick the scope to write back to. Mirrors
-	 * `RemoteAgentHostService._getConfigurationTarget` so persisted grants
-	 * land in the same scope they were read from.
+	 * Inspect the setting and pick the scope to write back to. The setting
+	 * is registered with `ConfigurationScope.APPLICATION`, so APPLICATION is
+	 * the canonical home; we still honour pre-existing values in the
+	 * user-* scopes so a hand-edited entry isn't silently relocated, but
+	 * fresh writes default to APPLICATION.
 	 */
 	private _inspectScopedSetting(): { target: ConfigurationTarget; value: AgentHostPermissionsSetting } {
 		const inspected = this._configurationService.inspect<AgentHostPermissionsSetting>(AgentHostLocalFilePermissionsSettingId);
+		if (inspected.applicationValue !== undefined) {
+			return { target: ConfigurationTarget.APPLICATION, value: inspected.applicationValue };
+		}
 		if (inspected.userLocalValue !== undefined) {
 			return { target: ConfigurationTarget.USER_LOCAL, value: inspected.userLocalValue };
 		}
 		if (inspected.userRemoteValue !== undefined) {
 			return { target: ConfigurationTarget.USER_REMOTE, value: inspected.userRemoteValue };
 		}
-		return { target: ConfigurationTarget.USER, value: inspected.userValue ?? {} };
+		if (inspected.userValue !== undefined) {
+			return { target: ConfigurationTarget.USER, value: inspected.userValue };
+		}
+		return { target: ConfigurationTarget.APPLICATION, value: {} };
 	}
 }
 
