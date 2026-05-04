@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /** The VS Code configuration key for the active color theme. */
@@ -13,18 +14,12 @@ export const IThemeImporterService = createDecorator<IThemeImporterService>('ITh
 /**
  * Result of previewing the parent VS Code's color theme.
  */
-export interface IThemePreviewResult {
+export interface IThemePreviewResult extends IDisposable {
 	/**
 	 * Permanently imports the previewed theme into the Agents app by
 	 * copying the providing extension and installing it from there.
 	 */
 	apply(): Promise<void>;
-
-	/**
-	 * Reverts the preview by uninstalling the temporarily installed
-	 * extension.
-	 */
-	reset(): Promise<void>;
 }
 
 /**
@@ -46,7 +41,7 @@ export interface IThemeImporterService {
 	/**
 	 * Temporarily installs the providing extension from the host's extensions
 	 * directory and applies the VS Code theme. Returns a cached
-	 * {@link IThemePreviewResult} to apply or reset the preview. Returns
+	 * {@link IThemePreviewResult} to apply or dispose the preview. Returns
 	 * `undefined` if the theme is already available or cannot be resolved.
 	 */
 	previewVSCodeTheme(): Promise<IThemePreviewResult | undefined>;
