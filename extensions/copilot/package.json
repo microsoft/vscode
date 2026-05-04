@@ -2679,6 +2679,13 @@
 				"enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
 			},
 			{
+				"command": "github.copilot.chat.glassBox.open",
+				"title": "Open Glass Box AI DevTools",
+				"category": "Copilot",
+				"icon": "$(inspect)",
+				"enablement": "config.github.copilot.chat.glassBox.devtools.enabled"
+			},
+			{
 				"command": "github.copilot.sessionSync.deleteSessions",
 				"title": "%github.copilot.command.sessionSync.deleteSessions%",
 				"category": "Chat",
@@ -4334,6 +4341,14 @@
 						"tags": [
 							"advanced",
 							"experimental"
+						]
+					},
+					"github.copilot.chat.glassBox.devtools.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.glassBox.devtools.enabled%",
+						"tags": [
+							"advanced"
 						]
 					},
 					"github.copilot.chat.inlineEdits.diagnosticsContextProvider.enabled": {

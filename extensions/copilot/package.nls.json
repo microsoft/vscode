@@ -382,6 +382,7 @@
 	"github.copilot.config.inlineChat.reasoningEffort": "Controls the reasoning effort level for inline chat requests. Lower values result in faster responses with fewer reasoning tokens. Supported values depend on the model.",
 	"github.copilot.config.inlineChat.enableThinking": "Controls whether thinking/reasoning is enabled for inline chat requests. When disabled, reasoning summaries are suppressed for faster responses.",
 	"github.copilot.config.debug.requestLogger.maxEntries": "Maximum number of entries to keep in the request logger for debugging purposes.",
+	"github.copilot.config.glassBox.devtools.enabled": "Enable the Glass Box AI DevTools panel (`Copilot: Open Glass Box AI DevTools`). When enabled, Copilot captures LLM request internals — context items, token usage, and performance metrics — and displays them in an inspectable panel. Intended for developers and power users diagnosing Copilot behavior. Has no effect on Copilot responses.",
 	"github.copilot.config.chat.agentDebugLog.enabled": "Deprecated: use `github.copilot.chat.agentDebugLog.fileLogging.enabled` instead.",
 	"github.copilot.config.chat.agentDebugLog.enabled.deprecated": "This setting has been merged into `github.copilot.chat.agentDebugLog.fileLogging.enabled`. Please use this setting instead.",
 	"github.copilot.config.chat.agentDebugLog.fileLogging.enabled": "Enable agent debug logging: write chat debug events (tool calls, LLM requests, token usage, errors) to JSONL files for the debug panel and troubleshoot skill. Requires window reload to take effect.",

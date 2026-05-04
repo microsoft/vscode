@@ -627,6 +627,8 @@ export namespace ConfigKey {
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
+		/** Enable the Glass Box AI DevTools panel. When enabled, Copilot captures LLM request internals (context, token usage, performance). */
+		export const GlassBoxEnabled = defineSetting<boolean>('chat.glassBox.devtools.enabled', ConfigType.Simple, true);
 
 		// Experiment-based settings
 		/** Uses new expanded project labels */
