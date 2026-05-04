@@ -178,8 +178,6 @@
 	color: var(--vscode-badge-foreground);
 	font-size: 10px;
 	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.03em;
 }
 
 .message-renderer-error-message {

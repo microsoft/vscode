@@ -311,7 +311,8 @@ export class MessageRenderer extends Disposable {
 		// Prefer the provider named in the event; fall back to the provider seen in message_start
 		const failedProvider = event.provider ?? this._activeProvider;
 		if (failedProvider) {
-			this._errorProviderBadge.textContent = failedProvider;
+			const alt = this._alternatives.find(a => a.id === failedProvider);
+			this._errorProviderBadge.textContent = alt?.displayName ?? failedProvider;
 			this._errorProviderBadge.classList.remove('hidden');
 		}
 

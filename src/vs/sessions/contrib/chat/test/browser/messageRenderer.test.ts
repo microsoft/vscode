@@ -311,6 +311,20 @@ suite('MessageRenderer', () => {
 		assert.strictEqual(badge!.textContent, 'anthropic-oauth');
 	});
 
+	test('provider badge shows display name when alternative matches', async () => {
+		const alts: AlternativeProvider[] = [
+			{ id: 'copilot', displayName: 'GitHub Copilot' },
+		];
+		const renderer = makeRenderer(alts);
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'gpt-4o' },
+			{ type: 'error', code: 'rate_limit', message: 'Quota exceeded', retryable: true },
+		]);
+
+		const badge = container.querySelector('.message-renderer-error-provider');
+		assert.strictEqual(badge!.textContent, 'GitHub Copilot', 'badge shows display name not raw ID');
+	});
+
 	test('no provider badge when error arrives without provider info', async () => {
 		const renderer = makeRenderer();
 		await renderStream(renderer, [
