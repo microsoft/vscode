@@ -309,6 +309,11 @@ suite('MessageRenderer', () => {
 		const badge = container.querySelector('.message-renderer-error-provider');
 		assert.ok(!badge!.classList.contains('hidden'), 'provider badge visible');
 		assert.strictEqual(badge!.textContent, 'anthropic-oauth');
+
+		// Generic retry must use event.provider, not the (absent) message_start provider
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'anthropic-oauth', preferredProvider: undefined });
 	});
 
 	test('provider badge shows display name when alternative matches', async () => {

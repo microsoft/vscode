@@ -83,6 +83,7 @@ export class MessageRenderer extends Disposable {
 	private readonly _altRetryContainer: HTMLElement;
 
 	private _activeProvider: string | undefined;
+	private _failedProvider: string | undefined;
 
 	private readonly _cancelButton: HTMLElement;
 
@@ -137,7 +138,7 @@ export class MessageRenderer extends Disposable {
 		dom.append(this._retryButton, renderIcon(Codicon.refresh));
 		dom.append(this._retryButton, dom.$('span', undefined, localize('retry', "Retry")));
 		this._register(dom.addDisposableListener(this._retryButton, dom.EventType.CLICK, () =>
-			this._onRetry({ failedProvider: this._activeProvider, preferredProvider: undefined })
+			this._onRetry({ failedProvider: this._failedProvider, preferredProvider: undefined })
 		));
 
 		this._altRetryContainer = dom.append(retryArea, dom.$('.message-renderer-alt-retry-container.hidden'));
@@ -310,6 +311,7 @@ export class MessageRenderer extends Disposable {
 
 		// Prefer the provider named in the event; fall back to the provider seen in message_start
 		const failedProvider = event.provider ?? this._activeProvider;
+		this._failedProvider = failedProvider;
 		if (failedProvider) {
 			const alt = this._alternatives.find(a => a.id === failedProvider);
 			this._errorProviderBadge.textContent = alt?.displayName ?? failedProvider;
