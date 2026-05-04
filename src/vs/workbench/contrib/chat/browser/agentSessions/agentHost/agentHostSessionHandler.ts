@@ -13,15 +13,17 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isLocation } from '../../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_ATTACHMENT_SELECTION_META_KEY, AgentProvider, AgentSession, type IAgentAttachmentSelectionMetadata, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -379,6 +381,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		this._config = config;
@@ -951,7 +954,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
-		const messageAttachments = this._convertVariablesToAttachments(request);
+		const messageAttachments = await this._convertVariablesToAttachments(request);
 
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
@@ -2396,26 +2399,67 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
-	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
+	private async _readSelectionAttachmentMetadata(uri: URI, range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }): Promise<IAgentAttachmentSelectionMetadata | undefined> {
+		try {
+			const ref = await this._textModelService.createModelReference(uri);
+			try {
+				const text = ref.object.textEditorModel.getValueInRange(range);
+				return {
+					text,
+					selection: {
+						start: { line: range.startLineNumber, character: range.startColumn },
+						end: { line: range.endLineNumber, character: range.endColumn },
+					},
+				};
+			} finally {
+				ref.dispose();
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Failed to read selected text for ${uri.toString()}: ${err}`);
+			return undefined;
+		}
+	}
+
+	private async _convertVariablesToAttachments(request: IChatAgentRequest): Promise<MessageAttachment[]> {
 		const attachments: MessageAttachment[] = [];
 		for (const v of request.variables.variables) {
-			if (v.kind === 'file') {
+			if (isLocation(v.value)) {
+				const uri = v.value.uri;
+				if (uri.scheme === 'file') {
+					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
+					const selectionMetadata = await this._readSelectionAttachmentMetadata(uri, v.value.range);
+					attachments.push({
+						type: MessageAttachmentKind.Resource,
+						uri: attachmentUri.toString(),
+						label: v.name,
+						displayKind: 'selection',
+						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
+					});
+				}
+			} else if (v.kind === 'file') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.File, uri: attachmentUri.toString(), displayName: v.name });
+					attachments.push({ type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label: v.name, displayKind: 'document' });
 				}
 			} else if (v.kind === 'directory') {
 				const uri = v.value instanceof URI ? v.value : undefined;
 				if (uri?.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.Directory, uri: attachmentUri.toString(), displayName: v.name });
+					attachments.push({ type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label: v.name, displayKind: 'directory' });
 				}
 			} else if (v.kind === 'implicit' && v.isSelection) {
 				const uri = v.uri;
 				if (uri?.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.Selection, uri: attachmentUri.toString(), displayName: v.name });
+					const selectionMetadata = isLocation(v.value) ? await this._readSelectionAttachmentMetadata(v.value.uri, v.value.range) : undefined;
+					attachments.push({
+						type: MessageAttachmentKind.Resource,
+						uri: attachmentUri.toString(),
+						label: v.name,
+						displayKind: 'selection',
+						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
+					});
 				}
 			}
 		}

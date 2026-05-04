@@ -19,7 +19,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, IAgentAttachment } from '../../common/agentService.js';
+import { AgentAttachmentType, AgentSignal, IAgentAttachment } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -512,7 +512,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = attachments?.map(a => {
 			const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
-			if (a.type === 'selection') {
+			if (a.type === AgentAttachmentType.Selection) {
 				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: a.text, selection: a.selection };
 			}
 			return { type: a.type, path, displayName: a.displayName };

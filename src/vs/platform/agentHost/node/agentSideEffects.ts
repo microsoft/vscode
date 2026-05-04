@@ -7,12 +7,12 @@ import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
-import { hasKey } from '../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AgentSignal, IAgent, IAgentAttachment, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AGENT_ATTACHMENT_SELECTION_META_KEY, AgentAttachmentType, AgentSignal, IAgent, IAgentAttachment, IAgentAttachmentSelectionMetadata, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
@@ -25,6 +25,8 @@ import {
 	ToolResultContentType,
 	buildSubagentSessionUri,
 	getToolFileEdits,
+	MessageAttachmentKind,
+	type MessageAttachment,
 	type SessionState,
 	type ToolResultContent,
 	type ISessionFileDiff,
@@ -58,6 +60,49 @@ export interface IAgentSideEffectsOptions {
 interface IPendingSubagentSignal {
 	readonly signal: AgentSignal;
 	readonly agent: IAgent;
+}
+
+function readSelectionMetadata(meta: Record<string, unknown> | undefined): IAgentAttachmentSelectionMetadata | undefined {
+	const value = meta?.[AGENT_ATTACHMENT_SELECTION_META_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as IAgentAttachmentSelectionMetadata;
+	const selection = candidate.selection;
+	if (selection && (
+		typeof selection.start?.line !== 'number'
+		|| typeof selection.start?.character !== 'number'
+		|| typeof selection.end?.line !== 'number'
+		|| typeof selection.end?.character !== 'number'
+	)) {
+		return undefined;
+	}
+	return {
+		text: typeof candidate.text === 'string' ? candidate.text : undefined,
+		selection,
+	};
+}
+
+function toAgentAttachment(attachment: MessageAttachment): IAgentAttachment | undefined {
+	if (attachment.type !== MessageAttachmentKind.Resource) {
+		return undefined;
+	}
+	const displayName = attachment.label;
+	const uri = URI.parse(attachment.uri);
+	if (attachment.displayKind === 'directory') {
+		return { type: AgentAttachmentType.Directory, uri, displayName };
+	}
+	if (attachment.displayKind === 'selection') {
+		const selectionMetadata = readSelectionMetadata(attachment._meta);
+		return {
+			type: AgentAttachmentType.Selection,
+			uri,
+			displayName,
+			text: selectionMetadata?.text,
+			selection: selectionMetadata?.selection,
+		};
+	}
+	return { type: AgentAttachmentType.File, uri, displayName };
 }
 
 /**
@@ -696,11 +741,7 @@ export class AgentSideEffects extends Disposable {
 					});
 					return;
 				}
-				const attachments = action.userMessage.attachments?.map((a): IAgentAttachment => ({
-					type: a.type,
-					uri: URI.parse(a.uri),
-					displayName: a.displayName,
-				}));
+				const attachments = action.userMessage.attachments?.map(toAgentAttachment).filter(isDefined);
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -931,11 +972,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
-			type: a.type,
-			uri: URI.parse(a.uri),
-			displayName: a.displayName,
-		}));
+		const attachments = msg.userMessage.attachments?.map(toAgentAttachment).filter(isDefined);
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({

@@ -580,6 +580,9 @@ export class ProtocolServerHandler extends Disposable {
 				query: params.query,
 			});
 		},
+		completions: async (_client, _params) => {
+			return { items: [] };
+		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);
 			if (!state) {
