@@ -11,7 +11,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISCMProvider, ISCMService } from '../../common/scm.js';
+import { ISCMProvider, ISCMRepositorySortKey, ISCMService } from '../../common/scm.js';
 import { SCMService } from '../../common/scmService.js';
 import { ISCMViewServiceState, SCMViewService } from '../../browser/scmViewService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -56,8 +56,9 @@ suite('SCMViewService - Visibility Persistence', () => {
 	const disposables = new DisposableStore();
 
 	function createViewServiceWithState(previousState?: ISCMViewServiceState): { viewService: SCMViewService; scmService: SCMService; storageService: TestStorageService } {
-		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		const storageService = disposables.add(new TestStorageService());
+		const serviceDisposables = new DisposableStore();
+		const instantiationService = workbenchInstantiationService(undefined, serviceDisposables);
+		const storageService = serviceDisposables.add(new TestStorageService());
 
 		if (previousState) {
 			storageService.store('scm:view:visibleRepositories', JSON.stringify(previousState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -76,13 +77,22 @@ suite('SCMViewService - Visibility Persistence', () => {
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		const contextKeyService = disposables.add(new MockContextKeyService());
+		const contextKeyService = serviceDisposables.add(new MockContextKeyService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const scmService = instantiationService.createInstance(SCMService);
+		serviceDisposables.add(scmService);
 		instantiationService.stub(ISCMService, scmService);
 
-		const viewService = disposables.add(instantiationService.createInstance(SCMViewService));
+		const viewService = instantiationService.createInstance(SCMViewService);
+
+		// Subscribe so that Event.debounce initializes its internal subscription,
+		// preventing a disposal error when the emitter is disposed without listeners.
+		serviceDisposables.add(viewService.onDidChangeVisibleRepositories(() => { }));
+
+		// Add viewService first so it is disposed before its dependencies
+		disposables.add(viewService);
+		disposables.add(serviceDisposables);
 
 		return { viewService, scmService, storageService };
 	}
@@ -103,7 +113,7 @@ suite('SCMViewService - Visibility Persistence', () => {
 				getProviderStorageKey(provider3)
 			],
 			visible: [0, 2], // repo1 and repo3 are visible, repo2 is hidden
-			sortKey: 'discoveryTime' as any
+			sortKey: ISCMRepositorySortKey.DiscoveryTime
 		};
 
 		const { viewService, scmService } = createViewServiceWithState(previousState);
@@ -139,7 +149,7 @@ suite('SCMViewService - Visibility Persistence', () => {
 				getProviderStorageKey(provider3)
 			],
 			visible: [0, 2], // repo1 and repo3 are visible, repo2 is hidden
-			sortKey: 'discoveryTime' as any
+			sortKey: ISCMRepositorySortKey.DiscoveryTime
 		};
 
 		const { viewService, scmService } = createViewServiceWithState(previousState);
@@ -173,7 +183,7 @@ suite('SCMViewService - Visibility Persistence', () => {
 				getProviderStorageKey(provider3)
 			],
 			visible: [0, 2],
-			sortKey: 'discoveryTime' as any
+			sortKey: ISCMRepositorySortKey.DiscoveryTime
 		};
 
 		const { viewService, scmService } = createViewServiceWithState(previousState);
@@ -200,7 +210,7 @@ suite('SCMViewService - Visibility Persistence', () => {
 				getProviderStorageKey(provider3)
 			],
 			visible: [0, 2],
-			sortKey: 'discoveryTime' as any
+			sortKey: ISCMRepositorySortKey.DiscoveryTime
 		};
 
 		const { viewService, scmService } = createViewServiceWithState(previousState);
@@ -215,5 +225,42 @@ suite('SCMViewService - Visibility Persistence', () => {
 		assert.ok(visibleUris.includes(provider1.rootUri!.toString()), 'repo1 should be visible');
 		assert.ok(!visibleUris.includes(provider2.rootUri!.toString()), 'repo2 should be hidden');
 		assert.ok(visibleUris.includes(provider3.rootUri!.toString()), 'repo3 should be visible');
+	});
+
+	test('new repo registered before known repos remains visible after restoration', () => {
+		const provider1 = createMockProvider('1', URI.file('/repo1'));
+		const provider2 = createMockProvider('2', URI.file('/repo2'));
+		const provider3 = createMockProvider('3', URI.file('/repo3'));
+
+		const previousState: ISCMViewServiceState = {
+			all: [
+				getProviderStorageKey(provider1),
+				getProviderStorageKey(provider2),
+				getProviderStorageKey(provider3)
+			],
+			visible: [0, 2],
+			sortKey: ISCMRepositorySortKey.DiscoveryTime
+		};
+
+		const { viewService, scmService } = createViewServiceWithState(previousState);
+
+		// Register a NEW repo (not in previousState) BEFORE the known repos
+		const provider4 = createMockProvider('4', URI.file('/repo4'));
+		disposables.add(scmService.registerSCMProvider(provider4));
+
+		// Then register the known repos
+		disposables.add(scmService.registerSCMProvider(provider1));
+		disposables.add(scmService.registerSCMProvider(provider2));
+		disposables.add(scmService.registerSCMProvider(provider3));
+
+		// provider4 (new) should remain visible even though it registered first
+		assert.deepStrictEqual(
+			viewService.visibleRepositories.map(r => r.provider.rootUri?.toString()).sort(),
+			[
+				provider1.rootUri!.toString(),
+				provider3.rootUri!.toString(),
+				provider4.rootUri!.toString()
+			].sort()
+		);
 	});
 });

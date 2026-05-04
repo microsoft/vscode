@@ -242,7 +242,7 @@ export class SCMViewService implements ISCMViewService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		this.menus = instantiationService.createInstance(SCMMenus);
+		this.menus = this.disposables.add(instantiationService.createInstance(SCMMenus));
 
 		const explorerEnabledConfig = observableConfigValue<boolean>('scm.repositories.explorer', false, this.configurationService);
 		this.graphShowIncomingChangesConfig = observableConfigValue<boolean>('scm.graph.showIncomingChanges', true, this.configurationService);
@@ -372,8 +372,9 @@ export class SCMViewService implements ISCMViewService {
 
 			if (index === -1) {
 				// This repository is not part of the previous state which means
-				// it was added after the previous session. Add it as visible
-				// without changing the visibility of existing repositories.
+				// it was added after the previous session. In multi-select mode
+				// (or if no repository is selected yet), add it as visible. In
+				// single-select mode with a selection, add it but not visible.
 				if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
 					const maxSelectionIndex = this.getMaxSelectionIndex();
 					this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
@@ -398,8 +399,11 @@ export class SCMViewService implements ISCMViewService {
 				if (!this.didSelectRepository) {
 					removed = [...this.visibleRepositories];
 					this._repositories.forEach(r => {
-						r.focused = false;
-						r.selectionIndex = -1;
+						// Preserve visibility of repos not in previousState (new repos)
+						if (this.previousState!.all.indexOf(getProviderStorageKey(r.repository.provider)) !== -1) {
+							r.focused = false;
+							r.selectionIndex = -1;
+						}
 					});
 
 					this.didSelectRepository = true;
