@@ -955,6 +955,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const messageAttachments = await this._convertVariablesToAttachments(request);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
