@@ -281,6 +281,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _titleFileWidgetStore = this._register(new DisposableStore());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -2087,10 +2088,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 
 		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(title));
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 		this._titleDetailRendered.value = result;
 
 		if (this.titleDetailContainer) {

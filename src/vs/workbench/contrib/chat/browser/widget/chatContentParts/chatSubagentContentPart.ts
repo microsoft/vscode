@@ -132,6 +132,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _titleFileWidgetStore = this._register(new DisposableStore());
 
 	/**
 	 * Check if a tool invocation is the parent subagent tool (the tool that spawns a subagent).
@@ -517,6 +518,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
+		this._titleFileWidgetStore.clear();
 
 		if (!toolCallText) {
 			if (this.titleDetailContainer) {
@@ -526,7 +528,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		} else {
 			const result = this.chatContentMarkdownRenderer.render(new MarkdownString(toolCallText));
 			result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 			this._titleDetailRendered.value = result;
 
 			if (this.titleDetailContainer) {
