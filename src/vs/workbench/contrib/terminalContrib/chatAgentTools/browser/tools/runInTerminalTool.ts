@@ -1570,7 +1570,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Register a listener to notify the agent when commands complete in this
 				// background terminal, and continue the output monitor for prompt-for-input detection.
 				if (shouldSendNotifications) {
-					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
+					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, commandLineForMetadata || command, outputMonitor);
 				} else {
 					outputMonitor?.dispose();
 				}
