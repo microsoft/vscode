@@ -294,8 +294,8 @@ class MobileChatInputConfigPicker extends Disposable {
 			return undefined;
 		}
 		const remembered = this._storageService.get(MODEL_STORAGE_KEY, StorageScope.PROFILE);
-		const resolved = (remembered && ctx.modelItems.find(m => m.identifier === remembered))
-			?? ctx.modelItems[0];
+		const rememberedModel = remembered ? ctx.modelItems.find(m => m.identifier === remembered) : undefined;
+		const resolved = rememberedModel ?? ctx.modelItems[0];
 		ctx.provider.setModel(ctx.session.sessionId, resolved.identifier);
 		return resolved.identifier;
 	}

@@ -48,6 +48,7 @@
 	height: 36px;
 	min-width: 36px;
 	border-radius: 50%;
+	margin-bottom: 18px;
 }
 
 /* The active-state pulse pseudo-element in `chatInput.css` uses
@@ -79,5 +80,5 @@
  * any phone scope; we want this *only* on the larger phone circle. */
 .monaco-workbench.web.agent-sessions-workbench.phone-layout .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench.web.agent-sessions-workbench.phone-layout .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	margin-top: 8px;
+	margin-top: 10px;
 }
