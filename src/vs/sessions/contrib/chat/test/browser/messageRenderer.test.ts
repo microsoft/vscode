@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MessageRenderer } from '../../browser/messageRenderer.js';
+import { MessageRenderer, RetryContext } from '../../browser/messageRenderer.js';
 import { AgentEvent } from '../../../../common/agentEvents.js';
 
 async function* makeStream(events: AgentEvent[]): AsyncIterable<AgentEvent> {
@@ -21,11 +21,13 @@ suite('MessageRenderer', () => {
 	let container: HTMLElement;
 	let retryCount: number;
 	let cancelCount: number;
+	let lastRetryContext: RetryContext | undefined;
 
 	setup(() => {
 		container = document.createElement('div');
 		retryCount = 0;
 		cancelCount = 0;
+		lastRetryContext = undefined;
 	});
 
 	teardown(() => {
@@ -37,7 +39,7 @@ suite('MessageRenderer', () => {
 	function makeRenderer(): MessageRenderer {
 		return store.add(new MessageRenderer(
 			container,
-			() => { retryCount++; },
+			(ctx) => { retryCount++; lastRetryContext = ctx; },
 			() => { cancelCount++; },
 		));
 	}
@@ -260,5 +262,56 @@ suite('MessageRenderer', () => {
 				{ name: 'read_file', args: '{"path":"/f"}', done: true },
 			],
 		);
+	});
+
+	test('retry callback receives failedProvider from message_start', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'copilot', model: 'claude-sonnet' },
+			{ type: 'error', code: 'rate_limit', message: 'Rate limit exceeded', retryable: true },
+		]);
+
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'copilot' });
+	});
+
+	test('retry context uses provider field on error event when present', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'message_start', requestId: 'r1', provider: 'anthropic-oauth', model: 'claude-opus-4-7' },
+			// Error carries its own provider (e.g. adapter surfacing a different provider ID)
+			{ type: 'error', code: 'auth_failed', message: 'Token expired', retryable: true, provider: 'copilot' },
+		]);
+
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: 'copilot' });
+	});
+
+	test('retry context has undefined failedProvider when no message_start preceded the error', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'error', code: 'send_failed', message: 'Connection refused', retryable: true },
+		]);
+
+		const retryBtn = container.querySelector<HTMLButtonElement>('.message-renderer-retry-button');
+		retryBtn!.click();
+
+		assert.deepStrictEqual(lastRetryContext, { failedProvider: undefined });
+	});
+
+	test('error section shows provider-less message when no provider known', async () => {
+		const renderer = makeRenderer();
+		await renderStream(renderer, [
+			{ type: 'error', code: 'send_failed', message: 'Network error', retryable: true },
+		]);
+
+		const errorSection = container.querySelector('.message-renderer-error');
+		const msg = errorSection!.querySelector('.message-renderer-error-message');
+		assert.strictEqual(msg!.textContent, 'Network error');
+		assert.ok(!errorSection!.classList.contains('hidden'), 'error section visible');
 	});
 });

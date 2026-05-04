@@ -27,6 +27,15 @@ interface ActiveToolCard {
 }
 
 /**
+ * Context passed to the `onRetry` callback so the caller can route the retry
+ * to a fallback provider (Sprint 3 §10.1) rather than the provider that failed.
+ */
+export interface RetryContext {
+	/** Provider ID that was active when the error occurred, if known. */
+	readonly failedProvider: string | undefined;
+}
+
+/**
  * Renders a streaming AgentEvent sequence into a DOM container.
  *
  * Each instance corresponds to a single assistant turn. Create once,
@@ -54,6 +63,10 @@ export class MessageRenderer extends Disposable {
 
 	private readonly _errorSection: HTMLElement;
 	private readonly _errorMessage: HTMLElement;
+	private readonly _retryButton: HTMLElement;
+
+	private _activeProvider: string | undefined;
+	private _retryContext: RetryContext = { failedProvider: undefined };
 
 	private readonly _cancelButton: HTMLElement;
 
@@ -62,12 +75,13 @@ export class MessageRenderer extends Disposable {
 
 	/**
 	 * @param _container The element to render into.
-	 * @param _onRetry Called when the user clicks "Retry" on an error.
+	 * @param _onRetry Called when the user clicks "Retry" on an error. Receives context
+	 *   including the provider that failed so the caller can route to a fallback.
 	 * @param _onCancel Called when the user clicks the Cancel button.
 	 */
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _onRetry: () => void,
+		private readonly _onRetry: (ctx: RetryContext) => void,
 		private readonly _onCancel: () => void,
 	) {
 		super();
@@ -94,10 +108,10 @@ export class MessageRenderer extends Disposable {
 		// Error section — hidden until we receive an error event
 		this._errorSection = dom.append(_container, dom.$('.message-renderer-error.hidden'));
 		this._errorMessage = dom.append(this._errorSection, dom.$('span.message-renderer-error-message'));
-		const retryButton = dom.append(this._errorSection, dom.$('button.message-renderer-retry-button'));
-		dom.append(retryButton, renderIcon(Codicon.refresh));
-		dom.append(retryButton, dom.$('span', undefined, localize('retry', "Retry")));
-		this._register(dom.addDisposableListener(retryButton, dom.EventType.CLICK, () => this._onRetry()));
+		this._retryButton = dom.append(this._errorSection, dom.$('button.message-renderer-retry-button'));
+		dom.append(this._retryButton, renderIcon(Codicon.refresh));
+		dom.append(this._retryButton, dom.$('span', undefined, localize('retry', "Retry")));
+		this._register(dom.addDisposableListener(this._retryButton, dom.EventType.CLICK, () => this._onRetry(this._retryContext)));
 
 		// Cancel button — shown while streaming
 		this._cancelButton = dom.append(_container, dom.$('button.message-renderer-cancel.hidden'));
@@ -149,6 +163,9 @@ export class MessageRenderer extends Disposable {
 
 	private _dispatch(event: AgentEvent): void {
 		switch (event.type) {
+			case 'message_start':
+				this._activeProvider = event.provider;
+				break;
 			case 'text_delta':
 				this._appendText(event.text);
 				break;
@@ -170,7 +187,7 @@ export class MessageRenderer extends Disposable {
 			case 'error':
 				this._showError(event);
 				break;
-			// message_start and message_stop need no visual action beyond lifecycle
+			// message_stop needs no visual action beyond lifecycle
 		}
 	}
 
@@ -261,10 +278,10 @@ export class MessageRenderer extends Disposable {
 	private _showError(event: ErrorEvent): void {
 		this._errorSection.classList.remove('hidden');
 		this._errorMessage.textContent = event.message;
+		// Prefer the provider named in the event; fall back to the provider seen in message_start
+		this._retryContext = { failedProvider: event.provider ?? this._activeProvider };
 		if (!event.retryable) {
-			// Hide retry button for non-retryable errors
-			const retryBtn = this._errorSection.querySelector<HTMLElement>('.message-renderer-retry-button');
-			retryBtn?.classList.add('hidden');
+			this._retryButton.classList.add('hidden');
 		}
 	}
 
