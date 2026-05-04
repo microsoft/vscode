@@ -311,6 +311,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
+		// In scenario automation we have already seeded `_githubToken` from
+		// `GITHUB_OAUTH_TOKEN` in the environment, so the renderer must not
+		// drive an interactive sign-in for this resource (which would surface
+		// a device-code modal and trip the harness's `X_BLOCKING_UI_ERROR`).
+		// Hide the resource entirely; the in-process token is sufficient to
+		// start the SDK client.
+		if (process.env.IS_SCENARIO_AUTOMATION === '1' && this._githubToken) {
+			return [];
+		}
 		return [GITHUB_COPILOT_PROTECTED_RESOURCE];
 	}
 
