@@ -26,10 +26,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Depth 2 gives us the test-merge commit plus its parents, which is
-          # enough for the merge-base lookup below (the target-branch tip is a
-          # direct parent). Full clone would be wasteful for this large repo.
-          fetch-depth: 2
+          # Need enough history for the merge-base lookup below to succeed even
+          # when the target branch has advanced since the PR was opened. Full
+          # clone would be wasteful for this large repo, so cap at 50.
+          fetch-depth: 50
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -63,7 +63,8 @@ jobs:
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
-      - name: Log fixture errors
+      - name: Check fixture errors
+        id: fixture_errors
         if: always()
         run: |
           MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
@@ -71,7 +72,11 @@ jobs:
             echo "::warning::No manifest found — render may have failed entirely"
             exit 0
           fi
-          ERRORS=$(node -e "
+          # Log per-fixture errors but do not fail here — let later steps run
+          # (artifact upload, diff, PR comment) so failures are debuggable.
+          # The final "Fail if fixtures had errors" step turns this into a
+          # job failure.
+          if node -e "
             const m = require('./$MANIFEST');
             const errs = m.fixtures.filter(f => f.hasError);
             if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
@@ -84,8 +89,12 @@ jobs:
                 for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
               }
             }
-          ")
-          echo "$ERRORS"
+            process.exit(1);
+          "; then
+            echo "has_errors=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_errors=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check blocks-ci screenshots
         id: blocks-ci
@@ -127,7 +136,7 @@ jobs:
             # the target-branch tip at PR creation time and can be stale,
             # causing unrelated target-branch commits to show up as diffs.
             TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+            git fetch --no-tags --depth=50 origin "${{ github.event.pull_request.base.ref }}"
             BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
           else
             # For push events, diff against the parent commit.
@@ -317,6 +326,12 @@ jobs:
           echo ""
           echo "Diff between committed and expected blocks-ci-screenshots.md:"
           diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true
+          exit 1
+
+      - name: Fail if fixtures had errors
+        if: always() && steps.fixture_errors.outputs.has_errors == 'true'
+        run: |
+          echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
 
       # - name: Prepare explorer artifact
