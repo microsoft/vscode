@@ -1587,7 +1587,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Register a listener to notify the agent when commands complete in this
 				// background terminal, and continue the output monitor for prompt-for-input detection.
 				if (shouldSendNotifications) {
-					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
+					// If the foreground tool just returned via the inputNeeded race, the
+					// agent has already received `terminalResult` as the tool result. Seed
+					// the BG dedup so the OutputMonitor's immediate re-detection of the
+					// same prompt does not send a redundant steering message that would
+					// yield the agent's in-flight `send_to_terminal` response.
+					const alreadyNotifiedInputNeededOutput = didInputNeeded ? terminalResult : undefined;
+					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor, alreadyNotifiedInputNeededOutput);
 				} else {
 					outputMonitor?.dispose();
 				}
@@ -2152,7 +2158,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
 		// Dispose any previous background notification for this terminal instance to prevent
 		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
 		// foreground terminal is reused across run_in_terminal invocations.
@@ -2225,8 +2231,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (outputMonitor) {
-			let lastInputNeededOutput = '';
-			let lastInputNeededNotificationTime = 0;
+			// Seed dedup state so that if this BG monitor was started right after the
+			// foreground tool returned via the `inputNeeded` race, the immediate
+			// re-detection of the same prompt does not produce a redundant steering
+			// message. The agent has already received that output as the tool result
+			// and is in the middle of producing a `send_to_terminal` response —
+			// firing a steering message here would set `yieldRequested` and abort
+			// that in-flight response, leaving the terminal hung at the prompt.
+			// Subsequent firings require new terminal data and therefore a different
+			// `currentOutput`, so they will pass the dedup check normally.
+			let lastInputNeededOutput = alreadyNotifiedInputNeededOutput ?? '';
+			let lastInputNeededNotificationTime = alreadyNotifiedInputNeededOutput !== undefined ? Date.now() : 0;
 			const bgCts = new CancellationTokenSource();
 			store.add(toDisposable(() => {
 				// Cancel before dispose so that onCancellationRequested handlers fire
