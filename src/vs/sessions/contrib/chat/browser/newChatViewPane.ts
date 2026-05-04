@@ -65,8 +65,9 @@ import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
-import { MessageRenderer } from './messageRenderer.js';
+import { MessageRenderer, RetryContext } from './messageRenderer.js';
 import { AgentEvent } from '../../../common/agentEvents.js';
+import { DEFAULT_PROVIDER_CATALOGUE } from '../../routing/common/routingConfig.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -134,7 +135,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _sending = false;
 	private _altKeyDown = false;
 
-	// Streaming response area (§7.3 of AGENTIC_PLATFORM_PLAN.md)
+	// Streaming response area (section 7.3 of AGENTIC_PLATFORM_PLAN.md)
 	private _responseContainer: HTMLElement | undefined;
 	private readonly _activeRenderer = this._register(new MutableDisposable<MessageRenderer>());
 	private _streamAbortController: AbortController | undefined;
@@ -1040,7 +1041,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._contextAttachments.clear();
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
-			this._hideResponseContainer();
+			// Show the error inline rather than silently hiding the response container (F-16).
+			const msg = getErrorMessage(e);
+			const errorStream = (async function* (): AsyncIterable<AgentEvent> {
+				yield { type: 'error', code: 'send_failed', message: msg, retryable: true };
+			})();
+			this._startStreaming(errorStream, new AbortController().signal);
 		}
 
 		this._sending = false;
@@ -1065,10 +1071,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
+		const alternatives = DEFAULT_PROVIDER_CATALOGUE.map(p => ({ id: p.id, displayName: p.displayName }));
+
 		const renderer = this._activeRenderer.value = new MessageRenderer(
 			this._responseContainer,
-			() => {
-				// Retry: clear the response area and re-send
+			(_ctx: RetryContext) => {
 				this._hideResponseContainer();
 				this._send();
 			},
@@ -1076,6 +1083,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._streamAbortController?.abort();
 				this._hideResponseContainer();
 			},
+			alternatives,
 		);
 
 		renderer.render(stream, signal);

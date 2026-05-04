@@ -602,7 +602,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 - [x] **Per-agent provider selection UI** (§9.3) with `.son-of-anton/routing.json`.
 - [x] **Multi-session UI** (§9.6, F-14). Sessions list, nesting, parallel execution. _(partial: live sessions list with parent/child nesting and non-disruptive switching landed; per-row "last message preview" relies on the existing description field from agent providers, and orchestrator-emitted parentSessionResource metadata wiring is the F-23 follow-up.)_
 - [x] **Cost / quota panel** (§9.4, F-15).
-- [ ] **Error UX** (§9.10, F-16). Inline errors with retry-on-other-provider.
+- [x] **Error UX** (§9.10, F-16). Inline errors with retry-on-other-provider.
 
 **Demo:** "Run a code review on Claude Pro and a test-writing task on Copilot at the same time; watch them complete independently."
 

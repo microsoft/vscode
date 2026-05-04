@@ -13,7 +13,7 @@
 	color: var(--vscode-editor-foreground);
 }
 
-/* ── Thinking panel ──────────────────────────────────────────────────────── */
+/* Thinking panel */
 
 .message-renderer-thinking {
 	display: none;
@@ -66,7 +66,7 @@
 	display: block;
 }
 
-/* ── Main text ───────────────────────────────────────────────────────────── */
+/* Main text */
 
 .message-renderer-text {
 	white-space: pre-wrap;
@@ -74,7 +74,8 @@
 }
 
 .message-renderer.streaming .message-renderer-text::after {
-	content: '▋';
+	/* allow-any-unicode-next-line */
+	content: '\25CB';
 	display: inline-block;
 	animation: blink 1s step-end infinite;
 	color: var(--vscode-editor-foreground);
@@ -86,7 +87,7 @@
 	50% { opacity: 0; }
 }
 
-/* ── Tool call cards ─────────────────────────────────────────────────────── */
+/* Tool call cards */
 
 .message-renderer-tools {
 	display: flex;
@@ -117,7 +118,7 @@
 
 .message-renderer-tool-name {
 	font-weight: 600;
-	font-family: var(--vscode-editor-font-family);
+	font-family: var(--monaco-monospace-font);
 }
 
 .message-renderer-tool-status {
@@ -134,7 +135,7 @@
 .message-renderer-tool-args {
 	margin: 0;
 	padding: 6px 8px;
-	font-family: var(--vscode-editor-font-family);
+	font-family: var(--monaco-monospace-font);
 	font-size: 12px;
 	white-space: pre-wrap;
 	word-break: break-all;
@@ -142,19 +143,19 @@
 	overflow-y: auto;
 }
 
-/* ── Usage chip ──────────────────────────────────────────────────────────── */
+/* Usage chip */
 
 .message-renderer-usage {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 }
 
-/* ── Error section ───────────────────────────────────────────────────────── */
+/* Error section */
 
 .message-renderer-error {
 	display: flex;
-	align-items: center;
-	gap: 8px;
+	flex-direction: column;
+	gap: 6px;
 	padding: 6px 8px;
 	border-radius: 4px;
 	background: var(--vscode-inputValidation-errorBackground);
@@ -162,9 +163,42 @@
 	font-size: 12px;
 }
 
+.message-renderer-error-header {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.message-renderer-error-provider {
+	flex-shrink: 0;
+	padding: 1px 5px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
 .message-renderer-error-message {
 	flex: 1;
 	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.message-renderer-retry-area {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.message-renderer-alt-retry-container {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
 }
 
 .message-renderer-retry-button {
@@ -185,7 +219,11 @@
 	background: var(--vscode-button-secondaryHoverBackground);
 }
 
-/* ── Cancel button ───────────────────────────────────────────────────────── */
+.message-renderer-retry-alt {
+	opacity: 0.85;
+}
+
+/* Cancel button */
 
 .message-renderer-cancel {
 	display: flex;
@@ -206,7 +244,7 @@
 	border-color: var(--vscode-focusBorder);
 }
 
-/* ── Chat widget response container ─────────────────────────────────────── */
+/* Chat widget response container */
 
 .sessions-chat-response-container {
 	padding: 12px 16px;
@@ -214,7 +252,7 @@
 	overflow-y: auto;
 }
 
-/* ── Utility ─────────────────────────────────────────────────────────────── */
+/* Utility */
 
 .hidden {
 	display: none !important;
