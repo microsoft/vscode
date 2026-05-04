@@ -109,7 +109,20 @@ import './fixtures.css';
 
 // Import color registrations to ensure colors are available
 import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
-import { AsyncSchedulerProcessor, TimeTravelScheduler, captureGlobalTimeApi, createLoggingTimeApi, createVirtualTimeApi, pushGlobalTimeApi } from '../../../../base/test/common/timeTravelScheduler.js';
+import { buildHistoryFromTasks, renderSwimlanes } from '../../../../base/test/common/executionGraph.js';
+import {
+	captureGlobalTimeApi,
+	createLoggingTimeApi,
+	createTraceRoot,
+	createVirtualTimeApi,
+	drainMicrotasksEmbedding,
+	nextMacrotask,
+	pushGlobalTimeApi,
+	TraceContext,
+	untilTime,
+	VirtualClock,
+	VirtualTimeProcessor,
+} from '../../../../base/test/common/virtualScheduling/index.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
@@ -243,7 +256,6 @@ import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
-import { createTraceRoot, TraceContext } from '../../../../base/test/common/traceableTimeApi.js';
 /* eslint-enable local/code-import-patterns */
 
 const themeJsonModules: Record<string, string> = {
@@ -789,15 +801,17 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 			async function actualRender() {
 				const schedulerStore = disposableStore.add(new DisposableStore());
-				const scheduler = new TimeTravelScheduler(Date.now());
-				const p = schedulerStore.add(new AsyncSchedulerProcessor(scheduler, {
-					maxTaskCount: 100,
+				const clock = new VirtualClock(Date.now());
+				const p = schedulerStore.add(new VirtualTimeProcessor(
+					clock,
+					drainMicrotasksEmbedding(realTimeApi),
 					realTimeApi,
-				}));
+					{ defaultMaxEvents: 100 },
+				));
 
 				await setupTheme(container, theme);
 
-				const virtualTimeApi = createVirtualTimeApi(scheduler, { fakeRequestAnimationFrame: true });
+				const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 
 				if (virtualTimeEnabled) {
 					schedulerStore.add(pushGlobalTimeApi(virtualTimeApi));
@@ -805,8 +819,8 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
 						const stackTrace = new Error().stack;
 						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
-						return scheduler.schedule({
-							time: scheduler.now,
+						return clock.schedule({
+							time: clock.now,
 							run: () => {
 								const deadline: IdleDeadline = {
 									didTimeout: true,
@@ -827,28 +841,26 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					const result = options.render({ container, disposableStore, theme });
 
 					const p2 = virtualTimeEnabled
-						? p.run({ virtualDeadline: scheduler.now + (options.virtualTime?.durationMs ?? 1000), maxTasks: 100, maxTaskDepth: 5 })
+						? p.run({
+							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
+							maxEvents: 200,
+							maxTraceDepth: 5,
+						})
 						: Promise.resolve();
 
 					await Promise.all([
 						result instanceof Promise ? result : Promise.resolve(),
 						p2,
 					]);
-				} finally {
+				} catch (e) {
 					if (virtualTimeEnabled && p.history.length > 0) {
-						// TODO
-						// const startTime = p.history[0].time;
-						// const history = buildHistoryFromTasks(p.history, startTime);
-						// console.log(`[ComponentFixture] ${themeLabel} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
+						const startTime = p.history[0].time;
+						const history = buildHistoryFromTasks(p.history, startTime);
+						console.error(`[ComponentFixture] ${theme === darkTheme ? 'Dark' : 'Light'} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
 					}
+					throw e;
+				} finally {
 					schedulerStore.dispose();
-				}
-
-				const drain = false;
-				if (drain) {
-					disposableStore.add(toDisposable(() => {
-						p.run({ maxTasks: 100, maxTaskDepth: 5 });
-					}));
 				}
 			}
 
@@ -859,7 +871,10 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			const themeLabel = theme === darkTheme ? 'Dark' : 'Light';
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
-			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, realTimeApi);
+			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+				// Trace-reset escapes virtual time so it actually fires.
+				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+			});
 		},
 	});
 
