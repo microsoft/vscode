@@ -2497,8 +2497,24 @@ suite('AgentHostChatContribution', () => {
 		test('rebases file/directory/selection attachments under requested working dir onto resolved working dir', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const requestedDir = URI.file('/source');
 			const resolvedDir = URI.file('/worktree');
+			const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
+			const openedModelReferences: URI[] = [];
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				workingDirectoryResolver: { resolve: () => requestedDir },
+				textModelServiceOverride: {
+					createModelReference: async (resource: URI): Promise<IReference<IResolvedTextEditorModel>> => {
+						openedModelReferences.push(resource);
+						const resolvedModel = upcastPartial<IResolvedTextEditorModel>({
+							textEditorModel: upcastPartial<ITextModel>({
+								getValueInRange: () => resource.toString() === expectedSelectionUri.toString() ? 'worktree selected text' : 'source selected text',
+							}),
+						});
+						return upcastPartial<IReference<IResolvedTextEditorModel>>({
+							object: resolvedModel,
+							dispose: () => { },
+						});
+					},
+				},
 			});
 			agentHostService.nextResolvedWorkingDirectory = resolvedDir;
 
@@ -2531,12 +2547,12 @@ suite('AgentHostChatContribution', () => {
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
 				{
 					type: MessageAttachmentKind.Resource,
-					uri: URI.file('/worktree/sub/foo.ts').toString(),
+					uri: expectedSelectionUri.toString(),
 					label: 'selection',
 					displayKind: 'selection',
 					_meta: {
 						[AGENT_ATTACHMENT_SELECTION_META_KEY]: {
-							text: 'selected text',
+							text: 'worktree selected text',
 							selection: {
 								start: { line: 2, character: 3 },
 								end: { line: 4, character: 5 },
@@ -2545,6 +2561,7 @@ suite('AgentHostChatContribution', () => {
 					},
 				},
 			]);
+			assert.deepStrictEqual(openedModelReferences.map(uri => uri.toString()), [expectedSelectionUri.toString()]);
 		}));
 
 		test('does not rebase when requested and resolved working dirs match', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

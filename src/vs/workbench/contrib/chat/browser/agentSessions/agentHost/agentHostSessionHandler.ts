@@ -2430,7 +2430,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const uri = v.value.uri;
 				if (uri.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					const selectionMetadata = await this._readSelectionAttachmentMetadata(uri, v.value.range);
+					const selectionMetadata = await this._readSelectionAttachmentMetadata(attachmentUri, v.value.range);
 					attachments.push({
 						type: MessageAttachmentKind.Resource,
 						uri: attachmentUri.toString(),
@@ -2443,7 +2443,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const uri = v.value.uri;
 				if (uri.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					const selectionMetadata = await this._readSelectionAttachmentMetadata(uri, v.value.range);
+					const selectionMetadata = await this._readSelectionAttachmentMetadata(attachmentUri, v.value.range);
 					attachments.push({
 						type: MessageAttachmentKind.Resource,
 						uri: attachmentUri.toString(),
