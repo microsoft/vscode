@@ -5,15 +5,20 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { RemoteAgentHostProtocolClient, RemoteAgentHostProtocolError } from '../../browser/remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
+import { IAgentHostPermissionService } from '../../common/agentHostPermissionService.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { ContentEncoding } from '../../common/state/protocol/commands.js';
+import { ActionType, type SessionActiveClientChangedAction } from '../../common/state/sessionActions.js';
+import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
@@ -58,9 +63,23 @@ class CloseOnDisposeProtocolTransport extends TestProtocolTransport {
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createClient(transport = disposables.add(new TestProtocolTransport())): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
+	function createPermissionService(allow = true): IAgentHostPermissionService {
+		const empty = observableValue<readonly never[]>('test', []);
+		return {
+			_serviceBrand: undefined,
+			check: async () => allow,
+			request: async () => { /* auto-allow */ },
+			pendingFor: () => empty,
+			allPending: empty,
+			findPending: () => undefined,
+			grantImplicitRead: () => Disposable.None,
+			connectionClosed: () => { },
+		};
+	}
+
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService()): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, new NullLogService(), fileService));
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, new NullLogService(), fileService, permissionService));
 		return { client, transport };
 	}
 
@@ -69,8 +88,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 			await promise;
 			assert.fail('Expected promise to reject');
 		} catch (error) {
-			if (!(error instanceof RemoteAgentHostProtocolError)) {
-				assert.fail(`Expected RemoteAgentHostProtocolError, got ${String(error)}`);
+			if (!(error instanceof ProtocolError)) {
+				assert.fail(`Expected ProtocolError, got ${String(error)}`);
 			}
 			assert.strictEqual(error.code, expected.code);
 			assert.strictEqual(error.message, expected.message);
@@ -226,5 +245,254 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' });
+	});
+
+	suite('reverse permission gating', () => {
+
+		test('resourceRead is denied with PermissionDeniedErrorData when not granted', async () => {
+			const { transport } = createClient(undefined, createPermissionService(false));
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 42, method: 'resourceRead', params: { uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 42,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: `Access to ${uri} is not granted.`,
+					data: { request: { uri, read: true } },
+				},
+			});
+		});
+
+		test('resourceWrite is denied with PermissionDeniedErrorData when not granted', async () => {
+			const { transport } = createClient(undefined, createPermissionService(false));
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 7, method: 'resourceWrite', params: { uri, data: 'aGVsbG8=', encoding: ContentEncoding.Base64 } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 7,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: `Access to ${uri} is not granted.`,
+					data: { request: { uri, write: true } },
+				},
+			});
+		});
+
+		test('resourceList is denied with PermissionDeniedErrorData when not granted', async () => {
+			const { transport } = createClient(undefined, createPermissionService(false));
+			const uri = URI.file('/etc').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 5, method: 'resourceList', params: { uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 5,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: `Access to ${uri} is not granted.`,
+					data: { request: { uri, read: true } },
+				},
+			});
+		});
+
+		test('resourceDelete is denied with PermissionDeniedErrorData when not granted', async () => {
+			const { transport } = createClient(undefined, createPermissionService(false));
+			const uri = URI.file('/etc/passwd').toString();
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 8, method: 'resourceDelete', params: { uri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 8,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: `Access to ${uri} is not granted.`,
+					data: { request: { uri, write: true } },
+				},
+			});
+		});
+
+		test('resourceMove is denied when destination lacks write access', async () => {
+			const sourceUri = URI.file('/grant/foo').toString();
+			const destUri = URI.file('/no-grant/bar').toString();
+			const stub: ReturnType<typeof createPermissionService> = {
+				...createPermissionService(false),
+				check: async (_addr, uri) => uri.toString() === sourceUri,
+			};
+			const { transport } = createClient(undefined, stub);
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 9, method: 'resourceMove', params: { source: sourceUri, destination: destUri } });
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 9,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: `Access to ${destUri} is not granted.`,
+					data: { request: { uri: destUri, write: true } },
+				},
+			});
+		});
+
+		test('reverse resourceRequest delegates to permission service and replies with empty result', async () => {
+			let lastRequest: { address: string; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
+			const stub: ReturnType<typeof createPermissionService> = {
+				...createPermissionService(false),
+				request: async (address, params) => { lastRequest = { address, params }; },
+			};
+			const { transport } = createClient(undefined, stub);
+
+			const uri = URI.file('/etc/foo').toString();
+			transport.fireMessage({ jsonrpc: '2.0', id: 11, method: 'resourceRequest', params: { uri, read: true } });
+
+			// Allow the awaited request promise to resolve.
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(lastRequest, { address: 'test.example:1234', params: { uri, read: true } });
+			assert.deepStrictEqual(transport.sentMessages.pop(), { jsonrpc: '2.0', id: 11, result: {} });
+		});
+
+		test('reverse resourceRequest replies with PermissionDenied on cancellation', async () => {
+			const stub: ReturnType<typeof createPermissionService> = {
+				...createPermissionService(false),
+				request: async () => { throw new CancellationError(); },
+			};
+			const { transport } = createClient(undefined, stub);
+
+			const uri = URI.file('/etc/foo').toString();
+			transport.fireMessage({ jsonrpc: '2.0', id: 12, method: 'resourceRequest', params: { uri, read: true } });
+
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual(transport.sentMessages.pop(), {
+				jsonrpc: '2.0',
+				id: 12,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: 'Access to the requested resource is not granted.',
+					data: undefined,
+				},
+			});
+		});
+	});
+
+	suite('implicit grants for outgoing customization actions', () => {
+
+		function createCapturingPermissionService(): { service: IAgentHostPermissionService; calls: { address: string; uri: URI }[] } {
+			const empty = observableValue<readonly never[]>('test', []);
+			const calls: { address: string; uri: URI }[] = [];
+			const service: IAgentHostPermissionService = {
+				_serviceBrand: undefined,
+				check: async () => true,
+				request: async () => { /* auto-allow */ },
+				pendingFor: () => empty,
+				allPending: empty,
+				findPending: () => undefined,
+				grantImplicitRead: (address, uri) => {
+					calls.push({ address, uri });
+					return Disposable.None;
+				},
+				connectionClosed: () => { },
+			};
+			return { service, calls };
+		}
+
+		test('SessionActiveClientChanged dispatches implicit reads for each customization', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+
+			client.dispatch({
+				type: ActionType.SessionActiveClientChanged,
+				session: 'session://test/1',
+				activeClient: {
+					clientId: 'c1',
+					tools: [],
+					customizations: [
+						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+						{ uri: 'file:///plugins/bar', displayName: 'Bar' },
+					],
+				},
+			});
+
+			assert.deepStrictEqual(
+				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
+				[
+					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
+					{ address: 'test.example:1234', uri: 'file:///plugins/bar' },
+				],
+			);
+		});
+
+		test('repeat dispatch dedupes per URI', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+
+			const action: SessionActiveClientChangedAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: 'session://test/1',
+				activeClient: {
+					clientId: 'c1',
+					tools: [],
+					customizations: [
+						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+					],
+				},
+			};
+
+			client.dispatch(action);
+			client.dispatch(action);
+
+			assert.strictEqual(calls.length, 1);
+		});
+
+		test('null activeClient does not crash', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+
+			client.dispatch({
+				type: ActionType.SessionActiveClientChanged,
+				session: 'session://test/1',
+				activeClient: null,
+			});
+
+			assert.strictEqual(calls.length, 0);
+		});
+
+		test('createSession with active-client customizations grants implicit reads', async () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client, transport } = createClient(undefined, service);
+
+			void client.createSession({
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'c1',
+					tools: [],
+					customizations: [
+						{ uri: 'file:///plugins/foo', displayName: 'Foo' },
+					],
+				},
+			});
+
+			// Resolve the in-flight createSession request for cleanup.
+			const sent = transport.sentMessages.find(
+				(m): m is JsonRpcRequest => 'method' in m && m.method === 'createSession');
+			assert.ok(sent);
+			transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: null });
+
+			assert.deepStrictEqual(
+				calls.map(c => c.uri.toString()),
+				['file:///plugins/foo'],
+			);
+		});
 	});
 });
