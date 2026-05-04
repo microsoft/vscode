@@ -31,12 +31,6 @@ export interface IBaseSerializableStorageRequest {
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
 
 	/**
-	 * Whether this request targets the application shared storage
-	 * that is shared across VS Code and Sessions app.
-	 */
-	readonly applicationShared?: boolean;
-
-	/**
 	 * Additional payload for the request to perform.
 	 */
 	readonly payload?: unknown;
@@ -56,10 +50,6 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 
 	abstract readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
-	protected get applicationShared(): boolean {
-		return false;
-	}
-
 	constructor(
 		protected channel: IChannel,
 		protected profile: UriDto<IUserDataProfile> | undefined,
@@ -69,14 +59,14 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	}
 
 	async getItems(): Promise<Map<string, string>> {
-		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace };
 		const items: Item[] = await this.channel.call('getItems', serializableRequest);
 
 		return new Map(items);
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest: ISerializableUpdateRequest = { profile: this.profile, workspace: this.workspace };
 
 		if (request.insert) {
 			serializableRequest.insert = Array.from(request.insert.entries());
@@ -90,7 +80,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	}
 
 	optimize(): Promise<void> {
-		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace, applicationShared: this.applicationShared };
+		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace };
 
 		return this.channel.call('optimize', serializableRequest);
 	}
@@ -110,7 +100,7 @@ abstract class BaseProfileAwareStorageDatabaseClient extends BaseStorageDatabase
 	}
 
 	private registerListeners(): void {
-		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeStorage', { profile: this.profile, applicationShared: this.applicationShared })((e: ISerializableItemsChangeEvent) => this.onDidChangeStorage(e)));
+		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeStorage', { profile: this.profile })((e: ISerializableItemsChangeEvent) => this.onDidChangeStorage(e)));
 	}
 
 	private onDidChangeStorage(e: ISerializableItemsChangeEvent): void {
@@ -132,26 +122,6 @@ export class ApplicationStorageDatabaseClient extends BaseProfileAwareStorageDat
 	async close(): Promise<void> {
 
 		// The application storage database is shared across all instances so
-		// we do not close it from the window. However we dispose the
-		// listener for external changes because we no longer interested in it.
-
-		this.dispose();
-	}
-}
-
-export class ApplicationSharedStorageDatabaseClient extends BaseProfileAwareStorageDatabaseClient {
-
-	constructor(channel: IChannel) {
-		super(channel, undefined);
-	}
-
-	protected override get applicationShared(): boolean {
-		return true;
-	}
-
-	async close(): Promise<void> {
-
-		// The application shared storage database is shared across all instances so
 		// we do not close it from the window. However we dispose the
 		// listener for external changes because we no longer interested in it.
 
@@ -198,32 +168,5 @@ export class StorageClient {
 		const serializableRequest: ISerializableUpdateRequest = { payload: path, profile: undefined, workspace: undefined };
 
 		return this.channel.call('isUsed', serializableRequest);
-	}
-}
-
-export class FallbackApplicationStorageDatabaseClient extends Disposable implements IStorageDatabase {
-
-	onDidChangeItemsExternal = Event.None;
-
-	constructor(private readonly channel: IChannel) {
-		super();
-	}
-
-	async getItems(): Promise<Map<string, string>> {
-		const serializableRequest: IBaseSerializableStorageRequest = { profile: undefined, workspace: undefined, applicationShared: true };
-		const items: Item[] = await this.channel.call('getFallbackApplicationStorageItems', serializableRequest);
-		return new Map(items);
-	}
-
-	updateItems(): Promise<void> {
-		throw new Error('Not supported');
-	}
-
-	optimize(): Promise<void> {
-		throw new Error('Not supported');
-	}
-
-	close(): Promise<void> {
-		throw new Error('Not supported');
 	}
 }

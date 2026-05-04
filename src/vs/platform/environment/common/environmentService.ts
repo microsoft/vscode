@@ -162,21 +162,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
-	get appSharedDataHome(): URI {
-		const cliSharedDataDir = this.args['shared-data-dir'];
-		if (cliSharedDataDir) {
-			return URI.file(resolve(cliSharedDataDir));
-		}
-
-		const vscodePortable = env['VSCODE_PORTABLE'];
-		if (vscodePortable) {
-			return URI.file(join(vscodePortable, 'shared-data'));
-		}
-
-		return joinPath(this.userHome, this.productService.sharedDataFolderName);
-	}
-
-	@memoize
 	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		const extensionDevelopmentPaths = this.args.extensionDevelopmentPath;
 		if (Array.isArray(extensionDevelopmentPaths)) {
