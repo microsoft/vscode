@@ -9,6 +9,10 @@ sudo apt-get update
 sudo apt-get upgrade -y
 sudo apt-get install -y curl apt-transport-https ca-certificates
 
+# Configure apt to retry on transient network failures
+# This applies to snapcraft's internal apt operations for stage-packages
+sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
+
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 
