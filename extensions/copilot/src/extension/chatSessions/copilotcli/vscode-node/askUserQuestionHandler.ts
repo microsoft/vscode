@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatParticipantToolToken, commands, LanguageModelTextPart } from 'vscode';
-import { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
