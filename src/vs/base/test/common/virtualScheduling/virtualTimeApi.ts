@@ -145,7 +145,7 @@ export function createVirtualTimeApi(
 		let rafIdCounter = 0;
 		const rafDisposables = new Map<number, IDisposable>();
 
-		api.requestAnimationFrame = (callback: (time: number) => void) => {
+		api.requestAnimationFrame = ((callback: (time: number) => void) => {
 			const id = ++rafIdCounter;
 			const stack = new Error().stack;
 			const trace = TraceContext.instance.currentTrace().child('requestAnimationFrame', stack);
@@ -161,15 +161,15 @@ export function createVirtualTimeApi(
 			});
 			rafDisposables.set(id, d);
 			return id;
-		};
+		}) as TimeApi['requestAnimationFrame'];
 
-		api.cancelAnimationFrame = (id: number) => {
+		api.cancelAnimationFrame = ((id: number) => {
 			const d = rafDisposables.get(id);
 			if (d) {
 				d.dispose();
 				rafDisposables.delete(id);
 			}
-		};
+		}) as TimeApi['cancelAnimationFrame'];
 	}
 
 	// Trace defaults: ensure handlers fired inside virtual time get the

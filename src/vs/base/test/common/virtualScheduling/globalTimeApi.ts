@@ -51,10 +51,10 @@ export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 	globalThis.Date = api.Date;
 
 	if (api.requestAnimationFrame) {
-		globalThis.requestAnimationFrame = api.requestAnimationFrame;
+		globalThis.requestAnimationFrame = api.requestAnimationFrame as unknown as AsGlobal<'requestAnimationFrame'>;
 	}
 	if (api.cancelAnimationFrame) {
-		globalThis.cancelAnimationFrame = api.cancelAnimationFrame;
+		globalThis.cancelAnimationFrame = api.cancelAnimationFrame as unknown as AsGlobal<'cancelAnimationFrame'>;
 	}
 
 	return {
@@ -65,10 +65,10 @@ export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 			globalThis.clearInterval = previous.clearInterval as unknown as AsGlobal<'clearInterval'>;
 			globalThis.Date = previous.Date;
 			if (previous.requestAnimationFrame) {
-				globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+				globalThis.requestAnimationFrame = previous.requestAnimationFrame as unknown as AsGlobal<'requestAnimationFrame'>;
 			}
 			if (previous.cancelAnimationFrame) {
-				globalThis.cancelAnimationFrame = previous.cancelAnimationFrame;
+				globalThis.cancelAnimationFrame = previous.cancelAnimationFrame as unknown as AsGlobal<'cancelAnimationFrame'>;
 			}
 		},
 	};

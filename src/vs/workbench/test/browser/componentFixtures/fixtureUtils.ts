@@ -426,6 +426,24 @@ export interface CreateServicesOptions {
 }
 
 /**
+ * `ILogService` for fixtures that forwards `warn`, `error`, and `critical`
+ * to the browser console so that errors logged during render (e.g. from
+ * `try/catch` blocks that swallow errors into the log) become visible in
+ * the component-explorer console panel.
+ */
+export class FixtureLogService extends NullLogService {
+	override warn(message: string, ...args: unknown[]): void {
+		console.warn(message, ...args);
+	}
+	override error(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+	override critical(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+}
+
+/**
  * Creates a TestInstantiationService with all services needed for CodeEditorWidget.
  * Additional services can be registered via the options callback.
  */
@@ -472,7 +490,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	} else {
 		define(IThemeService, TestThemeService);
 	}
-	define(ILogService, NullLogService);
+	define(ILogService, FixtureLogService);
 	define(IModelService, ModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
