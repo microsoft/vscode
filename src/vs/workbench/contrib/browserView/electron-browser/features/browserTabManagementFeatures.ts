@@ -504,7 +504,7 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs in the Integrated Browser when the setting is enabled.
+ * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
  */
 class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
@@ -696,7 +696,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
-				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			)
 		}
 	}
