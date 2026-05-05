@@ -38,6 +38,13 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	readonly setModelCalls: Array<{ model: string; options: unknown }> = [];
+	readonly agentSelectCalls: Array<{ name: string }> = [];
+	agentDeselectCalls = 0;
+	/** When set, the corresponding rpc call rejects with this error instead of succeeding. */
+	agentSelectError: Error | undefined;
+	agentDeselectError: Error | undefined;
+	setModelError: Error | undefined;
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
@@ -66,7 +73,10 @@ class MockCopilotSession {
 	// Stubs for methods the wrapper / session class calls
 	async send(request: unknown) { this.sendRequests.push(request); return ''; }
 	async abort() { }
-	async setModel() { }
+	async setModel(model: string, options: unknown) {
+		if (this.setModelError) { throw this.setModelError; }
+		this.setModelCalls.push({ model, options });
+	}
 	async getMessages() { return []; }
 	async destroy() { }
 
@@ -81,6 +91,16 @@ class MockCopilotSession {
 			read: async () => this.planReadResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
+		},
+		agent: {
+			select: async (params: { name: string }) => {
+				if (this.agentSelectError) { throw this.agentSelectError; }
+				this.agentSelectCalls.push({ name: params.name });
+			},
+			deselect: async () => {
+				if (this.agentDeselectError) { throw this.agentDeselectError; }
+				this.agentDeselectCalls++;
+			},
 		},
 	};
 }
@@ -1956,6 +1976,36 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
 			await responsePromise;
+		});
+	});
+
+	suite('setAgent / setModel', () => {
+
+		test('setAgent(name) calls rpc.agent.select({ name })', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setAgent('reviewer');
+			assert.deepStrictEqual(mockSession.agentSelectCalls, [{ name: 'reviewer' }]);
+			assert.strictEqual(mockSession.agentDeselectCalls, 0);
+		});
+
+		test('setAgent(undefined) calls rpc.agent.deselect()', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setAgent(undefined);
+			assert.strictEqual(mockSession.agentDeselectCalls, 1);
+			assert.deepStrictEqual(mockSession.agentSelectCalls, []);
+		});
+
+		test('setAgent failures propagate to caller (matching setModel)', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			mockSession.agentSelectError = new Error('select failed');
+			await assert.rejects(() => session.setAgent('reviewer'), /select failed/);
+
+			mockSession.agentDeselectError = new Error('deselect failed');
+			await assert.rejects(() => session.setAgent(undefined), /deselect failed/);
+
+			mockSession.setModelError = new Error('model failed');
+			await assert.rejects(() => session.setModel('gpt-x'), /model failed/);
 		});
 	});
 });

@@ -116,19 +116,23 @@ export class AgentHostAgentPicker extends Disposable {
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		// Stop CLICK to suppress its default activation behaviour, then drive
-		// the picker from MOUSE_DOWN — preventDefault on mousedown is required
+		// the picker from a generic mousedown listener (which normalizes
+		// pointer/touch events on platforms — notably iOS — that do not
+		// fire native MOUSE_DOWN). preventDefault on mousedown is required
 		// to stop focus from moving to the trigger before _showPicker captures
 		// the previously-focused element. This mirrors BaseDropdown's pattern.
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, e => dom.EventHelper.stop(e, true)));
-		for (const eventType of [dom.EventType.MOUSE_DOWN, TouchEventType.Tap]) {
-			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
-				if (dom.isMouseEvent(e) && e.button !== 0) {
-					return;
-				}
-				dom.EventHelper.stop(e, true);
-				this._showPicker();
-			}));
-		}
+		this._renderDisposables.add(dom.addDisposableGenericMouseDownListener(trigger, (e: MouseEvent) => {
+			if (e.button !== 0) {
+				return;
+			}
+			dom.EventHelper.stop(e, true);
+			this._showPicker();
+		}));
+		this._renderDisposables.add(dom.addDisposableListener(trigger, TouchEventType.Tap, e => {
+			dom.EventHelper.stop(e, true);
+			this._showPicker();
+		}));
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
