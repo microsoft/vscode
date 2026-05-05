@@ -660,6 +660,8 @@ export interface ITreeView extends IDisposable {
 
 	showCollapseAllAction: boolean;
 
+	showExpandAllAction: boolean;
+
 	canSelectMany: boolean;
 
 	manuallyManageCheckboxes: boolean;
@@ -710,6 +712,8 @@ export interface ITreeView extends IDisposable {
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
 
 	isCollapsed(item: ITreeItem): boolean;
+
+	expandAll(): Promise<void>;
 
 	setSelection(items: ITreeItem[]): void;
 

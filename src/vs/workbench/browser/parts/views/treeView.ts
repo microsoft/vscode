@@ -220,6 +220,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private refreshContextKey: RawContextKey<boolean> | undefined;
 	private refreshContext: IContextKey<boolean> | undefined;
 
+	private expandAllContextKey: RawContextKey<boolean> | undefined;
+	private expandAllContext: IContextKey<boolean> | undefined;
+	private expandAllToggleContextKey: RawContextKey<boolean> | undefined;
+	private expandAllToggleContext: IContextKey<boolean> | undefined;
+
 	private focused: boolean = false;
 	private domNode!: HTMLElement;
 	private treeContainer: HTMLElement | undefined;
@@ -306,6 +311,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.initializeShowCollapseAllAction();
 			this.initializeCollapseAllToggle();
 			this.initializeShowRefreshAction();
+		});
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.initializeShowExpandAllAction();
+			this.initializeExpandAllToggle();
 		});
 
 		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
@@ -428,6 +437,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			if (this._dataProvider.onDidChangeEmpty) {
 				this._register(this._dataProvider.onDidChangeEmpty(() => {
 					this.updateCollapseAllToggle();
+					this.updateExpandAllToggle();
 					this._onDidChangeWelcomeState.fire();
 				}));
 			}
@@ -552,6 +562,22 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.collapseAllContext?.set(showCollapseAllAction);
 	}
 
+	private initializeShowExpandAllAction(startingValue: boolean = false) {
+		if (!this.expandAllContext) {
+			this.expandAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableExpandAll`, startingValue, localize('treeView.enableExpandAll', "Whether the tree view with id {0} enables expand all.", this.id));
+			this.expandAllContext = this.expandAllContextKey.bindTo(this.contextKeyService);
+		}
+	}
+
+	get showExpandAllAction(): boolean {
+		this.initializeShowExpandAllAction();
+		return !!this.expandAllContext?.get();
+	}
+
+	set showExpandAllAction(showExpandAllAction: boolean) {
+		this.initializeShowExpandAllAction(showExpandAllAction);
+		this.expandAllContext?.set(showExpandAllAction);
+	}
 
 	private initializeShowRefreshAction(startingValue: boolean = false) {
 		if (!this.refreshContext) {
@@ -581,13 +607,32 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.refreshContextKey),
 						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER - 1,
+						order: Number.MAX_SAFE_INTEGER - 2,
 					},
 					icon: Codicon.refresh
 				});
 			}
 			async run(): Promise<void> {
 				return that.refresh();
+			}
+		}));
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.treeView.${that.id}.expandAll`,
+					title: localize('expandAll', "Expand All"),
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.expandAllContextKey),
+						group: 'navigation',
+						order: Number.MAX_SAFE_INTEGER - 1,
+					},
+					precondition: that.expandAllToggleContextKey,
+					icon: Codicon.expandAll
+				});
+			}
+			async run(): Promise<void> {
+				return that.expandAll();
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
@@ -1114,6 +1159,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				this.focus(false);
 			}
 			this.updateCollapseAllToggle();
+			this.updateExpandAllToggle();
 		}
 	}
 
@@ -1124,10 +1170,34 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	async expandAll(): Promise<void> {
+		const tree = this.tree;
+		if (tree && this.root.children) {
+			for (const child of this.root.children) {
+				await tree.expand(child, true);
+			}
+		}
+	}
+
 	private updateCollapseAllToggle() {
 		if (this.showCollapseAllAction) {
 			this.initializeCollapseAllToggle();
 			this.collapseAllToggleContext?.set(!!this.root.children && (this.root.children.length > 0) &&
+				this.root.children.some(value => value.collapsibleState !== TreeItemCollapsibleState.None));
+		}
+	}
+
+	private initializeExpandAllToggle() {
+		if (!this.expandAllToggleContext) {
+			this.expandAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleExpandAll`, false, localize('treeView.toggleExpandAll', "Whether expand all is toggled for the tree view with id {0}.", this.id));
+			this.expandAllToggleContext = this.expandAllToggleContextKey.bindTo(this.contextKeyService);
+		}
+	}
+
+	private updateExpandAllToggle() {
+		if (this.showExpandAllAction) {
+			this.initializeExpandAllToggle();
+			this.expandAllToggleContext?.set(!!this.root.children && (this.root.children.length > 0) &&
 				this.root.children.some(value => value.collapsibleState !== TreeItemCollapsibleState.None));
 		}
 	}

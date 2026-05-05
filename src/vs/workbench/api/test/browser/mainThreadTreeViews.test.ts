@@ -86,7 +86,7 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService(), NullTelemetryService));
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, showExpandAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 
@@ -156,6 +156,7 @@ suite('MainThreadHostTreeView', function () {
 			}, new TestViewsService(), new TestNotificationService(), dragTestExtensionService, new NullLogService(), NullTelemetryService));
 		dragTestMainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewIdWithDrag, {
 			showCollapseAll: false,
+			showExpandAll: false,
 			canSelectMany: false,
 			dropMimeTypes: [],
 			dragMimeTypes: [Mimes.uriList],
