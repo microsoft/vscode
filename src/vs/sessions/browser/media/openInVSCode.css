@@ -51,7 +51,7 @@
 .monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="stable"] > .open-in-vscode-titlebar-widget-icon,
 .monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"] > .open-in-vscode-titlebar-widget-icon,
 .monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"] > .open-in-vscode-titlebar-widget-icon {
-	background-image: url('../../../../../workbench/browser/media/code-icon.svg');
+	background-image: url('../../../workbench/browser/media/code-icon.svg');
 }
 
 .monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
