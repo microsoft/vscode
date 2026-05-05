@@ -1022,6 +1022,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.reset();
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
+		this.welcomePage?.focus();
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
