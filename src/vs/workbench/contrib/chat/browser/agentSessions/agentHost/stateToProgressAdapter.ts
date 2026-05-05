@@ -153,9 +153,6 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 						parts.push({ kind: 'thinking', value: rp.content });
 					}
 					break;
-				case ResponsePartKind.SystemNotification:
-					parts.push(systemNotificationToProgress(rp.content, connectionAuthority));
-					break;
 				case ResponsePartKind.ContentRef:
 					// Content references are not restored into history;
 					// they are handled separately by the content provider.
@@ -207,9 +204,6 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			}
 			case ResponsePartKind.ContentRef:
-				break;
-			case ResponsePartKind.SystemNotification:
-				parts.push(systemNotificationToProgress(rp.content, connectionAuthority));
 				break;
 		}
 	}
@@ -526,14 +520,6 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
 		return value;
 	}
 	return rawMarkdownToString(value.markdown, connectionAuthority);
-}
-
-function systemNotificationToProgress(content: StringOrMarkdown, connectionAuthority: string | undefined): IChatProgress {
-	const value = stringOrMarkdownToString(content, connectionAuthority);
-	return {
-		kind: 'info',
-		content: typeof value === 'string' ? new MarkdownString().appendText(value) : value,
-	};
 }
 
 /**
