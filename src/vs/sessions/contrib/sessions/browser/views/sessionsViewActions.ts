@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,7 +16,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -347,7 +347,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const commandService = accessor.get(ICommandService);
 		sessionsManagementService.openNewSessionView();
 		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
 		const workspace = context.sessions[0].workspace.get();
@@ -355,9 +355,10 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
 		}
 		// On mobile web, the sidebar drawer covers the viewport; close it so
-		// the new session view becomes visible after creation.
+		// the new session view becomes visible after creation. Routes through
+		// the drawer-close command to keep the mobile nav/history stack in sync.
 		if (isWeb && isMobile) {
-			layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
 	}
 });
