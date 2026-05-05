@@ -426,7 +426,23 @@ suite('AgentSideEffects', () => {
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,
+				_meta: undefined,
 			}]);
+		});
+
+		test('model observable update publishes model metadata', async () => {
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents[0]?.models.length === 1;
+			}));
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, _meta: { multiplierNumeric: 2 } }]);
+
+			const { action } = await envelope;
+
+			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(action.agents[0].models[0]._meta, { multiplierNumeric: 2 });
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
@@ -1068,6 +1084,83 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.PendingConfirmation,
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
+		});
+
+		test('pending_confirmation for a tool inside a subagent routes to the subagent session', () => {
+			// Regression: a `pending_confirmation` signal for a client tool
+			// inside a subagent must dispatch SessionToolCallReady against
+			// the subagent session, not the parent. Otherwise the parent
+			// session sees a stray `session/toolCallReady` with no
+			// preceding `session/toolCallStart`, which is illegal.
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Parent tool that delegates to a subagent.
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallStart, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-parent', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallReady, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+			});
+			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
+
+			// Inner client tool starts inside the subagent.
+			agent.fireProgress({
+				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
+				action: {
+					type: ActionType.SessionToolCallStart, session: sessionUri.toString(), turnId: 'turn-1',
+					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems', toolClientId: 'client-tools',
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			// Permission flow fires `pending_confirmation` for the inner
+			// client tool. The signal must be routed to the subagent
+			// session — not to the parent — even though the signal carries
+			// only the parent session URI.
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri, parentToolCallId: 'tc-parent',
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems',
+					invocationMessage: 'Get problems', toolInput: '{}',
+					confirmationTitle: undefined, edits: undefined,
+				},
+				permissionKind: 'custom-tool', permissionPath: undefined,
+			});
+
+			// The subagent session must contain the SessionToolCallReady.
+			const subagentUri = buildSubagentSessionUri(sessionUri.toString(), 'tc-parent');
+			const subState = stateManager.getSessionState(subagentUri);
+			const innerPart = subState?.activeTurn?.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
+			);
+			assert.ok(innerPart, 'inner client tool call should exist on subagent session');
+			assert.strictEqual(
+				innerPart!.kind === ResponsePartKind.ToolCall ? innerPart.toolCall.status : undefined,
+				ToolCallStatus.Running,
+				'inner client tool call should advance to Running after pending_confirmation'
+			);
+
+			// The parent session must NOT have a stray tool call for the
+			// inner toolCallId — that would be a SessionToolCallReady
+			// without a matching SessionToolCallStart.
+			const parentState = stateManager.getSessionState(sessionUri.toString());
+			const parentInner = parentState?.activeTurn?.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-inner'
+			);
+			assert.strictEqual(parentInner, undefined, 'parent session must not contain the inner tool call');
 		});
 	});
 

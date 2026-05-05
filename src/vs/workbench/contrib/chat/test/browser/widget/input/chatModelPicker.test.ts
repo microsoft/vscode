@@ -732,7 +732,7 @@ suite('buildModelPickerItems', () => {
 	test('model description includes pricing when set', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
@@ -742,10 +742,41 @@ suite('buildModelPickerItems', () => {
 	test('model description combines detail and pricing', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		assert.strictEqual(gptItem.item?.description, 'High · 3x');
 	});
+
+	test('model description hides non-multiplier pricing from description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'Provider', pricing: 'In: 2.04 · Out: 4.34 AICs/1M tokens' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Non-multiplier pricing should not appear in description
+		assert.strictEqual(gptItem.item?.description, 'Provider');
+	});
+
+	test('model description shows multiplier pricing in description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('claude', 'Claude');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const claudeItem = getActionItems(items).find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, '15x');
+	});
+
+	test('model with no pricing and no detail has undefined description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+	});
 });
+

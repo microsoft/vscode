@@ -7,15 +7,15 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
-import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
@@ -152,6 +152,7 @@ class TestSession implements ISession {
 	readonly title: ReturnType<typeof observableValue<string>>;
 	readonly updatedAt: ReturnType<typeof observableValue<Date>>;
 	readonly status: ReturnType<typeof observableValue<SessionStatus>>;
+	readonly changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
 	readonly changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly modelId: ReturnType<typeof observableValue<string | undefined>>;
@@ -172,6 +173,7 @@ class TestSession implements ISession {
 		this.title = observableValue<string>(`test.title.${id}`, id);
 		this.updatedAt = observableValue<Date>(`test.updatedAt.${id}`, new Date(0));
 		this.status = observableValue<SessionStatus>(`test.status.${id}`, SessionStatus.Completed);
+		this.changesets = observableValue<readonly ISessionChangeset[]>(`test.changesets.${id}`, []);
 		this.changes = observableValue<readonly ISessionFileChange[]>(`test.changes.${id}`, []);
 		this.workspace = observableValue<ISessionWorkspace | undefined>(`test.workspace.${id}`, undefined);
 		this.modelId = observableValue<string | undefined>(`test.modelId.${id}`, undefined);
@@ -188,6 +190,7 @@ class TestSession implements ISession {
 			title: this.title,
 			updatedAt: this.updatedAt,
 			status: this.status,
+			changesets: this.changesets,
 			changes: this.changes,
 			modelId: this.modelId,
 			mode: this.mode,
@@ -204,12 +207,18 @@ class TestGitHubService extends mock<IGitHubService>() {
 
 	private readonly _models = new Map<string, TestPullRequestModel>();
 
-	override getPullRequest(owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
-		return this._getModel(owner, repo, prNumber) as unknown as GitHubPullRequestModel;
-	}
+	override readonly activeSessionPullRequestObs = observableValue('test.activePR', undefined);
+	override readonly activeSessionPullRequestCIObs = observableValue('test.activePRCI', undefined);
+	override readonly activeSessionPullRequestReviewThreadsObs = observableValue('test.activePRReviewThreads', undefined);
 
-	override disposePullRequest(owner: string, repo: string, prNumber: number): void {
-		this._getModel(owner, repo, prNumber).dispose();
+	override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
+		const key = `${owner}/${repo}/${prNumber}`;
+		let model = this._models.get(key);
+		if (!model) {
+			model = new TestPullRequestModel();
+			this._models.set(key, model);
+		}
+		return new ImmortalReference(model as unknown as GitHubPullRequestModel);
 	}
 
 	snapshot(): Record<string, { startPollingCalls: number; stopPollingCalls: number; disposeCalls: number }> {
@@ -219,16 +228,6 @@ class TestGitHubService extends mock<IGitHubService>() {
 			disposeCalls: model.disposeCalls,
 		}] as const);
 		return Object.fromEntries(entries);
-	}
-
-	private _getModel(owner: string, repo: string, prNumber: number): TestPullRequestModel {
-		const key = `${owner}/${repo}/${prNumber}`;
-		let model = this._models.get(key);
-		if (!model) {
-			model = new TestPullRequestModel();
-			this._models.set(key, model);
-		}
-		return model;
 	}
 }
 

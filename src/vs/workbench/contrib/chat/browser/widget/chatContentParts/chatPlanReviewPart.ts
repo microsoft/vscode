@@ -16,6 +16,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { basename } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -44,6 +45,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private readonly _buttonStore = this._register(new DisposableStore());
+	private _submitButton: Button | undefined;
+	private _renderedSubmitInlineCount = -1;
 	private readonly _messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _titleActionsEl: HTMLElement;
@@ -53,6 +56,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private readonly _messageScrollable: DomScrollableElement;
 	private readonly _collapseButton: Button;
 	private readonly _restoreButton: Button;
+	private _reviewButton: Button | undefined;
 
 	private _isCollapsed = false;
 	private _isExpanded = false;
@@ -60,8 +64,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private _selectedAction: IChatPlanApprovalAction;
 	private _feedbackTextarea: HTMLTextAreaElement | undefined;
 	private _feedbackSection: HTMLElement | undefined;
+	private _commentsListEl: HTMLElement | undefined;
+	private _commentsListScrollable: DomScrollableElement | undefined;
+	private _clearAllButtonEl: HTMLElement | undefined;
 	private _isFeedbackMode = false;
 	private readonly _planReviewRegistration = this._register(new MutableDisposable());
+	private readonly _commentRowDisposables = this._register(new DisposableStore());
 
 	constructor(
 		public readonly review: IChatPlanReview,
@@ -87,18 +95,26 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		// Register with the plan review feedback service so the editor
 		// contribution can show inline feedback input for this plan file.
-		// Only register when feedback is allowed and the review hasn't
-		// already been submitted.
+		// Subscribe to feedback changes so the comments list and Submit
+		// button label stay in sync.
 		if (review.planUri && review.canProvideFeedback && !this._isSubmitted) {
 			const planUri = URI.revive(review.planUri);
-			this._planReviewRegistration.value = this._planReviewFeedbackService.registerPlanReview(planUri, (result) => {
+			const planUriString = planUri.toString();
+			const registrationStore = new DisposableStore();
+			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, (result) => {
 				if (this._isSubmitted) {
 					return;
 				}
 				this._isSubmitted = true;
 				this._options.onSubmit(result);
 				this.markUsed();
-			});
+			}));
+			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
+				if (uri.toString() === planUriString) {
+					this.onInlineFeedbackChanged();
+				}
+			}));
+			this._planReviewRegistration.value = registrationStore;
 		}
 
 		// Build DOM that mirrors chat-confirmation-widget2 so we inherit its
@@ -132,14 +148,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		elements.titleLabel.textContent = review.title;
 		this._register(this._hoverService.setupDelayedHover(elements.titleLabel, { content: review.title }));
 
-		// Optional Edit button.
+		// Review button — opens the plan file and enters feedback mode.
 		if (review.planUri) {
 			const fileName = basename(URI.revive(review.planUri));
-			const editButtonLabel = localize('chat.planReview.editTooltip', 'Edit {0}', fileName);
-			const editButton = this._register(new Button(this._titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: editButtonLabel, ariaLabel: editButtonLabel }));
-			editButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-title-icon-button');
-			editButton.label = `$(${Codicon.edit.id})`;
-			this._register(editButton.onDidClick(() => this.openPlanFile()));
+			const reviewButtonTooltip = review.canProvideFeedback
+				? localize('chat.planReview.reviewTooltip', 'Review {0}', fileName)
+				: localize('chat.planReview.openTooltip', 'Open {0}', fileName);
+			const reviewButton = this._register(new Button(this._titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: reviewButtonTooltip, ariaLabel: reviewButtonTooltip }));
+			reviewButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-review-button');
+			this._reviewButton = reviewButton;
+			this._register(reviewButton.onDidClick(() => this.enterReviewMode()));
 		}
 
 		// Restore/expand toggle.
@@ -163,7 +181,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable', 'chat-plan-review-body-scrollable');
 		messageParent.insertBefore(this._messageScrollable.getDomNode(), messageNextSibling);
 		const resizeObserver = this._register(new dom.DisposableResizeObserver(() => this._messageScrollable.scanDomNode()));
-		this._register(resizeObserver.observe(this._messageEl));
+		// The inner `_messageEl` is `height: 100%`, so observing only the
+		// wrapper is enough; markdown content reflow is handled by the
+		// renderer's `asyncRenderCallback`.
 		this._register(resizeObserver.observe(this._messageScrollable.getDomNode()));
 
 		this.renderMarkdown();
@@ -171,7 +191,14 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (review.canProvideFeedback) {
 			this.renderFeedback(elements.feedback);
 			this._feedbackSection = elements.feedback;
-			dom.hide(elements.feedback); // Hidden until user clicks "Provide Feedback"
+			if (review.planUri) {
+				dom.hide(elements.feedback); // Hidden until the user enters review mode or inline feedback exists.
+			} else {
+				// No plan file: keep the textarea visible from the start and
+				// treat as already in feedback mode.
+				this._isFeedbackMode = true;
+				this.domNode.classList.add('chat-plan-review-feedback-mode');
+			}
 		} else {
 			dom.hide(elements.feedback);
 		}
@@ -190,6 +217,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		if (this._feedbackTextarea && review instanceof ChatPlanReviewData && review.draftFeedback) {
 			this._feedbackTextarea.value = review.draftFeedback;
+			// Match the auto-resize wired up on `input` so a multi-line
+			// restored draft renders with the right height.
+			this._feedbackTextarea.style.height = 'auto';
+			this._feedbackTextarea.style.height = `${this._feedbackTextarea.scrollHeight}px`;
+		}
+
+		// Promote into review mode if inline feedback is already present
+		// (e.g. restored from a prior session).
+		if (!this._isSubmitted && this.getInlineFeedbackItems().length > 0) {
+			this.enterFeedbackMode({ focus: false });
 		}
 	}
 
@@ -222,17 +259,46 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		dom.clearNode(section);
 		const header = dom.append(section, dom.$('.chat-plan-review-feedback-header'));
 		const label = dom.append(header, dom.$('.chat-plan-review-feedback-label'));
-		label.textContent = localize('chat.planReview.feedbackLabel', 'Additional feedback');
+		label.textContent = localize('chat.planReview.feedbackLabel', 'Feedback');
 
-		const closeButtonAriaLabel = localize('chat.planReview.exitFeedback', "Cancel feedback");
-		const closeButton = this._register(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: closeButtonAriaLabel, ariaLabel: closeButtonAriaLabel }));
-		closeButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-title-icon-button', 'chat-plan-review-feedback-close');
-		closeButton.label = `$(${Codicon.close.id})`;
-		this._register(closeButton.onDidClick(() => this.exitFeedbackMode()));
+		const headerActions = dom.append(header, dom.$('.chat-plan-review-feedback-header-actions'));
+
+		// Clear All — visibility is toggled with the comments list.
+		if (this.review.planUri) {
+			const clearAllLabel = localize('chat.planReview.clearAll', "Clear All");
+			const clearAllButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: clearAllLabel, ariaLabel: clearAllLabel }));
+			clearAllButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-feedback-clear-all');
+			clearAllButton.label = clearAllLabel;
+			this._register(clearAllButton.onDidClick(() => this.clearAllInlineFeedback()));
+			this._clearAllButtonEl = clearAllButton.element;
+		}
+
+		// Back — non-destructive exit from feedback mode. Per-row × buttons
+		// and Clear All handle deletion explicitly.
+		if (this.review.planUri) {
+			const backButtonLabel = localize('chat.planReview.back', "Back");
+			const backButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backButtonLabel, ariaLabel: backButtonLabel }));
+			backButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-feedback-close');
+			backButton.label = backButtonLabel;
+			this._register(backButton.onDidClick(() => this.exitFeedbackMode()));
+		}
+
+		// Inline comments list — wrapped in a Monaco scrollable for a styled
+		// scrollbar consistent with the rest of the workbench.
+		this._commentsListEl = dom.$('.chat-plan-review-comments-list');
+		this._commentsListScrollable = this._register(new DomScrollableElement(this._commentsListEl, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this._commentsListScrollable.getDomNode().classList.add('chat-plan-review-comments-list-scrollable');
+		dom.append(section, this._commentsListScrollable.getDomNode());
+		dom.hide(this._commentsListScrollable.getDomNode());
+		this.renderCommentsList();
 
 		const textarea = dom.append(section, dom.$<HTMLTextAreaElement>('textarea.chat-plan-review-feedback-textarea'));
 		textarea.rows = 1;
-		textarea.placeholder = localize('chat.planReview.feedbackPlaceholder', 'Suggest changes or add instructions...');
+		textarea.placeholder = localize('chat.planReview.feedbackPlaceholder', 'Add an overall comment for the agent...');
 		this._feedbackTextarea = textarea;
 
 		// Matches the behaviour of the question carousel freeform textarea:
@@ -251,6 +317,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (this.review instanceof ChatPlanReviewData) {
 				this.review.draftFeedback = textarea.value;
 			}
+			// Update the cached Submit button rather than re-rendering the
+			// whole button row on every keystroke.
+			this.updateSubmitButtonState();
 		}));
 
 		// Enter submits feedback; Shift+Enter inserts a newline.
@@ -264,15 +333,163 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}));
 	}
 
+	private renderCommentsList(): void {
+		if (!this._commentsListEl) {
+			return;
+		}
+		this._commentRowDisposables.clear();
+		dom.clearNode(this._commentsListEl);
+
+		const items = this.getInlineFeedbackItems();
+		if (this._clearAllButtonEl) {
+			if (items.length > 0) {
+				dom.show(this._clearAllButtonEl);
+			} else {
+				dom.hide(this._clearAllButtonEl);
+			}
+		}
+		const scrollableNode = this._commentsListScrollable?.getDomNode();
+		if (items.length === 0) {
+			if (scrollableNode) {
+				dom.hide(scrollableNode);
+			}
+			this._commentsListScrollable?.scanDomNode();
+			return;
+		}
+		if (scrollableNode) {
+			dom.show(scrollableNode);
+		}
+
+		for (const item of items) {
+			const row = dom.append(this._commentsListEl, dom.$('.chat-plan-review-comment-row'));
+			const rowLabel = localize('chat.planReview.commentRowAriaLabel', 'Line {0}: {1}', item.line, item.text);
+
+			const revealButton = dom.append(row, dom.$<HTMLButtonElement>('button.chat-plan-review-comment-reveal'));
+			revealButton.type = 'button';
+			revealButton.setAttribute('aria-label', rowLabel);
+
+			const lineEl = dom.append(revealButton, dom.$('span.chat-plan-review-comment-line'));
+			lineEl.textContent = localize('chat.planReview.commentRowLine', 'Line {0}', item.line);
+
+			const textEl = dom.append(revealButton, dom.$('span.chat-plan-review-comment-text'));
+			textEl.textContent = item.text;
+
+			this._commentRowDisposables.add(dom.addDisposableListener(revealButton, dom.EventType.CLICK, () => {
+				this.revealInlineComment(item.id, item.line, item.column);
+			}));
+
+			const removeLabel = localize('chat.planReview.removeComment', "Remove comment on line {0}", item.line);
+			const removeButton = dom.append(row, dom.$<HTMLButtonElement>('button.chat-plan-review-comment-remove'));
+			removeButton.type = 'button';
+			removeButton.setAttribute('aria-label', removeLabel);
+			removeButton.title = removeLabel;
+			removeButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+
+			this._commentRowDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, e => {
+				e.stopPropagation();
+				this.removeInlineComment(item.id);
+			}));
+		}
+		this._commentsListScrollable?.scanDomNode();
+	}
+
+	private getInlineFeedbackItems(): readonly IPlanReviewFeedbackItem[] {
+		if (!this.review.planUri) {
+			return [];
+		}
+		return this._planReviewFeedbackService.getFeedback(URI.revive(this.review.planUri));
+	}
+
+	private async revealInlineComment(itemId: string, line: number, column: number): Promise<void> {
+		if (!this.review.planUri) {
+			return;
+		}
+		const uri = URI.revive(this.review.planUri);
+		this._planReviewFeedbackService.setNavigationAnchor(uri, itemId);
+		await this._editorService.openEditor({
+			resource: uri,
+			options: { selection: { startLineNumber: line, startColumn: column } },
+		});
+	}
+
+	private removeInlineComment(itemId: string): void {
+		if (!this.review.planUri || this._isSubmitted) {
+			return;
+		}
+		this._planReviewFeedbackService.removeFeedback(URI.revive(this.review.planUri), itemId);
+	}
+
+	private async clearAllInlineFeedback(): Promise<void> {
+		if (!this.review.planUri || this._isSubmitted) {
+			return;
+		}
+		const items = this.getInlineFeedbackItems();
+		if (items.length === 0) {
+			return;
+		}
+		const result = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: localize('chat.planReview.clearAllConfirm', 'Clear {0} inline comment(s)?', items.length),
+			detail: localize('chat.planReview.clearAllDetail', 'These comments will be removed from the plan file and not sent to the agent.'),
+			primaryButton: localize('chat.planReview.clearAllConfirmPrimary', 'Clear All'),
+		});
+		if (!result.confirmed) {
+			return;
+		}
+		this._planReviewFeedbackService.clearFeedback(URI.revive(this.review.planUri));
+	}
+
+	private onInlineFeedbackChanged(): void {
+		if (this._isSubmitted) {
+			return;
+		}
+		const items = this.getInlineFeedbackItems();
+
+		// Auto-promote into review mode the first time a comment shows up.
+		if (items.length > 0 && !this._isFeedbackMode && !this._isCollapsed) {
+			this.enterFeedbackMode({ focus: false });
+			return;
+		}
+
+		this.renderCommentsList();
+		if (this._isFeedbackMode) {
+			this.updateSubmitButtonState();
+		}
+		this._messageScrollable.scanDomNode();
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Render the action buttons into the active container (footer when
+	 * expanded, inline title slot when collapsed). Clears the inactive slot
+	 * so the same buttons can never appear in two places at once.
+	 */
+	private renderCurrentActionButtons(): void {
+		if (this._isSubmitted) {
+			return;
+		}
+		const target = this._isCollapsed ? this._inlineActionsEl : this._footerButtonsEl;
+		const other = this._isCollapsed ? this._footerButtonsEl : this._inlineActionsEl;
+		dom.clearNode(other);
+		this.renderActionButtons(target, { includeReject: !this._isCollapsed });
+	}
+
 	private renderActionButtons(container: HTMLElement, options?: { includeReject?: boolean }): void {
 		const includeReject = options?.includeReject ?? true;
 		this._buttonStore.clear();
+		this._submitButton = undefined;
+		this._renderedSubmitInlineCount = -1;
 		dom.clearNode(container);
 
-		// In feedback mode, show Submit + Reject.
+		// In feedback mode, show Submit + Reject. Submit's label includes
+		// the count of pending inline comments.
 		if (this._isFeedbackMode) {
+			const inlineCount = this.getInlineFeedbackItems().length;
 			const submitButton = new Button(container, { ...defaultButtonStyles, supportIcons: true });
-			submitButton.label = localize('chat.planReview.submitFeedback', 'Submit');
+			submitButton.label = this.computeSubmitLabel(inlineCount);
+			submitButton.enabled = this.canSubmitFeedback();
+			this._submitButton = submitButton;
+			this._renderedSubmitInlineCount = inlineCount;
 			this._buttonStore.add(submitButton);
 			this._buttonStore.add(submitButton.onDidClick(() => this.submitFeedback()));
 
@@ -333,16 +550,35 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._buttonStore.add(rejectButton);
 			this._buttonStore.add(rejectButton.onDidClick(() => this.submitRejection()));
 		}
+	}
 
-		// Provide Feedback button (grey secondary) — shown only when feedback
-		// is enabled and we are not in collapsed mode. Right-aligned via CSS
-		// so the primary Approve / Reject pair stays grouped on the left.
-		if (this.review.canProvideFeedback && includeReject) {
-			const feedbackButton = new Button(container, { ...defaultButtonStyles, secondary: true });
-			feedbackButton.element.classList.add('chat-plan-review-feedback-button');
-			feedbackButton.label = localize('chat.planReview.provideFeedback', 'Provide Feedback');
-			this._buttonStore.add(feedbackButton);
-			this._buttonStore.add(feedbackButton.onDidClick(() => this.enterFeedbackMode()));
+	private canSubmitFeedback(): boolean {
+		const textareaText = this._feedbackTextarea?.value.trim() ?? '';
+		if (textareaText) {
+			return true;
+		}
+		return this.getInlineFeedbackItems().length > 0;
+	}
+
+	private computeSubmitLabel(inlineCount: number): string {
+		return inlineCount > 0
+			? localize('chat.planReview.submitFeedbackWithCount', 'Submit Feedback ({0})', inlineCount)
+			: localize('chat.planReview.submitFeedback', 'Submit Feedback');
+	}
+
+	/**
+	 * Update the cached Submit button's enabled state and label without
+	 * destroying the button row. Cheap enough to run on every keystroke.
+	 */
+	private updateSubmitButtonState(): void {
+		if (!this._submitButton || !this._isFeedbackMode) {
+			return;
+		}
+		this._submitButton.enabled = this.canSubmitFeedback();
+		const inlineCount = this.getInlineFeedbackItems().length;
+		if (inlineCount !== this._renderedSubmitInlineCount) {
+			this._submitButton.label = this.computeSubmitLabel(inlineCount);
+			this._renderedSubmitInlineCount = inlineCount;
 		}
 	}
 
@@ -382,21 +618,23 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._collapseButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
 		this._collapseButton.setTitle(collapseTooltip);
 
-		// Move the action buttons between the footer and the inline title
-		// slot so the user can approve while collapsed. Reject is omitted in
-		// the collapsed view (matches chatToolConfirmationCarouselPart).
-		if (!this._isSubmitted) {
-			// Collapsing implicitly cancels feedback mode. Route through
-			// `exitFeedbackMode` so the CSS class, draft, and section
-			// visibility teardown stays centralized.
-			if (this._isCollapsed && this._isFeedbackMode) {
-				this.exitFeedbackMode();
+		// Collapsed title bar uses a pencil icon; expanded uses a text
+		// label that hints at the feedback flow.
+		if (this._reviewButton) {
+			const isIconOnly = this._isCollapsed;
+			this._reviewButton.element.classList.toggle('chat-plan-review-title-icon-button', isIconOnly);
+			if (isIconOnly) {
+				this._reviewButton.label = `$(${Codicon.edit.id})`;
+			} else {
+				this._reviewButton.label = this.review.canProvideFeedback
+					? localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback")
+					: localize('chat.planReview.openButtonLabel', "Open Plan");
 			}
-			const target = this._isCollapsed ? this._inlineActionsEl : this._footerButtonsEl;
-			const other = this._isCollapsed ? this._footerButtonsEl : this._inlineActionsEl;
-			dom.clearNode(other);
-			this.renderActionButtons(target, { includeReject: !this._isCollapsed });
 		}
+
+		// Move action buttons between footer (expanded) and inline title
+		// slot (collapsed). Reject is omitted when collapsed.
+		this.renderCurrentActionButtons();
 	}
 
 	private updateExpandedPresentation(): void {
@@ -418,6 +656,22 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		const uri = URI.revive(this.review.planUri);
 		await this._editorService.openEditor({ resource: uri });
+	}
+
+	private async enterReviewMode(): Promise<void> {
+		await this.openPlanFile();
+		if (!this.review.canProvideFeedback || this._isSubmitted) {
+			return;
+		}
+		if (this._isCollapsed) {
+			this._isCollapsed = false;
+			if (this.review instanceof ChatPlanReviewData) {
+				this.review.draftCollapsed = false;
+			}
+			this.updateCollapsedPresentation();
+			this.updateExpandedPresentation();
+		}
+		this.enterFeedbackMode({ focus: true });
 	}
 
 	private async submitApproval(action: IChatPlanApprovalAction): Promise<void> {
@@ -444,34 +698,40 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.markUsed();
 	}
 
-	private enterFeedbackMode(): void {
+	private enterFeedbackMode(options?: { focus?: boolean }): void {
+		if (this._isFeedbackMode) {
+			if (options?.focus) {
+				this._feedbackTextarea?.focus();
+			}
+			return;
+		}
 		this._isFeedbackMode = true;
 		if (this._feedbackSection) {
 			dom.show(this._feedbackSection);
 		}
 		this.domNode.classList.add('chat-plan-review-feedback-mode');
-		this.renderActionButtons(this._footerButtonsEl, { includeReject: true });
-		this._feedbackTextarea?.focus();
+		this.renderCommentsList();
+		this.renderCurrentActionButtons();
+		if (options?.focus !== false) {
+			this._feedbackTextarea?.focus();
+		}
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 	}
 
-	private exitFeedbackMode(): void {
+	private async exitFeedbackMode(): Promise<void> {
 		if (!this._isFeedbackMode) {
 			return;
 		}
+
+		// Back is non-destructive: inline comments and the textarea draft
+		// persist so the user can resume via the Review button.
 		this._isFeedbackMode = false;
-		if (this._feedbackTextarea) {
-			this._feedbackTextarea.value = '';
-			if (this.review instanceof ChatPlanReviewData) {
-				this.review.draftFeedback = '';
-			}
-		}
 		if (this._feedbackSection) {
 			dom.hide(this._feedbackSection);
 		}
 		this.domNode.classList.remove('chat-plan-review-feedback-mode');
-		this.renderActionButtons(this._footerButtonsEl, { includeReject: true });
+		this.renderCurrentActionButtons();
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 	}
@@ -493,26 +753,42 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return;
 		}
 
-		// Merge textarea feedback with editor-collected inline feedback.
-		const feedbackParts: string[] = [];
-		if (textareaFeedback) {
-			feedbackParts.push(textareaFeedback);
-		}
+		// Build a structured markdown message for the agent. Keep the overall
+		// comment and inline-comments block as separate fields on the result
+		// so the transcript can render them differently without re-parsing
+		// the localized combined string.
+		let feedbackInlineMarkdown: string | undefined;
 		if (editorFeedbackItems.length > 0) {
-			const filePath = this.review.planUri?.path ? `(${this.review.planUri.path})` : '';
-			feedbackParts.push(`Here's the feedback for contents of the plan file ${filePath}:`);
-			for (const item of editorFeedbackItems) {
-				if (item.column > 1) {
-					feedbackParts.push(`Line ${item.line}: Column ${item.column}: ${item.text}`);
-				} else {
-					feedbackParts.push(`Line ${item.line}: ${item.text}`);
-				}
-			}
+			const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
+			const fileName = planUri ? basename(planUri) : '';
+			const heading = fileName
+				? localize('chat.planReview.inlineCommentsHeading', "Inline comments on `{0}`:", fileName)
+				: localize('chat.planReview.inlineCommentsHeadingNoFile', "Inline comments:");
+			const bullets = editorFeedbackItems.map(item => {
+				const location = item.column > 1
+					? localize('chat.planReview.inlineCommentLocation', "Line {0}, Column {1}", item.line, item.column)
+					: localize('chat.planReview.inlineCommentLocationLine', "Line {0}", item.line);
+				return `- **${location}:** ${item.text}`;
+			});
+			feedbackInlineMarkdown = [heading, ...bullets].join('\n');
 		}
 
-		const feedback = feedbackParts.join('\n');
+		const sections: string[] = [];
+		if (textareaFeedback) {
+			sections.push(textareaFeedback);
+		}
+		if (feedbackInlineMarkdown) {
+			sections.push(feedbackInlineMarkdown);
+		}
+
+		const feedback = sections.join('\n\n');
 		this._isSubmitted = true;
-		this._options.onSubmit({ rejected: false, feedback });
+		this._options.onSubmit({
+			rejected: false,
+			feedback,
+			feedbackOverall: textareaFeedback || undefined,
+			feedbackInlineMarkdown,
+		});
 		this.markUsed();
 	}
 
@@ -543,6 +819,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private markUsed(): void {
 		this.domNode.classList.add('chat-plan-review-used');
 		this._buttonStore.clear();
+		this._submitButton = undefined;
+		this._renderedSubmitInlineCount = -1;
 		// Unregister from the feedback service so the editor contribution
 		// hides/disables immediately, even if the plan file is still open.
 		this._planReviewRegistration.clear();

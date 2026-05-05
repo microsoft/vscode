@@ -13,7 +13,7 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -26,6 +26,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../common/enablement.js';
 import { getInstalledPluginContextMenuActions } from '../agentPluginActions.js';
@@ -36,7 +37,7 @@ import { pluginIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { ICustomizationHarnessService, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -388,7 +389,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 //#region Helpers
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = plugin.label ?? basename(plugin.uri);
+	// Use `||` (not `??`) so an empty `label` also falls back to the URI basename.
+	// The items model's `getPluginCount` dedupes against this same fallback; using
+	// `??` here would silently break dedup for plugins whose label is `''`.
+	const name = plugin.label || basename(plugin.uri);
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
@@ -438,9 +442,13 @@ export class PluginListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	private buttonContainer!: HTMLElement;
 	private browseButton!: Button;
-	private installFromSourceButton!: Button;
+	private addButtonContainer!: HTMLElement;
+	private addButtonSimple!: Button;
+	private addButton!: ButtonWithDropdown;
 	private createPluginButton!: Button;
+	private readonly addDropdownActions = this._register(new DisposableStore());
 
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
@@ -506,21 +514,35 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace + Install from Source)
-		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
+		// Button container (Browse Marketplace + Add actions + Create Plugin)
+		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
-		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
+		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
 		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		this.browseButton.element.classList.add('list-add-button');
 		this._register(this.browseButton.onDidClick(() => this.runPrimaryButtonAction()));
 
-		this.installFromSourceButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.installFromSourceButton.element.classList.add('list-icon-button');
-		this._register(this.installFromSourceButton.onDidClick(() => this.runSecondaryButtonAction(0)));
+		this.addButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
+		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.addButtonSimple.element.classList.add('list-add-button');
+		this._register(this.addButtonSimple.onDidClick(() => this.runPrimaryAddAction()));
 
-		this.createPluginButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			contextMenuProvider: this.contextMenuService,
+			addPrimaryActionToDropdown: false,
+			actions: { getActions: () => this.getAddDropdownActions() },
+		}));
+		this.addButton.element.classList.add('list-add-button');
+		this._register(this.addButton.onDidClick(() => this.runPrimaryAddAction()));
+
+		const createPluginLabel = localize('createPlugin', "Create Plugin");
+		this.createPluginButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: createPluginLabel, ariaLabel: createPluginLabel }));
 		this.createPluginButton.element.classList.add('list-icon-button');
-		this._register(this.createPluginButton.onDidClick(() => this.runSecondaryButtonAction(1)));
+		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
+		this._register(this.createPluginButton.onDidClick(() => this.runCreatePluginAction()));
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -727,80 +749,99 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private updateToolbarActions(): void {
-		const actions = this.pluginActions;
-		if (actions.length > 0) {
-			if (this.browseMode) {
-				this.toggleBrowseMode(false);
-			}
+		const browseMarketplaceAvailable = this.isBrowseMarketplaceAvailable();
+		if (!browseMarketplaceAvailable && this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
 
-			const [primary, firstSecondary, secondSecondary] = actions;
-			this.browseButton.element.parentElement!.style.display = '';
-			this.browseButton.label = this.formatActionLabel(primary);
-			this.browseButton.enabled = primary.enabled !== false;
-			this.browseButton.setTitle(primary.tooltip ?? primary.label);
+		this.browseButton.element.parentElement!.style.display = this.browseMode ? 'none' : '';
+		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
+		this.browseButton.enabled = browseMarketplaceAvailable;
+		this.browseButton.setTitle(browseMarketplaceAvailable
+			? localize('browseMarketplace', "Browse Marketplace")
+			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web."));
 
-			const secondary = [
-				[this.installFromSourceButton, firstSecondary],
-				[this.createPluginButton, secondSecondary],
-			] as const;
-			for (const [button, action] of secondary) {
-				if (!action) {
-					button.element.style.display = 'none';
-					continue;
-				}
+		this.updateAddButton();
+		this.createPluginButton.enabled = true;
+	}
 
-				button.element.style.display = '';
-				button.label = this.formatActionLabel(action, true);
-				button.enabled = action.enabled !== false;
-				button.setTitle(action.tooltip ?? action.label);
-			}
+	private isBrowseMarketplaceAvailable(): boolean {
+		return !isWeb;
+	}
+
+	private updateAddButton(): void {
+		const actions = this.buildAddActions();
+		const [primary, ...dropdown] = actions;
+		const hasDropdown = dropdown.length > 0;
+
+		this.addButton.element.style.display = hasDropdown ? '' : 'none';
+		this.addButtonSimple.element.style.display = hasDropdown ? 'none' : '';
+
+		if (!primary) {
+			this.addButton.element.style.display = 'none';
+			this.addButtonSimple.element.style.display = 'none';
 			return;
 		}
 
-		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
-		this.browseButton.enabled = true;
-		this.browseButton.setTitle(localize('browseMarketplace', "Browse Marketplace"));
+		if (hasDropdown) {
+			this.addButton.label = this.formatActionLabel(primary);
+			this.addButton.enabled = primary.enabled !== false;
+			this.addButton.primaryButton.setTitle(primary.tooltip ?? primary.label);
+			this.addButton.dropdownButton.setTitle(localize('morePluginAddActions', "More Plugin Add Actions..."));
+		} else {
+			this.addButtonSimple.label = this.formatActionLabel(primary);
+			this.addButtonSimple.enabled = primary.enabled !== false;
+			this.addButtonSimple.setTitle(primary.tooltip ?? primary.label);
+		}
+	}
 
-		this.installFromSourceButton.element.style.display = '';
-		this.installFromSourceButton.label = `$(${Codicon.add.id})`;
-		this.installFromSourceButton.enabled = true;
-		this.installFromSourceButton.setTitle(localize('installFromSource', "Install Plugin from Source"));
+	private buildAddActions(): readonly ICustomizationItemAction[] {
+		return [
+			...this.pluginActions,
+			{
+				id: 'plugin.installFromSource',
+				label: localize('installFromSource', "Install Plugin from Source"),
+				tooltip: localize('installFromSource', "Install Plugin from Source"),
+				icon: Codicon.add,
+				run: () => this.commandService.executeCommand('workbench.action.chat.installPluginFromSource'),
+			},
+		];
+	}
 
-		this.createPluginButton.element.style.display = '';
-		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
-		this.createPluginButton.enabled = true;
-		this.createPluginButton.setTitle(localize('createPlugin', "Create Plugin"));
+	private getAddDropdownActions(): Action[] {
+		this.addDropdownActions.clear();
+		return this.buildAddActions().slice(1).map((action, index) => this.addDropdownActions.add(new Action(`plugin_add_${index}`, this.formatActionLabel(action), undefined, action.enabled !== false, () => this.runPluginAction(action))));
 	}
 
 	private async runPrimaryButtonAction(): Promise<void> {
-		const action = this.pluginActions[0];
-		if (action) {
-			if (action.enabled !== false) {
-				await action.run();
-			}
+		if (!this.isBrowseMarketplaceAvailable()) {
 			return;
 		}
 
 		this.toggleBrowseMode(!this.browseMode);
 	}
 
-	private async runSecondaryButtonAction(index: number): Promise<void> {
-		const action = this.pluginActions[index + 1];
-		if (action) {
-			if (action.enabled !== false) {
-				await action.run();
-			}
-			return;
+	private async runPrimaryAddAction(): Promise<void> {
+		const [primary] = this.buildAddActions();
+		if (primary) {
+			await this.runPluginAction(primary);
 		}
+	}
 
-		if (index === 0) {
-			await this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
-		} else {
-			await this.commandService.executeCommand('workbench.action.chat.createPlugin');
+	private async runCreatePluginAction(): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.chat.createPlugin');
+	}
+
+	private async runPluginAction(action: ICustomizationItemAction): Promise<void> {
+		if (action.enabled !== false) {
+			await action.run();
 		}
 	}
 
 	public showBrowseMarketplace(): void {
+		if (!this.isBrowseMarketplaceAvailable()) {
+			return;
+		}
 		if (!this.browseMode) {
 			this.toggleBrowseMode(true);
 		}
@@ -904,7 +945,7 @@ export class PluginListWidget extends Disposable {
 		try {
 			const provided = await provider.provideChatSessionCustomizations(CancellationToken.None) ?? [];
 			return provided.filter(item =>
-				item.type === 'plugin'
+				isPluginCustomizationItem(item)
 				&& (!query
 					|| item.name.toLowerCase().includes(query)
 					|| item.description?.toLowerCase().includes(query)
@@ -967,7 +1008,7 @@ export class PluginListWidget extends Disposable {
 				this.emptySubtext.textContent = localize('tryDifferentSearch', "Try a different search term");
 			} else if (this.harnessService.getActiveDescriptor().itemProvider) {
 				this.emptyText.textContent = localize('noRemotePlugins', "No plugins configured");
-				this.emptySubtext.textContent = localize('addRemotePlugins', "Use the toolbar to add plugins from the remote agent host.");
+				this.emptySubtext.textContent = localize('addRemotePlugins', "Use the toolbar to add remote plugins or install plugins from a source.");
 			} else {
 				this.emptyText.textContent = localize('noPlugins', "No plugins installed");
 				this.emptySubtext.textContent = localize('browseToAdd', "Browse the marketplace to discover and install plugins");
@@ -984,11 +1025,15 @@ export class PluginListWidget extends Disposable {
 		const entries: IPluginListEntry[] = [];
 		let isFirst = true;
 
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteGroups = new Map<string, IPluginRemoteItemEntry[]>();
 		for (const item of this.remoteItems) {
 			const key = item.groupKey ?? 'remote-host';
 			if (key === 'remote-client') {
 				continue; // client-synced items are already shown in "Enabled Locally"
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				continue; // plugin is also locally installed; show it once in "Enabled Locally"
 			}
 			let group = remoteGroups.get(key);
 			if (!group) {
@@ -1039,7 +1084,17 @@ export class PluginListWidget extends Disposable {
 	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
-		return this.remoteItems.length + this.installedItems.length;
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
+		const uniqueRemote = this.remoteItems.filter(item => {
+			if (item.groupKey === 'remote-client') {
+				return false;
+			}
+			if (item.name && installedNames.has(item.name.toLowerCase())) {
+				return false;
+			}
+			return true;
+		});
+		return uniqueRemote.length + this.installedItems.length;
 	}
 
 	/**

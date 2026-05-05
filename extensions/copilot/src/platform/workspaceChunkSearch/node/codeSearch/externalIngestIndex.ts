@@ -1089,6 +1089,14 @@ export class ExternalIngestIndex extends Disposable {
 			yield URI.parse(row.path);
 		}
 	}
+
+	/**
+	 * Get diagnostic information about the external ingest index.
+	 */
+	public getDiagnostics(): { fileCount: number; files: URI[] } {
+		const files = Array.from(this.iterateDbFiles());
+		return { fileCount: files.length, files };
+	}
 }
 
 

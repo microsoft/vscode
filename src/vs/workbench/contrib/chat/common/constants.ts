@@ -46,6 +46,8 @@ export enum ChatConfiguration {
 	NotifyWindowOnConfirmation = 'chat.notifyWindowOnConfirmation',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	SessionSyncEnabled = 'chat.sessionSync.enabled',
+	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
@@ -63,6 +65,7 @@ export enum ChatConfiguration {
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
+	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -71,6 +74,8 @@ export enum ChatConfiguration {
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
+	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
+	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 
