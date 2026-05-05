@@ -35,7 +35,7 @@ export abstract class MediaPreview extends Disposable {
 			enableScripts: true,
 			enableForms: false,
 			localResourceRoots: [
-				Utils.dirname(_resource),
+				Utils.dirname(_resource).with({ query: '', fragment: '' }),
 				extensionRoot,
 			]
 		};
