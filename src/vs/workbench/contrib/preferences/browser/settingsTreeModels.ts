@@ -377,12 +377,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		let hasAgentsWindowOverride = false;
 		if (this.isSessionsWindow) {
 			const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key];
-			if (property?.agentsWindow) {
-				hasAgentsWindowOverride = true;
-				if (property.agentsWindow.readOnly) {
-					this.isAgentsWindowReadOnly = true;
-					isConfigured = false;
-				}
+			hasAgentsWindowOverride = !!property?.agentsWindow;
+			this.isAgentsWindowReadOnly = !!property?.agentsWindow?.readOnly;
+			if (this.isAgentsWindowReadOnly) {
+				isConfigured = false;
 			}
 		}
 
