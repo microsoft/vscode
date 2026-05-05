@@ -668,3 +668,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 import './remoteAgentHostActions.js';
 import './manageRemoteAgentHosts.js';
 import '../../chat/browser/agentHost/agentHostModelPicker.js';
+import '../../chat/browser/agentHost/agentHostAgentPicker.js';

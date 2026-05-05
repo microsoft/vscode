@@ -77,6 +77,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionUsage]: '0.1.0',
 	[ActionType.SessionReasoning]: '0.1.0',
 	[ActionType.SessionModelChanged]: '0.1.0',
+	[ActionType.SessionAgentChanged]: '0.1.0',
 	[ActionType.SessionServerToolsChanged]: '0.1.0',
 	[ActionType.SessionActiveClientChanged]: '0.1.0',
 	[ActionType.SessionActiveClientToolsChanged]: '0.1.0',
