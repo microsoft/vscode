@@ -32,7 +32,7 @@ import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { IChat, iconForAgentProvider, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 
 // ============================================================================
@@ -761,7 +761,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
-			icon: this.icon,
+			icon: iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
 
 		const prev = this._sessionTypes;
