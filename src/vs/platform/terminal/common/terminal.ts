@@ -790,7 +790,7 @@ export interface ITerminalChildProcess {
 	 * example. The ID will be 0 if it does not support reconnection.
 	 */
 	id: number;
-	daemonId?: string;
+	daemonId?: number;
 
 	/**
 	 * Whether the process should be persisted across reloads.
