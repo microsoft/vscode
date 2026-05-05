@@ -27,7 +27,7 @@ import { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from '@xterm/xterm';
-import { convertBufferRangeToViewport } from './terminalLinkHelpers.js';
+import { convertBufferRangeToViewport, isLinkModifierDown } from './terminalLinkHelpers.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.js';
@@ -149,6 +149,9 @@ export class TerminalLinkManager extends DisposableStore {
 				activeHoverDisposable?.dispose();
 				activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
+				if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier === 'disabled') {
+					return;
+				}
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					interface XtermWithCore extends Terminal {
 						_core: IXtermCore;
@@ -350,6 +353,9 @@ export class TerminalLinkManager extends DisposableStore {
 		if (!this._widgetManager) {
 			return;
 		}
+		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier === 'disabled') {
+			return;
+		}
 
 		interface XtermWithCore extends Terminal {
 			_core: IXtermCore;
@@ -427,24 +433,21 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
-		if (editorConf.multiCursorModifier === 'ctrlCmd') {
-			return !!event.altKey;
-		}
-		return isMacintosh ? event.metaKey : event.ctrlKey;
+		const modifier = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier;
+		return isLinkModifierDown(event, modifier);
 	}
 
 	private _getLinkHoverString(uri: string, label: string | undefined): IMarkdownString {
-		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const modifier = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier;
 
 		let clickLabel = '';
-		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+		if (modifier === 'alt') {
 			if (isMacintosh) {
 				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
 			} else {
 				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
 			}
-		} else {
+		} else if (modifier === 'ctrlCmd') {
 			if (isMacintosh) {
 				clickLabel = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
 			} else {

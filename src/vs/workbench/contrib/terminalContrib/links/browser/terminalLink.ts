@@ -7,10 +7,10 @@ import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { convertBufferRangeToViewport } from './terminalLinkHelpers.js';
-import { isMacintosh } from '../../../../../base/common/platform.js';
+import { convertBufferRangeToViewport, isLinkModifierDown } from './terminalLinkHelpers.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import { TerminalLinkType } from './links.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import type { IParsedLink } from './terminalLinkParsing.js';
@@ -135,10 +135,7 @@ export class TerminalLink extends Disposable implements ILink {
 	}
 
 	private _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
-		const multiCursorModifier = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
-		if (multiCursorModifier === 'ctrlCmd') {
-			return !!event.altKey;
-		}
-		return isMacintosh ? event.metaKey : event.ctrlKey;
+		const modifier = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).linkActivationModifier;
+		return isLinkModifierDown(event, modifier);
 	}
 }

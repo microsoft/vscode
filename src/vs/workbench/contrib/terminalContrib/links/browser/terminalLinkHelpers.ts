@@ -5,7 +5,7 @@
 
 import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from '@xterm/xterm';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { isMacintosh, OperatingSystem } from '../../../../../base/common/platform.js';
 import { IPath, posix, win32 } from '../../../../../base/common/path.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
@@ -252,4 +252,20 @@ export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore
 
 export function osPathModule(os: OperatingSystem): IPath {
 	return os === OperatingSystem.Windows ? win32 : posix;
+}
+
+/**
+ * Returns whether the link activation modifier is the only modifier key currently held for the given event.
+ * All other modifiers are required to be up to prevent conflicts, e.g., ctrl+shift+c copy.
+ */
+export function isLinkModifierDown(event: MouseEvent | KeyboardEvent, modifier: 'ctrlCmd' | 'alt' | 'disabled'): boolean {
+	if (modifier === 'disabled') {
+		return false;
+	}
+	if (modifier === 'alt') {
+		return event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey;
+	}
+	const primaryKey = isMacintosh ? event.metaKey : event.ctrlKey;
+	const otherKey = isMacintosh ? event.ctrlKey : event.metaKey;
+	return primaryKey && !event.shiftKey && !event.altKey && !otherKey;
 }
