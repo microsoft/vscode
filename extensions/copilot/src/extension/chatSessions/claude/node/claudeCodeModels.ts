@@ -101,6 +101,7 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				outputCost: endpoint.tokenPricing?.outputPrice,
 				cacheCost: endpoint.tokenPricing?.cacheReadTokenPrice,
 				multiplierNumeric: endpoint.multiplier,
+				priceTier: endpoint.priceTier,
 				tooltip,
 				isUserSelectable: true,
 				configurationSchema: buildConfigurationSchema(endpoint),

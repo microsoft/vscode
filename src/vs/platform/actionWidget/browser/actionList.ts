@@ -502,6 +502,12 @@ export interface IActionListOptions {
 	 * where this hint is misleading.
 	 */
 	readonly hideDefaultKeybindingTooltip?: boolean;
+
+	/**
+	 * Optional label shown on the right side of the filter row.
+	 * Only rendered when `showFilter` is true.
+	 */
+	readonly filterLabel?: string;
 }
 
 /**
@@ -676,6 +682,11 @@ export class ActionListWidget<T> extends Disposable {
 				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
 				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
 				filterActionBar.push(filterActions, { icon: true, label: false });
+			}
+
+			if (this._options?.filterLabel) {
+				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
+				filterLabelEl.textContent = this._options.filterLabel;
 			}
 
 			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {

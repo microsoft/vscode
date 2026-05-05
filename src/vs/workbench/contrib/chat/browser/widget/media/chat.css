@@ -2063,6 +2063,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 4px;
 }
 
+.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
+	display: flex;
+}
+
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }

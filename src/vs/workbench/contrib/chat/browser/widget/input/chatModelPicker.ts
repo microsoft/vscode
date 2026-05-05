@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -99,13 +100,14 @@ function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): bo
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
+	descriptionOverride?: string | MarkdownString,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hoverContent = model ? getModelHoverContent(model) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
 		label: action.label,
-		description: action.description,
+		description: descriptionOverride ?? action.description,
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
@@ -143,17 +145,21 @@ function resolveConfigProperty(
 }
 
 /**
- * Returns a short description summarizing the model's current configuration values
- * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ * Returns a visual pricing tier indicator using codicon circles.
+ * One filled circle for "low", two for "medium", three for "high", four for "very_high".
+ * Empty circles are shown for the remaining slots (out of four total).
  */
-function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
-	const config = resolveConfigProperty(model, 'navigation', languageModelsService);
-	if (!config || config.value === undefined) {
-		return undefined;
+function getPriceTierIndicator(priceTier: string | undefined): string | undefined {
+	let filled: number;
+	switch (priceTier) {
+		case 'low': filled = 1; break;
+		case 'medium': filled = 2; break;
+		case 'high': filled = 3; break;
+		case 'very_high': filled = 4; break;
+		default: return undefined;
 	}
-	const enumIndex = config.schema.enum?.indexOf(config.value) ?? -1;
-	const label = config.schema.enumItemLabels?.[enumIndex] ?? String(config.value);
-	return label;
+	const total = 4;
+	return '$(circle-filled)'.repeat(filled) + '$(circle)'.repeat(total - filled);
 }
 
 function createModelAction(
@@ -162,28 +168,37 @@ function createModelAction(
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	languageModelsService: ILanguageModelsService,
 	section?: string,
-): IActionWidgetDropdownAction & { section?: string } {
-	const configDescription = getModelConfigurationDescription(model, languageModelsService);
+): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	const detailParts = [model.metadata.detail, pricingForDescription].filter(Boolean);
-	const baseDescription = detailParts.length > 0 ? detailParts.join(' · ') : undefined;
-	const description = configDescription && baseDescription
-		? `${configDescription} · ${baseDescription}`
-		: configDescription ?? baseDescription;
-	return {
+	const priceTierIndicator = getPriceTierIndicator(model.metadata.priceTier);
+	const textParts = [model.metadata.detail, pricingForDescription].filter(Boolean);
+	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
+
+	let descriptionOverride: MarkdownString | undefined;
+	if (priceTierIndicator) {
+		const md = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
+		if (textDescription) {
+			md.appendText(textDescription + ' · ');
+		}
+		md.appendMarkdown(priceTierIndicator);
+		descriptionOverride = md;
+	}
+
+	const action: IActionWidgetDropdownAction & { section?: string } = {
 		id: model.identifier,
 		enabled: true,
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description,
+		description: priceTierIndicator ? undefined : textDescription,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
 		run: () => onSelect(model),
 	};
+	return { action, descriptionOverride };
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
@@ -286,7 +301,8 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
+				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
+				items.push(createModelItem(autoAction, autoModel, autoDesc));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -374,7 +390,8 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model));
+						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!);
+						items.push(createModelItem(promotedAction, item.model, promotedDesc));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -405,6 +422,9 @@ export function buildModelPickerItems(
 				if (items.length > 0) {
 					items.push({ kind: ActionListItemKind.Separator });
 				}
+				const otherModelsToolbar = manageModelsAction
+					? [toAction({ id: manageModelsAction.id, label: manageModelsAction.tooltip ?? manageModelsAction.label, class: ThemeIcon.asClassName(Codicon.gear), run: () => manageModelsAction.run() })]
+					: undefined;
 				items.push({
 					item: {
 						id: 'otherModels',
@@ -421,27 +441,30 @@ export function buildModelPickerItems(
 					hideIcon: false,
 					section: ModelPickerSection.Other,
 					isSectionToggle: true,
+					toolbarActions: otherModelsToolbar,
+					className: 'chat-model-picker-section-toggle',
 				});
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model));
+						const { action: otherAction, descriptionOverride: otherDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other);
+						items.push(createModelItem(otherAction, model, otherDesc));
 					}
 				}
 			}
 		}
 
-		if (manageModelsAction) {
-			items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
+		if (manageModelsAction && !otherModels.length) {
+			// No Other Models section: show manage models as standalone
+			items.push({ kind: ActionListItemKind.Separator });
 			items.push({
 				item: manageModelsAction,
 				kind: ActionListItemKind.Action,
 				label: manageModelsAction.label,
 				group: { title: '', icon: Codicon.blank },
 				hideIcon: false,
-				section: otherModels.length ? ModelPickerSection.Other : undefined,
 				showAlways: true,
 			});
 		}
@@ -449,7 +472,8 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
+			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
+			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -458,7 +482,8 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!), model));
+			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!);
+			items.push(createModelItem(flatAction, model, flatDesc));
 		}
 	}
 
@@ -727,17 +752,20 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
-			!showFilter ? manageModelsAction : undefined,
+			manageModelsAction,
 			this._entitlementService,
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._languageModelsService,
 		);
 
+		const hasPriceTiers = models.some(m => !!m.metadata.priceTier);
+
 		const listOptions = {
 			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-			filterActions: showFilter && manageModelsAction ? [manageModelsAction] : undefined,
+			filterActions: undefined,
+			filterLabel: hasPriceTiers ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
