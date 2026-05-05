@@ -51,7 +51,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { computeAIDisabledClearForGlobalOptIn, computeAIDisabledSyncOnExtensionEnabled, isExtensionEnablementChangeable } from '../../../../services/chat/common/chatAIDisabledHelpers.js';
+import { computeAIDisabledClearForGlobalOptIn, computeAIDisabledSyncOnExtensionEnabled } from '../../../../services/chat/common/chatAIDisabledHelpers.js';
 import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
@@ -791,14 +791,18 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension) {
+		if (!defaultChatExtension?.local) {
 			return;
 		}
 
 		// The chat extension's enablement may be locked by the environment (extension kind, virtual workspace,
-		// allow-list, etc.). Calling `setEnablement` in those states throws an unhandled error
-		// (https://github.com/microsoft/vscode/issues/312381).
-		if (!isExtensionEnablementChangeable(defaultChatExtension.enablementState)) {
+		// allow-list, language pack, settings-sync auth provider, etc.). Calling `setEnablement` in those
+		// cases throws an unhandled error (https://github.com/microsoft/vscode/issues/312381).
+		const workspace = state === EnablementState.EnabledWorkspace || state === EnablementState.DisabledWorkspace;
+		const canChange = workspace
+			? this.extensionEnablementService.canChangeWorkspaceEnablement(defaultChatExtension.local)
+			: this.extensionEnablementService.canChangeEnablement(defaultChatExtension.local);
+		if (!canChange) {
 			return;
 		}
 

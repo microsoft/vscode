@@ -80,24 +80,3 @@ export function computeAIDisabledClearForGlobalOptIn(
 	}
 	return updates;
 }
-
-// `setEnablement` throws (in `throwErrorIfEnablementStateCannotBeChanged`) for these states.
-// `DisabledByTrustRequirement` is excluded - `setEnablement` handles it via a trust request.
-// `DisabledByExtensionDependency` is excluded - it is only conditionally non-changeable.
-const NON_CHANGEABLE_ENABLEMENT_STATES: readonly EnablementState[] = [
-	EnablementState.DisabledByEnvironment,
-	EnablementState.DisabledByMalicious,
-	EnablementState.DisabledByVirtualWorkspace,
-	EnablementState.DisabledByExtensionKind,
-	EnablementState.DisabledByAllowlist,
-	EnablementState.DisabledByInvalidExtension,
-];
-
-/**
- * Returns true if the extension's current enablement state can be changed via `setEnablement`.
- * Callers driving enablement from external state must skip the call when this returns false to
- * avoid unhandled errors (https://github.com/microsoft/vscode/issues/312381).
- */
-export function isExtensionEnablementChangeable(state: EnablementState): boolean {
-	return !NON_CHANGEABLE_ENABLEMENT_STATES.includes(state);
-}

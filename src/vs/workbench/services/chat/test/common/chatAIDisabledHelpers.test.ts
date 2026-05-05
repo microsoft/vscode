@@ -11,7 +11,6 @@ import {
 	computeAIDisabledClearForGlobalOptIn,
 	computeAIDisabledOverrideForWorkspaceEnable,
 	computeAIDisabledSyncOnExtensionEnabled,
-	isExtensionEnablementChangeable,
 } from '../../common/chatAIDisabledHelpers.js';
 
 type Inspect = Partial<IConfigurationValue<boolean>>;
@@ -168,43 +167,6 @@ suite('chat - chatSetupAIDisabled', () => {
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
 				{ value: false, target: ConfigurationTarget.USER },
 			]);
-		});
-	});
-
-	suite('isExtensionEnablementChangeable (issue #312381)', () => {
-
-		// Repro for https://github.com/microsoft/vscode/issues/312381: in remote scenarios (SSH/WSL/Dev
-		// Container/tunnels), the chat extension's
-		// kind may not match its install location, putting it in `DisabledByExtensionKind`. The teardown
-		// contribution then called `setEnablement(...)` unconditionally, which throws an unhandled error.
-		test('returns false for non-changeable states (would otherwise crash setEnablement)', () => {
-			const nonChangeable: ReadonlyArray<readonly [EnablementState, string]> = [
-				[EnablementState.DisabledByEnvironment, 'DisabledByEnvironment'],
-				[EnablementState.DisabledByMalicious, 'DisabledByMalicious'],
-				[EnablementState.DisabledByVirtualWorkspace, 'DisabledByVirtualWorkspace'],
-				[EnablementState.DisabledByExtensionKind, 'DisabledByExtensionKind'],
-				[EnablementState.DisabledByAllowlist, 'DisabledByAllowlist'],
-				[EnablementState.DisabledByInvalidExtension, 'DisabledByInvalidExtension'],
-			];
-			for (const [state, name] of nonChangeable) {
-				assert.strictEqual(isExtensionEnablementChangeable(state), false, `${name} should not be changeable`);
-			}
-		});
-
-		test('returns true for changeable states', () => {
-			const changeable: ReadonlyArray<readonly [EnablementState, string]> = [
-				[EnablementState.EnabledGlobally, 'EnabledGlobally'],
-				[EnablementState.EnabledWorkspace, 'EnabledWorkspace'],
-				[EnablementState.DisabledGlobally, 'DisabledGlobally'],
-				[EnablementState.DisabledWorkspace, 'DisabledWorkspace'],
-			];
-			for (const [state, name] of changeable) {
-				assert.strictEqual(isExtensionEnablementChangeable(state), true, `${name} should be changeable`);
-			}
-		});
-
-		test('returns true for DisabledByTrustRequirement (setEnablement handles it via trust request)', () => {
-			assert.strictEqual(isExtensionEnablementChangeable(EnablementState.DisabledByTrustRequirement), true);
 		});
 	});
 });
