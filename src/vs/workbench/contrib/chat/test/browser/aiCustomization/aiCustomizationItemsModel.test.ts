@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -39,14 +39,16 @@ suite('AICustomizationItemsModel', () => {
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
+		let listPromptFilesResult: { uri: URI; storage: PromptsStorage.user; type: PromptsType }[];
 
-		function createDescriptor(id: string, provider: ICustomizationItemProvider): IHarnessDescriptor {
+		function createDescriptor(id: string, provider: ICustomizationItemProvider, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
 				id,
 				label: id,
 				icon: Codicon.settingsGear,
 				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
+				syncProvider,
 			};
 		}
 
@@ -55,6 +57,7 @@ suite('AICustomizationItemsModel', () => {
 			providerA_didChange = disposables.add(new Emitter<void>());
 			providerA_callCount = 0;
 			providerA_items = [];
+			listPromptFilesResult = [];
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -82,7 +85,7 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
-				listPromptFiles: async () => [],
+				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -390,6 +393,76 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 
 			assert.strictEqual(count.get(), 1, 'after local install: harness duplicate is folded into the local count');
+		});
+
+		test('does not double-count local syncable items when itemProvider and syncProvider are both present', async () => {
+			// Regression: ProviderCustomizationItemSource.fetchItems used to unconditionally
+			// append fetchLocalSyncableItems even when an itemProvider was present, causing
+			// items reported by the provider to also show up via local enumeration.
+			const syncProvider_didChange = disposables.add(new Emitter<void>());
+			const syncProvider: ICustomizationSyncProvider = {
+				onDidChange: syncProvider_didChange.event,
+				isDisabled: () => false,
+				setDisabled: () => { },
+			};
+			const providerWithSync: ICustomizationItemProvider = {
+				onDidChange: providerA_didChange.event,
+				provideChatSessionCustomizations: (_token: CancellationToken) => {
+					providerA_callCount++;
+					return Promise.resolve(providerA_items.slice());
+				},
+			};
+			availableHarnesses.set([createDescriptor('A', providerWithSync, syncProvider), descriptorB], undefined);
+
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/agents/coder.agent.md'),
+				type: PromptsType.agent,
+				name: 'Coder',
+				storage: PromptsStorage.user,
+				extensionId: undefined,
+				pluginUri: undefined,
+			}];
+			listPromptFilesResult = [{
+				uri: URI.parse('file:///user/agents/coder.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual(items.get().map(i => i.name), ['Coder']);
+		});
+
+		test('syncProvider.onDidChange does not refetch when itemProvider is present', async () => {
+			// The data path early-returns to provider items only when itemProvider exists,
+			// so subscribing to syncProvider/promptsService events would cause duplicate
+			// refreshes for providers that already forward those underlying events.
+			const syncProvider_didChange = disposables.add(new Emitter<void>());
+			const syncProvider: ICustomizationSyncProvider = {
+				onDidChange: syncProvider_didChange.event,
+				isDisabled: () => false,
+				setDisabled: () => { },
+			};
+			const providerWithSync: ICustomizationItemProvider = {
+				onDidChange: providerA_didChange.event,
+				provideChatSessionCustomizations: (_token: CancellationToken) => {
+					providerA_callCount++;
+					return Promise.resolve(providerA_items.slice());
+				},
+			};
+			availableHarnesses.set([createDescriptor('A', providerWithSync, syncProvider), descriptorB], undefined);
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await timeout(0);
+			const before = providerA_callCount;
+
+			syncProvider_didChange.fire();
+			await timeout(0);
+
+			assert.strictEqual(providerA_callCount, before, 'syncProvider events must not trigger refetches when itemProvider owns the data path');
 		});
 	});
 
