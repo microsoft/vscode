@@ -215,6 +215,25 @@ suite('TreeSitterCommandParser', () => {
 		});
 	});
 
+	suite('extractCommandKeywords', () => {
+		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedKeywords: string[]) {
+			const result = await parser.extractCommandKeywords(languageId, commandLine);
+			deepStrictEqual(result, expectedKeywords);
+		}
+
+		test('extracts bash command keywords from compound commands', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'VAR=value node --version && git status && /usr/local/bin/python3 -m pytest',
+			['node', 'git', 'python3']
+		));
+
+		test('deduplicates similar command keywords', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'node --version && /usr/bin/node script.js && npm ci',
+			['node', 'npm']
+		));
+	});
+
 	suite('extractPwshDoubleAmpersandChainOperators', () => {
 		async function t(commandLine: string, expectedMatches: string[]) {
 			const result = await parser.extractPwshDoubleAmpersandChainOperators(commandLine);

@@ -86,6 +86,13 @@ export interface ITerminalProfileService {
 	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	/**
+	 * Overrides the default contributed terminal profile. When set,
+	 * {@link getContributedDefaultProfile} returns the matching profile
+	 * regardless of the user's configuration. Dispose the returned
+	 * disposable to remove the override.
+	 */
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable;
 }
 
 export interface ITerminalProfileProvider {
@@ -96,6 +103,7 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
+	allowAgentHostShell?: boolean;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;

@@ -152,6 +152,7 @@ describe('AutomodeService', () => {
 			sendTelemetryErrorEvent: vi.fn(),
 			sendMSFTTelemetryErrorEvent: vi.fn(),
 			sendSharedTelemetryEvent: vi.fn(),
+			sendEnhancedGHTelemetryEvent: vi.fn(),
 		} as unknown as ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	});
 

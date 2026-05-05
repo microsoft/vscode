@@ -29,7 +29,7 @@ suite('CopilotLanguageModelWrapper', () => {
 		instaService = accessor.get(IInstantiationService);
 	}
 
-	suite('validateRequest - invalid', async () => {
+	suite('validateRequest - invalid', () => {
 		let wrapper: CopilotLanguageModelWrapper;
 		let endpoint: IChatEndpoint;
 		setup(async () => {
@@ -59,7 +59,7 @@ suite('CopilotLanguageModelWrapper', () => {
 		});
 	});
 
-	suite('validateRequest - valid', async () => {
+	suite('validateRequest - valid', () => {
 		let wrapper: CopilotLanguageModelWrapper;
 		let endpoint: IChatEndpoint;
 		setup(async () => {

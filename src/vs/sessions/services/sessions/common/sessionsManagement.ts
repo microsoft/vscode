@@ -74,17 +74,6 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable for the currently active sessions provider ID.
-	 * When only one provider exists, it is selected automatically.
-	 */
-	readonly activeProviderId: IObservable<string | undefined>;
-
-	/**
-	 * Set the active sessions provider by ID.
-	 */
-	setActiveProvider(providerId: string): void;
-
-	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */

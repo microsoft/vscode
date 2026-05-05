@@ -5,14 +5,14 @@
 
 import type { AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
 import { Event } from '../../../../util/vs/base/common/event';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { CopilotToken } from '../../../authentication/common/copilotToken';
 
 /**
  * A minimal mock implementation of IAuthenticationService for testing.
  * Returns undefined for all session methods by default.
- * Note: Does not fully implement IAuthenticationService - only the methods needed for tests.
  */
-export class MockAuthenticationService {
+export class MockAuthenticationService implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly isMinimalMode = false;
@@ -25,6 +25,8 @@ export class MockAuthenticationService {
 	copilotToken: Omit<CopilotToken, 'token'> | undefined = undefined;
 	speculativeDecodingEndpointToken: string | undefined = undefined;
 
+	getGitHubSession(_kind: 'permissive' | 'any', _options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
+	getGitHubSession(_kind: 'permissive' | 'any', _options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession>;
 	getGitHubSession(_kind: 'permissive' | 'any', _options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		return Promise.resolve(undefined);
 	}

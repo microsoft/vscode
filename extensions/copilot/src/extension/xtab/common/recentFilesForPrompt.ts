@@ -16,6 +16,7 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { expandRangeToPageRange } from './promptCrafting';
 import { countTokensForLines, toUniquePath } from './promptCraftingUtils';
+import { INeighborFileSnippet } from './similarFilesContextService';
 import { PromptTags } from './tags';
 
 export function getRecentCodeSnippets(
@@ -24,7 +25,8 @@ export function getRecentCodeSnippets(
 	langCtx: LanguageContextResponse | undefined,
 	computeTokens: (code: string) => number,
 	opts: PromptOptions,
-): { codeSnippets: string; documents: Set<DocumentId> } {
+	neighborSnippets?: readonly INeighborFileSnippet[],
+): { codeSnippets: string; documents: Set<DocumentId>; neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined } {
 
 	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
 
@@ -44,9 +46,15 @@ export function getRecentCodeSnippets(
 		appendLanguageContextSnippets(langCtx, snippets, opts.languageContext.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
 	}
 
+	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	if (opts.neighborFiles.enabled && neighborSnippets && neighborSnippets.length > 0) {
+		neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, snippets, docsInPrompt, opts.neighborFiles.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+	}
+
 	return {
 		codeSnippets: snippets.join('\n\n'),
 		documents: docsInPrompt,
+		neighborSnippetsResult,
 	};
 }
 
@@ -317,6 +325,76 @@ function appendLanguageContextSnippets(
 			tokenBudget = potentialBudget;
 		}
 	}
+}
+
+/**
+ * Result of appending neighbor-file snippets, used for telemetry.
+ */
+export interface AppendNeighborFileSnippetsResult {
+	/** Total snippets considered (input array length). */
+	readonly nComputed: number;
+	/** Snippets actually included in the prompt. */
+	readonly nIncluded: number;
+	/**
+	 * Original input indices (ascending) of snippets included in the prompt.
+	 * E.g. `[3, 4, 6]` means snippets at original indices 3, 4 and 6 were included
+	 * (snippet at index 5 was skipped — too large or duplicate doc — and snippets
+	 * at 0, 1 and 2 were skipped because the budget ran out).
+	 */
+	readonly includedIndices: readonly number[];
+}
+
+/**
+ * Append Completions-style neighbor-file snippets (Jaccard-ranked) to the snippets array.
+ *
+ * Snippets are pre-clipped by Completions (each is a fixed-window match around
+ * the cursor in a neighbor file) and arrive ordered with the highest-scoring
+ * snippet last. We select greedily from highest score downward so the best
+ * snippets reserve budget first, skipping any whose file is already represented
+ * in {@link docsInPrompt} (avoids duplicating recently-edited or recently-viewed
+ * files) and any snippet that would exceed the remaining token budget. Selected
+ * snippets are then appended in score-ascending order so the highest-scoring
+ * snippet ends up closest to the current file in the prompt.
+ */
+export function appendNeighborFileSnippets(
+	neighborSnippets: readonly INeighborFileSnippet[],
+	snippets: string[],
+	docsInPrompt: Set<DocumentId>,
+	tokenBudget: number,
+	computeTokens: (code: string) => number,
+	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
+): AppendNeighborFileSnippetsResult {
+	const selected: { snippet: INeighborFileSnippet; originalIndex: number }[] = [];
+	// Iterate from highest score (last) to lowest (first) so the best snippets reserve budget first.
+	for (let i = neighborSnippets.length - 1; i >= 0; i--) {
+		const neighborSnippet = neighborSnippets[i];
+		const documentId = DocumentId.create(neighborSnippet.uri);
+		if (docsInPrompt.has(documentId)) {
+			continue;
+		}
+		const potentialBudget = tokenBudget - computeTokens(neighborSnippet.snippet);
+		if (potentialBudget < 0) {
+			continue;
+		}
+		selected.push({ snippet: neighborSnippet, originalIndex: i });
+		docsInPrompt.add(documentId);
+		tokenBudget = potentialBudget;
+	}
+	// Reverse so the highest-scoring snippet is appended last (closest to the current file).
+	for (let i = selected.length - 1; i >= 0; i--) {
+		const neighborSnippet = selected[i].snippet;
+		snippets.push(formatCodeSnippet(
+			DocumentId.create(neighborSnippet.uri),
+			neighborSnippet.snippet.split(/\r?\n/),
+			{ truncated: false, includeLineNumbers, startLineOffset: neighborSnippet.lineRange.startLine },
+		));
+	}
+	const includedIndices = selected.map(s => s.originalIndex).sort((a, b) => a - b);
+	return {
+		nComputed: neighborSnippets.length,
+		nIncluded: selected.length,
+		includedIndices,
+	};
 }
 
 /**

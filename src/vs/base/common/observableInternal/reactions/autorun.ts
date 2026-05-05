@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IReaderWithStore, IReader, IObservable } from '../base.js';
+import { IReaderWithStore, IReader, IObservable, ISettableObservable } from '../base.js';
 import { IChangeTracker } from '../changeTracker.js';
 import { DisposableStore, IDisposable, toDisposable } from '../commonFacade/deps.js';
 import { DebugNameData, IDebugNameData } from '../debugName.js';
 import { AutorunObserver } from './autorunImpl.js';
 import { DebugLocation } from '../debugLocation.js';
+import { observableValue } from '../observables/observableValue.js';
+import { transaction } from '../transaction.js';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
@@ -152,6 +154,76 @@ export function autorunIterableDelta<T>(
 		if (newValues.size || removedValues.size) {
 			handler({ addedValues: [...newValues.values()], removedValues: [...removedValues.values()] });
 		}
+	});
+}
+
+/**
+ * For each key-stable item in {@link items}, runs {@link setup} once when the
+ * key is first observed and disposes the per-key {@link DisposableStore} when
+ * the key is no longer present in the array (or when the returned disposable
+ * is disposed).
+ *
+ * The {@link IObservable} handed to {@link setup} fires whenever the array
+ * still contains an item with the same key but the item value itself has
+ * changed (e.g. because the upstream state is immutable and produced a new
+ * object with the same id). All per-key value updates triggered by a single
+ * change to {@link items} are batched into one transaction, so dependent
+ * autoruns observe a consistent snapshot.
+ *
+ * Per-key state should be stored in closures or in disposables registered
+ * against the per-key {@link DisposableStore}. {@link setup} should not call
+ * `.read()` on the outer {@link items} observable from its body (use the
+ * provided per-key value observable, or create inner autoruns).
+ */
+export function autorunPerKeyedItem<TIn, TKey>(
+	items: IObservable<readonly TIn[]>,
+	keyFn: (input: TIn) => TKey,
+	setup: (key: TKey, value: IObservable<TIn>, store: DisposableStore) => void,
+	debugLocation = DebugLocation.ofCaller()
+): IDisposable {
+	interface ICell {
+		readonly value: ISettableObservable<TIn>;
+		readonly store: DisposableStore;
+	}
+	const cells = new Map<TKey, ICell>();
+	const ar = autorunOpts({ debugReferenceFn: setup }, reader => {
+		const arr = items.read(reader);
+		const seen = new Set<TKey>();
+		const additions: { key: TKey; cell: ICell }[] = [];
+		transaction(tx => {
+			for (const item of arr) {
+				const key = keyFn(item);
+				seen.add(key);
+				const existing = cells.get(key);
+				if (existing) {
+					existing.value.set(item, tx);
+				} else {
+					const store = new DisposableStore();
+					const value = observableValue<TIn>('keyedItem', item);
+					const cell: ICell = { value, store };
+					cells.set(key, cell);
+					additions.push({ key, cell });
+				}
+			}
+			for (const [k, cell] of cells) {
+				if (!seen.has(k)) {
+					cell.store.dispose();
+					cells.delete(k);
+				}
+			}
+		});
+		// Setup runs after the transaction so per-key autoruns observe the
+		// final cell values on their first read.
+		for (const { key, cell } of additions) {
+			setup(key, cell.value, cell.store);
+		}
+	}, debugLocation);
+	return toDisposable(() => {
+		ar.dispose();
+		for (const cell of cells.values()) {
+			cell.store.dispose();
+		}
+		cells.clear();
 	});
 }
 

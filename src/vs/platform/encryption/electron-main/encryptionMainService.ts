@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeStorage as safeStorageElectron, app } from 'electron';
-import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { join } from '../../../base/common/path.js';
+import { INodeProcess, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from '../common/encryptionService.js';
+import { getDefaultUserDataPath } from '../../environment/node/userDataPath.js';
 import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 
 // These APIs are currently only supported in our custom build of electron so
 // we need to guard against them not being available.
 interface ISafeStorageAdditionalAPIs {
 	setUsePlainTextEncryption(usePlainText: boolean): void;
 	getSelectedStorageBackend(): string;
+	initWithExistingKey(localStatePath: string): boolean;
 }
 
 const safeStorage: typeof import('electron').safeStorage & Partial<ISafeStorageAdditionalAPIs> = safeStorageElectron;
@@ -21,13 +25,48 @@ export class EncryptionMainService implements IEncryptionMainService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		// if this commandLine switch is set, the user has opted in to using basic text encryption
 		if (app.commandLine.getSwitchValue('password-store') === PasswordStoreCLIOption.basic) {
 			this.logService.trace('[EncryptionMainService] setting usePlainTextEncryption to true...');
 			safeStorage.setUsePlainTextEncryption?.(true);
 			this.logService.trace('[EncryptionMainService] set usePlainTextEncryption to true');
+		}
+
+		if (isWindows && (process as INodeProcess).isEmbeddedApp) {
+			this.initializeWithHostEncryptionKey();
+		}
+	}
+
+	private initializeWithHostEncryptionKey(): void {
+		if (!safeStorage.initWithExistingKey) {
+			this.logService.trace('[EncryptionMainService] initWithExistingKey API is not available');
+			return;
+		}
+
+		// embedded.win32SiblingExeBasename is derived from the host app's product.nameShort
+		// at build time, which is also the folder name used for the host's user data path.
+		const hostProductName = this.productService.embedded?.win32SiblingExeBasename;
+		if (!hostProductName) {
+			this.logService.warn('[EncryptionMainService] Host product name not available in embedded product config');
+			return;
+		}
+
+		const hostUserDataPath = getDefaultUserDataPath(hostProductName);
+		const localStatePath = join(hostUserDataPath, 'Local State');
+
+		this.logService.info(`[EncryptionMainService] Initializing encryption with host app key from: ${localStatePath}`);
+		try {
+			const result = safeStorage.initWithExistingKey(localStatePath);
+			if (result) {
+				this.logService.info('[EncryptionMainService] Successfully initialized encryption with host app key');
+			} else {
+				this.logService.error('[EncryptionMainService] Failed to initialize encryption with host app key');
+			}
+		} catch (e) {
+			this.logService.error('[EncryptionMainService] Error initializing encryption with host app key:', e);
 		}
 	}
 

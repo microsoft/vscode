@@ -95,6 +95,7 @@ import './mainThreadMcp.js';
 import './mainThreadChatContext.js';
 import './mainThreadChatDebug.js';
 import './mainThreadChatStatus.js';
+import './mainThreadChatInputNotification.js';
 import './mainThreadChatOutputRenderer.js';
 import './mainThreadChatSessions.js';
 import './mainThreadDataChannels.js';

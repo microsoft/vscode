@@ -10,19 +10,29 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from '../../../environment/common/environmentService.js';
 import product from '../../../product/common/product.js';
 import { UserDataProfilesMainService } from '../../electron-main/userDataProfile.js';
 import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
-		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
+		const userDataDir = _appSettingsHome.fsPath.replace(/\/User$/, '');
+		const paths: INativeEnvironmentPaths = {
+			userDataDir,
+			homeDir: userDataDir,
+			tmpDir: userDataDir,
+			parentAppUserDataDir: undefined,
+			parentAppUserHomeDir: undefined
+		};
+		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}
+	override get userHome() { return this._appSettingsHome; }
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 	override get extensionsPath() { return joinPath(this.userRoamingDataHome, 'extensions.json').path; }
 	override get stateResource() { return joinPath(this.userRoamingDataHome, 'state.json'); }
@@ -44,7 +54,8 @@ suite('UserDataProfileMainService', () => {
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
 		stateService = disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, logService, fileService));
 
-		testObject = disposables.add(new UserDataProfilesMainService(stateService, disposables.add(new UriIdentityService(fileService)), environmentService, fileService, logService));
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		testObject = disposables.add(new UserDataProfilesMainService(stateService, disposables.add(new UriIdentityService(fileService)), environmentService, fileService, logService, productService));
 		await stateService.init();
 	});
 

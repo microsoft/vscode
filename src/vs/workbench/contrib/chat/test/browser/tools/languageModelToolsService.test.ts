@@ -19,6 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
@@ -510,7 +511,10 @@ suite('LanguageModelToolsService', () => {
 				confirmationMessages: {
 					title: 'Confirm',
 					message: 'Pick an option',
-					customButtons: ['Option A', 'Option B'],
+					customOptions: [
+						{ id: 'Option A', label: 'Option A', kind: ConfirmationOptionKind.Approve },
+						{ id: 'Option B', label: 'Option B', kind: ConfirmationOptionKind.Deny },
+					],
 					allowAutoConfirm: false,
 				}
 			}),
@@ -564,13 +568,16 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'ok');
 	});
 
-	test('confirmationMessages with customButtons disables allowAutoConfirm', async () => {
+	test('confirmationMessages with customOptions disables allowAutoConfirm', async () => {
 		const tool = registerToolForTest(service, store, 'testToolCustomBtnNoAuto', {
 			prepareToolInvocation: async () => ({
 				confirmationMessages: {
 					title: 'Confirm',
 					message: 'Choose',
-					customButtons: ['Yes', 'No'],
+					customOptions: [
+						{ id: 'Yes', label: 'Yes', kind: ConfirmationOptionKind.Approve },
+						{ id: 'No', label: 'No', kind: ConfirmationOptionKind.Deny },
+					],
 					allowAutoConfirm: false,
 				}
 			}),
@@ -586,7 +593,7 @@ suite('LanguageModelToolsService', () => {
 		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
 		const published = await waitForPublishedInvocation(capture);
 		assert.ok(published, 'expected ChatToolInvocation to be published');
-		assert.deepStrictEqual(published.confirmationMessages?.customButtons, ['Yes', 'No']);
+		assert.deepStrictEqual(published.confirmationMessages?.customOptions?.map(o => o.label), ['Yes', 'No']);
 
 		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction, selectedButton: 'Yes' });
 		await promise;

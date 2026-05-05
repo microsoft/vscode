@@ -91,7 +91,6 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
-			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
@@ -102,7 +101,6 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
-			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
@@ -111,7 +109,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -121,7 +118,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -131,7 +127,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -141,7 +136,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -151,7 +145,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -161,7 +154,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -171,7 +163,6 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
 			await testDesktopApp(entryPoint);
-			await testAgentsApp(entryPoint);
 			await context.uninstallSnap();
 		}
 	});
@@ -183,7 +174,6 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
-			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
@@ -295,6 +285,11 @@ export function setup(context: TestContext) {
 	}
 
 	async function testAgentsApp(desktopEntryPoint: string, dataDir?: string) {
+		if (context.options.quality === 'stable') {
+			// Agents app is not included in stable builds yet.
+			return;
+		}
+
 		const test = new UITest(context, dataDir);
 		const args = ['--agents'];
 		if (!dataDir) {

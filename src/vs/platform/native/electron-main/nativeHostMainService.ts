@@ -305,17 +305,36 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined): Promise<void> {
 		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-			forceNewWindow: options?.forceNewWindow,
 		});
 	}
 
 	async launchSiblingApp(_windowId: number | undefined, args?: string[]): Promise<void> {
-		const result = launchSiblingApp(this.productService, args, err => {
+		const finalArgs = [...(args ?? [])];
+
+		// Forward transient dirs to the sibling app so it runs fully isolated
+		const agentsUserDataDir = this.environmentMainService.args['agents-user-data-dir'];
+		if (agentsUserDataDir) {
+			finalArgs.push('--user-data-dir', agentsUserDataDir);
+		}
+		const agentsExtensionsDir = this.environmentMainService.args['agents-extensions-dir'];
+		if (agentsExtensionsDir) {
+			finalArgs.push('--extensions-dir', agentsExtensionsDir);
+		}
+		const sharedDataDir = this.environmentMainService.args['shared-data-dir'];
+		if (sharedDataDir) {
+			finalArgs.push('--shared-data-dir', sharedDataDir);
+		}
+		const agentPluginsDir = this.environmentMainService.args['agent-plugins-dir'];
+		if (agentPluginsDir) {
+			finalArgs.push('--agent-plugins-dir', agentPluginsDir);
+		}
+
+		const result = launchSiblingApp(this.productService, finalArgs, err => {
 			this.logService.error('[launchSiblingApp] Failed to spawn sibling app:', err.message);
 		});
 		if (!result) {

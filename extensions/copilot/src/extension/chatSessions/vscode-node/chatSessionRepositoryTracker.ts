@@ -10,16 +10,19 @@ import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspa
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
 import { IGitService } from '../../../platform/git/common/gitService';
+import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 
 export class ChatSessionRepositoryTracker extends Disposable {
 	private readonly repositories = new DisposableResourceMap();
 
 	constructor(
-		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider,
+		// This is only required in non-controller code paths.
+		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider | undefined,
 		@IChatSessionWorktreeService private readonly worktreeService: IChatSessionWorktreeService,
 		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@IGitService private readonly gitService: IGitService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IChatSessionMetadataStore private readonly metadataStore: IChatSessionMetadataStore
 	) {
 		super();
 
@@ -67,35 +70,7 @@ export class ChatSessionRepositoryTracker extends Disposable {
 	}
 
 	private async onDidChangeRepositoryState(uri: vscode.Uri): Promise<void> {
-		this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] Repository state changed for ${uri.toString()}. Updating session properties.`);
-
-		const worktreeSessionId = await this.worktreeService.getSessionIdForWorktree(uri);
-		const workspaceSessionIds = this.workspaceFolderService.clearWorkspaceChanges(uri);
-
-		if (worktreeSessionId) {
-			// Worktree
-			const worktreeProperties = await this.worktreeService.getWorktreeProperties(worktreeSessionId);
-			if (!worktreeProperties) {
-				return;
-			}
-
-			await this.worktreeService.setWorktreeProperties(worktreeSessionId, {
-				...worktreeProperties,
-				changes: undefined
-			});
-
-			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: worktreeSessionId });
-			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] Updated session properties for worktree ${uri.toString()}.`);
-		} else if (workspaceSessionIds.length > 0) {
-			// Workspace
-			// This is still using the old ChatSessionItem API so there is no need to refresh each session
-			// associated with the workspace folder. When the new controller API is fully adopted we will
-			// have to refresh each session.
-			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionIds: workspaceSessionIds });
-			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] Updated session properties for workspace ${uri.toString()}.`);
-		} else {
-			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] No session associated with workspace ${uri.toString()}.`);
-		}
+		await clearChangesCacheForAffectedSessions(uri, [], this.logService, this.metadataStore, this.workspaceFolderService, this.worktreeService, this.sessionItemProvider);
 	}
 
 	private disposeRepositoryWatcher(uri: vscode.Uri): void {
@@ -111,4 +86,33 @@ export class ChatSessionRepositoryTracker extends Disposable {
 		this.repositories.dispose();
 		super.dispose();
 	}
+}
+
+/**
+ * Invalidates the cache for sessions affected by a repository change, and triggers a refresh of those sessions.
+ * You can optionally provide a list of sessions that should not be refreshed.
+ * E.g. if you know that those sessions are not affected or are already up to date, you can exclude them from the refresh to avoid unnecessary work.
+ */
+export async function clearChangesCacheForAffectedSessions(folder: vscode.Uri, sessionsToIgnore: string[], logService: ILogService, metadataStore: IChatSessionMetadataStore, workspaceFolderService: IChatSessionWorkspaceFolderService, worktreeService: IChatSessionWorktreeService, sessionItemProvider?: ICopilotCLIChatSessionItemProvider): Promise<void> {
+	logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] Repository state changed for ${folder.toString()}. Updating session properties.`);
+
+	const sessionIds = metadataStore.getSessionIdsForFolder(folder).filter(id => !sessionsToIgnore.includes(id));
+	const workspaceSessionIds = workspaceFolderService.clearWorkspaceChanges(folder).filter(id => !sessionsToIgnore.includes(id));
+	sessionIds.forEach(id => workspaceFolderService.clearWorkspaceChanges(id));
+	sessionIds.push(...workspaceSessionIds);
+	await Promise.all(Array.from(new Set(sessionIds)).map(async sessionId => {
+		// Worktree
+		const worktreeProperties = await worktreeService.getWorktreeProperties(sessionId);
+		if (worktreeProperties) {
+			await worktreeService.setWorktreeProperties(sessionId, {
+				...worktreeProperties,
+				changes: undefined
+			});
+		}
+	}));
+	// Will be passed in non-controller code paths.
+	if (sessionItemProvider) {
+		await sessionItemProvider.refreshSession({ reason: 'update', sessionIds });
+	}
+	logService.trace(`[ChatSessionRepositoryTracker][onDidChangeRepositoryState] Updated session properties for worktree ${folder.toString()}.`);
 }

@@ -148,7 +148,7 @@ export interface IChatAgentRequest {
 	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
-	agentHostSessionConfig?: Record<string, string>;
+	agentHostSessionConfig?: Record<string, unknown>;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
@@ -537,7 +537,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
+			return;
 		}
 
 		data.impl.setRequestTools?.(requestId, tools);

@@ -5,7 +5,6 @@
 
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
-import { AbstractGotoLineQuickAccessProvider } from '../../../../editor/contrib/quickAccess/browser/gotoLineQuickAccess.js';
 import * as nls from '../../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -14,16 +13,12 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
-import { defaultQuickAccessContextKeyValue } from '../../../browser/quickaccess.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
-import { GotoSymbolQuickAccessProvider } from '../../codeEditor/browser/quickaccess/gotoSymbolQuickAccess.js';
-import { AnythingQuickAccessProvider } from './anythingQuickAccess.js';
 import { registerContributions as replaceContributions } from './replaceContributions.js';
 import { registerContributions as notebookSearchContributions } from './notebookSearch/notebookSearchContributions.js';
 import { searchViewIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import { registerContributions as searchWidgetContributions } from './searchWidget.js';
-import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
@@ -38,9 +33,9 @@ import './searchActionsCopy.js';
 import './searchActionsFind.js';
 import './searchActionsNav.js';
 import './searchActionsRemoveReplace.js';
-import './searchActionsSymbol.js';
 import './searchActionsTopBar.js';
 import './searchActionsTextQuickAccess.js';
+import './searchQuickAccess.contribution.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -93,26 +88,6 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDes
 
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
-
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: AnythingQuickAccessProvider,
-	prefix: AnythingQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
-	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{
-		description: nls.localize('anythingQuickAccess', "Go to File"),
-		commandId: 'workbench.action.quickOpen',
-		commandCenterOrder: 10
-	}]
-});
-
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: SymbolsQuickAccessProvider,
-	prefix: SymbolsQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
-	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.SearchCommandIds.ShowAllSymbolsActionId }]
-});
 
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,

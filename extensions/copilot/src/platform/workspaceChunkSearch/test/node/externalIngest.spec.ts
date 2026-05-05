@@ -19,7 +19,7 @@ import { FileType } from '../../../filesystem/common/fileTypes';
 import { ISearchService } from '../../../search/common/searchService';
 import { createPlatformServices, TestingServiceCollection } from '../../../test/node/services';
 import { IWorkspaceService, NullWorkspaceService } from '../../../workspace/common/workspaceService';
-import { ExternalIngestClient, ExternalIngestFile, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
+import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
 import { ExternalIngestIndex } from '../../node/codeSearch/externalIngestIndex';
 
 const emptyProgressCb: (message: string) => void = () => { };
@@ -40,8 +40,8 @@ function createMockExternalIngestClient(options?: {
 			return Array.from(ingestedFiles.values());
 		},
 		searchCalls,
-		async updateIndex(_filesetName: string, _currentCheckpoint: string | undefined, allFiles: AsyncIterable<ExternalIngestFile>, _callTracker: CallTracker, _token: CancellationToken, _onProgress?: (message: string) => void): Promise<Result<ExternalIngestUpdateIndexResult, Error>> {
-			for await (const file of allFiles) {
+		async updateIndex(_filesetName: string, fileSet: ExternalIngestFileSet, _callTracker: CallTracker, _token: CancellationToken, _onProgress?: (message: string) => void): Promise<Result<ExternalIngestUpdateIndexResult, Error>> {
+			for (const file of fileSet.files) {
 				ingestedFiles.set(file.uri, file);
 			}
 			return Result.ok({ checkpoint: 'mock-checkpoint', totalFileCount: ingestedFiles.size, updatedFileCount: ingestedFiles.size });
@@ -137,6 +137,10 @@ class MockFileSystem extends mock<IFileSystemService & ISearchService>() impleme
 			throw new Error(`File not found: ${uri.toString()}`);
 		}
 		return entry.content;
+	}
+
+	override isWritableFileSystem(scheme: string): boolean {
+		return false;
 	}
 
 	override createFileSystemWatcher(): FileSystemWatcher {

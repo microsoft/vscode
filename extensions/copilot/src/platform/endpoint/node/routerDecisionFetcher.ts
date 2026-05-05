@@ -78,7 +78,9 @@ export class RouterDecisionFetcher {
 		if (hasImage) {
 			requestBody.has_image = true;
 		}
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		const copilotTokenObj = await this._authService.getCopilotToken();
+		const copilotToken = copilotTokenObj.token;
+		requestBody.copilot_plan = copilotTokenObj.rawCopilotPlan;
 		const abortController = new AbortController();
 		const timeout = setTimeout(() => abortController.abort(), 1000);
 		let response: Response;
@@ -171,6 +173,34 @@ export class RouterDecisionFetcher {
 				stickyOverride: result.sticky_override ? 1 : 0,
 			}
 		);
+
+		this._telemetryService.sendEnhancedGHTelemetryEvent('automode.routerDecisionRestricted',
+			{
+				conversationId: conversationId ?? '',
+				vscodeRequestId: vscodeRequestId ?? '',
+				predictedLabel: result.predicted_label,
+				routingMethod: result.routing_method ?? '',
+				fallback: String(result.fallback ?? false),
+				fallbackReason: result.fallback_reason ?? '',
+				candidateModel: result.candidate_models?.[0] ?? '',
+				chosenModel: result.chosen_model ?? '',
+				candidateModels: JSON.stringify(result.candidate_models ?? []),
+				availableModels: JSON.stringify(availableModels),
+				stickyOverrideStr: String(result.sticky_override ?? false),
+				hydraScores: result.hydra_scores ? JSON.stringify(result.hydra_scores) : 'null',
+				binaryScores: JSON.stringify(result.scores),
+			},
+			{
+				confidence: result.confidence,
+				latencyMs: result.latency_ms,
+				e2eLatencyMs: e2eLatencyMs,
+				stickyOverride: result.sticky_override ? 1 : 0,
+				chosenShortfall: result.chosen_shortfall,
+				scoreNeedsReasoning: result.scores.needs_reasoning,
+				scoreNoReasoning: result.scores.no_reasoning,
+			}
+		);
+
 		return result;
 	}
 }

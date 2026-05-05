@@ -11,7 +11,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
+import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 
 const COPILOT_CHAT_VIEW_CONTAINER_ID = 'workbench.view.extension.copilot-chat';
 const COPILOT_CHAT_VIEW_ID = 'copilot-chat';
@@ -70,14 +70,14 @@ class RegisterChatDebugViewContribution extends Disposable implements IWorkbench
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_CHAT_DEBUG_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: SESSIONS_CHAT_DEBUG_CONTAINER_ID,
 			hideIfEmpty: true,
-			windowVisibility: WindowVisibility.Sessions,
+			windowEnablement: WindowEnablement.Sessions,
 		}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 		// Re-register the view inside the new sessions container
 		const sessionsView: IViewDescriptor = {
 			...view,
 			canMoveView: false,
-			windowVisibility: WindowVisibility.Sessions,
+			windowEnablement: WindowEnablement.Sessions,
 		};
 		viewsRegistry.registerViews([sessionsView], chatDebugViewContainer);
 

@@ -9,8 +9,10 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
-const OPEN_AGENTS_WINDOW_COMMAND = 'workbench.action.openAgentsWindow';
+import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+
 
 type AgentsBannerClickedEvent = {
 	source: string;
@@ -33,10 +35,15 @@ export interface IAgentsBannerResult {
  * Returns whether the agents banner can be shown.
  * The banner requires the `workbench.action.openAgentsWindow` command
  * to be registered (desktop builds only) and is limited to Insiders quality.
+ * It is also hidden when AI features are disabled.
  */
-export function canShowAgentsBanner(productService: IProductService): boolean {
+export function canShowAgentsBanner(productService: IProductService, chatEntitlementService: IChatEntitlementService): boolean {
+	const sentiment = chatEntitlementService.sentiment;
+	if (sentiment.hidden || sentiment.disabled) {
+		return false;
+	}
 	return productService.quality !== 'stable'
-		&& !!CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND);
+		&& !!CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND_ID);
 }
 
 export interface IAgentsBannerOptions {
@@ -71,7 +78,7 @@ export function createAgentsBanner(
 	disposables.add(addDisposableListener(button, 'click', () => {
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND, { forceNewWindow: true });
+		commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND_ID, { forceNewWindow: true });
 	}));
 
 	const element = $(`.${options.cssClass}`, {}, button);
