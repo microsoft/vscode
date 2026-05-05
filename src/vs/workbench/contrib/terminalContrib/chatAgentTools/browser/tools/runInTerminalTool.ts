@@ -146,6 +146,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'',
 		'Interactive Input Handling:',
 		'- When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.',
+		`- NEVER use vscode_askQuestions to request sensitive input such as passwords, passphrases, API keys, tokens, or other secrets — answers to that tool are sent through the model. If the prompt requires a secret, tell the user to type it directly into the terminal and stop; do not call vscode_askQuestions or ${TerminalToolId.SendToTerminal} for that prompt.`,
 		`- Send exactly one answer per prompt using ${TerminalToolId.SendToTerminal}. Never send multiple answers in a single send.`,
 		`- After each send, call ${TerminalToolId.GetTerminalOutput} to read the next prompt before sending the next answer.`,
 		'- Continue one prompt at a time until the command finishes.',
@@ -228,6 +229,7 @@ Best Practices:
 
 Interactive Input Handling:
 - When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.
+- NEVER use vscode_askQuestions to request sensitive input such as passwords, passphrases, API keys, tokens, or other secrets — answers to that tool are sent through the model. If the prompt requires a secret, tell the user to type it directly into the terminal and stop; do not call vscode_askQuestions or send_to_terminal for that prompt.
 - Send exactly one answer per prompt using ${TerminalToolId.SendToTerminal}. Never send multiple answers in a single send.
 - After each send, call ${TerminalToolId.GetTerminalOutput} to read the next prompt before sending the next answer.
 - Continue one prompt at a time until the command finishes.`);
@@ -1587,7 +1589,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Register a listener to notify the agent when commands complete in this
 				// background terminal, and continue the output monitor for prompt-for-input detection.
 				if (shouldSendNotifications) {
-					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
+					// If the foreground tool just returned via the inputNeeded race, the
+					// agent has already received `terminalResult` as the tool result. Seed
+					// the BG dedup so the OutputMonitor's immediate re-detection of the
+					// same prompt does not send a redundant steering message that would
+					// yield the agent's in-flight `send_to_terminal` response.
+					const alreadyNotifiedInputNeededOutput = didInputNeeded ? terminalResult : undefined;
+					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor, alreadyNotifiedInputNeededOutput);
 				} else {
 					outputMonitor?.dispose();
 				}
@@ -1751,6 +1759,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cwd: endCwd?.toString(),
 				timedOut: didTimeout || undefined,
 				timeoutMs: didTimeout ? timeoutValue : undefined,
+				inputNeeded: didInputNeeded || undefined,
 			},
 			toolResultDetails: isError ? {
 				input: command,
@@ -1777,7 +1786,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 *   2. In auto-approve mode, leads with `send_to_terminal` for non-secret
 	 *      prompts to minimize round-trips, with a `get_terminal_output` fallback.
 	 *   3. In default mode, leads with `get_terminal_output` as the safe
-	 *      recovery action and offers `vscode_askQuestions` only for real prompts.
+	 *      recovery action and offers `vscode_askQuestions` only for real
+	 *      non-secret prompts. Secret prompts (passwords, passphrases,
+	 *      tokens) must never be routed through `vscode_askQuestions`
+	 *      because answers to that tool are sent through the model — the
+	 *      user is told to type those values directly into the terminal.
 	 * `kill_terminal` is only advertised on the timeout branch — suggesting it
 	 * in the general case leads the model to terminate valid interactive
 	 * sessions (e.g. `npm init`) instead of driving them.
@@ -1794,7 +1807,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			lines.push(`  2. If the command may still be producing output or the shell prompt has not returned, call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling.`);
 		} else {
 			lines.push(`  1. If the command may still be producing output or the shell prompt has not returned, call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. This is the default and safest action when unsure.`);
-			lines.push(`  2. Only if the output clearly ends with a real input prompt (password:, Continue? (y/n), etc. — a normal shell prompt like \`$\` or \`#\` does NOT count), call the vscode_askQuestions tool to ask the user, then send each answer using ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time.`);
+			lines.push(`  2. Only if the output clearly ends with a real non-secret input prompt (Continue? (y/n), Enter selection, etc. — a normal shell prompt like \`$\` or \`#\` does NOT count), call the vscode_askQuestions tool to ask the user, then send each answer using ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time. NEVER route secret prompts (passwords, passphrases, tokens, API keys, etc.) through vscode_askQuestions — answers to that tool are sent through the model. For secret prompts, tell the user to type the value directly into the terminal and stop.`);
 		}
 		if (mentionTimeout) {
 			lines.push(`  3. A timeout does not mean the command failed — call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. Only call ${TerminalToolId.KillTerminal} if the command is genuinely hung and you need to retry with a different approach.`);
@@ -2152,7 +2165,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
 		// Dispose any previous background notification for this terminal instance to prevent
 		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
 		// foreground terminal is reused across run_in_terminal invocations.
@@ -2225,8 +2238,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (outputMonitor) {
-			let lastInputNeededOutput = '';
-			let lastInputNeededNotificationTime = 0;
+			// Seed dedup state so that if this BG monitor was started right after the
+			// foreground tool returned via the `inputNeeded` race, the immediate
+			// re-detection of the same prompt does not produce a redundant steering
+			// message. The agent has already received that output as the tool result
+			// and is in the middle of producing a `send_to_terminal` response —
+			// firing a steering message here would set `yieldRequested` and abort
+			// that in-flight response, leaving the terminal hung at the prompt.
+			// Subsequent firings require new terminal data and therefore a different
+			// `currentOutput`, so they will pass the dedup check normally.
+			let lastInputNeededOutput = alreadyNotifiedInputNeededOutput ?? '';
+			let lastInputNeededNotificationTime = alreadyNotifiedInputNeededOutput !== undefined ? Date.now() : 0;
 			const bgCts = new CancellationTokenSource();
 			store.add(toDisposable(() => {
 				// Cancel before dispose so that onCancellationRequested handlers fire

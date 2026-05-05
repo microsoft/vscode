@@ -333,6 +333,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		if (!this.syncProvider) {
 			return remoteItems;
 		}
+		// If there's an itemProvider, it is the single source of truth for items.
+		// The provider is responsible for enumerating all items, including synced
+		// ones, so we don't need to add local synced items separately.
+		if (this.itemProvider) {
+			return remoteItems;
+		}
 		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);
 		return [...remoteItems, ...localItems];
 	}

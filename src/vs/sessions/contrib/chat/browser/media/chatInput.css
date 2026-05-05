@@ -124,7 +124,7 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
 	border-radius: 4px;
@@ -178,11 +178,6 @@
 	left: 0;
 	width: 1px;
 	background-color: var(--vscode-editorWidget-border);
-}
-
-/* Hide the right divider from the workbench base styles */
-.agent-sessions-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
-	content: none;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {

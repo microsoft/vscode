@@ -1859,7 +1859,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -1896,6 +1896,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
 	right: 0;
+}
+
+/* Hide right divider when the model picker is the last item (e.g. Copilot CLI with no tool config button) */
+.interactive-session .chat-input-toolbar .chat-input-picker-item:last-child .action-label.model-picker-split::after {
+	content: none;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {

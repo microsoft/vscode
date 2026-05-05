@@ -262,6 +262,7 @@ export interface IAgentModelInfo {
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
+	readonly _meta?: Record<string, unknown>;
 }
 
 // ---- Agent signals (sent via IAgent.onDidSessionProgress) -------------------

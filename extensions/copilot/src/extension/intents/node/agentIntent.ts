@@ -40,7 +40,7 @@ import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus } from '../../prompt/common/conversation';
-import { IBuildPromptContext } from '../../prompt/common/intents';
+import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
@@ -154,6 +154,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	allowTools[ToolName.SessionStoreSql] = true;
+
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	if (model.family.includes('grok-code')) {
@@ -169,7 +171,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools['task_complete'] = request.permissionLevel === 'autopilot';
 
 	allowTools[ToolName.EditFilesPlaceholder] = false;
-	allowTools[ToolName.SessionStoreSql] = false; // Only available via /chronicle
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;
@@ -338,12 +339,18 @@ export class AgentIntent extends EditCodeIntent {
 			return {};
 		}
 
+		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
 			history,
 			chatVariables: new ChatVariablesCollection([]),
 			query: '',
 			toolCallRounds: [],
 			conversation,
+			tools: {
+				availableTools,
+				toolReferences: request.toolReferences.map(InternalToolReference.from),
+				toolInvocationToken: request.toolInvocationToken,
+			},
 		};
 
 		try {
@@ -353,6 +360,7 @@ export class AgentIntent extends EditCodeIntent {
 				endpoint,
 				location: ChatLocation.Agent,
 				promptContext,
+				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
 
