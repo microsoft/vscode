@@ -50,7 +50,11 @@ export function parseCommandHead(command: string | undefined): { head: string; s
 }
 
 function isTerminalInput(input: unknown): input is ITerminalInput {
-	return typeof input === 'object' && input !== null && 'command' in input;
+	if (typeof input !== 'object' || input === null) {
+		return false;
+	}
+	const terminalInput = input as { command?: unknown };
+	return terminalInput.command === undefined || typeof terminalInput.command === 'string';
 }
 
 /**
