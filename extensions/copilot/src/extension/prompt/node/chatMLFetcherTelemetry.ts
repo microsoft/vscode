@@ -169,7 +169,7 @@ export class ChatMLFetcherTelemetrySender {
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
 			reasoningSummary: requestBody.reasoning?.summary,
 			modelCallId,
-			...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType.replace(/[^a-zA-Z0-9]/g, '_') } : {}),
+			...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType.replace(/[\\/]/g, '_') } : {}),
 			...(baseTelemetry?.properties.parentHeaderRequestId ? { parentRequestId: baseTelemetry.properties.parentHeaderRequestId } : {}),
 			...(baseTelemetry?.properties.parentModelCallId ? { parentModelCallId: baseTelemetry.properties.parentModelCallId } : {}),
 			...(baseTelemetry?.properties.iterationNumber ? { iterationNumber: baseTelemetry.properties.iterationNumber } : {}),
