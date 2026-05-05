@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { Raw } from '@vscode/prompt-tsx';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatAgentService, defaultAgentName, editingSessionAgentEditorName, editingSessionAgentName, editsAgentName, getChatParticipantIdFromName, notebookEditorAgentName, terminalAgentName, vscodeAgentName } from '../../../platform/chat/common/chatAgents';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
@@ -10,6 +11,7 @@ import { IChatSessionService } from '../../../platform/chat/common/chatSessionSe
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
@@ -17,7 +19,7 @@ import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifec
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatRequest } from '../../../vscodeTypes';
+import { ChatRequest, ChatRequestTurn2, ChatResponseTurn2 } from '../../../vscodeTypes';
 import { Intent, agentsToCommands } from '../../common/constants';
 import { ICopilotChatResultIn } from '../../prompt/common/conversation';
 import { getSwitchToAutoOnRateLimitConfirmation, isContinueOnError } from '../../prompt/common/specialRequestTypes';
@@ -28,6 +30,19 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, estimateChatHistoryTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, removeStaleSessionWarningHistory, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
+
+const LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY = 'chat.localStaleSessionLastActivity';
+
+function withStaleSessionRenderedUserMessage<T extends vscode.ChatResult>(result: T, originalPrompt: string): T {
+	return {
+		...result,
+		metadata: {
+			...(result as ICopilotChatResultIn).metadata,
+			renderedUserMessage: [{ type: Raw.ChatCompletionContentPartKind.Text, text: originalPrompt }],
+		},
+	} as T;
+}
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -72,6 +87,7 @@ class ChatAgents implements IDisposable {
 		@IPromptCategorizerService private readonly promptCategorizerService: IPromptCategorizerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatSessionService chatSessionService: IChatSessionService,
+		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 	) {
 		this._disposables.add(chatSessionService.onDidDisposeChatSession(sessionId => clearChatExtMarks(sessionId)));
 	}
@@ -227,6 +243,79 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					this.telemetryService.sendMSFTTelemetryEvent('chatRateLimitAction', { action: 'tryAgain', modelId: request.model?.id });
 				}
 
+				const historyWithoutStaleWarnings = removeStaleSessionWarningHistory(context.history);
+				const staleSessionConfirmation = getStaleSessionWarningConfirmation(request);
+				if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
+					/* __GDPR__
+						"staleSessionWarning.action" : {
+							"owner": "gcianci",
+							"comment": "Tracks which action users take when the stale session warning is shown.",
+							"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+							"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
+							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					await this.openNewLocalSessionFromStaleSessionWarning(staleSessionConfirmation, request);
+					return createStaleSessionWarningActionResult(staleSessionConfirmation);
+				}
+
+				const effectiveRequest = staleSessionConfirmation
+					? { ...request, prompt: staleSessionConfirmation.originalPrompt, command: undefined, acceptedConfirmationData: undefined, rejectedConfirmationData: undefined }
+					: request;
+
+				const staleSessionWarning = !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+					? shouldWarnAboutStaleSession(this.configurationService, {
+						providerKind: StaleSessionProviderKind.Local,
+						modelId: request.model?.id,
+						tokenCount: estimateChatHistoryTokens(historyWithoutStaleWarnings),
+						lastActivityTime: this.getLastLocalSessionActivity(request.sessionId),
+					})
+					: undefined;
+				if (staleSessionWarning) {
+					const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
+					/* __GDPR__
+						"staleSessionWarning.shown" : {
+							"owner": "gcianci",
+							"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
+							"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+							"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
+							"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
+					const warningMetadata = {
+						kind: 'staleSessionWarning',
+						providerKind: StaleSessionProviderKind.Local,
+						originalPrompt: request.prompt,
+						sessionId: request.sessionId,
+						modelId: request.model?.id,
+					} as const;
+					showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
+					return createStaleSessionWarningResult(warningMetadata);
+				}
+
+				let effectiveHistory = historyWithoutStaleWarnings;
+				if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					stream.progress(vscode.l10n.t('Compacting session'));
+					const compactRequest = { ...effectiveRequest, prompt: '', command: 'compact' };
+					const compactHandler = this.instantiationService.createInstance(ChatParticipantRequestHandler, effectiveHistory, compactRequest, stream, token, { agentName: name, agentId: id, intentId: Intent.Agent }, () => context.yieldRequested, undefined);
+					const compactResult = await compactHandler.getResult();
+					if (token.isCancellationRequested || compactResult.errorDetails) {
+						return withStaleSessionRenderedUserMessage(compactResult, staleSessionConfirmation.originalPrompt);
+					}
+					effectiveHistory = [
+						...effectiveHistory,
+						new ChatRequestTurn2('', 'compact', [], id, [], undefined, undefined, effectiveRequest.model?.id, effectiveRequest.modeInstructions2) as vscode.ChatRequestTurn,
+						new ChatResponseTurn2([], compactResult, id) as vscode.ChatResponseTurn,
+					];
+				} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				}
+				request = effectiveRequest;
+
 				// The user is starting an interaction with the chat
 				if (!request.subAgentInvocationId) {
 					this.interactionService.startInteraction();
@@ -234,11 +323,11 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				// Generate a shared telemetry message ID on the first turn only — subsequent turns have no
 				// categorization event to join and ChatTelemetryBuilder will generate its own ID.
-				const telemetryMessageId = context.history.length === 0 ? generateUuid() : undefined;
+				const telemetryMessageId = effectiveHistory.length === 0 ? generateUuid() : undefined;
 
 				// Categorize the first prompt (fire-and-forget)
 				if (telemetryMessageId !== undefined) {
-					this.promptCategorizerService.categorizePrompt(request, context, telemetryMessageId);
+					this.promptCategorizerService.categorizePrompt(request, { ...context, history: effectiveHistory }, telemetryMessageId);
 				}
 
 				const defaultIntentId = typeof defaultIntentIdOrGetter === 'function' ?
@@ -251,9 +340,12 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					commandsForAgent[request.command] :
 					defaultIntentId;
 
-				const handler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
+				const handler = this.instantiationService.createInstance(ChatParticipantRequestHandler, effectiveHistory, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
 
 				let result = await handler.getResult();
+				if (staleSessionConfirmation) {
+					result = withStaleSessionRenderedUserMessage(result, staleSessionConfirmation.originalPrompt);
+				}
 
 				// Auto-retry with Auto model when the setting is enabled and the handler signals it
 				if ((result as ICopilotChatResultIn).metadata?.shouldAutoSwitchToAuto) {
@@ -262,17 +354,42 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					if (switchedRequest.model?.id !== previousModelId) {
 						this.telemetryService.sendMSFTTelemetryEvent('chatRateLimitAction', { action: 'autoSwitch', modelId: previousModelId });
 						request = switchedRequest;
-						const retryHandler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
+						const retryHandler = this.instantiationService.createInstance(ChatParticipantRequestHandler, effectiveHistory, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
 						result = await retryHandler.getResult();
+						if (staleSessionConfirmation) {
+							result = withStaleSessionRenderedUserMessage(result, staleSessionConfirmation.originalPrompt);
+						}
 					}
 				}
 
+				this.updateLastLocalSessionActivity(request.sessionId);
 				return result;
 			} finally {
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}
 		};
+	}
+
+	private getLastLocalSessionActivity(sessionId: string): number | undefined {
+		return this.extensionContext.globalState.get<Record<string, number>>(LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY, {})[sessionId];
+	}
+
+	private updateLastLocalSessionActivity(sessionId: string): void {
+		const lastActivity = this.extensionContext.globalState.get<Record<string, number>>(LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY, {});
+		const next = { ...lastActivity, [sessionId]: Date.now() };
+		const entries = Object.entries(next).sort(([, a], [, b]) => b - a).slice(0, 100);
+		void this.extensionContext.globalState.update(LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY, Object.fromEntries(entries));
+	}
+
+	private async openNewLocalSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, request: vscode.ChatRequest): Promise<void> {
+		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
+		await vscode.commands.executeCommand('workbench.action.chat.newChat', {
+			inputValue: metadata.originalPrompt,
+			isPartialQuery: !autoSend,
+			agentMode: true,
+			modelSelector: request.model ? { id: request.model.id, vendor: request.model.vendor } : undefined,
+		});
 	}
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {

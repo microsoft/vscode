@@ -627,6 +627,12 @@ export namespace ConfigKey {
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
+		export const StaleSessionWarningEnabled = defineSetting<boolean>('chat.staleSessionWarning.enabled', ConfigType.Simple, true);
+		export const StaleSessionWarningThresholdHours = defineSetting<number>('chat.staleSessionWarning.thresholds.timeHours', ConfigType.Simple, 8);
+		export const StaleSessionWarningThresholdTokens = defineSetting<number>('chat.staleSessionWarning.thresholds.tokens', ConfigType.Simple, 80_000);
+		export const StaleSessionWarningThresholdsByModel = defineSetting<Record<string, { timeHours?: number; tokens?: number }>>('chat.staleSessionWarning.thresholds.byModel', ConfigType.Simple, {});
+		export const StaleSessionWarningStartNewSessionAutoSend = defineSetting<boolean>('chat.staleSessionWarning.startNewSessionAutoSend', ConfigType.Simple, true);
+		export const StaleSessionWarningExcludedProviders = defineSetting<string[]>('chat.staleSessionWarning.excludeProviders', ConfigType.Simple, []);
 
 		// Experiment-based settings
 		/** Uses new expanded project labels */

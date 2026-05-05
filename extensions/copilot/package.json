@@ -4779,6 +4779,86 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.staleSessionWarning.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.staleSessionWarning.thresholds.timeHours": {
+						"type": "number",
+						"default": 8,
+						"minimum": 0,
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.thresholds.timeHours%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.staleSessionWarning.thresholds.tokens": {
+						"type": "number",
+						"default": 80000,
+						"minimum": 0,
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.thresholds.tokens%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.staleSessionWarning.thresholds.byModel": {
+						"type": "object",
+						"default": {},
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.thresholds.byModel%",
+						"additionalProperties": {
+							"type": "object",
+							"properties": {
+								"timeHours": {
+									"type": "number",
+									"minimum": 0
+								},
+								"tokens": {
+									"type": "number",
+									"minimum": 0
+								}
+							},
+							"additionalProperties": false
+						},
+						"examples": [
+							{
+								"claude-opus-4.7": {
+									"timeHours": 4,
+									"tokens": 150000
+								}
+							}
+						],
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.staleSessionWarning.startNewSessionAutoSend": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.startNewSessionAutoSend%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.staleSessionWarning.excludeProviders": {
+						"type": "array",
+						"default": [],
+						"items": {
+							"type": "string",
+							"enum": [
+								"copilot-cli",
+								"claude",
+								"local"
+							]
+						},
+						"markdownDescription": "%github.copilot.config.staleSessionWarning.excludeProviders%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.searchSubagent.enabled": {
 						"type": "boolean",
 						"default": false,

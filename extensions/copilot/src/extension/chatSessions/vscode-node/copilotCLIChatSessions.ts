@@ -32,6 +32,7 @@ import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatS
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
+import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
@@ -797,10 +798,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 	private async handleRequestImpl(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> {
 		const { chatSessionContext } = context;
+		const staleSessionConfirmation = getStaleSessionWarningConfirmation(request);
 		const disposables = new DisposableStore();
 		let sdkSessionId: string | undefined = undefined;
 		let session: IReference<ICopilotCLISession> | undefined = undefined;
 		let shouldRefreshSessionItem = true;
+		let lifecycleRequest = request;
 		try {
 			this.sendTelemetryForHandleRequest(request, context);
 
@@ -813,6 +816,24 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const { resource } = chatSessionContext.chatSessionItem;
 			const sessionId = SessionIdForCLI.parse(resource);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
+			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
+				/* __GDPR__
+					"staleSessionWarning.action" : {
+						"owner": "gcianci",
+						"comment": "Tracks which action users take when the stale session warning is shown.",
+						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+						"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
+						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation, stream);
+				return {};
+			}
+			const effectiveRequest = staleSessionConfirmation
+				? { ...request, prompt: staleSessionConfirmation.originalPrompt, command: undefined, acceptedConfirmationData: undefined, rejectedConfirmationData: undefined }
+				: request;
+			lifecycleRequest = effectiveRequest;
 			const invalidSessionMessage = _invalidCopilotCLISessionIdsWithErrorMessage.get(sessionId);
 
 			if (invalidSessionMessage) {
@@ -828,7 +849,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 
-			const branchNamePromise = isNewSession ? this.generateNewBranchName(request, token) : Promise.resolve(undefined);
+			const branchNamePromise = isNewSession ? this.generateNewBranchName(effectiveRequest, token) : Promise.resolve(undefined);
 
 			if (isNewSession) {
 				this._optionGroupBuilder.lockInputStateGroups(chatSessionContext.inputState);
@@ -850,6 +871,38 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 
+			const staleSessionWarning = !isNewSession && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+				? shouldWarnAboutStaleSession(this.configurationService, {
+					providerKind: StaleSessionProviderKind.CopilotCLI,
+					modelId: model?.model ?? request.model?.id,
+					tokenCount: estimateChatHistoryTokens(context.history),
+					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem),
+				})
+				: undefined;
+			if (staleSessionWarning) {
+				const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
+				/* __GDPR__
+					"staleSessionWarning.shown" : {
+						"owner": "gcianci",
+						"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
+						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+						"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
+						"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
+				const warningMetadata = {
+					kind: 'staleSessionWarning',
+					providerKind: StaleSessionProviderKind.CopilotCLI,
+					originalPrompt: request.prompt,
+					sessionId,
+					modelId: model?.model ?? request.model?.id,
+				} as const;
+				showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
+				return createStaleSessionWarningResult(warningMetadata);
+			}
+
 			if (isNewSession && session.object.workspace.worktreeProperties) {
 				const branchName = session.object.workspace.worktreeProperties.branchName;
 				this._optionGroupBuilder.updateBranchInInputState(chatSessionContext.inputState, branchName);
@@ -857,14 +910,24 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			sdkSessionId = session.object.sessionId;
 
-			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0, session.object.workspace, agent?.name);
+			await this.sessionRequestLifecycle.startRequest(sdkSessionId, effectiveRequest, context.history.length === 0, session.object.workspace, agent?.name);
 
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
 				return {};
 			} else {
-				const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
-				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
+				const { input, attachments } = await this.resolveInput(effectiveRequest, session.object, isNewSession, token);
+				if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					stream.progress(l10n.t('Compacting session'));
+					await session.object.handleRequest(effectiveRequest, { command: 'compact', prompt: '' }, [], model, authInfo, token);
+					if (token.isCancellationRequested) {
+						return {};
+					}
+				} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				}
+				await session.object.handleRequest(effectiveRequest, input, attachments, model, authInfo, token);
 			}
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
@@ -880,7 +943,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		} finally {
 			if (sdkSessionId && session) {
 				await this.sessionRequestLifecycle.endRequest(
-					sdkSessionId, request,
+					sdkSessionId, lifecycleRequest,
 					{ status: session.object.status, workspace: session.object.workspace, createdPullRequestUrl: session.object.createdPullRequestUrl },
 					token,
 				);
@@ -891,6 +954,17 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 			disposables.dispose();
 		}
+	}
+
+	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, stream: vscode.ChatResponseStream): Promise<void> {
+		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
+		if (autoSend) {
+			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli', { prompt: metadata.originalPrompt });
+			return;
+		}
+
+		await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
+		stream.markdown(l10n.t('Opened a new Copilot CLI session. Copy your pending message into the new session when you are ready to send it:\n\n```text\n{0}\n```', metadata.originalPrompt));
 	}
 
 	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
