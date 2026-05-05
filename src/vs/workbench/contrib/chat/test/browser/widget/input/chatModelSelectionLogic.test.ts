@@ -640,6 +640,51 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(result.length, 2);
 			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
 		});
+
+		test('evicts cached entries for a resolved vendor that returned zero models (BYOK delete)', () => {
+			// vendor-a is resolved with one live model; vendor-b is resolved with no live models
+			// (e.g. the user removed their BYOK API key). Cached vendor-b entries must NOT
+			// resurrect those models in the picker.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const staleB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[staleB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a', 'vendor-b']),
+			);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].metadata.vendor, 'vendor-a');
+		});
+
+		test('keeps cached entries for an unresolved vendor (extension reload race)', () => {
+			// vendor-b is contributed but its provider hasn't completed a resolution yet
+			// (e.g. extension is mid-reload). Cache must bridge the gap so the picker
+			// keeps showing the user's previously-seen models.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[cachedB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a']), // vendor-b not yet resolved
+			);
+			assert.strictEqual(result.length, 2);
+			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
+		});
+
+		test('evicts cache for a resolved vendor even when all live models are zero', () => {
+			// Edge case: the only resolved vendor returns zero models (user deleted all
+			// configurations). Cache must be ignored — the picker should be empty.
+			const stale = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[stale],
+				new Set(['vendor-b']),
+				new Set(['vendor-b']),
+			);
+			assert.strictEqual(result.length, 0);
+		});
 	});
 
 	suite('model switching scenarios', () => {

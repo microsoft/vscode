@@ -226,20 +226,31 @@ export function resolveModelFromSyncState(
  * For vendors whose models have resolved, uses live data.
  * For vendors that are contributed but haven't resolved yet (startup race), keeps cached models.
  * Vendors no longer contributed are evicted from cache.
+ *
+ * `resolvedVendors` lists vendors whose providers have completed at least one
+ * resolution. Cached entries for those vendors are NOT used to bridge an empty
+ * live result — an empty live result for a resolved vendor is authoritative
+ * (e.g. user removed a BYOK provider group, so its models genuinely don't exist
+ * anymore and should disappear from the picker).
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
 	cachedModels: ILanguageModelChatMetadataAndIdentifier[],
 	contributedVendors: Set<string>,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (liveModels.length > 0) {
-		const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-		return [
-			...liveModels,
-			...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
-		];
+	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const usableCached = cachedModels.filter(m =>
+		contributedVendors.has(m.metadata.vendor) &&
+		!liveVendors.has(m.metadata.vendor) &&
+		!(resolvedVendors?.has(m.metadata.vendor))
+	);
+	if (liveModels.length === 0 && !resolvedVendors) {
+		// Backwards-compat path: no resolution info, keep prior behavior of
+		// returning the entire cache during a global startup race.
+		return cachedModels;
 	}
-	return cachedModels;
+	return [...liveModels, ...usableCached];
 }
 
 /**
