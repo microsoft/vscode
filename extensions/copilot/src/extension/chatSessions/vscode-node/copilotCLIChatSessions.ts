@@ -32,7 +32,7 @@ import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatS
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
@@ -819,17 +819,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// stale-session warning so it mirrors the chat context window widget.
 			stream = wrapStreamForStaleSessionUsageTracking(stream, StaleSessionProviderKind.CopilotCLI, sessionId);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
+			if (!staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')) {
+				sendStaleSessionWarningFollowUpTelemetry(this.telemetryService, StaleSessionProviderKind.CopilotCLI, sessionId, request.model?.id);
+			}
 			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
-				/* __GDPR__
-					"staleSessionWarning.action" : {
-						"owner": "gcianci",
-						"comment": "Tracks which action users take when the stale session warning is shown.",
-						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-						"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
-						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
-					}
-				*/
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation);
 				return {};
 			}
@@ -883,25 +877,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				})
 				: undefined;
 			if (staleSessionWarning) {
-				const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
-				/* __GDPR__
-					"staleSessionWarning.shown" : {
-						"owner": "gcianci",
-						"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
-						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
-						"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
-						"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
-					}
-				*/
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
-				const warningMetadata = {
-					kind: 'staleSessionWarning',
-					providerKind: StaleSessionProviderKind.CopilotCLI,
-					originalPrompt: request.prompt,
-					sessionId,
-					modelId: model?.model ?? request.model?.id,
-				} as const;
+				sendStaleSessionWarningShownTelemetry(this.telemetryService, staleSessionWarning);
+				const warningMetadata = createStaleSessionWarningRequestMetadata(staleSessionWarning, request.prompt, sessionId);
 				showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
 				return createStaleSessionWarningResult(warningMetadata);
 			}
@@ -921,14 +898,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			} else {
 				const { input, attachments } = await this.resolveInput(effectiveRequest, session.object, isNewSession, token);
 				if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 					stream.progress(l10n.t('Compacting session'));
 					await session.object.handleRequest(effectiveRequest, { command: 'compact', prompt: '' }, [], model, authInfo, token);
 					if (token.isCancellationRequested) {
 						return {};
 					}
 				} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 				}
 				await session.object.handleRequest(effectiveRequest, input, attachments, model, authInfo, token);
 			}

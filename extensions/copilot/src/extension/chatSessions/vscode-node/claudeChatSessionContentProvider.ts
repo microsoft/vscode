@@ -33,7 +33,7 @@ import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCom
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
-import { createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
 import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
@@ -120,17 +120,11 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			// stale-session warning so it mirrors the chat context window widget.
 			stream = wrapStreamForStaleSessionUsageTracking(stream, StaleSessionProviderKind.Claude, effectiveSessionIdForTracking);
 
+			if (!staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')) {
+				sendStaleSessionWarningFollowUpTelemetry(this.telemetryService, StaleSessionProviderKind.Claude, effectiveSessionIdForTracking, request.model?.id);
+			}
 			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
-				/* __GDPR__
-					"staleSessionWarning.action" : {
-						"owner": "gcianci",
-						"comment": "Tracks which action users take when the stale session warning is shown.",
-						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-						"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
-						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
-					}
-				*/
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation);
 				return {};
 			}
@@ -185,25 +179,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				})
 				: undefined;
 			if (staleSessionWarning) {
-				const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
-				/* __GDPR__
-					"staleSessionWarning.shown" : {
-						"owner": "gcianci",
-						"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
-						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
-						"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
-						"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
-					}
-				*/
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
-				const warningMetadata = {
-					kind: 'staleSessionWarning',
-					providerKind: StaleSessionProviderKind.Claude,
-					originalPrompt: request.prompt,
-					sessionId: effectiveSessionId,
-					modelId: modelId.toEndpointModelId(),
-				} as const;
+				sendStaleSessionWarningShownTelemetry(this.telemetryService, staleSessionWarning);
+				const warningMetadata = createStaleSessionWarningRequestMetadata(staleSessionWarning, request.prompt, effectiveSessionId);
 				showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
 				return createStaleSessionWarningResult(warningMetadata);
 			}
@@ -216,7 +193,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const prompt = effectiveRequest.prompt;
 			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
 			if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 				stream.progress(vscode.l10n.t('Compacting session'));
 				await this.claudeAgentManager.handleRequest(effectiveSessionId, { ...effectiveRequest, prompt: '/compact', command: undefined }, stream, token, false, yieldRequested);
 				if (token.isCancellationRequested) {
@@ -233,7 +210,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				// a separate paragraph, not concatenated with the compact_boundary message.
 				stream.markdown('\n\n');
 			} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
-				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 			}
 			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, effectiveRequest, stream, token, isNewSession, yieldRequested);
 			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);

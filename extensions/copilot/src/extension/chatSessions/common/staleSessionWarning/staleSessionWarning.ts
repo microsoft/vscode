@@ -6,6 +6,7 @@
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import type { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export const enum StaleSessionProviderKind {
 	CopilotCLI = 'copilot-cli',
@@ -31,6 +32,10 @@ export interface StaleSessionWarningMetadata {
 	readonly originalPrompt: string;
 	readonly sessionId?: string;
 	readonly modelId?: string;
+	readonly idleMs?: number;
+	readonly tokenCount?: number;
+	readonly thresholdHours?: number;
+	readonly thresholdTokens?: number;
 }
 
 export type StaleSessionWarningRequestMetadata = Omit<StaleSessionWarningMetadata, 'action'>;
@@ -144,6 +149,20 @@ export function createStaleSessionWarningActionResult(metadata: StaleSessionWarn
 	};
 }
 
+export function createStaleSessionWarningRequestMetadata(warning: StaleSessionWarning, originalPrompt: string, sessionId: string | undefined): StaleSessionWarningRequestMetadata {
+	return {
+		kind: 'staleSessionWarning',
+		providerKind: warning.providerKind,
+		originalPrompt,
+		sessionId,
+		modelId: warning.modelId,
+		idleMs: warning.idleMs,
+		tokenCount: warning.tokenCount,
+		thresholdHours: warning.thresholds.timeHours,
+		thresholdTokens: warning.thresholds.tokens,
+	};
+}
+
 export function getStaleSessionWarningConfirmation(request: vscode.ChatRequest): StaleSessionWarningMetadata | undefined {
 	const metadataByAction = getConfirmationMetadataByAction(request);
 	if (!metadataByAction) {
@@ -220,7 +239,7 @@ export function recordStaleSessionTokens(providerKind: StaleSessionProviderKind,
  * the extension host (see `extHostChatAgents2.ts`), so we cannot use a `Proxy`
  * (which would violate the non-configurable property invariant) and we cannot
  * mutate the stream itself. Instead we create a child object inheriting from
- * the stream and shadow `usage` on the child as an own property — a plain
+ * the stream and shadow `usage` on the child as an own property - a plain
  * assignment would walk the prototype chain and be rejected by the frozen
  * parent.
  */
@@ -247,6 +266,15 @@ export function wrapStreamForStaleSessionUsageTracking<T extends { usage(usage: 
 }
 
 const recordedStaleSessionTokens = new Map<string, number>();
+const pendingStaleSessionFollowUps = new Map<string, PendingStaleSessionFollowUp>();
+
+interface PendingStaleSessionFollowUp {
+	readonly action: StaleSessionWarningAction;
+	readonly modelId: string | undefined;
+	readonly idleMs: number;
+	readonly tokenCount: number;
+	readonly recordedAt: number;
+}
 
 function makeRecordedKey(providerKind: StaleSessionProviderKind, sessionId: string): string {
 	return `${providerKind}::${sessionId}`;
@@ -289,8 +317,136 @@ export function getStaleSessionWarningTelemetry(warning: StaleSessionWarning): {
 		measurements: {
 			idleHours: warning.idleMs / MS_PER_HOUR,
 			tokenCount: warning.tokenCount,
+			thresholdHours: warning.thresholds.timeHours,
+			thresholdTokens: warning.thresholds.tokens,
 		}
 	};
+}
+
+export function sendStaleSessionWarningShownTelemetry(telemetryService: Pick<ITelemetryService, 'sendMSFTTelemetryEvent'>, warning: StaleSessionWarning): void {
+	const telemetry = getStaleSessionWarningTelemetry(warning);
+	/* __GDPR__
+		"staleSessionWarning.shown" : {
+			"owner": "gcianci",
+			"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
+			"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+			"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+			"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
+			"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The token count reported for the session context." },
+			"thresholdHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The idle time threshold in hours used to trigger the warning." },
+			"thresholdTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The token count threshold used to trigger the warning." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
+}
+
+export function recordStaleSessionWarningActionTelemetry(telemetryService: Pick<ITelemetryService, 'sendMSFTTelemetryEvent'>, metadata: StaleSessionWarningMetadata): void {
+	const telemetry = getStaleSessionWarningActionTelemetry(metadata);
+	/* __GDPR__
+		"staleSessionWarning.action" : {
+			"owner": "gcianci",
+			"comment": "Tracks which action users take when the stale session warning is shown.",
+			"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+			"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
+			"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+			"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active when the warning was shown." },
+			"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The token count reported for the session context when the warning was shown." },
+			"thresholdHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The idle time threshold in hours used to trigger the warning." },
+			"thresholdTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The token count threshold used to trigger the warning." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', telemetry.properties, telemetry.measurements);
+	recordStaleSessionWarningFollowUp(metadata);
+}
+
+export function sendStaleSessionWarningFollowUpTelemetry(
+	telemetryService: Pick<ITelemetryService, 'sendMSFTTelemetryEvent'>,
+	providerKind: StaleSessionProviderKind,
+	sessionId: string | undefined,
+	modelId: string | undefined,
+): void {
+	const telemetry = consumeStaleSessionWarningFollowUpTelemetry(providerKind, sessionId, modelId);
+	if (!telemetry) {
+		return;
+	}
+	/* __GDPR__
+		"staleSessionWarning.followUpRequest" : {
+			"owner": "gcianci",
+			"comment": "Tracks whether users send another request in the same session after acting on the stale session warning.",
+			"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the previous warning." },
+			"previousAction": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected on the previous stale session warning." },
+			"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+			"minutesSinceAction": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of minutes since the user selected the previous warning action." },
+			"idleHoursAtPreviousWarning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active when the previous warning was shown." },
+			"tokenCountAtPreviousWarning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The token count reported for the session context when the previous warning was shown." }
+		}
+	*/
+	telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.followUpRequest', telemetry.properties, telemetry.measurements);
+}
+
+function getStaleSessionWarningActionTelemetry(metadata: StaleSessionWarningMetadata): { readonly properties: Record<string, string>; readonly measurements: Record<string, number> } {
+	return {
+		properties: {
+			providerKind: metadata.providerKind,
+			action: metadata.action,
+			modelId: metadata.modelId ?? 'unknown',
+		},
+		measurements: getStaleSessionWarningMetadataMeasurements(metadata),
+	};
+}
+
+function recordStaleSessionWarningFollowUp(metadata: StaleSessionWarningMetadata): void {
+	if (!metadata.sessionId || typeof metadata.idleMs !== 'number' || typeof metadata.tokenCount !== 'number') {
+		return;
+	}
+	pendingStaleSessionFollowUps.set(makeRecordedKey(metadata.providerKind, metadata.sessionId), {
+		action: metadata.action,
+		modelId: metadata.modelId,
+		idleMs: metadata.idleMs,
+		tokenCount: metadata.tokenCount,
+		recordedAt: Date.now(),
+	});
+}
+
+function consumeStaleSessionWarningFollowUpTelemetry(providerKind: StaleSessionProviderKind, sessionId: string | undefined, modelId: string | undefined): { readonly properties: Record<string, string>; readonly measurements: Record<string, number> } | undefined {
+	if (!sessionId) {
+		return undefined;
+	}
+	const key = makeRecordedKey(providerKind, sessionId);
+	const pendingFollowUp = pendingStaleSessionFollowUps.get(key);
+	if (!pendingFollowUp) {
+		return undefined;
+	}
+	pendingStaleSessionFollowUps.delete(key);
+	return {
+		properties: {
+			providerKind,
+			previousAction: pendingFollowUp.action,
+			modelId: pendingFollowUp.modelId ?? modelId ?? 'unknown',
+		},
+		measurements: {
+			minutesSinceAction: (Date.now() - pendingFollowUp.recordedAt) / MS_PER_MINUTE,
+			idleHoursAtPreviousWarning: pendingFollowUp.idleMs / MS_PER_HOUR,
+			tokenCountAtPreviousWarning: pendingFollowUp.tokenCount,
+		},
+	};
+}
+
+function getStaleSessionWarningMetadataMeasurements(metadata: StaleSessionWarningMetadata): Record<string, number> {
+	const measurements: Record<string, number> = {};
+	if (typeof metadata.idleMs === 'number') {
+		measurements.idleHours = metadata.idleMs / MS_PER_HOUR;
+	}
+	if (typeof metadata.tokenCount === 'number') {
+		measurements.tokenCount = metadata.tokenCount;
+	}
+	if (typeof metadata.thresholdHours === 'number') {
+		measurements.thresholdHours = metadata.thresholdHours;
+	}
+	if (typeof metadata.thresholdTokens === 'number') {
+		measurements.thresholdTokens = metadata.thresholdTokens;
+	}
+	return measurements;
 }
 
 export function formatStaleSessionIdleTime(idleMs: number): string {

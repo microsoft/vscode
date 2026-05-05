@@ -30,7 +30,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, removeStaleSessionWarningHistory, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
 
 const LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY = 'chat.localStaleSessionLastActivity';
 
@@ -248,17 +248,11 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				const historyWithoutStaleWarnings = removeStaleSessionWarningHistory(context.history);
 				const staleSessionConfirmation = getStaleSessionWarningConfirmation(request);
+				if (!staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')) {
+					sendStaleSessionWarningFollowUpTelemetry(this.telemetryService, StaleSessionProviderKind.Local, request.sessionId, request.model?.id);
+				}
 				if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
-					/* __GDPR__
-						"staleSessionWarning.action" : {
-							"owner": "gcianci",
-							"comment": "Tracks which action users take when the stale session warning is shown.",
-							"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-							"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
-							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 					await this.openNewLocalSessionFromStaleSessionWarning(staleSessionConfirmation, request);
 					return createStaleSessionWarningActionResult(staleSessionConfirmation);
 				}
@@ -276,32 +270,15 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					})
 					: undefined;
 				if (staleSessionWarning) {
-					const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
-					/* __GDPR__
-						"staleSessionWarning.shown" : {
-							"owner": "gcianci",
-							"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
-							"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
-							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
-							"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
-							"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
-					const warningMetadata = {
-						kind: 'staleSessionWarning',
-						providerKind: StaleSessionProviderKind.Local,
-						originalPrompt: request.prompt,
-						sessionId: request.sessionId,
-						modelId: request.model?.id,
-					} as const;
+					sendStaleSessionWarningShownTelemetry(this.telemetryService, staleSessionWarning);
+					const warningMetadata = createStaleSessionWarningRequestMetadata(staleSessionWarning, request.prompt, request.sessionId);
 					showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
 					return createStaleSessionWarningResult(warningMetadata);
 				}
 
 				let effectiveHistory = historyWithoutStaleWarnings;
 				if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 					stream.progress(vscode.l10n.t('Compacting session'));
 					const compactRequest = { ...effectiveRequest, prompt: '', command: 'compact' };
 					const compactHandler = this.instantiationService.createInstance(ChatParticipantRequestHandler, effectiveHistory, compactRequest, stream, token, { agentName: name, agentId: id, intentId: Intent.Agent }, () => context.yieldRequested, undefined);
@@ -315,7 +292,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 						new ChatResponseTurn2([], compactResult, id) as vscode.ChatResponseTurn,
 					];
 				} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
-					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					recordStaleSessionWarningActionTelemetry(this.telemetryService, staleSessionConfirmation);
 				}
 				request = effectiveRequest;
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Config, ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, formatStaleSessionIdleTime, formatStaleSessionTokenCount, removeStaleSessionWarningHistory, shouldWarnAboutStaleSession, StaleSessionProviderKind, StaleSessionWarningAction } from '../staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, formatStaleSessionIdleTime, formatStaleSessionTokenCount, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, StaleSessionProviderKind, StaleSessionWarningAction } from '../staleSessionWarning/staleSessionWarning';
 
 describe('staleSessionWarning', () => {
 	it('requires both the idle-time and token thresholds to be exceeded', () => {
@@ -111,6 +111,57 @@ describe('staleSessionWarning', () => {
 		const after = { prompt: 'after' };
 
 		expect(removeStaleSessionWarningHistory([before, actionRequest, actionResponse, after] as never)).toEqual([before, after]);
+	});
+
+	it('emits shown, action, and follow-up telemetry with warning context', () => {
+		const events: { readonly eventName: string; readonly properties: unknown; readonly measurements: unknown }[] = [];
+		const telemetryService = {
+			sendMSFTTelemetryEvent(eventName: string, properties?: unknown, measurements?: unknown): void {
+				events.push({ eventName, properties, measurements });
+			}
+		};
+		const warning = shouldWarnAboutStaleSession(createConfigurationService(), {
+			providerKind: StaleSessionProviderKind.Local,
+			modelId: 'gpt-test',
+			tokenCount: 100_000,
+			lastActivityTime: 0,
+			now: 10 * 60 * 60 * 1000,
+		});
+		expect(warning).toBeDefined();
+
+		vi.useFakeTimers();
+		try {
+			vi.setSystemTime(0);
+			sendStaleSessionWarningShownTelemetry(telemetryService, warning!);
+			const actionMetadata = {
+				...createStaleSessionWarningRequestMetadata(warning!, 'continue this task', 'session'),
+				action: StaleSessionWarningAction.CompactAndContinue,
+			};
+			recordStaleSessionWarningActionTelemetry(telemetryService, actionMetadata);
+
+			vi.setSystemTime(2 * 60 * 1000);
+			sendStaleSessionWarningFollowUpTelemetry(telemetryService, StaleSessionProviderKind.Local, 'session', 'fallback-model');
+		} finally {
+			vi.useRealTimers();
+		}
+
+		expect(events).toEqual([
+			{
+				eventName: 'staleSessionWarning.shown',
+				properties: { providerKind: StaleSessionProviderKind.Local, modelId: 'gpt-test' },
+				measurements: { idleHours: 10, tokenCount: 100_000, thresholdHours: 8, thresholdTokens: 80_000 },
+			},
+			{
+				eventName: 'staleSessionWarning.action',
+				properties: { providerKind: StaleSessionProviderKind.Local, action: StaleSessionWarningAction.CompactAndContinue, modelId: 'gpt-test' },
+				measurements: { idleHours: 10, tokenCount: 100_000, thresholdHours: 8, thresholdTokens: 80_000 },
+			},
+			{
+				eventName: 'staleSessionWarning.followUpRequest',
+				properties: { providerKind: StaleSessionProviderKind.Local, previousAction: StaleSessionWarningAction.CompactAndContinue, modelId: 'gpt-test' },
+				measurements: { minutesSinceAction: 2, idleHoursAtPreviousWarning: 10, tokenCountAtPreviousWarning: 100_000 },
+			},
+		]);
 	});
 });
 
