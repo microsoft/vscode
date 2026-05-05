@@ -563,10 +563,120 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))
-	),
+	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	group: '3_workbench_layout_move',
+	order: 1
+});
+
+// Secondary Activity Bar Position Actions
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.secondaryActivityBarLocation.default',
+			title: {
+				...localize2('positionSecondaryActivityBarDefault', 'Move Secondary Activity Bar to Title'),
+				mnemonicTitle: localize({ key: 'miDefaultSecondaryActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Default"),
+			},
+			shortTitle: localize('secondaryDefault', "Default"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT),
+			menu: [{
+				id: MenuId.SecondaryActivityBarPositionMenu,
+				order: 1
+			}, {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.DEFAULT);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.secondaryActivityBarLocation.top',
+			title: {
+				...localize2('positionSecondaryActivityBarTop', 'Move Secondary Activity Bar to Top'),
+				mnemonicTitle: localize({ key: 'miTopSecondaryActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Top"),
+			},
+			shortTitle: localize('secondaryTop', "Top"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+			menu: [{
+				id: MenuId.SecondaryActivityBarPositionMenu,
+				order: 2
+			}, {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.TOP);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.secondaryActivityBarLocation.bottom',
+			title: {
+				...localize2('positionSecondaryActivityBarBottom', 'Move Secondary Activity Bar to Bottom'),
+				mnemonicTitle: localize({ key: 'miBottomSecondaryActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Bottom"),
+			},
+			shortTitle: localize('secondaryBottom', "Bottom"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.BOTTOM),
+			menu: [{
+				id: MenuId.SecondaryActivityBarPositionMenu,
+				order: 3
+			}, {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.BOTTOM),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.BOTTOM);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.secondaryActivityBarLocation.hide',
+			title: {
+				...localize2('hideSecondaryActivityBar', 'Hide Secondary Activity Bar'),
+				mnemonicTitle: localize({ key: 'miHideSecondaryActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Hidden"),
+			},
+			shortTitle: localize('secondaryHide', "Hidden"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.HIDDEN),
+			menu: [{
+				id: MenuId.SecondaryActivityBarPositionMenu,
+				order: 4
+			}, {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.HIDDEN),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.HIDDEN);
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
+	submenu: MenuId.SecondaryActivityBarPositionMenu,
+	title: localize('positionSecondaryActivityBar', "Secondary Activity Bar Position"),
+	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)),
 	group: '3_workbench_layout_move',
 	order: 1
 });
