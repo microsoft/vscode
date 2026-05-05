@@ -46,21 +46,23 @@ function textResult(...values: string[]): IToolResult {
 }
 
 suite('ToolResultCompressorService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const make = (opts: { enabled: boolean; log?: ILogService }) => store.add(makeService(opts));
 
 	test('returns undefined when disabled', () => {
-		const svc = makeService({ enabled: false });
+		const svc = make({ enabled: false });
 		svc.registerFilter(replaceWithFooFilter);
 		strictEqual(svc.maybeCompress(TOOL, {}, textResult(longText('hello'))), undefined);
 	});
 
 	test('returns undefined when no filters registered', () => {
-		const svc = makeService({ enabled: true });
+		const svc = make({ enabled: true });
 		strictEqual(svc.maybeCompress(TOOL, {}, textResult(longText('hello'))), undefined);
 	});
 
 	test('returns undefined when no filters match', () => {
-		const svc = makeService({ enabled: true });
+		const svc = make({ enabled: true });
 		svc.registerFilter({
 			id: 'no-match',
 			toolIds: [TOOL],
@@ -72,7 +74,7 @@ suite('ToolResultCompressorService', () => {
 
 	test('disables a throwing filter for the rest of the pass and warns once', () => {
 		const log = new CapturingLogService();
-		const svc = makeService({ enabled: true, log });
+		const svc = make({ enabled: true, log });
 		let calls = 0;
 		svc.registerFilter({
 			id: 'thrower',
@@ -98,7 +100,7 @@ suite('ToolResultCompressorService', () => {
 	});
 
 	test('preserves non-text parts unchanged', () => {
-		const svc = makeService({ enabled: true });
+		const svc = make({ enabled: true });
 		svc.registerFilter(replaceWithFooFilter);
 		const dataPart: IToolResultDataPart = { kind: 'data', value: { mimeType: 'application/octet-stream', data: VSBuffer.wrap(new Uint8Array([1, 2, 3])) } };
 		const result: IToolResult = { content: [dataPart, { kind: 'text', value: longText('hello') }] };
@@ -112,7 +114,7 @@ suite('ToolResultCompressorService', () => {
 	});
 
 	test('preserves text part audience metadata when rewriting', () => {
-		const svc = makeService({ enabled: true });
+		const svc = make({ enabled: true });
 		svc.registerFilter(replaceWithFooFilter);
 		const audience = [LanguageModelPartAudience.Assistant, LanguageModelPartAudience.User];
 		const result: IToolResult = { content: [{ kind: 'text', value: longText('hello'), audience }] };
@@ -126,7 +128,7 @@ suite('ToolResultCompressorService', () => {
 	});
 
 	test('skips text parts shorter than the minimum compressible length', () => {
-		const svc = makeService({ enabled: true });
+		const svc = make({ enabled: true });
 		svc.registerFilter(replaceWithFooFilter);
 		// Nothing was compressed because the part was below the threshold.
 		strictEqual(svc.maybeCompress(TOOL, {}, textResult('tiny')), undefined);
