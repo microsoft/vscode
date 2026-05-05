@@ -7,7 +7,6 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -24,7 +23,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ICustomAgent } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import * as nls from '../../../../../nls.js';
@@ -37,6 +35,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { PickerActionViewItem } from './agentHostSessionConfigPicker.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 
 const STORAGE_KEY = 'sessions.agentHostAgentPicker.lastPickedAgentId';
 
@@ -74,7 +73,7 @@ export class AgentHostAgentPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
-	private _availableAgents: readonly ICustomAgent[] = [];
+	private _chatMode?: IChatModes;
 	private _activeHarnessId: string | undefined;
 
 	constructor(
@@ -86,6 +85,7 @@ export class AgentHostAgentPicker extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatModeService private readonly _chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -155,14 +155,14 @@ export class AgentHostAgentPicker extends Disposable {
 
 	private async _refreshAgentList(): Promise<void> {
 		if (!this._activeHarnessId) {
-			this._availableAgents = [];
+			this._chatMode = undefined;
 			this._updateTrigger();
 			return;
 		}
 		try {
-			this._availableAgents = await this._customizationHarnessService.getCustomAgents(this._activeHarnessId, CancellationToken.None);
+			this._chatMode = this._chatModeService.getModes(this._activeHarnessId);
 		} catch {
-			this._availableAgents = [];
+			this._chatMode = undefined;
 		}
 		this._updateTrigger();
 	}
@@ -194,9 +194,9 @@ export class AgentHostAgentPicker extends Disposable {
 			// URI is canonical identity; live `name` from the resolved agent
 			// list always wins. The `current.name` fallback is used only when
 			// the live list hasn't returned an entry for this URI yet.
-			const live = this._availableAgents.find(a => isEqual(a.uri, currentModeId));
+			const live = this._chatMode?.custom.find(a => isEqual(URI.parse(a.id), currentModeId));
 			const agentNameFromPath = basename(currentModeId).replace(/\.agent\.md$/, '');
-			label = live?.name ?? cachedDescriptions.get(currentModeId) ?? agentNameFromPath;
+			label = live?.name?.get() ?? cachedDescriptions.get(currentModeId) ?? agentNameFromPath;
 		}
 
 		dom.append(this._triggerElement, renderIcon(Codicon.agent));
@@ -224,11 +224,13 @@ export class AgentHostAgentPicker extends Disposable {
 		const previouslyFocusedElement = dom.getActiveElement();
 
 		const defaultItem: IAgentPickerItem = { id: undefined, label: DEFAULT_LABEL, description: DEFAULT_LABEL_DESCRIPTION };
-		const customItems: IAgentPickerItem[] = this._availableAgents.map(agent => ({
-			id: agent.uri,
-			label: agent.name,
-			description: agent.description,
-		}));
+		const customItems: IAgentPickerItem[] = this._chatMode?.custom
+			.filter(c => !c.isBuiltin)
+			.map(agent => ({
+				id: URI.parse(agent.id),
+				label: agent.name.get(),
+				description: agent.description.get(),
+			})) ?? [];
 		customItems.forEach(item => item.id ? cachedDescriptions.set(item.id, item.label) : undefined);
 
 		// If the current selection's URI isn't in the live list (harness still
