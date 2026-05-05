@@ -887,13 +887,6 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.doesNotThrow(() => URI.joinPath(workspace.repositories[0].uri, '.vscode/extensions.json'));
 	});
 
-	test('has folder and repo browse actions', () => {
-		const provider = createProvider(disposables, model);
-		assert.strictEqual(provider.browseActions.length, 2);
-		assert.strictEqual(provider.browseActions[0].providerId, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.browseActions[1].providerId, COPILOT_PROVIDER_ID);
-	});
-
 	// ---- Claude session creation -------
 
 	function makeClaudeInFlightProvider(): { provider: CopilotChatSessionsProvider; cancelRequest: () => void; realResource: URI; commitSession: () => void } {

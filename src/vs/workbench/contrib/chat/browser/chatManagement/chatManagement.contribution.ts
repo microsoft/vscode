@@ -34,6 +34,7 @@ const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextK
 	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
 	ChatContextKeys.Entitlement.planProPlus,
+	ChatContextKeys.Entitlement.planMax,
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
 	ChatContextKeys.Entitlement.internal

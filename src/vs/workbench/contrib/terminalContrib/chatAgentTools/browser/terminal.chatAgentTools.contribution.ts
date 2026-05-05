@@ -16,6 +16,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../../chat/common/tools/toolResultCompressor.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -32,6 +33,7 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { registerTerminalCompressors } from './tools/terminalOutputCompressor.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 import { isNumber } from '../../../../../base/common/types.js';
@@ -88,8 +90,11 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IToolResultCompressor toolResultCompressor: IToolResultCompressor,
 	) {
 		super();
+
+		registerTerminalCompressors(toolResultCompressor);
 
 		// #region Terminal
 

@@ -67,7 +67,6 @@ export function resetSessionsWelcome(
 		if (!walkthrough.isShowingWelcome && walkthrough.isShowingSignIn && account !== null) {
 			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			walkthrough.complete();
-			store.dispose();
 		}
 	}));
 

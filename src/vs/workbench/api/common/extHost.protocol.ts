@@ -1020,8 +1020,27 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-export interface CustomTextEditorCapabilities {
+export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
+}
+
+export interface CustomEditorDiffInitData {
+	readonly title: string;
+	readonly contentOptions: IWebviewContentOptions;
+	readonly options: IWebviewPanelOptions;
+	readonly active: boolean;
+}
+
+export interface CustomEditorSideBySideDiffWebviewHandles {
+	readonly original: WebviewHandle;
+	readonly modified: WebviewHandle;
+}
+
+export interface CustomEditorSideBySideDiffInitData {
+	readonly original: CustomEditorDiffInitData;
+	readonly modified: CustomEditorDiffInitData;
 }
 
 export const enum WebviewMessageArrayBufferViewType {
@@ -1089,8 +1108,8 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -1149,6 +1168,24 @@ export interface ExtHostCustomEditorsShape {
 			options: IWebviewPanelOptions;
 			active: boolean;
 		},
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorInlineDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		newWebviewHandle: WebviewHandle,
+		viewType: string,
+		initData: CustomEditorDiffInitData,
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorSideBySideDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		webviewHandles: CustomEditorSideBySideDiffWebviewHandles,
+		viewType: string,
+		initData: CustomEditorSideBySideDiffInitData,
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
 	): Promise<void>;
@@ -1444,6 +1481,7 @@ export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly durationInMillis?: number;
 }
@@ -1513,12 +1551,14 @@ export interface IChatDebugEventModelTurnContentDto {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSectionDto[];
 }
@@ -1701,6 +1741,7 @@ export interface ICustomAgentDto extends IChatResourceDto {
 	readonly model?: readonly string[];
 	readonly userInvocable: boolean;
 	readonly disableModelInvocation: boolean;
+	readonly enabled: boolean;
 }
 
 export interface IInstructionDto extends IChatResourceDto {
@@ -1709,6 +1750,7 @@ export interface IInstructionDto extends IChatResourceDto {
 
 export interface ISkillDto extends IChatResourceDto {
 	readonly userInvocable: boolean;
+	readonly disableModelInvocation: boolean;
 }
 
 export interface ISlashCommandDto extends IChatResourceDto {
@@ -1719,6 +1761,9 @@ export interface ISlashCommandDto extends IChatResourceDto {
 export interface IHookDto {
 	readonly uri: UriComponents;
 	readonly sessionTypes?: readonly string[];
+	readonly source: IChatResourceSourceDto;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 }
 
 export interface IPluginDto {
@@ -1738,8 +1783,10 @@ export interface IChatSessionCustomizationItemDto {
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;
-
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 	readonly badgeTooltip?: string;
+	readonly userInvocable?: boolean;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -3637,7 +3684,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string | { label: string; link: string };
+	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
 };

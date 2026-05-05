@@ -260,6 +260,8 @@ function safeStringify(value: unknown): string {
 
 export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
 
+export type SessionMode = 'interactive' | 'plan';
+
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
 	readonly deny: readonly string[];
@@ -319,6 +321,22 @@ export const platformSessionSchema = createSchema({
 		sessionMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
+		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
+		enum: ['interactive', 'plan'],
+		enumLabels: [
+			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
+			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+		],
+		enumDescriptions: [
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Ask for input and approval for each action"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Generate a plan first, then choose how to execute it"),
+		],
+		default: 'interactive',
+		sessionMutable: true,
+	}),
 });
 
 /**

@@ -24,7 +24,27 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
+	/**
+	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
+	 * a worktree whose branch was preserved (e.g. unarchiving a session
+	 * whose worktree was previously cleaned up on archive).
+	 */
+	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
 	removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void>;
+	/**
+	 * Returns true when the named branch exists in the repository
+	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
+	 * confirm the branch is preserved before deleting the worktree, and by
+	 * the unarchive path to confirm the branch is still around before
+	 * recreating the worktree.
+	 */
+	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/**
+	 * Returns true when the working tree has any tracked, staged, or
+	 * untracked changes. Used by archive cleanup to skip removing a
+	 * worktree that still contains uncommitted work.
+	 */
+	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -170,8 +190,24 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
 	}
 
+	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
+		await this._runGit(repositoryRoot, ['worktree', 'add', worktree.fsPath, branchName], { timeout: 30_000, throwOnError: true });
+	}
+
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
 		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 30_000, throwOnError: true });
+	}
+
+	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
+		// `show-ref --verify --quiet` exits 0 when the ref exists and 1 otherwise.
+		// `_runGit` returns undefined on non-zero exit, so `!== undefined` is the existence signal.
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`]);
+		return output !== undefined;
+	}
+
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
+		return !!output && output.trim().length > 0;
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {

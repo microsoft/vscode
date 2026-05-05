@@ -69,16 +69,16 @@ const shownWarnings = new Set<ChatPermissionLevel>();
 
 export class PermissionPicker extends Disposable {
 
-	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
-	private _triggerElement: HTMLElement | undefined;
-	private readonly _renderDisposables = this._register(new DisposableStore());
+	protected _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
+	protected _triggerElement: HTMLElement | undefined;
+	protected readonly _renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly _delegate: IPermissionPickerDelegate,
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		protected readonly _delegate: IPermissionPickerDelegate,
+		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IDialogService protected readonly dialogService: IDialogService,
+		@IOpenerService protected readonly openerService: IOpenerService,
 	) {
 		super();
 	}
@@ -238,7 +238,7 @@ export class PermissionPicker extends Disposable {
 		);
 	}
 
-	private async _selectLevel(level: ChatPermissionLevel): Promise<void> {
+	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
 		if (level === ChatPermissionLevel.AutoApprove && !shownWarnings.has(ChatPermissionLevel.AutoApprove)) {
 			const result = await this.dialogService.prompt({
 				type: Severity.Warning,

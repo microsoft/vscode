@@ -19,7 +19,7 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getStatusLabel, showRemoteHostOptions } from './remoteHostOptions.js';
+import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 
 interface IRemoteHostQuickPickItem extends IQuickPickItem {
@@ -74,9 +74,7 @@ registerAction2(class extends Action2 {
 					description: status !== undefined ? getStatusLabel(status) : undefined,
 					detail: p.remoteAddress,
 				};
-				if (!isTunnel) {
-					(item as IRemoteHostQuickPickItem & { buttons?: IQuickInputButton[] }).buttons = [removeButton];
-				}
+				(item as IRemoteHostQuickPickItem & { buttons?: IQuickInputButton[] }).buttons = [removeButton];
 				return item;
 			});
 
@@ -144,11 +142,8 @@ registerAction2(class extends Action2 {
 
 			store.add(picker.onDidTriggerItemButton(async e => {
 				if (e.item.kind === 'remote' && e.button === removeButton) {
-					const address = e.item.provider.remoteAddress;
-					if (address) {
-						await remoteAgentHostService.removeRemoteAgentHost(address);
-						// onDidChangeProviders will refresh
-					}
+					await removeRemoteHost(e.item.provider, remoteAgentHostService);
+					// onDidChangeProviders will refresh
 				}
 			}));
 

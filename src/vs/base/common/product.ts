@@ -400,7 +400,7 @@ export interface IDefaultChatAgent {
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
-	readonly manageAdditionalSpendUrl: string;
+	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
 	readonly termsStatementUrl: string;

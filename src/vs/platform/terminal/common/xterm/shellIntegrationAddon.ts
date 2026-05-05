@@ -414,6 +414,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// when instant prompt is enabled though. If this does end up being a problem we could pass
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
+		this._logService.trace(`ShellIntegrationAddon#_doHandleFinalTermSequence: received sequence ${command}`);
 		this._markSequenceSeen(command);
 		switch (command) {
 			case FinalTermOscPt.PromptStart:
@@ -477,6 +478,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// Pass the sequence along to the capability
 		const argsIndex = data.indexOf(';');
 		const command = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		this._logService.trace(`ShellIntegrationAddon#_doHandleVSCodeSequence: received sequence ${command}`);
 		this._markSequenceSeen(command);
 		// Cast to strict checked index access
 		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');

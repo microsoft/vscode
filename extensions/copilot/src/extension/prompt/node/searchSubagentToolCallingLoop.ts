@@ -39,6 +39,8 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 	parentToolCallId?: string;
 	/** The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
 	parentHeaderRequestId?: string;
+	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
 	/** Thoroughness level for the search, passed through to the prompt when thoroughnessEnabled config is on. */
 	thoroughness?: 'normal' | 'deep';
 }
@@ -145,7 +147,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return allTools.filter(tool => allowedSearchTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
+	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: SearchSubagentToolCallingLoop.ID,
@@ -163,10 +165,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
 				messageSource: 'chat.editAgent',
-				subType: 'subagent/search',
+				subType: 'search_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
+				parentModelCallId: this.options.parentModelCallId,
+				iterationNumber: iterationNumber.toString(),
 			},
 			requestKindOptions: { kind: 'subagent' }
 		}, token);

@@ -25,8 +25,16 @@ export type { ConfigPropertySchema, ConfigSchema, SessionConfigPropertySchema, S
  * @see {@link /specification/lifecycle | Lifecycle} for the full handshake flow.
  */
 export interface InitializeParams {
-	/** Protocol version the client speaks */
-	protocolVersion: number;
+	/**
+	 * Protocol versions the client is willing to speak, ordered from most
+	 * preferred to least preferred. Each entry is a [SemVer](https://semver.org)
+	 * `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+	 *
+	 * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
+	 * If the server cannot speak any of the offered versions, it MUST return
+	 * error code `-32005` (`UnsupportedProtocolVersion`).
+	 */
+	protocolVersions: string[];
 	/** Unique client identifier */
 	clientId: string;
 	/** URIs to subscribe to during handshake */
@@ -42,12 +50,19 @@ export interface InitializeParams {
 /**
  * Result of the `initialize` command.
  *
- * If the server does not support the client's protocol version, it MUST return
- * error code `-32005` (`UnsupportedProtocolVersion`).
+ * `protocolVersion` is the version the server has selected from the client's
+ * `protocolVersions` list. The client and server MUST use this version for
+ * the rest of the connection. If the server cannot speak any of the offered
+ * versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
+ * instead of a result.
  */
 export interface InitializeResult {
-	/** Protocol version the server speaks */
-	protocolVersion: number;
+	/**
+	 * Protocol version selected by the server. MUST be one of the entries in
+	 * `InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)
+	 * `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+	 */
+	protocolVersion: string;
 	/** Current server sequence number */
 	serverSeq: number;
 	/** Snapshots for each `initialSubscriptions` URI */
@@ -98,6 +113,13 @@ export interface ReconnectReplayResult {
 	type: ReconnectResultType.Replay;
 	/** Missed action envelopes since `lastSeenServerSeq` */
 	actions: ActionEnvelope[];
+	/**
+	 * URIs from `ReconnectParams.subscriptions` that the server cannot resume.
+	 * This includes resources that no longer exist (e.g. disposed sessions or
+	 * terminals) as well as resources the client is no longer permitted to
+	 * observe. Clients SHOULD drop these from their local subscription set.
+	 */
+	missing: URI[];
 }
 
 /**
@@ -620,6 +642,59 @@ export interface ResourceDeleteParams {
  * An empty object on success.
  */
 export interface ResourceDeleteResult {
+}
+
+// ─── resourceRequest ─────────────────────────────────────────────────────────
+
+/**
+ * Requests permission to access a resource on the receiver's filesystem.
+ *
+ * `resourceRequest` is symmetrical and MAY be sent in either direction: a
+ * client asks the server to grant access to a server-side resource, or a
+ * server asks the client to grant access to a client-side resource. The
+ * receiver decides whether to allow, deny, or prompt the user for the
+ * requested access.
+ *
+ * If the receiver denies access, it MUST respond with `PermissionDenied`
+ * (-32009). The error data MAY include a `ResourceRequestParams` value
+ * describing the access the caller would need to be granted for the
+ * operation to succeed; see `PermissionDeniedErrorData` in
+ * `types/errors.ts`.
+ *
+ * After a successful `resourceRequest`, the caller MAY use the corresponding
+ * `resource*` commands (e.g. `resourceRead`, `resourceWrite`) to perform the
+ * operation. Receivers MAY rescind access at any time by returning
+ * `PermissionDenied` on subsequent operations.
+ *
+ * Either `read`, `write`, or both SHOULD be set to `true`. A request with
+ * neither flag set is treated as `read: true` by receivers.
+ *
+ * @category Commands
+ * @method resourceRequest
+ * @direction Client ↔ Server
+ * @messageType Request
+ * @version 1
+ * @throws `PermissionDenied` (`-32009`) if access is denied.
+ */
+export interface ResourceRequestParams {
+	/**
+	 * Resource URI being requested. Typically a `file:` URI on the receiver's
+	 * filesystem, but any URI scheme that the receiver mediates access to is
+	 * allowed.
+	 */
+	uri: URI;
+	/** Whether the caller needs read access to the resource. */
+	read?: boolean;
+	/** Whether the caller needs write access to the resource. */
+	write?: boolean;
+}
+
+/**
+ * Result of the `resourceRequest` command.
+ *
+ * An empty object on success.
+ */
+export interface ResourceRequestResult {
 }
 
 // ─── resourceMove ────────────────────────────────────────────────────────────

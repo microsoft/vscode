@@ -70,6 +70,27 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		markdown.appendText(`\n`);
 	}
 
+	if (model.metadata.inputCost !== undefined || model.metadata.outputCost !== undefined || model.metadata.cacheCost !== undefined) {
+		if (model.metadata.inputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.inputCost === 1
+				? localize('models.inputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.inputCost)
+				: localize('models.inputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.inputCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.outputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.outputCost === 1
+				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
+				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.cacheCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.cacheCost === 1
+				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
+				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
+			markdown.appendText(`\n`);
+		}
+	}
+
 	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
@@ -511,102 +532,100 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 }
 
-interface ICostColumnTemplateData extends IModelTableColumnTemplateData {
-	readonly costElement: HTMLElement;
+interface ICombinedCostColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly inputCell: HTMLElement;
+	readonly outputCell: HTMLElement;
+	readonly cacheCell: HTMLElement;
 }
 
-abstract class BaseCostColumnRenderer extends ModelsTableColumnRenderer<ICostColumnTemplateData> {
+class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCostColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'combinedCost';
+
+	readonly templateId: string = CombinedCostColumnRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IHoverService protected readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
 
-	abstract get salt(): number;
-	abstract get fullLabel(): string;
-
-	renderTemplate(container: HTMLElement): ICostColumnTemplateData {
+	renderTemplate(container: HTMLElement): ICombinedCostColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
-		const costElement = DOM.append(container, $('.model-cost-cell'));
-		return { container, costElement, disposables, elementDisposables };
+		const grid = DOM.append(container, $('.model-cost-grid'));
+		const inputCell = DOM.append(grid, $('span.model-cost-cell'));
+		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
+		const cacheCell = DOM.append(grid, $('span.model-cost-cell'));
+		return {
+			container,
+			inputCell,
+			outputCell,
+			cacheCell,
+			disposables,
+			elementDisposables
+		};
 	}
 
-	override renderElement(entry: IViewModelEntry, index: number, templateData: ICostColumnTemplateData): void {
-		templateData.costElement.textContent = '';
+	override renderElement(entry: IViewModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
+		templateData.inputCell.textContent = '';
+		templateData.outputCell.textContent = '';
+		templateData.cacheCell.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
 
-	override renderGroupElement(_element: ILanguageModelGroupEntry, _index: number, _templateData: ICostColumnTemplateData): void { }
-	override renderVendorElement(_element: ILanguageModelProviderEntry, _index: number, _templateData: ICostColumnTemplateData): void { }
-
-	override renderModelElement(entry: ILanguageModelEntry, _index: number, templateData: ICostColumnTemplateData): void {
-		const value = computeCost(entry.model.identifier, this.salt);
-		templateData.costElement.textContent = `${value} AIC`;
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-			content: localize('cost.colTooltip', "{0}: {1} AIC per request", this.fullLabel, value),
-			appearance: { compact: true, skipFadeInAnimation: true }
-		})));
+	override renderGroupElement(_element: ILanguageModelGroupEntry, _index: number, _templateData: ICombinedCostColumnTemplateData): void {
 	}
-}
 
-class InputCostColumnRenderer extends BaseCostColumnRenderer {
-	static readonly TEMPLATE_ID = 'cost.input';
-	readonly templateId: string = InputCostColumnRenderer.TEMPLATE_ID;
-	get salt(): number { return 1; }
-	get fullLabel(): string { return localize('cost.inputFull', "Input"); }
-}
-
-class OutputCostColumnRenderer extends BaseCostColumnRenderer {
-	static readonly TEMPLATE_ID = 'cost.output';
-	readonly templateId: string = OutputCostColumnRenderer.TEMPLATE_ID;
-	get salt(): number { return 2; }
-	get fullLabel(): string { return localize('cost.outputFull', "Output"); }
-	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICostColumnTemplateData): void {
-		// Output is typically more expensive — scale up modestly
-		const value = computeCost(entry.model.identifier, this.salt) * 2;
-		templateData.costElement.textContent = `${value} AIC`;
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-			content: localize('cost.colTooltip', "{0}: {1} AIC per request", this.fullLabel, value),
-			appearance: { compact: true, skipFadeInAnimation: true }
-		})));
+	override renderVendorElement(_element: ILanguageModelProviderEntry, _index: number, _templateData: ICombinedCostColumnTemplateData): void {
 	}
-}
 
-class CacheCostColumnRenderer extends BaseCostColumnRenderer {
-	static readonly TEMPLATE_ID = 'cost.cache';
-	readonly templateId: string = CacheCostColumnRenderer.TEMPLATE_ID;
-	get salt(): number { return 3; }
-	get fullLabel(): string { return localize('cost.cacheFull', "Input cache"); }
-	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICostColumnTemplateData): void {
-		// Cache is typically much cheaper than input.
-		const input = computeCost(entry.model.identifier, 1);
-		const value = Math.max(1, Math.round(input / 5));
-		templateData.costElement.textContent = `${value} AIC`;
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-			content: localize('cost.colTooltip', "{0}: {1} AIC per request", this.fullLabel, value),
-			appearance: { compact: true, skipFadeInAnimation: true }
-		})));
+	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
+		const { inputCost, outputCost, cacheCost } = entry.model.metadata;
+		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined;
+
+		if (hasCost) {
+			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
+			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
+			templateData.cacheCell.textContent = cacheCost !== undefined ? localize('cost.cache', "Cache: {0}", cacheCost) : '';
+
+			const parts: string[] = [];
+			if (inputCost !== undefined) {
+				parts.push(inputCost === 1
+					? localize('cost.inputHover.singular', "Input: {0} credit per 1M tokens", inputCost)
+					: localize('cost.inputHover.plural', "Input: {0} credits per 1M tokens", inputCost));
+			}
+			if (outputCost !== undefined) {
+				parts.push(outputCost === 1
+					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
+					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
+			}
+			if (cacheCost !== undefined) {
+				parts.push(cacheCost === 1
+					? localize('cost.cacheHover.singular', "Cache: {0} credit per 1M tokens", cacheCost)
+					: localize('cost.cacheHover.plural', "Cache: {0} credits per 1M tokens", cacheCost));
+			}
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+				content: parts.join('\n'),
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true
+				}
+			})));
+		} else {
+			// Fallback for non-token-based billing (premium requests users)
+			const pricingText = entry.model.metadata.pricing;
+			if (pricingText) {
+				templateData.inputCell.textContent = pricingText;
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+					content: localize('pricing.tooltip', "Pricing: {0}", pricingText),
+					appearance: {
+						compact: true,
+						skipFadeInAnimation: true
+					}
+				})));
+			}
+		}
 	}
-}
-
-function hashString(s: string): number {
-	let h = 2166136261 >>> 0;
-	for (let i = 0; i < s.length; i++) {
-		h ^= s.charCodeAt(i);
-		h = Math.imul(h, 16777619) >>> 0;
-	}
-	return h >>> 0;
-}
-
-function computeCost(identifier: string, salt: number): number {
-	const seed = hashString(identifier);
-	let x = (seed + salt * 0x9E3779B1) >>> 0;
-	x = Math.imul(x ^ (x >>> 15), 0x85EBCA6B) >>> 0;
-	x = Math.imul(x ^ (x >>> 13), 0xC2B2AE35) >>> 0;
-	x = (x ^ (x >>> 16)) >>> 0; // unsigned: avoid negative modulo
-	return 1 + (x % 10);
 }
 
 interface ITokenLimitsColumnTemplateData extends IModelTableColumnTemplateData {
@@ -920,7 +939,7 @@ export class ChatModelsWidget extends Disposable {
 
 	private readonly searchFocusContextKey: IContextKey<boolean>;
 
-	private tableDisposables = this._register(new DisposableStore());
+	private readonly tableDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -1058,7 +1077,10 @@ export class ChatModelsWidget extends Disposable {
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.updateAddModelsButton()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			this.updateAddModelsButton();
+			this.createTable();
+		}));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
@@ -1073,9 +1095,7 @@ export class ChatModelsWidget extends Disposable {
 
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
-		const inputCostColumnRenderer = this.instantiationService.createInstance(InputCostColumnRenderer);
-		const outputCostColumnRenderer = this.instantiationService.createInstance(OutputCostColumnRenderer);
-		const cacheCostColumnRenderer = this.instantiationService.createInstance(CacheCostColumnRenderer);
+		const combinedCostColumnRenderer = this.instantiationService.createInstance(CombinedCostColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
@@ -1120,6 +1140,7 @@ export class ChatModelsWidget extends Disposable {
 			});
 		}
 
+		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined));
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1138,27 +1159,11 @@ export class ChatModelsWidget extends Disposable {
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: localize('cost.input.col', 'Input Cost'),
+				label: hasAnyCostFields ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: 0.08,
-				minimumWidth: 90,
-				templateId: InputCostColumnRenderer.TEMPLATE_ID,
-				project(row: IViewModelEntry): IViewModelEntry { return row; }
-			},
-			{
-				label: localize('cost.output.col', 'Output Cost'),
-				tooltip: '',
-				weight: 0.08,
-				minimumWidth: 100,
-				templateId: OutputCostColumnRenderer.TEMPLATE_ID,
-				project(row: IViewModelEntry): IViewModelEntry { return row; }
-			},
-			{
-				label: localize('cost.cache.col', 'Cache Cost'),
-				tooltip: '',
-				weight: 0.08,
-				minimumWidth: 90,
-				templateId: CacheCostColumnRenderer.TEMPLATE_ID,
+				weight: hasAnyCostFields ? 0.24 : 0.15,
+				minimumWidth: hasAnyCostFields ? 240 : 200,
+				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
@@ -1181,9 +1186,7 @@ export class ChatModelsWidget extends Disposable {
 			[
 				gutterColumnRenderer,
 				modelNameColumnRenderer,
-				inputCostColumnRenderer,
-				outputCostColumnRenderer,
-				cacheCostColumnRenderer,
+				combinedCostColumnRenderer,
 				tokenLimitsColumnRenderer,
 				capabilitiesColumnRenderer,
 				actionsColumnRenderer,
@@ -1213,6 +1216,21 @@ export class ChatModelsWidget extends Disposable {
 						const pricingText = e.model.metadata.pricing ?? '-';
 						if (pricingText !== '-') {
 							ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
+						}
+						if (e.model.metadata.inputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.inputCost === 1
+								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
+								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
+						}
+						if (e.model.metadata.outputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.outputCost === 1
+								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
+								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
+						}
+						if (e.model.metadata.cacheCost !== undefined) {
+							ariaLabels.push(e.model.metadata.cacheCost === 1
+								? localize('cacheCost.ariaLabel.singular', "Cache cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
+								: localize('cacheCost.ariaLabel.plural', "Cache cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
 						}
 						if (e.model.visible) {
 							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));

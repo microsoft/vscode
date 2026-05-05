@@ -138,7 +138,8 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 	let mut _tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
 	let mut tunnel_name: Option<String> = None;
 	if args.tunnel {
-		let auth = Auth::new(&ctx.paths, ctx.log.clone());
+		let mut auth = Auth::new(&ctx.paths, ctx.log.clone());
+		auth.set_provider(crate::auth::AuthProvider::Github);
 		let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 
 		let mut tunnel = if let Some(existing) =
@@ -183,12 +184,8 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 	}
 
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
-	if let Some(name) = &tunnel_name {
-		let tunnel_url = match constants::EDITOR_WEB_URL {
-			Some(base) => format!("{base}/agents?tunnel={name}"),
-			None => format!("(set VSCODE_CLI_TUNNEL_EDITOR_WEB_URL)/agents?tunnel={name}"),
-		};
-		output::print_banner_line("Tunnel", &tunnel_url);
+	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, &tunnel_name) {
+		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
 	}
 	output::print_network_lines(bound_addr.port(), addr.ip(), &token_suffix);
 	output::print_banner_footer();

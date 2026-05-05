@@ -33,7 +33,7 @@ import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -212,19 +212,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}
 
 		this.widget = instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
-			statusMenuId: {
-				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
-				options: {
-					buttonConfigProvider: (action, index) => {
-						const isSecondary = index > 0;
-						if (new Set([ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, ACTION_REPORT_ISSUE]).has(action.id)) {
-							return { isSecondary, showIcon: true, showLabel: false };
-						} else {
-							return { isSecondary };
-						}
-					}
-				}
-			},
 			secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 			inZoneWidget: true,
 			chatWidgetViewOptions: {

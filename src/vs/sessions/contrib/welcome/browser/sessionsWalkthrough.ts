@@ -20,6 +20,7 @@ import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/co
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 
+
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
 const fadeDuration = 200;
@@ -51,7 +52,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private _outcomeResolved = false;
 	private _isShowingWelcome = false;
 	private _isShowingSignIn = false;
-
 	/**
 	 * Whether the overlay is currently displaying the signed-in welcome
 	 * greeting (as opposed to the sign-in provider buttons). When `true`,
@@ -177,7 +177,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.footerContainer.textContent = '';
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
-		const productName = this.productService.nameLong;
+		const productName = localize('walkthrough.productName', "{0} - Agents", this.productService.nameLong);
 
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
@@ -195,13 +195,13 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Always show the welcome title/subtitle with sign-in buttons,
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
-		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
+		const taglineEl = append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
-		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
+		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl, taglineEl);
 	}
 
-	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
+	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement): void {
 		this._isShowingSignIn = true;
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
@@ -251,6 +251,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				errorContainer,
 				titleEl,
 				subtitleEl,
+				taglineEl,
 				signInActions
 			)));
 		} else {
@@ -269,6 +270,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 					strategy,
 					titleEl,
 					subtitleEl,
+					taglineEl,
 					signInActions
 				)));
 			}
@@ -283,7 +285,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
@@ -307,8 +309,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		return this.defaultAccountService.currentDefaultAccount !== null;
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -355,8 +357,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	 * this triggers an OAuth popup. On localhost the embedder's
 	 * env-contributed auth provider handles the flow (e.g. device code).
 	 */
-	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -372,7 +374,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
@@ -392,6 +394,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Swap title and subtitle in-place
 		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
 		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
+		taglineEl.remove();
 
 		// Replace sign-in actions with progress bar
 		const heroText = signInActions.parentElement;
@@ -399,6 +402,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 		signInActions.remove();
+
 		append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
 
 		// Fade back in

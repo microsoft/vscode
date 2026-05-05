@@ -14,7 +14,7 @@
 	justify-content: center;
 	background: var(--vscode-editor-background);
 	opacity: 1;
-	transition: opacity 200ms ease-out;
+	transition: opacity 200ms ease-out, background-color 200ms ease-out;
 }
 
 .sessions-walkthrough-overlay .hidden {
@@ -36,7 +36,7 @@
 .sessions-walkthrough-card {
 	display: flex;
 	flex-direction: column;
-	width: 640px;
+	width: 1000px;
 	max-width: calc(100vw - 64px);
 	max-height: calc(100vh - 80px);
 	text-align: left;
@@ -55,7 +55,7 @@
 	overflow-y: auto;
 	overflow-x: hidden;
 	min-height: 0;
-	padding: 4px 0 8px;
+	padding: 4px 4px 8px;
 	box-sizing: border-box;
 	opacity: 1;
 	transition: opacity 200ms ease-out;
@@ -376,7 +376,7 @@
 .sessions-walkthrough-get-started-btn {
 	padding: 8px 24px;
 	border-radius: 6px;
-	border: none;
+	border: 1px solid var(--vscode-button-border, transparent);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	font-size: 13px;
@@ -421,6 +421,167 @@
 	font-style: italic;
 	opacity: 0.85;
 	margin-top: 4px;
+}
+
+/* ---- Theme step ---- */
+
+.sessions-walkthrough-theme-header {
+	text-align: center;
+	margin-bottom: 8px;
+}
+
+.sessions-walkthrough-theme-header h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-theme-header p {
+	margin: 6px 0 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.sessions-walkthrough-theme-grid {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 10px;
+	width: 100%;
+}
+
+.sessions-walkthrough-theme-card {
+	border-radius: 8px;
+	border: 2px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	cursor: pointer;
+	touch-action: manipulation;
+	overflow: hidden;
+	transition: border-color 100ms, transform 100ms;
+	width: calc(33.333% - 7px);
+	max-width: 240px;
+	min-width: 180px;
+	box-sizing: border-box;
+}
+
+.sessions-walkthrough-theme-card:hover {
+	border-color: var(--vscode-focusBorder, #007acc);
+	transform: translateY(-1px);
+}
+
+.sessions-walkthrough-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-theme-card.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card {
+	border-width: 2px;
+	border-style: solid;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card:hover,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card:hover {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card:focus-visible,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card.selected,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card.selected {
+	outline: 2px dashed var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.monaco-workbench.hc-black .sessions-walkthrough-theme-card.selected:focus-visible,
+.monaco-workbench.hc-light .sessions-walkthrough-theme-card.selected:focus-visible {
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-theme-preview {
+	overflow: hidden;
+}
+
+.sessions-walkthrough-theme-preview-img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.sessions-walkthrough-vscode-theme-option {
+	display: flex;
+	justify-content: center;
+	width: 100%;
+	margin-top: 24px;
+}
+
+.sessions-walkthrough-vscode-theme-radio {
+	min-width: 400px;
+	padding: 8px 20px;
+	border-radius: 8px;
+	border: 2px solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border, rgba(255, 255, 255, 0.1)));
+	background: var(--vscode-radio-inactiveBackground, transparent);
+	color: var(--vscode-radio-inactiveForeground, var(--vscode-foreground));
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	touch-action: manipulation;
+	transition: border-color 100ms, background 100ms;
+	text-align: center;
+}
+
+.sessions-walkthrough-vscode-theme-radio:hover {
+	background: var(--vscode-radio-inactiveHoverBackground, color-mix(in srgb, var(--vscode-foreground) 8%, transparent));
+}
+
+.sessions-walkthrough-vscode-theme-radio.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-radio-activeBackground, transparent);
+	color: var(--vscode-radio-activeForeground, var(--vscode-foreground));
+}
+
+.sessions-walkthrough-vscode-theme-radio:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.sessions-walkthrough-theme-label {
+	padding: 4px 6px;
+	font-size: 12px;
+	font-weight: 500;
+	text-align: center;
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-theme-footer {
+	display: flex;
+	justify-content: center;
+	margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+	.sessions-walkthrough-theme-card {
+		width: calc(50% - 5px);
+	}
+}
+
+@media (max-width: 480px) {
+	.sessions-walkthrough-theme-card {
+		width: 100%;
+	}
 }
 
 /* Reduced motion */

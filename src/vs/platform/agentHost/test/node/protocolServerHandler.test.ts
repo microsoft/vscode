@@ -13,8 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -112,14 +112,15 @@ class MockAgentService implements IAgentService {
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}
 		return snapshot;
 	}
-	unsubscribe(_resource: URI): void { }
+	addSubscriber(_resource: URI, _clientId: string): void { }
+	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -201,7 +202,7 @@ suite('ProtocolServerHandler', () => {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
-			protocolVersion: PROTOCOL_VERSION,
+			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
 			initialSubscriptions,
 		}));
@@ -239,6 +240,27 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+	});
+
+	test('handshake rejects unsupported protocol versions', () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		// Offer a single, deliberately-unsupported version. The server should
+		// respond with -32005 and a message naming the offered/supported sets
+		// instead of a result.
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: ['0.0.0'],
+			clientId: 'client-incompat',
+		}));
+
+		const resp = findResponse(transport.sent, 1) as { error?: { code: number; message: string } } | undefined;
+		assert.ok(resp, 'should have sent error response');
+		assert.strictEqual(resp.error?.code, AHP_UNSUPPORTED_PROTOCOL_VERSION);
+		assert.match(resp.error!.message, /0\.0\.0/);
+		assert.match(resp.error!.message, new RegExp(PROTOCOL_VERSION.replace(/\./g, '\\.')));
+
+		transport.simulateClose();
+		transport.dispose();
 	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
@@ -434,7 +456,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('reconnect replays missed actions', () => {
+	test('reconnect replays missed actions', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
@@ -448,14 +470,14 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-r',
 			lastSeenServerSeq: initSeq,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findResponse(transport2.sent, 1);
-		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const reconnectResp = await reconnectRespPromise;
 		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'replay');
 		if (result.type === 'replay') {
@@ -463,7 +485,7 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
-	test('reconnect sends fresh snapshots when gap too large', () => {
+	test('reconnect sends fresh snapshots when gap too large', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
 
@@ -476,19 +498,62 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-g',
 			lastSeenServerSeq: 0,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findResponse(transport2.sent, 1);
-		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const reconnectResp = await reconnectRespPromise;
 		const result = (reconnectResp as { result: ReconnectResult }).result;
 		assert.strictEqual(result.type, 'snapshot');
 		if (result.type === 'snapshot') {
 			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
 		}
+	});
+
+	test('reconnect rehydrates server-side state that was evicted while disconnected', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+		// MockAgentService.subscribe normally just returns the existing snapshot.
+		// Override it so a missing session is restored on subscribe — this is the
+		// behavior the real AgentService provides and that reconnect now relies on.
+		const subscribeCalls: string[] = [];
+		agentService.subscribe = async (resource, _clientId) => {
+			subscribeCalls.push(resource.toString());
+			let snapshot = stateManager.getSnapshot(resource.toString());
+			if (!snapshot) {
+				stateManager.restoreSession(makeSessionSummary(), []);
+				snapshot = stateManager.getSnapshot(resource.toString())!;
+			}
+			return snapshot;
+		};
+
+		const transport1 = connectClient('client-e', [sessionUri]);
+		const initResp = findResponse(transport1.sent, 1);
+		const initSeq = (initResp as { result: InitializeResult }).result.serverSeq;
+		transport1.simulateClose();
+
+		// Simulate the AgentService evicting the idle session while the client
+		// was disconnected (this is what `_maybeEvictIdleSession` does in the
+		// real service).
+		stateManager.removeSession(sessionUri);
+		assert.strictEqual(stateManager.getSnapshot(sessionUri), undefined, 'precondition: state evicted');
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-e',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [sessionUri],
+		}));
+
+		await reconnectRespPromise;
+		assert.deepStrictEqual(subscribeCalls, [sessionUri], 'reconnect should call subscribe to restore evicted state');
+		assert.ok(stateManager.getSnapshot(sessionUri), 'state should have been re-hydrated by reconnect');
 	});
 
 	test('client disconnect cleans up', () => {
