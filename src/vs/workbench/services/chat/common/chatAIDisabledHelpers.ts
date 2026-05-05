@@ -8,7 +8,7 @@ import { EnablementState } from '../../extensionManagement/common/extensionManag
 
 /** A single targeted update to the `chat.disableAIFeatures` setting. */
 export interface IAIDisabledSettingUpdate {
-	readonly value: boolean;
+	readonly value: boolean | undefined;
 	readonly target: ConfigurationTarget;
 }
 
@@ -56,6 +56,10 @@ export function computeAIDisabledOverrideForWorkspaceEnable(
  * explicitly per scope to avoid `updateValue`'s implicit scope-walking which causes
  * https://github.com/microsoft/vscode/issues/309947.
  *
+ * Updates use `value: undefined` so the override is *removed* (not rewritten as `false`). That
+ * matters because a persisted `false` at e.g. workspace scope would mask future higher-scope
+ * disables (policy, profile, application).
+ *
  * In remote scenarios the user scope splits into local/remote. We emit those explicitly so
  * that:
  *   - we never duplicate-write to the same underlying settings file (a `USER` target may be
@@ -70,22 +74,22 @@ export function computeAIDisabledClearForGlobalOptIn(
 	}
 	const updates: IAIDisabledSettingUpdate[] = [];
 	if (settingInspect.applicationValue === true) {
-		updates.push({ value: false, target: ConfigurationTarget.APPLICATION });
+		updates.push({ value: undefined, target: ConfigurationTarget.APPLICATION });
 	}
 	const userLocalSet = settingInspect.userLocalValue === true;
 	const userRemoteSet = settingInspect.userRemoteValue === true;
 	if (userLocalSet) {
-		updates.push({ value: false, target: ConfigurationTarget.USER_LOCAL });
+		updates.push({ value: undefined, target: ConfigurationTarget.USER_LOCAL });
 	}
 	if (userRemoteSet) {
-		updates.push({ value: false, target: ConfigurationTarget.USER_REMOTE });
+		updates.push({ value: undefined, target: ConfigurationTarget.USER_REMOTE });
 	}
 	if (settingInspect.userValue === true && !userLocalSet && !userRemoteSet) {
 		// Inspect did not surface a split local/remote value; fall back to the generic target.
-		updates.push({ value: false, target: ConfigurationTarget.USER });
+		updates.push({ value: undefined, target: ConfigurationTarget.USER });
 	}
 	if (settingInspect.workspaceValue === true) {
-		updates.push({ value: false, target: ConfigurationTarget.WORKSPACE });
+		updates.push({ value: undefined, target: ConfigurationTarget.WORKSPACE });
 	}
 	return updates;
 }

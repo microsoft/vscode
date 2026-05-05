@@ -122,6 +122,8 @@ suite('chat - chatSetupAIDisabled', () => {
 		// They must clear any disable override and ensure the merged value becomes false,
 		// without relying on `updateValue`'s implicit scope-walking which is what causes
 		// issue https://github.com/microsoft/vscode/issues/309947 to manifest in other call sites.
+		// Cleared scopes use `value: undefined` so the override is *removed* (not rewritten as
+		// `false`), which would otherwise mask future higher-scope disables.
 		test('returns no updates when merged is already false', () => {
 			const inspect: Inspect = { value: false };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), []);
@@ -130,21 +132,21 @@ suite('chat - chatSetupAIDisabled', () => {
 		test('clears user-scope when only user is true', () => {
 			const inspect: Inspect = { value: true, userValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.USER },
+				{ value: undefined, target: ConfigurationTarget.USER },
 			]);
 		});
 
 		test('clears application-scope when only application is true', () => {
 			const inspect: Inspect = { value: true, applicationValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.APPLICATION },
+				{ value: undefined, target: ConfigurationTarget.APPLICATION },
 			]);
 		});
 
 		test('clears workspace-scope when workspace is true', () => {
 			const inspect: Inspect = { value: true, workspaceValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.WORKSPACE },
+				{ value: undefined, target: ConfigurationTarget.WORKSPACE },
 			]);
 		});
 
@@ -156,16 +158,16 @@ suite('chat - chatSetupAIDisabled', () => {
 				workspaceValue: true,
 			};
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.APPLICATION },
-				{ value: false, target: ConfigurationTarget.USER },
-				{ value: false, target: ConfigurationTarget.WORKSPACE },
+				{ value: undefined, target: ConfigurationTarget.APPLICATION },
+				{ value: undefined, target: ConfigurationTarget.USER },
+				{ value: undefined, target: ConfigurationTarget.WORKSPACE },
 			]);
 		});
 
 		test('prefers USER_LOCAL over USER when userLocalValue is set', () => {
 			const inspect: Inspect = { value: true, userValue: true, userLocalValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.USER_LOCAL },
+				{ value: undefined, target: ConfigurationTarget.USER_LOCAL },
 			]);
 		});
 
@@ -177,15 +179,15 @@ suite('chat - chatSetupAIDisabled', () => {
 				userRemoteValue: true,
 			};
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.USER_LOCAL },
-				{ value: false, target: ConfigurationTarget.USER_REMOTE },
+				{ value: undefined, target: ConfigurationTarget.USER_LOCAL },
+				{ value: undefined, target: ConfigurationTarget.USER_REMOTE },
 			]);
 		});
 
 		test('emits only USER_REMOTE when only the remote scope is set', () => {
 			const inspect: Inspect = { value: true, userValue: true, userRemoteValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.USER_REMOTE },
+				{ value: undefined, target: ConfigurationTarget.USER_REMOTE },
 			]);
 		});
 	});
