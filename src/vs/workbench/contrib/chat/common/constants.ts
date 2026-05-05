@@ -213,6 +213,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 
+export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ProductQualityContext.notEqualsTo('stable'),
