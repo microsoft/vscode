@@ -7,10 +7,11 @@
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"dev": "tsc --watch & node --watch dist/index.js",
-		"test": "node --test dist/test/router.test.js"
+		"test": "node --test dist/test/*.js"
 	},
 	"dependencies": {
-		"express": "^4.21.0"
+		"express": "^4.21.0",
+		"undici": "^6.21.0"
 	},
 	"devDependencies": {
 		"@types/express": "^4.17.21",
