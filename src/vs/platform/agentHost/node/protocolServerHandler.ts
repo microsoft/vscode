@@ -16,7 +16,6 @@ import type { UnsupportedProtocolVersionErrorData } from '../common/state/protoc
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
-	AhpErrorCodes,
 	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
@@ -622,8 +621,11 @@ export class ProtocolServerHandler extends Disposable {
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
 		},
-		resourceRequest: async (_client, params) => {
-			throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Access to ${params.uri} is not granted.`, { request: params });
+		resourceRequest: async (_client, _params) => {
+			// The local agent host does not yet enforce per-resource grants
+			// for client → server access. Always grant; receivers MAY rescind
+			// access by returning `PermissionDenied` on subsequent operations.
+			return {};
 		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);

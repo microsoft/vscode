@@ -10,16 +10,6 @@ import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agent
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
-function readStringMeta(meta: Record<string, unknown> | undefined, key: string): string | undefined {
-	const value = meta?.[key];
-	return typeof value === 'string' ? value : undefined;
-}
-
-function readNumberMeta(meta: Record<string, unknown> | undefined, key: string): number | undefined {
-	const value = meta?.[key];
-	return typeof value === 'number' ? value : undefined;
-}
-
 /**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
@@ -62,8 +52,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					maxOutputTokens: 0,
 					isDefaultForLocation: {},
 					isUserSelectable: true,
-					pricing: readStringMeta(m._meta, 'pricing'),
-					multiplierNumeric: readNumberMeta(m._meta, 'multiplierNumeric'),
+					pricing: typeof m._meta?.pricing === 'string' ? m._meta.pricing : undefined,
+					multiplierNumeric: typeof m._meta?.multiplierNumeric === 'number' ? m._meta.multiplierNumeric : undefined,
 					modelPickerCategory: undefined,
 					targetChatSessionType: this._sessionType,
 					capabilities: {

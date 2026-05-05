@@ -14,7 +14,7 @@ import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, 
 import { ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { AhpErrorCodes, isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -288,21 +288,6 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(resp, 'should have sent response');
 		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
-	});
-
-	test('resourceRequest returns permission denied', async () => {
-		const transport = connectClient('client-permissions');
-		transport.sent.length = 0;
-		const responsePromise = waitForResponse(transport, 2);
-
-		transport.simulateMessage(request(2, 'resourceRequest', { uri: 'file:///workspace/file.ts', read: true }));
-		const resp = await responsePromise;
-
-		assert.deepStrictEqual((resp as { error: { code: number; message: string; data: unknown } }).error, {
-			code: AhpErrorCodes.PermissionDenied,
-			message: 'Access to file:///workspace/file.ts is not granted.',
-			data: { request: { uri: 'file:///workspace/file.ts', read: true } },
-		});
 	});
 
 	test('client action is dispatched and echoed', () => {
