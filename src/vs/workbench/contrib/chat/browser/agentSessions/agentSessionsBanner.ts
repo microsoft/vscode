@@ -7,11 +7,11 @@ import { $, addDisposableListener } from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 
 
 type AgentsBannerClickedEvent = {
@@ -35,10 +35,11 @@ export interface IAgentsBannerResult {
  * Returns whether the agents banner can be shown.
  * The banner requires the `workbench.action.openAgentsWindow` command
  * to be registered (desktop builds only) and is limited to Insiders quality.
- * It is also hidden when AI features are disabled via `chat.disableAIFeatures`.
+ * It is also hidden when AI features are disabled.
  */
-export function canShowAgentsBanner(productService: IProductService, configurationService: IConfigurationService): boolean {
-	if (configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true) {
+export function canShowAgentsBanner(productService: IProductService, chatEntitlementService: IChatEntitlementService): boolean {
+	const sentiment = chatEntitlementService.sentiment;
+	if (sentiment.hidden || sentiment.disabled) {
 		return false;
 	}
 	return productService.quality !== 'stable'
