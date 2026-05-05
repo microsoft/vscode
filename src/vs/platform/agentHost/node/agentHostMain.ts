@@ -28,7 +28,7 @@ import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
-import { getLogLevel, ILogService } from '../../log/common/log.js';
+import { getLogLevel, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../log/common/log.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
 import { LoggerChannel } from '../../log/common/logIpc.js';
@@ -80,6 +80,9 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('agenthost', { name: localize('agentHost', "Agent Host") });
 	const logService = new LogService(logger);
+	if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
+		disposables.add(registerDevConsoleLogForwarder(logService));
+	}
 	logService.info('Agent Host process started successfully');
 
 	// File service

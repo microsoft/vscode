@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConsoleLogger, ILogger } from '../../../../platform/log/common/log.js';
+import { ConsoleLogger, ILogger, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../../../platform/log/common/log.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { LoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -28,6 +28,10 @@ export class NativeLogService extends LogService {
 		}
 
 		super(fileLogger, [consoleLogger]);
+
+		if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
+			this._register(registerDevConsoleLogForwarder(this));
+		}
 
 		this._register(disposables);
 	}
