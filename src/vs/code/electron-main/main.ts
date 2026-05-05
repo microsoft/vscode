@@ -24,7 +24,7 @@ import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js';
-import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
+import { connect as nodeIPCConnect, createRandomIPCHandle, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
 import { CodeApplication } from './app.js';
 import { localize } from '../../nls.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -338,10 +338,28 @@ class CodeMain {
 
 				// Handle unexpected connection errors by showing a dialog to the user
 				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
-					if (error.code === 'EPERM') {
+
+					// Windows: when the existing instance is running at a different
+					// elevation level (e.g. admin vs non-admin), the connection
+					// fails with EPERM. Allowing two such instances to share a
+					// userDataDir would cause profile corruption (the elevated
+					// instance writes as SYSTEM and the unelevated one cannot
+					// modify those files). Only allow the second instance to
+					// start independently when the user has explicitly opted
+					// into an isolated profile via --user-data-dir.
+					if (isWindows && error.code === 'EPERM') {
+						if (environmentMainService.args['user-data-dir']) {
+							logService.warn('Another instance is running at a different elevation level. Starting independent instance with explicit --user-data-dir.');
+
+							mainProcessNodeIpcServer = await nodeIPCServe(createRandomIPCHandle());
+							Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+
+							return mainProcessNodeIpcServer;
+						}
+
 						this.showStartupWarningDialog(
 							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
-							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
+							localize('secondInstanceAdminDetail', "Please close the other instance and try again. To run a separate instance alongside the elevated one, start with --user-data-dir pointing to a different directory."),
 							productService
 						);
 					}
