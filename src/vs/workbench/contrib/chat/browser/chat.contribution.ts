@@ -216,6 +216,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalSessionsWindowOverride', "When true, enables sessions-window-specific behavior for extensions."),
 			default: false,
 			tags: ['experimental'],
+			agentsWindow: { default: true },
 		},
 		'chat.fontSize': {
 			type: 'number',
@@ -298,12 +299,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: {
 				mode: 'startup'
-			}
+			},
+			agentsWindow: { default: { 'panel': 'never' } },
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
+			agentsWindow: { default: false },
 		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
@@ -655,6 +658,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+			agentsWindow: { default: false },
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
@@ -1388,6 +1392,7 @@ configurationRegistry.registerConfiguration({
 					'custom-hooks/hooks.json': true,
 				},
 			],
+			agentsWindow: { default: { '.claude/settings.local.json': false, '.claude/settings.json': false, '~/.claude/settings.json': false } },
 		},
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
@@ -1927,6 +1932,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: value ?? 50,
 							order: 2,
+							agentsWindow: { default: 1000 },
 						},
 					}
 				};
