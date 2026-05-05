@@ -76,7 +76,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				// changes - the initial push from `_reconcile()` may have raced an
 				// undefined `rootState.value`, in which case the schema gate below
 				// in `_pushDefaultShell` returned early.
-				store.add(this._agentHostService.rootState.onDidChange(() => this._pushDefaultShell()));
+				// Fix #314385
+				// store.add(this._agentHostService.rootState.onDidChange(() => this._pushDefaultShell()));
 				this._conditionalListeners.value = store;
 				this._reconcile();
 			}
