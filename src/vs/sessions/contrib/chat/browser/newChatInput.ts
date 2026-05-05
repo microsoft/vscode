@@ -147,13 +147,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			loading: IObservable<boolean>;
 			minEditorHeight?: number;
 			placeholder?: string;
-			/**
-			 * If provided and returns `false`, prompt/skill slash commands are sent
-			 * verbatim instead of being expanded into a CLI-friendly markdown
-			 * reference. Agent host sessions support slash commands natively, so
-			 * the expansion should be skipped for them.
-			 */
-			shouldExpandPromptSlashCommand?: () => boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -515,7 +508,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(): Promise<void> {
-		let query = this._editor.getModel()?.getValue().trim();
+		const query = this._editor.getModel()?.getValue().trim();
 		if (!query || this._sending) {
 			return;
 		}
@@ -524,15 +517,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
-		}
-
-		// Expand prompt/skill slash commands into a CLI-friendly reference,
-		// unless the target session natively supports slash commands.
-		if (this.options.shouldExpandPromptSlashCommand?.() ?? true) {
-			const expanded = this._slashCommandHandler?.tryExpandPromptSlashCommand(query);
-			if (expanded) {
-				query = expanded;
-			}
 		}
 
 		const attachedContext = this._contextAttachments.attachments.length > 0
