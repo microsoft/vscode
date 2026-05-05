@@ -222,7 +222,7 @@
 	appearance: none;
 }
 
-.ai-customization-management-editor .harness-dropdown-button:focus {
+.ai-customization-management-editor .harness-dropdown-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
