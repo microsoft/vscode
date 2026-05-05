@@ -68,7 +68,7 @@ Each timestamped log folder has this structure:
     └── output_<timestamp>/     # Output channel logs (workbench side)
         ├── tasks.log           # Tasks output
         ├── agentSessionsOutput.log  # Agent sessions output (Agents app)
-        └── agentHostIpc.remote.<host>__<port>.log  # Agent host IPC traffic (Agents app, remote agent host)
+        └── agenthost.<clientId>.log  # Agent host IPC traffic when tracing is enabled
 ```
 
 ### Multiple `output_` Folders
@@ -82,7 +82,7 @@ A new `output_<timestamp>/` folder and a corresponding `output_logging_<timestam
 | App startup / crashes | `main.log`, `window1/renderer.log` |
 | Extension issues | `window1/exthost/exthost.log`, `window1/exthost/<publisher.ext>/` |
 | Copilot / agent issues | `agenthost.log`, `window1/exthost/GitHub.copilot-chat/` |
-| Agent host IPC (Agents app) | `window1/output_<timestamp>/agentHostIpc.remote.*.log` |
+| Agent host IPC (Agents app) | `window1/output_<timestamp>/agenthost.*.log` |
 | MCP server problems | `mcpGateway.log`, `window1/mcpServer.*.log` |
 | Terminal problems | `terminal.log`, `ptyhost.log` |
 | Network / auth issues | `network-shared.log`, `window1/network.log` |
