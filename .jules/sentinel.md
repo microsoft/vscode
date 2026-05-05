@@ -7,3 +7,8 @@
 **Vulnerability:** Command injection was possible in `src/vs/base/node/ps.ts` where unvalidated array elements (PIDs) and paths were interpolated or directly passed into `child_process.exec`.
 **Learning:** Developers attempted to sanitize dynamic inputs by passing paths through `JSON.stringify()`, expecting it to escape spaces. However, double quotes do not prevent shell evaluation like `$()` command substitution, maintaining the injection vector.
 **Prevention:** Always refactor to `child_process.execFile` when working with system commands. It bypasses the shell completely, eliminating the injection class entirely while robustly handling paths with spaces natively without hacky string-escaping.
+
+## 2026-05-02 - Command Injection in Git Blame Extension
+**Vulnerability:** Command injection was possible in `extensions/son-of-anton/src/personality/GitBlameEasterEgg.ts` where unvalidated file paths were directly interpolated into a `child_process.exec` shell command (`git blame --porcelain "${filePath}"`). A workspace path like `"; touch /tmp/pwned; #` would execute the payload.
+**Learning:** Even internal API data that seems safe like file paths from `vscode.Uri` can contain malicious shell metacharacters and should be treated as untrusted input.
+**Prevention:** Always refactor to `child_process.execFile` when executing binaries like git to bypass shell evaluation and safely pass arguments natively.

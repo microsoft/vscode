@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 
 /**
  * Agent commit author patterns. Commits authored by agents typically
@@ -78,8 +78,9 @@ export class GitBlameEasterEgg implements vscode.Disposable {
 
 	private getBlameAuthors(filePath: string, cwd: string): Promise<string[]> {
 		return new Promise((resolve, reject) => {
-			exec(
-				`git blame --porcelain "${filePath}"`,
+			execFile(
+				'git',
+				['blame', '--porcelain', filePath],
 				{ cwd, maxBuffer: 1024 * 1024 },
 				(error, stdout) => {
 					if (error) {
