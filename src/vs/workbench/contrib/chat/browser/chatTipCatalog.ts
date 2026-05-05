@@ -418,7 +418,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.openAgentsWindow',
-					"Try the [Agents Application](command:{0} \"Open Agents Application\") to run multiple agents simultaneously and manage your coding sessions.",
+					"Try the [Agents Application](command:{0} \"Open Agents Window\") to run multiple agents simultaneously and manage your coding sessions.",
 					OPEN_AGENTS_WINDOW_COMMAND_ID
 				)
 			);

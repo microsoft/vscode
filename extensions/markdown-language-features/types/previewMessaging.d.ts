@@ -7,6 +7,11 @@ interface BaseMessage {
 	readonly source: string;
 }
 
+export interface MarkdownPreviewLineChanges {
+	readonly added?: readonly number[];
+	readonly deleted?: readonly number[];
+}
+
 export namespace FromWebviewMessage {
 
 	export interface CacheImageSizes extends BaseMessage {
@@ -63,6 +68,7 @@ export namespace ToWebviewMessage {
 	export interface UpdateContent extends BaseMessage {
 		readonly type: 'updateContent';
 		readonly content: string;
+		readonly lineChanges?: MarkdownPreviewLineChanges;
 	}
 
 	export interface CopyImageContent extends BaseMessage {

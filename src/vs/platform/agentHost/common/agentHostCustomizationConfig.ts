@@ -14,6 +14,11 @@ import { type CustomizationRef } from './state/protocol/state.js';
 export const enum AgentHostConfigKey {
 	/** Host-owned Open Plugins available to remote sessions. */
 	Customizations = 'customizations',
+	/**
+	 * Absolute path to the shell executable for host-managed terminals.
+	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
+	 */
+	DefaultShell = 'defaultShell',
 }
 
 export const agentHostCustomizationConfigSchema = createSchema({
@@ -41,6 +46,11 @@ export const agentHostCustomizationConfigSchema = createSchema({
 			},
 			required: ['uri', 'displayName'],
 		},
+	}),
+	[AgentHostConfigKey.DefaultShell]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
+		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
 });
 

@@ -96,6 +96,7 @@
 	gap: 6px;
 	min-width: 0;
 	overflow: hidden;
+	opacity: 0.7;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
@@ -104,7 +105,24 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	opacity: 0.7;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	&::before {
+		content: '\00B7';
+	}
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+
+	.codicon {
+		font-size: 13px;
+		width: 13px;
+		height: 13px;
+	}
 }
 
 /* Provider label (shown for untitled sessions) */
