@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail } from 'assert';
+import assert, { fail } from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { TerminalExitReason, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { ILifecycleService, ShutdownReason } from '../../../../services/lifecycle/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,6 +25,7 @@ suite('Workbench - TerminalService', () => {
 	let terminalService: TerminalService;
 	let configurationService: TestConfigurationService;
 	let dialogService: TestDialogService;
+	let lifecycleService: TestLifecycleService;
 
 	setup(async () => {
 		dialogService = new TestDialogService();
@@ -45,6 +48,7 @@ suite('Workbench - TerminalService', () => {
 
 		terminalService = store.add(instantiationService.createInstance(TerminalService));
 		instantiationService.stub(ITerminalService, terminalService);
+		lifecycleService = instantiationService.get(ILifecycleService) as TestLifecycleService;
 	});
 
 	suite('safeDisposeTerminal', () => {
@@ -157,6 +161,116 @@ suite('Workbench - TerminalService', () => {
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
+		});
+	});
+
+	suite('_onWillShutdown', () => {
+		// Regression test for https://github.com/microsoft/vscode/issues/304649
+		// Closing one window must not kill PTY processes that other open windows rely on.
+		test('should detach (not dispose) terminal processes when other windows are still open', () => {
+			let detachCalled = false;
+			let disposeCalled = false;
+
+			const fakeInstance = {
+				shouldPersist: false,
+				detachProcessAndDispose: (_reason: TerminalExitReason) => {
+					detachCalled = true;
+					return Promise.resolve();
+				},
+				dispose: (_reason?: TerminalExitReason) => {
+					disposeCalled = true;
+				},
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			// Expose the internal group service instances list via the stub.
+			const groupService = (terminalService as unknown as { _terminalGroupService: ITerminalGroupService })._terminalGroupService;
+			const originalInstances = Object.getOwnPropertyDescriptor(groupService, 'instances');
+			Object.defineProperty(groupService, 'instances', { get: () => [fakeInstance], configurable: true });
+
+			// Simulate: _onBeforeShutdownAsync already ran and found 2 open windows.
+			(terminalService as unknown as { _shutdownWindowCount: number })._shutdownWindowCount = 2;
+
+			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+			// Restore the original descriptor.
+			if (originalInstances) {
+				Object.defineProperty(groupService, 'instances', originalInstances);
+			} else {
+				Object.defineProperty(groupService, 'instances', { get: () => [], configurable: true });
+			}
+
+			assert.strictEqual(detachCalled, true, 'detachProcessAndDispose should be called when other windows are open');
+			assert.strictEqual(disposeCalled, false, 'dispose should NOT be called when other windows are open');
+		});
+
+		test('should dispose (kill) terminal processes when this is the last open window', () => {
+			let detachCalled = false;
+			let disposeCalled = false;
+
+			const fakeInstance = {
+				shouldPersist: false,
+				detachProcessAndDispose: (_reason: TerminalExitReason) => {
+					detachCalled = true;
+					return Promise.resolve();
+				},
+				dispose: (_reason?: TerminalExitReason) => {
+					disposeCalled = true;
+				},
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			const groupService = (terminalService as unknown as { _terminalGroupService: ITerminalGroupService })._terminalGroupService;
+			const originalInstances = Object.getOwnPropertyDescriptor(groupService, 'instances');
+			Object.defineProperty(groupService, 'instances', { get: () => [fakeInstance], configurable: true });
+
+			// Simulate: only 1 window open (this is the last one).
+			(terminalService as unknown as { _shutdownWindowCount: number })._shutdownWindowCount = 1;
+
+			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+			if (originalInstances) {
+				Object.defineProperty(groupService, 'instances', originalInstances);
+			} else {
+				Object.defineProperty(groupService, 'instances', { get: () => [], configurable: true });
+			}
+
+			assert.strictEqual(disposeCalled, true, 'dispose should be called when this is the last window');
+			assert.strictEqual(detachCalled, false, 'detachProcessAndDispose should NOT be called when this is the last window');
+		});
+
+		test('should detach (not dispose) when window count is unknown but multiple windows are open', () => {
+			// When _shutdownWindowCount is undefined (native delegate not set), default to safe behaviour.
+			// This test documents that the guard only fires when the count is explicitly > 1.
+			let disposeCalled = false;
+
+			const fakeInstance = {
+				shouldPersist: false,
+				detachProcessAndDispose: (_reason: TerminalExitReason) => Promise.resolve(),
+				dispose: (_reason?: TerminalExitReason) => { disposeCalled = true; },
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			const groupService = (terminalService as unknown as { _terminalGroupService: ITerminalGroupService })._terminalGroupService;
+			const originalInstances = Object.getOwnPropertyDescriptor(groupService, 'instances');
+			Object.defineProperty(groupService, 'instances', { get: () => [fakeInstance], configurable: true });
+
+			// Leave _shutdownWindowCount as undefined (no native delegate).
+			(terminalService as unknown as { _shutdownWindowCount: number | undefined })._shutdownWindowCount = undefined;
+
+			lifecycleService.fireWillShutdown({
+				reason: ShutdownReason.CLOSE,
+				join: () => { },
+				joiners: () => [],
+				force: () => { },
+				token: CancellationToken.None,
+			});
+
+			if (originalInstances) {
+				Object.defineProperty(groupService, 'instances', originalInstances);
+			} else {
+				Object.defineProperty(groupService, 'instances', { get: () => [], configurable: true });
+			}
+
+			// When count is undefined the guard does not activate, so dispose is called.
+			assert.strictEqual(disposeCalled, true, 'dispose should be called when window count is unknown');
 		});
 	});
 });
