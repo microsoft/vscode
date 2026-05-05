@@ -277,7 +277,7 @@
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
 	width: auto !important;
 	min-width: 0 !important;
-	flex: 0 1 fit-content !important;
+	flex: 0 1 auto !important;
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
