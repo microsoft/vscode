@@ -251,9 +251,6 @@ import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerServic
 // Search Quick Access (file picker only, not the full search contribution)
 import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 
-// Search Editor
-import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
-
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
 
@@ -306,9 +303,6 @@ registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, Insta
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
 import '../workbench/contrib/output/browser/outputView.js';
-
-// Problems View
-import '../workbench/contrib/markers/browser/markers.contribution.js';
 
 // Terminal
 import '../workbench/contrib/terminal/terminal.all.js';
@@ -456,7 +450,6 @@ import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
-
 import './contrib/workingSet/browser/workingSet.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
