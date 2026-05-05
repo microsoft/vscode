@@ -34,7 +34,6 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { AgentService } from './agentService.js';
 import { AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
@@ -207,8 +206,6 @@ async function main(): Promise<void> {
 		diServices.set(ICopilotApiService, copilotApiService);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
-		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
-		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
