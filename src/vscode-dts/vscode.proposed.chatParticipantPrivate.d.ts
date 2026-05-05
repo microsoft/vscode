@@ -448,6 +448,6 @@ declare module 'vscode' {
 		/**
 		 * The full reference name of this tool as used in agent definition files.
 		 */
-		readonly fullReferenceName: string | undefined;
+		readonly fullReferenceName?: string;
 	}
 }

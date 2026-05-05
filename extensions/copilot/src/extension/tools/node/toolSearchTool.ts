@@ -74,6 +74,7 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
+		fullReferenceName: `vscode/toolSearch`,
 		models: [
 			{ family: 'claude-sonnet-4.5' },
 			{ family: 'claude-sonnet-4.6' },
