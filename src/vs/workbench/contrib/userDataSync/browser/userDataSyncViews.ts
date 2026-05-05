@@ -7,7 +7,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from '../../../common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { TreeView, TreeViewPane } from '../../../browser/parts/views/treeView.js';
+import { ExtensionTreeView, TreeViewPane } from '../../../browser/parts/views/treeView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ALL_SYNC_RESOURCES, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, getLastSyncResourceUri, SyncResource, ISyncUserDataProfile, IUserDataSyncResourceProviderService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -68,7 +68,7 @@ export class UserDataSyncDataViews extends Disposable {
 			when: ContextKeyExpr.and(CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS),
 			canToggleVisibility: false,
 			canMoveView: false,
-			treeView: this.instantiationService.createInstance(TreeView, SYNC_CONFLICTS_VIEW_ID, viewName.value),
+			treeView: this.instantiationService.createInstance(ExtensionTreeView, SYNC_CONFLICTS_VIEW_ID, viewName.value),
 			collapsed: false,
 			order: 100,
 		};
@@ -78,7 +78,7 @@ export class UserDataSyncDataViews extends Disposable {
 	private registerMachinesView(container: ViewContainer): void {
 		const id = `workbench.views.sync.machines`;
 		const name = localize2('synced machines', "Synced Machines");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
+		const treeView = this.instantiationService.createInstance(ExtensionTreeView, id, name.value);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
 		treeView.canSelectMany = true;
@@ -143,7 +143,7 @@ export class UserDataSyncDataViews extends Disposable {
 	private registerActivityView(container: ViewContainer, remote: boolean): void {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}Activity`;
 		const name = remote ? localize2('remote sync activity title', "Sync Activity (Remote)") : localize2('local sync activity title', "Sync Activity (Local)");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
+		const treeView = this.instantiationService.createInstance(ExtensionTreeView, id, name.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = remote ? this.instantiationService.createInstance(RemoteUserDataSyncActivityViewDataProvider)
@@ -175,7 +175,7 @@ export class UserDataSyncDataViews extends Disposable {
 		const id = `workbench.views.sync.externalActivity`;
 		const name = localize2('downloaded sync activity title', "Sync Activity (Developer)");
 		const dataProvider = this.instantiationService.createInstance(ExtractedUserDataSyncActivityViewDataProvider, undefined);
-		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
+		const treeView = this.instantiationService.createInstance(ExtensionTreeView, id, name.value);
 		treeView.showCollapseAllAction = false;
 		treeView.showRefreshAction = false;
 		treeView.dataProvider = dataProvider;
@@ -301,7 +301,7 @@ export class UserDataSyncDataViews extends Disposable {
 	private registerTroubleShootView(container: ViewContainer): void {
 		const id = `workbench.views.sync.troubleshoot`;
 		const name = localize2('troubleshoot', "Troubleshoot");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
+		const treeView = this.instantiationService.createInstance(ExtensionTreeView, id, name.value);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncTroubleshootViewDataProvider);
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = dataProvider;
@@ -624,7 +624,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 	private machinesPromise: Promise<IUserDataSyncMachine[]> | undefined;
 
 	constructor(
-		private readonly treeView: TreeView,
+		private readonly treeView: ExtensionTreeView,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,

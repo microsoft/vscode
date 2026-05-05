@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TreeView } from '../../browser/parts/views/treeView.js';
+import { ExtensionTreeView } from '../../browser/parts/views/treeView.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITreeItem, IViewDescriptorService, TreeItemCollapsibleState } from '../../common/views.js';
@@ -13,7 +13,7 @@ import { ViewDescriptorService } from '../../services/views/browser/viewDescript
 
 suite('TreeView', function () {
 
-	let treeView: TreeView;
+	let treeView: ExtensionTreeView;
 	let largestBatchSize: number = 0;
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,7 +23,7 @@ suite('TreeView', function () {
 		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		treeView = disposables.add(instantiationService.createInstance(TreeView, 'testTree', 'Test Title'));
+		treeView = disposables.add(instantiationService.createInstance(ExtensionTreeView, 'testTree', 'Test Title'));
 		const getChildrenOfItem = async (element?: ITreeItem): Promise<ITreeItem[] | undefined> => {
 			if (element) {
 				return undefined;

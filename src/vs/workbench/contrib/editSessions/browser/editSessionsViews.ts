@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { TreeView, TreeViewPane } from '../../../browser/parts/views/treeView.js';
+import { ExtensionTreeView, TreeViewPane } from '../../../browser/parts/views/treeView.js';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from '../../../common/views.js';
 import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from '../common/editSessions.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -39,7 +39,7 @@ export class EditSessionsDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		const viewId = EDIT_SESSIONS_DATA_VIEW_ID;
-		const treeView = this.instantiationService.createInstance(TreeView, viewId, EDIT_SESSIONS_TITLE.value);
+		const treeView = this.instantiationService.createInstance(ExtensionTreeView, viewId, EDIT_SESSIONS_TITLE.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);

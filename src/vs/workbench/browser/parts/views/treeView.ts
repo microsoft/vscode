@@ -1881,7 +1881,7 @@ export class CustomTreeView extends AbstractTreeView {
 	}
 }
 
-export class TreeView extends AbstractTreeView {
+export class ExtensionTreeView extends AbstractTreeView {
 
 	protected activate() {
 		if (!this.activated) {
