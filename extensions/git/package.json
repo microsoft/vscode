@@ -3787,7 +3787,7 @@
           "scope": "resource",
           "agentsWindow": {
             "default": false,
-            "readonly": true
+            "readOnly": true
           }
         },
         "git.rebaseWhenSync": {
