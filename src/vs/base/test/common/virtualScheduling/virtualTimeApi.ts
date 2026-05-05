@@ -8,6 +8,14 @@ import { realTimeApi, TimeApi } from './timeApi.js';
 import { ROOT_TRACE, TraceContext } from './trace.js';
 import { VirtualClock } from './virtualClock.js';
 
+// V8 default `Error.stackTraceLimit` of 10 swallows everything past the
+// first async boundary in the stacks we capture for trace diagnostics.
+// Bump it so swimlane callers actually see the user code that scheduled a
+// timer rather than just the Promise wrapper.
+if (typeof Error.stackTraceLimit === 'number' && Error.stackTraceLimit < 50) {
+	Error.stackTraceLimit = 50;
+}
+
 /** Virtual timer IDs are `IDisposable`s. Recover one from an opaque id. */
 function asDisposable(id: unknown): IDisposable | undefined {
 	if (id === null || typeof id !== 'object') { return undefined; }
@@ -46,7 +54,7 @@ export function createVirtualTimeApi(
 		const trace = TraceContext.instance.currentTrace().child(`setTimeout(${timeout}ms)`, stack);
 		return clock.schedule({
 			time: clock.now + timeout,
-			run: () => { handler(); },
+			run: handler,
 			source: { toString: () => 'setTimeout', stackTrace: stack },
 			trace,
 		});

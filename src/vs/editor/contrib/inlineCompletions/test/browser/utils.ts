@@ -10,7 +10,9 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { buildHistoryFromTasks, renderSwimlanes } from '../../../../../base/test/common/executionGraph.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { createTraceLogger, ITraceLogEntry, ITraceLogger } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -141,7 +143,7 @@ export class MockSearchReplaceCompletionsProvider implements InlineCompletionsPr
 export class InlineEditContext extends Disposable {
 	public readonly prettyViewStates = new Array<string | undefined>();
 
-	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
+	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor, private readonly _logger?: ITraceLogger) {
 		super();
 
 		const edit = derived(reader => {
@@ -167,6 +169,7 @@ export class InlineEditContext extends Disposable {
 	public getAndClearViewStates(): (string | undefined)[] {
 		const arr = [...this.prettyViewStates];
 		this.prettyViewStates.length = 0;
+		this._logger?.log(`getAndClearViewStates() => ${JSON.stringify(arr)}`);
 		return arr;
 	}
 }
@@ -178,7 +181,7 @@ export class GhostTextContext extends Disposable {
 		return this._currentPrettyViewState;
 	}
 
-	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
+	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor, private readonly _logger?: ITraceLogger) {
 		super();
 
 		this._register(autorun(reader => {
@@ -201,10 +204,12 @@ export class GhostTextContext extends Disposable {
 	public getAndClearViewStates(): (string | undefined)[] {
 		const arr = [...this.prettyViewStates];
 		this.prettyViewStates.length = 0;
+		this._logger?.log(`getAndClearViewStates() => ${JSON.stringify(arr)}`);
 		return arr;
 	}
 
 	public keyboardType(text: string): void {
+		this._logger?.log(`keyboardType(${JSON.stringify(text)})`);
 		this.editor.trigger('keyboard', 'type', { text });
 	}
 
@@ -239,14 +244,25 @@ export interface IWithAsyncTestCodeEditorAndInlineCompletionsModel {
 	model: InlineCompletionsModel;
 	context: GhostTextContext;
 	store: DisposableStore;
+	logger: ITraceLogger;
 }
 
 export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean },
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean; logTimeTrace?: boolean },
 	callback: (args: IWithAsyncTestCodeEditorAndInlineCompletionsModel) => Promise<T>): Promise<T> {
+	const logs: ITraceLogEntry[] = [];
+	const logger = createTraceLogger(logs);
 	return await runWithFakedTimers({
 		useFakeTimers: options.fakeClock,
+		onHistory: options.logTimeTrace ? history => {
+			const mode = options.fakeClock ? 'virtual time' : 'real time';
+			const out: string = history.length === 0 && logs.length === 0
+				? `[time trace ${mode}] (no events)`
+				: `[time trace ${mode}] ${history.length} events, ${logs.length} log lines\n${renderSwimlanes(buildHistoryFromTasks(history, history[0]?.time ?? 0, logs))}`;
+			// Prefix is allowlisted in the test renderer's diagnostic-output filter.
+			console.log(out);
+		} : undefined,
 	}, async () => {
 		const disposableStore = new DisposableStore();
 
@@ -298,9 +314,9 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 				});
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
 				const model = controller.model.get()!;
-				const context = new GhostTextContext(model, editor);
+				const context = new GhostTextContext(model, editor, logger);
 				try {
-					result = await callback({ editor, editorViewModel, model, context, store: disposableStore });
+					result = await callback({ editor, editorViewModel, model, context, store: disposableStore, logger });
 				} finally {
 					context.dispose();
 					model.dispose();
