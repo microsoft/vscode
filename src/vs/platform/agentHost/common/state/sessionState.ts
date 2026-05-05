@@ -84,7 +84,6 @@ export {
 	type SessionInputQuestion,
 	type SessionInputAnswer,
 	type SessionInputOption,
-	AttachmentType,
 	CustomizationStatus,
 	PendingMessageKind,
 	PolicyState,
