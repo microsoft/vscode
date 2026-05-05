@@ -2504,7 +2504,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['upgrade'],
-					description: 'Upgrade specified extensions.',
+					description: 'Upgrade installed extensions to the latest version.',
 					options: [
 						{
 							name: ['--all'],
@@ -2996,6 +2996,59 @@ const completionSpec: Fig.Spec = {
 							},
 						},
 					],
+				},
+			],
+		},
+		{
+			name: ['tool'],
+			description: 'Manage Azure development tools.',
+			subcommands: [
+				{
+					name: ['check'],
+					description: 'Check for tool updates.',
+				},
+				{
+					name: ['install'],
+					description: 'Install specified tools.',
+					options: [
+						{
+							name: ['--all'],
+							description: 'Install all recommended tools',
+						},
+						{
+							name: ['--dry-run'],
+							description: 'Preview what would be installed without making changes',
+						},
+					],
+					args: {
+						name: 'tool-name...',
+						isOptional: true,
+					},
+				},
+				{
+					name: ['list'],
+					description: 'List all tools with status.',
+				},
+				{
+					name: ['show'],
+					description: 'Show details for a specific tool.',
+					args: {
+						name: 'tool-name',
+					},
+				},
+				{
+					name: ['upgrade'],
+					description: 'Upgrade installed tools.',
+					options: [
+						{
+							name: ['--dry-run'],
+							description: 'Preview what would be upgraded without making changes',
+						},
+					],
+					args: {
+						name: 'tool-name...',
+						isOptional: true,
+					},
 				},
 			],
 		},
@@ -3786,7 +3839,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['upgrade'],
-							description: 'Upgrade specified extensions.',
+							description: 'Upgrade installed extensions to the latest version.',
 						},
 					],
 				},
@@ -3887,6 +3940,32 @@ const completionSpec: Fig.Spec = {
 									description: 'Removes the specified azd template source (Beta)',
 								},
 							],
+						},
+					],
+				},
+				{
+					name: ['tool'],
+					description: 'Manage Azure development tools.',
+					subcommands: [
+						{
+							name: ['check'],
+							description: 'Check for tool updates.',
+						},
+						{
+							name: ['install'],
+							description: 'Install specified tools.',
+						},
+						{
+							name: ['list'],
+							description: 'List all tools with status.',
+						},
+						{
+							name: ['show'],
+							description: 'Show details for a specific tool.',
+						},
+						{
+							name: ['upgrade'],
+							description: 'Upgrade installed tools.',
 						},
 					],
 				},
