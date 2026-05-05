@@ -61,6 +61,18 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		const items: vscode.CodeLens[] = [];
 
 		conflicts.forEach(conflict => {
+			const range = document.lineAt(conflict.range.start.line).range;
+
+			if (conflict.isIdentical(document)) {
+				const acceptIdenticalCommand: vscode.Command = {
+					command: 'merge-conflict.accept.current',
+					title: vscode.l10n.t("$(check) Accept (both changes are identical)"),
+					arguments: ['known-conflict', conflict]
+				};
+				items.push(new vscode.CodeLens(range, acceptIdenticalCommand));
+				return;
+			}
+
 			const acceptCurrentCommand: vscode.Command = {
 				command: 'merge-conflict.accept.current',
 				title: vscode.l10n.t("Accept Current Change"),
@@ -85,7 +97,6 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 				arguments: [conflict]
 			};
 
-			const range = document.lineAt(conflict.range.start.line).range;
 			items.push(
 				new vscode.CodeLens(range, acceptCurrentCommand),
 				new vscode.CodeLens(range, acceptIncomingCommand),

@@ -5,6 +5,7 @@
 	"command.accept.all-current": "Accept All Current",
 	"command.accept.all-incoming": "Accept All Incoming",
 	"command.accept.all-both": "Accept All Both",
+	"command.accept.all-identical": "Accept All Identical",
 	"command.accept.current": "Accept Current",
 	"command.accept.incoming": "Accept Incoming",
 	"command.accept.selection": "Accept Selection",

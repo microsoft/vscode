@@ -87,6 +87,12 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		}
 	}
 
+	public isIdentical(document: vscode.TextDocument): boolean {
+		const currentText = document.getText(this.current.content);
+		const incomingText = document.getText(this.incoming.content);
+		return currentText === incomingText;
+	}
+
 	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void }) {
 		if (this.isNewlineOnly(content)) {
 			edit.replace(this.range, '');
