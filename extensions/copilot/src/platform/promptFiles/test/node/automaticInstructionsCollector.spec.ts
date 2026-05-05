@@ -861,17 +861,9 @@ suite('AutomaticInstructionsCollector', () => {
 				cancelled,
 			);
 
-			// The customizations index step still runs to completion (it does not
-			// observe cancellation between sub-steps), so the only thing we assert
-			// is that no instruction-file entries have been added.
-			const fileEntries = result.entries.filter(e => isInstructionFile({
-				reference: e,
-				originalName: e.name,
-				uniqueName: e.name,
-				value: e.value,
-				isMarkedReadonly: undefined,
-			}));
-			expect(fileEntries).toHaveLength(0);
+			// Collection returns before building any entries when cancellation has
+			// already been requested.
+			expect(result.entries).toHaveLength(0);
 		});
 	});
 
