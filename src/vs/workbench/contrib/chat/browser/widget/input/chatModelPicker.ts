@@ -6,6 +6,8 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -695,6 +697,18 @@ export class ModelPickerWidget extends Disposable {
 		this._registerButtonAction(this._nameButton, () => this.show());
 		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
 		this._registerButtonAction(this._tokensButton, () => this._cycleTokens());
+
+		// Managed hovers for effort and tokens buttons
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			this._effortButton,
+			localize('chat.modelPicker.effortTooltip', "Set Thinking Effort")
+		));
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			this._tokensButton,
+			localize('chat.modelPicker.tokensTooltip', "Set Context Size")
+		));
 	}
 
 	/**
@@ -866,7 +880,6 @@ export class ModelPickerWidget extends Disposable {
 			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
 			this._effortButton.style.display = '';
 			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
-			this._effortButton.title = localize('chat.modelPicker.effortTooltip', "Set Thinking Effort");
 		} else if (this._effortButton) {
 			this._effortButton.style.display = 'none';
 		}
@@ -881,7 +894,6 @@ export class ModelPickerWidget extends Disposable {
 			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
 			this._tokensButton.style.display = '';
 			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Max Tokens: {0}", tokensLabel);
-			this._tokensButton.title = localize('chat.modelPicker.tokensTooltip', "Set Context Size");
 		} else if (this._tokensButton) {
 			this._tokensButton.style.display = 'none';
 		}
