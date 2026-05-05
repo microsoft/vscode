@@ -45,7 +45,8 @@ const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
 const MODAL_MAX_DEFAULT_WIDTH = 1400;
 const MODAL_MAX_DEFAULT_HEIGHT = 900;
-const MODAL_BORDER_SIZE = 2; // 1px border on each side
+const MODAL_BORDER_WIDTH = 1; // 1px border on each side
+const MODAL_BORDER_SIZE = MODAL_BORDER_WIDTH * 2;
 const MODAL_HEADER_HEIGHT = 33; // 32px header + 1px border bottom
 const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
@@ -448,6 +449,15 @@ export class ModalEditorPart {
 
 				resizableElement.domNode.style.left = `${newLeft}px`;
 				resizableElement.domNode.style.top = `${newTop}px`;
+
+				// Update editor part position during drag
+				const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+				editorPart.layout(
+					Math.max(0, dialogWidth - MODAL_BORDER_SIZE - sidebarWidth),
+					dialogHeight - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT,
+					newTop + MODAL_BORDER_WIDTH + MODAL_HEADER_HEIGHT,
+					newLeft + MODAL_BORDER_WIDTH + sidebarWidth,
+				);
 			};
 
 			const onStop = () => {
@@ -549,7 +559,9 @@ export class ModalEditorPart {
 			// Update editor part layout during resize
 			const size = resizableElement.size;
 			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
-			editorPart.layout(Math.max(0, size.width - MODAL_BORDER_SIZE - sidebarWidth), size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			const editorTop = (parseFloat(resizableElement.domNode.style.top) || 0) + MODAL_BORDER_WIDTH + MODAL_HEADER_HEIGHT;
+			const editorLeft = (parseFloat(resizableElement.domNode.style.left) || 0) + MODAL_BORDER_WIDTH + sidebarWidth;
+			editorPart.layout(Math.max(0, size.width - MODAL_BORDER_SIZE - sidebarWidth), size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, editorTop, editorLeft);
 			sidebarResult?.layout(size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
 
 			if (e.done) {
@@ -642,7 +654,10 @@ export class ModalEditorPart {
 				resizableElement.domNode.style.top = `${top}px`;
 			}
 
-			editorPart.layout(Math.max(0, width - MODAL_BORDER_SIZE - (sidebarResult?.getWidth() ?? 0)), height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			const editorTop = (parseFloat(resizableElement.domNode.style.top) || 0) + MODAL_BORDER_WIDTH + MODAL_HEADER_HEIGHT;
+			const editorLeft = (parseFloat(resizableElement.domNode.style.left) || 0) + MODAL_BORDER_WIDTH + sidebarWidth;
+			editorPart.layout(Math.max(0, width - MODAL_BORDER_SIZE - sidebarWidth), height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, editorTop, editorLeft);
 			sidebarResult?.layout(height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
 		};
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
