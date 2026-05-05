@@ -683,7 +683,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[]): string[] {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords), ...this._getSandboxRuntimeReadPaths(), ...allowWrite])];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords), ...this._getSandboxRuntimeReadPaths(), ...this._getWorkspaceStorageReadPaths(), ...allowWrite])];
 	}
 
 	private _resolveLinuxFileSystemPaths(paths: string[] | undefined): string[] {
