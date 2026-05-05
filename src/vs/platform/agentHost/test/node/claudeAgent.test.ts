@@ -276,6 +276,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	reloadPlugins(): never { throw new Error('FakeQuery: reloadPlugins not modeled'); }
 	accountInfo(): never { throw new Error('FakeQuery: accountInfo not modeled'); }
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
+	readFile(): never { throw new Error('FakeQuery: readFile not modeled'); }
 	seedReadState(): never { throw new Error('FakeQuery: seedReadState not modeled'); }
 	reconnectMcpServer(): never { throw new Error('FakeQuery: reconnectMcpServer not modeled'); }
 	toggleMcpServer(): never { throw new Error('FakeQuery: toggleMcpServer not modeled'); }

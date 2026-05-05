@@ -377,6 +377,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	reloadPlugins(): never { throw new Error('not modeled'); }
 	accountInfo(): never { throw new Error('not modeled'); }
 	rewindFiles(): never { throw new Error('not modeled'); }
+	readFile(): never { throw new Error('not modeled'); }
 	seedReadState(): never { throw new Error('not modeled'); }
 	reconnectMcpServer(): never { throw new Error('not modeled'); }
 	toggleMcpServer(): never { throw new Error('not modeled'); }
