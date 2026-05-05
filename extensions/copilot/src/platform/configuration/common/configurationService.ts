@@ -536,6 +536,7 @@ export const enum CHAT_MODEL {
 export enum AuthProviderId {
 	GitHub = 'github',
 	GitHubEnterprise = 'github-enterprise',
+	GitHubEnterpriseCopilot = 'github-enterprise-copilot',
 	Microsoft = 'microsoft',
 }
 

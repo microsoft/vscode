@@ -79,6 +79,7 @@ describe('GitHubMcpDefinitionProvider', () => {
 	async function createProvider(configOverrides?: {
 		authProvider?: AuthProviderId;
 		gheUri?: string;
+		legacyGheUri?: string;
 		toolsets?: string[];
 		readonly?: boolean;
 		lockdown?: boolean;
@@ -93,7 +94,10 @@ describe('GitHubMcpDefinitionProvider', () => {
 			await configService.setConfig(ConfigKey.Shared.AuthProvider, configOverrides.authProvider);
 		}
 		if (configOverrides?.gheUri) {
-			await configService.setNonExtensionConfig('github-enterprise.uri', configOverrides.gheUri);
+			await configService.setNonExtensionConfig('github.copilot.enterprise.uri', configOverrides.gheUri);
+		}
+		if (configOverrides?.legacyGheUri) {
+			await configService.setNonExtensionConfig('github-enterprise.uri', configOverrides.legacyGheUri);
 		}
 		if (configOverrides?.toolsets) {
 			await configService.setConfig(ConfigKey.GitHubMcpToolsets, configOverrides.toolsets);
@@ -188,6 +192,17 @@ describe('GitHubMcpDefinitionProvider', () => {
 			});
 
 			expect(() => gheProviderWithoutUri.provideMcpServerDefinitions()).toThrow('GitHub Enterprise URI is not configured.');
+		});
+
+		test('falls back to the legacy GitHub Enterprise URI when the Copilot URI is unset', async () => {
+			const gheProvider = await createProvider({
+				authProvider: AuthProviderId.GitHubEnterprise,
+				legacyGheUri: 'https://fallback.enterprise.com'
+			});
+
+			const definitions = gheProvider.provideMcpServerDefinitions();
+
+			expect(definitions[0].uri.toString()).toBe('https://copilot-api.fallback.enterprise.com/mcp/');
 		});
 
 		test('includes X-MCP-Readonly header when readonly is true', async () => {
@@ -323,6 +338,17 @@ describe('GitHubMcpDefinitionProvider', () => {
 		});
 
 		test('fires when GHE URI configuration changes', async () => {
+			await configService.setConfig(ConfigKey.Shared.AuthProvider, AuthProviderId.GitHubEnterprise);
+			await configService.setNonExtensionConfig('github.copilot.enterprise.uri', 'https://old.enterprise.com');
+
+			const eventPromise = Event.toPromise(provider.onDidChangeMcpServerDefinitions);
+
+			await configService.setNonExtensionConfig('github.copilot.enterprise.uri', 'https://new.enterprise.com');
+
+			await eventPromise;
+		});
+
+		test('fires when the legacy GHE URI changes while the Copilot URI is unset', async () => {
 			await configService.setConfig(ConfigKey.Shared.AuthProvider, AuthProviderId.GitHubEnterprise);
 			await configService.setNonExtensionConfig('github-enterprise.uri', 'https://old.enterprise.com');
 

@@ -46,6 +46,8 @@ interface IDefaultAccountConfig {
 		};
 		readonly enterpriseProviderConfig: string;
 		readonly enterpriseProviderUriSetting: string;
+		readonly enterpriseProviderUriFallbackSetting: string;
+		readonly enterpriseProviderLegacyIds: readonly string[];
 		readonly scopes: string[][];
 	};
 	readonly tokenEntitlementUrl: string;
@@ -102,6 +104,8 @@ function toDefaultAccountConfig(defaultChatAgent: IDefaultChatAgent): IDefaultAc
 			},
 			enterpriseProviderConfig: `${defaultChatAgent.completionsAdvancedSetting}.authProvider`,
 			enterpriseProviderUriSetting: defaultChatAgent.providerUriSetting,
+			enterpriseProviderUriFallbackSetting: 'github-enterprise.uri',
+			enterpriseProviderLegacyIds: ['github-enterprise'],
 			scopes: defaultChatAgent.providerScopes,
 		},
 		entitlementUrl: defaultChatAgent.entitlementUrl,
@@ -873,7 +877,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
-		if (this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig) === this.defaultAccountConfig.authenticationProvider.enterprise.id) {
+		const configuredProvider = this.configurationService.getValue<string | undefined>(this.defaultAccountConfig.authenticationProvider.enterpriseProviderConfig);
+		if (configuredProvider === this.defaultAccountConfig.authenticationProvider.enterprise.id || this.defaultAccountConfig.authenticationProvider.enterpriseProviderLegacyIds.includes(configuredProvider ?? '')) {
 			return {
 				...this.defaultAccountConfig.authenticationProvider.enterprise,
 				enterprise: true
@@ -886,7 +891,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
-		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
+		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting)
+			?? this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriFallbackSetting);
 		if (!isString(value)) {
 			return undefined;
 		}

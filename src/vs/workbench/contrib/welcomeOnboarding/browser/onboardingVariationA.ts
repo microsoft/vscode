@@ -72,6 +72,7 @@ type OnboardingActionEvent = {
 
 assertDefined(product.defaultChatAgent, 'Onboarding requires a default chat agent product configuration.');
 const defaultChat = product.defaultChatAgent;
+const legacyEnterpriseUriSetting = 'github-enterprise.uri';
 
 /**
  * Variation A — Classic Wizard Modal
@@ -491,7 +492,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
 		}));
 		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github-enterprise');
+			this._logAction('signIn', undefined, defaultChat.provider.enterprise.id);
 			this._handleEnterpriseSignIn();
 		}));
 
@@ -612,7 +613,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const domainRegEx = /^[a-zA-Z\-_]+$/;
 		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 
-		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
+		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting) ?? this.configurationService.getValue<string>(legacyEnterpriseUriSetting);
 		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
 			return true;
 		}

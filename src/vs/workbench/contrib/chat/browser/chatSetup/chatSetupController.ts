@@ -38,6 +38,7 @@ const defaultChat = {
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
+const legacyEnterpriseUriSetting = 'github-enterprise.uri';
 
 export interface IChatSetupControllerOptions {
 	readonly forceSignIn?: boolean;
@@ -321,7 +322,7 @@ export class ChatSetupController extends Disposable {
 		const domainRegEx = /^[a-zA-Z\-_]+$/;
 		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 
-		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
+		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting) ?? this.configurationService.getValue<string>(legacyEnterpriseUriSetting);
 		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
 			return true; // already setup with a valid URI
 		}

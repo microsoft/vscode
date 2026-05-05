@@ -1108,7 +1108,14 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
+	const copilotAuthProviderConfigKey = `config.${defaultChat.completionsAdvancedSetting}.authProvider`;
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(
+			ContextKeyExpr.not(copilotAuthProviderConfigKey),
+			ContextKeyExpr.regex(copilotAuthProviderConfigKey, /^(?!(github-enterprise|github-enterprise-copilot)$).+/)
+		)
+	);
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({

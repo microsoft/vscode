@@ -8,11 +8,10 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
-import { AuthProviderId, ConfigKey, CopilotConfigPrefix, IConfigurationService } from '../../configuration/common/configurationService';
+import { COPILOT_GITHUB_ENTERPRISE_URI_SETTING, getCopilotEnterpriseUri, isGitHubEnterpriseAuthProvider, LEGACY_GITHUB_ENTERPRISE_URI_SETTING } from '../../authentication/common/authentication';
+import { ConfigKey, CopilotConfigPrefix, IConfigurationService } from '../../configuration/common/configurationService';
 import { ICAPIClientService } from '../common/capiClient';
 import { IDomainChangeEvent, IDomainService } from '../common/domainService';
-
-const EnterpriseURLConfig = 'github-enterprise.uri';
 
 export class DomainService extends Disposable implements IDomainService {
 	declare readonly _serviceBrand: undefined;
@@ -36,7 +35,8 @@ export class DomainService extends Disposable implements IDomainService {
 		// Updated configs that have to do with GHE Domains
 		if (
 			event.affectsConfiguration(`${CopilotConfigPrefix}.advanced`) ||
-			event.affectsConfiguration(EnterpriseURLConfig)
+			event.affectsConfiguration(COPILOT_GITHUB_ENTERPRISE_URI_SETTING) ||
+			event.affectsConfiguration(LEGACY_GITHUB_ENTERPRISE_URI_SETTING)
 		) {
 			this._processCAPIModuleChange(this._tokenStore.copilotToken);
 		}
@@ -51,7 +51,9 @@ export class DomainService extends Disposable implements IDomainService {
 		if (proxyConfigUrl) {
 			proxyConfigUrl = proxyConfigUrl.replace(/\/$/, '');
 		}
-		const enterpriseValue = this._configurationService.getConfig(ConfigKey.Shared.AuthProvider) === AuthProviderId.GitHubEnterprise ? this._configurationService.getNonExtensionConfig<string>(EnterpriseURLConfig) : undefined;
+		const enterpriseValue = isGitHubEnterpriseAuthProvider(this._configurationService.getConfig(ConfigKey.Shared.AuthProvider))
+			? getCopilotEnterpriseUri(this._configurationService)
+			: undefined;
 		const moduleToken = {
 			endpoints: {
 				api: capiConfigUrl || token?.endpoints?.api,
