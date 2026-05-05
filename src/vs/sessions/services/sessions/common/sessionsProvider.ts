@@ -127,6 +127,16 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 
 	/**
+	 * Set the custom agent for a session, or clear the selection.
+	 * @param sessionId The ID of the session.
+	 * @param agentId The URI of the custom agent's source `.agent.md` file
+	 *                (matching `INamedPluginResource.uri` /
+	 *                `ICustomAgent.uri`), or `undefined` to clear the
+	 *                selection (use the default agent).
+	 */
+	setAgent?(sessionId: string, agentId: URI | undefined): void;
+
+	/**
 	 * Archive a session.
 	 * @param sessionId The ID of the session to archive.
 	 */

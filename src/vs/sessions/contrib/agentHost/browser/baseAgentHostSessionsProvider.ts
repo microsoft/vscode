@@ -34,6 +34,8 @@ import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWo
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { IChat, iconForAgentProvider, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { IChatRequestModeInstructions } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -77,7 +79,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
-	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
+	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
 	readonly isRead = observableValue('isRead', true);
@@ -125,6 +127,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.modelSelection = metadata.model;
 		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model.id}` : undefined);
+		this.mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', metadata.agent ? { id: metadata.agent.id, kind: 'custom' } : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
@@ -242,6 +245,14 @@ export class AgentHostSessionAdapter implements ISession {
 				didChange = true;
 			}
 
+			const nextAgent = metadata.agent ? URI.parse(metadata.agent.id) : undefined;
+			const currentAgent = this.mode.get();
+			const agentChanged = (!nextAgent && !currentAgent) ? false : !isEqual(nextAgent, currentAgent?.id ? URI.parse(currentAgent.id) : undefined);
+			if (agentChanged) {
+				this.mode.set(nextAgent ? { id: nextAgent.toString(), kind: 'custom' } : undefined, tx);
+				didChange = true;
+			}
+
 			if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs, this._options.mapDiffUri)) {
 				this.changes.set(diffsToChanges(metadata.diffs, this._options.mapDiffUri), tx);
 				didChange = true;
@@ -342,6 +353,7 @@ class NewSession extends Disposable {
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private _selectedModelId: string | undefined;
+	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 
 	/**
 	 * Latest resolved config. Replaces what used to live in `_newSessionConfigs`.
@@ -367,7 +379,6 @@ class NewSession extends Disposable {
 
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
-
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
 		const workspaceUri = ctx.workspace.repositories[0]?.uri;
@@ -386,7 +397,7 @@ class NewSession extends Disposable {
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
 		this._modelId = observableValue<string | undefined>(this, undefined);
-		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
+		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
 		const isRead = observableValue(this, true);
 		const description = observableValue<IMarkdownString | undefined>(this, undefined);
@@ -400,7 +411,7 @@ class NewSession extends Disposable {
 			changesets,
 			changes,
 			modelId: this._modelId,
-			mode, isArchived, isRead, description, lastTurnEnd,
+			mode: this._mode, isArchived, isRead, description, lastTurnEnd,
 		};
 		const authPending = ctx.authenticationPending;
 		const loading = this._loading;
@@ -418,7 +429,7 @@ class NewSession extends Disposable {
 			changesets,
 			changes,
 			modelId: this._modelId,
-			mode,
+			mode: this._mode,
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isArchived,
 			isRead,
@@ -444,6 +455,16 @@ class NewSession extends Disposable {
 	}
 
 	getSelectedModelId(): string | undefined { return this._selectedModelId; }
+
+	setSelectedAgentId(agentId: URI | undefined): void {
+		this._mode.set(agentId ? { id: agentId.toString(), kind: 'custom' } : undefined, undefined);
+	}
+
+	getSelectedAgentId(): URI | undefined {
+		const modeId = this._mode.get()?.id;
+		return modeId ? URI.parse(modeId) : undefined;
+	}
+
 	clearSelectedModelId(): void { this._selectedModelId = undefined; }
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
@@ -1156,6 +1177,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	setAgent(sessionId: string, agentId: URI | undefined): void {
+		if (this._newSession?.sessionId === sessionId) {
+			this._newSession.setSelectedAgentId(agentId);
+			return;
+		}
+
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (cached && rawId && connection) {
+			cached.mode.set(agentId ? { id: agentId.toString(), kind: 'custom' } : undefined, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			const action = {
+				type: ActionType.SessionAgentChanged as const,
+				session: AgentSession.uri(cached.agentProvider, rawId).toString(),
+				agent: agentId ? { id: agentId.toString() } : undefined,
+			};
+			connection.dispatch(action);
+		}
+	}
+
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
@@ -1234,20 +1276,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionResource = newSession.session.resource;
 		const selectedModelId = newSession.getSelectedModelId();
+		const selectedAgentId = newSession.getSelectedAgentId();
 
 		const { query, attachedContext } = options;
 
 		const sessionType = sessionResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
+		const modeInstructions: IChatRequestModeInstructions | undefined = selectedAgentId ? {
+			name: basename(selectedAgentId),
+			uri: selectedAgentId,
+			content: '',
+			toolReferences: [],
+			isBuiltin: false
+		} : undefined;
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
 			modeInfo: {
 				kind: ChatModeKind.Agent,
-				isBuiltin: true,
-				modeInstructions: undefined,
-				modeId: 'agent',
+				isBuiltin: modeInstructions ? false : true,
+				modeInstructions,
+				modeId: modeInstructions ? 'custom' : 'agent',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: undefined,
 			},
@@ -1298,6 +1348,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const committedSession = await this._waitForNewSession(existingKeys);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				// Carry the custom-agent selection that was picked on the
+				// untitled session over to the committed session so the
+				// cached adapter and persisted metadata reflect it. The
+				// model selection round-trips through the agent host as
+				// part of `sendRequest`, but the agent selection has no
+				// such transport, so we dispatch it explicitly here.
+				const selectedAgentId = newSession.getSelectedAgentId();
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
 				// acquired its own subscription (chat widget was opened
@@ -1305,6 +1362,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				newSession.graduate();
 				if (this._newSession === newSession) {
 					this._newSession = undefined;
+				}
+				if (selectedAgentId !== undefined) {
+					this.setAgent(committedSession.sessionId, selectedAgentId);
 				}
 				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
 				return committedSession;
