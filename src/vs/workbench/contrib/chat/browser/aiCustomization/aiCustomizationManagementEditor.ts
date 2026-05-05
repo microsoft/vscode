@@ -648,6 +648,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		homeLabel.textContent = localize('overview', "Overview");
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
+			this.welcomePage?.focus();
 		}));
 
 		// Harness dropdown (shown when multiple harnesses available)
