@@ -14,9 +14,16 @@ import { IProductService } from '../../product/common/productService.js';
 import { Terminal } from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
 
+import { TerminalIcon, TitleEventSource, ProcessPropertyType, IProcessPropertyMap } from '../common/terminal.js';
+
 class DaemonPersistentProcess extends Disposable {
 	private readonly _xterm: Terminal;
 	private readonly _serializeAddon: SerializeAddon;
+
+	private _title: string = '';
+	private _icon: TerminalIcon | undefined;
+	private _color: string | undefined;
+	private _fixedDimensions: { cols: number | undefined; rows: number | undefined } = { cols: undefined, rows: undefined };
 
 	constructor(
 		private readonly _id: number,
@@ -33,9 +40,19 @@ class DaemonPersistentProcess extends Disposable {
 		this._register(this._process.onProcessData(data => {
 			this._xterm.write(data);
 		}));
+
+		this._register(this._process.onDidChangeProperty(e => {
+			if (e.type === ProcessPropertyType.Title) {
+				this._title = e.value as string;
+			}
+		}));
 	}
 
 	get process(): TerminalProcess { return this._process; }
+	get title(): string { return this._title || this._process.currentTitle; }
+	get icon(): TerminalIcon | undefined { return this._icon; }
+	get color(): string | undefined { return this._color; }
+	get fixedDimensions(): { cols: number | undefined; rows: number | undefined } { return this._fixedDimensions; }
 
 	serialize(): string {
 		return this._serializeAddon.serialize();
@@ -44,6 +61,24 @@ class DaemonPersistentProcess extends Disposable {
 	resize(cols: number, rows: number): void {
 		this._xterm.resize(cols, rows);
 		this._process.resize(cols, rows);
+	}
+
+	clearBuffer(): void {
+		this._xterm.clear();
+		this._process.clearBuffer();
+	}
+
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void {
+		if (property === ProcessPropertyType.FixedDimensions) {
+			this._fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
+		} else if (property === ProcessPropertyType.Title) {
+			this._title = value as string;
+		}
+	}
+
+	setIcon(icon: TerminalIcon, color: string | undefined): void {
+		this._icon = icon;
+		this._color = color;
 	}
 }
 
@@ -145,11 +180,44 @@ export class TerminalDaemon extends Disposable implements ITerminalDaemonService
 		return Array.from(this._ptys.entries()).map(([id, p]) => ({
 			id,
 			pid: p.process.pid,
-			title: p.process.currentTitle,
+			title: p.title,
+			titleSource: TitleEventSource.Process,
 			cwd: '', // Need to fetch real CWD if possible
 			workspaceId: '',
 			workspaceName: '',
-			isOrphan: true
+			isOrphan: true,
+			icon: p.icon,
+			color: p.color,
+			fixedDimensions: p.fixedDimensions,
+			hasChildProcesses: p.process.hasChildProcesses
 		} as IProcessDetails));
+	}
+
+	async clearBuffer(id: number): Promise<void> {
+		this._ptys.get(id)?.clearBuffer();
+	}
+
+	async getProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {
+		const p = this._ptys.get(id);
+		if (!p) {
+			return undefined as any;
+		}
+		switch (property) {
+			case ProcessPropertyType.Cwd: return p.process.getCwd() as any;
+			case ProcessPropertyType.InitialCwd: return p.process.getInitialCwd() as any;
+			case ProcessPropertyType.FixedDimensions: return p.fixedDimensions as any;
+			case ProcessPropertyType.Title: return p.title as any;
+			case ProcessPropertyType.ShellType: return p.process.shellType as any;
+			case ProcessPropertyType.HasChildProcesses: return p.process.hasChildProcesses as any;
+		}
+		return undefined as any;
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void> {
+		this._ptys.get(id)?.updateProperty(property, value);
+	}
+
+	async getSerializeBuffer(id: number): Promise<string> {
+		return this._ptys.get(id)?.serialize() ?? '';
 	}
 }

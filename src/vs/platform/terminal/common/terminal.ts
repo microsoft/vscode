@@ -1281,4 +1281,8 @@ export interface ITerminalDaemonService {
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
+	clearBuffer(id: number): Promise<void>;
+	getProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
+	getSerializeBuffer(id: number): Promise<string>;
 }
