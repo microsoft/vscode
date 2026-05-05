@@ -5074,47 +5074,47 @@
 				{
 					"command": "github.copilot.sessions.initializeRepository",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
-					"group": "init@1"
-				},
-				{
-					"command": "github.copilot.sessions.commit",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
-					"group": "commit@1"
-				},
-				{
-					"command": "github.copilot.sessions.commitAndSync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream && !sessions.isAgentHostSession",
-					"group": "commit@2"
-				},
-				{
-					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream && !sessions.isAgentHostSession",
-					"group": "sync@1"
+					"group": "0_init@1"
 				},
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-					"group": "merge@1"
+					"group": "1_merge@1"
 				},
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-					"group": "merge@2"
+					"group": "1_merge@2"
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-					"group": "pull_request@1"
+					"group": "2_pull_request@1"
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-					"group": "pull_request@2"
+					"group": "2_pull_request@2"
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest && !sessions.isAgentHostSession && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges || sessions.hasUncommittedChanges)",
-					"group": "pull_request@1"
+					"group": "2_pull_request@3"
+				},
+				{
+					"command": "github.copilot.sessions.commit",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+					"group": "3_commit@1"
+				},
+				{
+					"command": "github.copilot.sessions.commitAndSync",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+					"group": "3_commit@2"
+				},
+				{
+					"command": "github.copilot.sessions.sync",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream && !sessions.isAgentHostSession",
+					"group": "4_sync@1"
 				},
 				{
 					"command": "github.copilot.claude.sessions.initializeRepository",
