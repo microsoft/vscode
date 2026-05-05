@@ -222,15 +222,7 @@ export class VirtualTimeProcessor extends Disposable {
 		}
 
 		this._runs.set(run, cleanup);
-		// Wait one macrotask before driving the run for the first time. The
-		// caller may have a pending microtask chain (e.g. an `await` chain in
-		// the render function that has not yet hit the point where it
-		// schedules a virtual setTimeout). Yielding to a macrotask lets the
-		// microtask closure drain, so any virtual events scheduled by it are
-		// visible to the first `_step` and we don't race ahead of them
-		// (e.g. fire the time-based deadline sentinel before the caller has
-		// even scheduled anything).
-		nextMacrotask(this._realApi, () => this._wake());
+		this._wake();
 		return run.promise;
 	}
 
@@ -331,12 +323,18 @@ export class VirtualTimeProcessor extends Disposable {
 	private _wake(): void {
 		if (this._disposed) { return; }
 		this._unpark();
-		// Re-enter the trampoline on a microtask. This:
+		// Re-enter the trampoline on a host macrotask, NOT a microtask. This:
 		//  - coalesces multiple wake() calls in the same tick,
 		//  - keeps the driver off the caller's stack frame, and
-		//  - lets caller-side microtasks (e.g. promise resolutions enqueued
-		//    just before run()) run before the first _step.
-		Promise.resolve().then(this._drive);
+		//  - lets the entire pending microtask closure (including microtasks
+		//    enqueued AFTER this `_wake` call within the same outer microtask
+		//    -- e.g. `queueMicrotask(...)` calls inside an `AsyncIterable`
+		//    constructor that runs after `clock.schedule` triggered the wake)
+		//    drain before the next `_step`. A microtask hop here would queue
+		//    the driver in FIFO order with those subsequent microtasks, so the
+		//    driver could run a virtual event before the consumer-side promise
+		//    chain that depends on it has settled.
+		nextMacrotask(this._realApi, this._drive);
 	}
 
 	// ---- Run lifecycle --------------------------------------------------
