@@ -225,36 +225,262 @@ const completionSpec: Fig.Spec = {
 			subcommands: [
 				{
 					name: ['agent'],
-					description: 'Extension for the Foundry Agent Service. (Preview)',
+					description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 					subcommands: [
+						{
+							name: ['files'],
+							description: 'Manage files in a hosted agent session.',
+							subcommands: [
+								{
+									name: ['delete', 'remove', 'rm'],
+									description: 'Delete a file or directory from a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Remote file or directory path to delete',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--recursive'],
+											description: 'Recursively delete directories and their contents',
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['download'],
+									description: 'Download a file from a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Remote file path to download',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--target-path', '-t'],
+											description: 'Local destination path (defaults to remote filename)',
+											args: [
+												{
+													name: 'target-path',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['list', 'ls'],
+									description: 'List files in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['mkdir'],
+									description: 'Create a directory in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--dir', '-d'],
+											description: 'Remote directory path to create',
+											args: [
+												{
+													name: 'dir',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['stat'],
+									description: 'Get file or directory metadata in a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['upload'],
+									description: 'Upload a file to a hosted agent session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--file', '-f'],
+											description: 'Local file path to upload',
+											args: [
+												{
+													name: 'file',
+												},
+											],
+										},
+										{
+											name: ['--session-id', '-s'],
+											description: 'Session ID override (defaults to last invoke session)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--target-path', '-t'],
+											description: 'Remote destination path (defaults to local filename)',
+											args: [
+												{
+													name: 'target-path',
+												},
+											],
+										},
+									],
+								},
+							],
+						},
 						{
 							name: ['init'],
 							description: 'Initialize a new AI agent project. (Preview)',
 							options: [
-								{
-									name: ['--environment', '-e'],
-									description: 'The name of the azd environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
-								{
-									name: ['--host'],
-									description: '[Optional] For container based agents, can override the default host to target a container app instead. Accepted values: \'containerapp\'',
-									args: [
-										{
-											name: 'host',
-										},
-									],
-								},
 								{
 									name: ['--manifest', '-m'],
 									description: 'Path or URI to an agent manifest to add to your azd project',
 									args: [
 										{
 											name: 'manifest',
+										},
+									],
+								},
+								{
+									name: ['--model'],
+									description: 'Name of the AI model to use (e.g., \'gpt-4o\'). If not specified, defaults to \'gpt-4.1-mini\'. Mutually exclusive with --model-deployment, with --model-deployment being used if both are provided',
+									args: [
+										{
+											name: 'model',
+										},
+									],
+								},
+								{
+									name: ['--model-deployment', '-d'],
+									description: 'Name of an existing model deployment to use from the Foundry project. Only used when paired with an existing Foundry project, either via --project-id or interactive prompts',
+									args: [
+										{
+											name: 'model-deployment',
 										},
 									],
 								},
@@ -268,8 +494,18 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
+									name: ['--protocol'],
+									description: 'Protocols supported by the agent (e.g., \'responses\', \'invocations\'). Can be specified multiple times.',
+									isRepeatable: true,
+									args: [
+										{
+											name: 'protocol',
+										},
+									],
+								},
+								{
 									name: ['--src', '-s'],
-									description: '[Optional] Directory to download the agent definition to (defaults to \'src/<agent-id>\')',
+									description: 'Directory to download the agent definition to (defaults to \'src/<agent-id>\')',
 									args: [
 										{
 											name: 'src',
@@ -279,37 +515,95 @@ const completionSpec: Fig.Spec = {
 							],
 						},
 						{
-							name: ['monitor'],
-							description: 'Monitor logs from a hosted agent container.',
+							name: ['invoke'],
+							description: 'Send a message to your agent.',
 							options: [
 								{
-									name: ['--account-name', '-a'],
-									description: 'Cognitive Services account name',
+									name: ['--conversation-id'],
+									description: 'Explicit conversation ID override',
 									args: [
 										{
-											name: 'account-name',
+											name: 'conversation-id',
 										},
 									],
 								},
+								{
+									name: ['--input-file', '-f'],
+									description: 'Path to a file whose contents are sent as the request body',
+									args: [
+										{
+											name: 'input-file',
+										},
+									],
+								},
+								{
+									name: ['--local', '-l'],
+									description: 'Invoke on localhost instead of Foundry',
+								},
+								{
+									name: ['--new-conversation'],
+									description: 'Force a new conversation (discard saved one)',
+								},
+								{
+									name: ['--new-session'],
+									description: 'Force a new session (discard saved one)',
+								},
+								{
+									name: ['--port'],
+									description: 'Local server port',
+									args: [
+										{
+											name: 'port',
+										},
+									],
+								},
+								{
+									name: ['--protocol', '-p'],
+									description: 'Protocol to use: responses (default) or invocations',
+									args: [
+										{
+											name: 'protocol',
+										},
+									],
+								},
+								{
+									name: ['--session-id', '-s'],
+									description: 'Explicit session ID override',
+									args: [
+										{
+											name: 'session-id',
+										},
+									],
+								},
+								{
+									name: ['--timeout', '-t'],
+									description: 'Request timeout in seconds (0 for no timeout)',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['monitor'],
+							description: 'Monitor logs from a hosted agent.',
+							options: [
 								{
 									name: ['--follow', '-f'],
 									description: 'Stream logs in real-time',
 								},
 								{
-									name: ['--name', '-n'],
-									description: 'Name of the hosted agent (required)',
-									args: [
-										{
-											name: 'name',
-										},
-									],
+									name: ['--raw'],
+									description: 'Print the raw SSE stream without formatting',
 								},
 								{
-									name: ['--project-name', '-p'],
-									description: 'AI Foundry project name',
+									name: ['--session-id', '-s'],
+									description: 'Session ID to stream logs for',
 									args: [
 										{
-											name: 'project-name',
+											name: 'session-id',
 										},
 									],
 								},
@@ -332,11 +626,177 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
-									name: ['--version', '-v'],
-									description: 'Version of the hosted agent (required)',
+									name: ['--utc'],
+									description: 'Display timestamps in UTC instead of local time',
+								},
+							],
+						},
+						{
+							name: ['run'],
+							description: 'Run your agent locally for development.',
+							options: [
+								{
+									name: ['--port', '-p'],
+									description: 'Port to listen on',
 									args: [
 										{
-											name: 'version',
+											name: 'port',
+										},
+									],
+								},
+								{
+									name: ['--start-command', '-c'],
+									description: 'Explicit startup command (overrides azure.yaml and auto-detection)',
+									args: [
+										{
+											name: 'start-command',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['sessions'],
+							description: 'Manage sessions for a hosted agent endpoint.',
+							subcommands: [
+								{
+									name: ['create'],
+									description: 'Create a new session for a hosted agent.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--isolation-key'],
+											description: 'Isolation key for session ownership (derived from Entra token by default)',
+											args: [
+												{
+													name: 'isolation-key',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--session-id'],
+											description: 'Optional caller-provided session ID (auto-generated if omitted)',
+											args: [
+												{
+													name: 'session-id',
+												},
+											],
+										},
+										{
+											name: ['--version'],
+											description: 'Agent version to back the session (auto-resolved from azd environment if omitted)',
+											args: [
+												{
+													name: 'version',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['delete'],
+									description: 'Delete a session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--isolation-key'],
+											description: 'Isolation key for session ownership (derived from Entra token by default)',
+											args: [
+												{
+													name: 'isolation-key',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['list'],
+									description: 'List sessions for a hosted agent.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--limit'],
+											description: 'Maximum number of sessions to return',
+											args: [
+												{
+													name: 'limit',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
+										},
+										{
+											name: ['--pagination-token'],
+											description: 'Continuation token from a previous list response',
+											args: [
+												{
+													name: 'pagination-token',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['show'],
+									description: 'Show details of a session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--output', '-o'],
+											description: 'Output format (json or table)',
+											args: [
+												{
+													name: 'output',
+												},
+											],
 										},
 									],
 								},
@@ -344,50 +804,14 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['show'],
-							description: 'Show the status of a hosted agent deployment.',
+							description: 'Show the status of a hosted agent.',
 							options: [
-								{
-									name: ['--account-name', '-a'],
-									description: 'Cognitive Services account name',
-									args: [
-										{
-											name: 'account-name',
-										},
-									],
-								},
-								{
-									name: ['--name', '-n'],
-									description: 'Name of the hosted agent (required)',
-									args: [
-										{
-											name: 'name',
-										},
-									],
-								},
 								{
 									name: ['--output', '-o'],
 									description: 'Output format (json or table)',
 									args: [
 										{
 											name: 'output',
-										},
-									],
-								},
-								{
-									name: ['--project-name', '-p'],
-									description: 'AI Foundry project name',
-									args: [
-										{
-											name: 'project-name',
-										},
-									],
-								},
-								{
-									name: ['--version', '-v'],
-									description: 'Version of the hosted agent (required)',
-									args: [
-										{
-											name: 'version',
 										},
 									],
 								},
@@ -407,15 +831,6 @@ const completionSpec: Fig.Spec = {
 							name: ['init'],
 							description: 'Initialize a new AI Fine-tuning project. (Preview)',
 							options: [
-								{
-									name: ['--environment', '-n'],
-									description: 'The name of the azd environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
 								{
 									name: ['--from-job', '-j'],
 									description: 'Clone configuration from an existing job ID',
@@ -896,15 +1311,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--blob-uri'],
-											description: 'Already-uploaded blob URI (skips upload, registers directly)',
-											args: [
-												{
-													name: 'blob-uri',
-												},
-											],
-										},
-										{
 											name: ['--description'],
 											description: 'Model description',
 											args: [
@@ -921,6 +1327,10 @@ const completionSpec: Fig.Spec = {
 													name: 'name',
 												},
 											],
+										},
+										{
+											name: ['--no-wait'],
+											description: 'Start async registration and return immediately with the operation URL',
 										},
 										{
 											name: ['--project-endpoint', '-e'],
@@ -1100,7 +1510,7 @@ const completionSpec: Fig.Spec = {
 										},
 										{
 											name: ['--version'],
-											description: 'Model version',
+											description: 'Model version (defaults to latest)',
 											args: [
 												{
 													name: 'version',
@@ -1135,15 +1545,6 @@ const completionSpec: Fig.Spec = {
 							name: ['init'],
 							description: 'Initialize a new AI models project. (Preview)',
 							options: [
-								{
-									name: ['--environment', '-n'],
-									description: 'The name of the azd environment to use',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
 								{
 									name: ['--project-endpoint', '-e'],
 									description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
@@ -1191,7 +1592,7 @@ const completionSpec: Fig.Spec = {
 					options: [
 						{
 							name: ['--dst'],
-							description: 'The destination slot name. Use @main for production.',
+							description: 'The destination slot name. Use \'production\' for main app.',
 							args: [
 								{
 									name: 'dst',
@@ -1209,7 +1610,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--src'],
-							description: 'The source slot name. Use @main for production.',
+							description: 'The source slot name. Use \'production\' for main app.',
 							args: [
 								{
 									name: 'src',
@@ -1472,6 +1873,196 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
+			name: ['copilot'],
+			description: 'Manage GitHub Copilot agent settings. (Preview)',
+			subcommands: [
+				{
+					name: ['consent'],
+					description: 'Manage tool consent.',
+					subcommands: [
+						{
+							name: ['grant'],
+							description: 'Grant consent trust rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type: \'all\' or \'readonly\'',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--global'],
+									description: 'Apply globally to all servers',
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation type: \'tool\' or \'sampling\'',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission: \'allow\', \'deny\', or \'prompt\'',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Rule scope: \'global\', or \'project\'',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--server'],
+									description: 'Server name',
+									args: [
+										{
+											name: 'server',
+										},
+									],
+								},
+								{
+									name: ['--tool'],
+									description: 'Specific tool name (requires --server)',
+									args: [
+										{
+											name: 'tool',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['list'],
+							description: 'List consent rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type to filter by (all, readonly)',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation to filter by (tool, sampling)',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission to filter by (allow, deny, prompt)',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Consent scope to filter by (global, project). If not specified, lists rules from all scopes.',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--target'],
+									description: 'Specific target to operate on (server/tool format)',
+									args: [
+										{
+											name: 'target',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['revoke'],
+							description: 'Revoke consent rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type to filter by (all, readonly)',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation to filter by (tool, sampling)',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission to filter by (allow, deny, prompt)',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Consent scope to filter by (global, project). If not specified, revokes rules from all scopes.',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--target'],
+									description: 'Specific target to operate on (server/tool format)',
+									args: [
+										{
+											name: 'target',
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		},
+		{
 			name: ['demo'],
 			description: 'This extension provides examples of the azd extension framework.',
 			subcommands: [
@@ -1542,20 +2133,20 @@ const completionSpec: Fig.Spec = {
 					description: 'Deploys all services that are listed in azure.yaml',
 				},
 				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
-				{
 					name: ['--from-package'],
 					description: 'Deploys the packaged service located at the provided path. Supports zipped file packages (file path) or container images (image tag).',
 					args: [
 						{
 							name: 'file-path|image-tag',
+						},
+					],
+				},
+				{
+					name: ['--timeout'],
+					description: 'Maximum time in seconds for azd to wait for each service deployment. This stops azd from waiting but does not cancel the Azure-side deployment. (default: 1200)',
+					args: [
+						{
+							name: 'timeout',
 						},
 					],
 				},
@@ -1569,15 +2160,6 @@ const completionSpec: Fig.Spec = {
 			name: ['down'],
 			description: 'Delete your project\'s Azure resources.',
 			options: [
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
 				{
 					name: ['--force'],
 					description: 'Does not require confirmation before it deletes resources.',
@@ -1605,17 +2187,6 @@ const completionSpec: Fig.Spec = {
 						{
 							name: ['get'],
 							description: 'Gets a configuration value from the environment.',
-							options: [
-								{
-									name: ['--environment', '-e'],
-									description: 'The name of the environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
-							],
 							args: {
 								name: 'path',
 							},
@@ -1623,17 +2194,6 @@ const completionSpec: Fig.Spec = {
 						{
 							name: ['set'],
 							description: 'Sets a configuration value in the environment.',
-							options: [
-								{
-									name: ['--environment', '-e'],
-									description: 'The name of the environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
-							],
 							args: [
 								{
 									name: 'path',
@@ -1646,17 +2206,6 @@ const completionSpec: Fig.Spec = {
 						{
 							name: ['unset'],
 							description: 'Unsets a configuration value in the environment.',
-							options: [
-								{
-									name: ['--environment', '-e'],
-									description: 'The name of the environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
-							],
 							args: {
 								name: 'path',
 							},
@@ -1666,17 +2215,6 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ['get-value'],
 					description: 'Get specific environment value.',
-					options: [
-						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-					],
 					args: {
 						name: 'keyName',
 						generators: azdGenerators.listEnvironmentVariables,
@@ -1685,17 +2223,6 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ['get-values'],
 					description: 'Get all environment values.',
-					options: [
-						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-					],
 				},
 				{
 					name: ['list', 'ls'],
@@ -1733,15 +2260,6 @@ const completionSpec: Fig.Spec = {
 					description: 'Refresh environment values by using information from a previous infrastructure provision.',
 					options: [
 						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-						{
 							name: ['--hint'],
 							description: 'Hint to help identify the environment to refresh',
 							args: [
@@ -1769,15 +2287,6 @@ const completionSpec: Fig.Spec = {
 					description: 'Remove an environment.',
 					options: [
 						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-						{
 							name: ['--force'],
 							description: 'Skips confirmation before performing removal.',
 							isDangerous: true,
@@ -1800,15 +2309,6 @@ const completionSpec: Fig.Spec = {
 					name: ['set'],
 					description: 'Set one or more environment values.',
 					options: [
-						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
 						{
 							name: ['--file'],
 							description: 'Path to .env formatted file to load environment values from.',
@@ -1833,17 +2333,6 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ['set-secret'],
 					description: 'Set a name as a reference to a Key Vault secret in the environment.',
-					options: [
-						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-					],
 					args: {
 						name: 'name',
 					},
@@ -2015,7 +2504,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['upgrade'],
-					description: 'Upgrade specified extensions.',
+					description: 'Upgrade installed extensions to the latest version.',
 					options: [
 						{
 							name: ['--all'],
@@ -2054,14 +2543,14 @@ const completionSpec: Fig.Spec = {
 			subcommands: [
 				{
 					name: ['run'],
-					description: 'Runs the specified hook for the project and services',
+					description: 'Runs the specified hook for the project, provisioning layers, and services',
 					options: [
 						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
+							name: ['--layer'],
+							description: 'Only runs hooks for the specified provisioning layer.',
 							args: [
 								{
-									name: 'environment',
+									name: 'layer',
 								},
 							],
 						},
@@ -2117,15 +2606,6 @@ const completionSpec: Fig.Spec = {
 					description: 'Write IaC for your project to disk, allowing you to manually manage it.',
 					options: [
 						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
-								},
-							],
-						},
-						{
 							name: ['--force'],
 							description: 'Overwrite any existing files without prompting',
 							isDangerous: true,
@@ -2144,15 +2624,6 @@ const completionSpec: Fig.Spec = {
 					args: [
 						{
 							name: 'branch',
-						},
-					],
-				},
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
 						},
 					],
 				},
@@ -2214,190 +2685,6 @@ const completionSpec: Fig.Spec = {
 			description: 'Manage Model Context Protocol (MCP) server. (Alpha)',
 			subcommands: [
 				{
-					name: ['consent'],
-					description: 'Manage MCP tool consent.',
-					subcommands: [
-						{
-							name: ['grant'],
-							description: 'Grant consent trust rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type: \'all\' or \'readonly\'',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--global'],
-									description: 'Apply globally to all servers',
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation type: \'tool\' or \'sampling\'',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission: \'allow\', \'deny\', or \'prompt\'',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Rule scope: \'global\', or \'project\'',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--server'],
-									description: 'Server name',
-									args: [
-										{
-											name: 'server',
-										},
-									],
-								},
-								{
-									name: ['--tool'],
-									description: 'Specific tool name (requires --server)',
-									args: [
-										{
-											name: 'tool',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['list'],
-							description: 'List consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (readonly, any)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, lists rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['revoke'],
-							description: 'Revoke consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (readonly, any)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, revokes rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-					],
-				},
-				{
 					name: ['start'],
 					description: 'Starts the MCP server.',
 				},
@@ -2407,15 +2694,6 @@ const completionSpec: Fig.Spec = {
 			name: ['monitor'],
 			description: 'Monitor a deployed project.',
 			options: [
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
 				{
 					name: ['--live'],
 					description: 'Open a browser to Application Insights Live Metrics. Live Metrics is currently not supported for Python apps.',
@@ -2437,15 +2715,6 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ['--all'],
 					description: 'Packages all services that are listed in azure.yaml',
-				},
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
 				},
 				{
 					name: ['--output-path'],
@@ -2486,15 +2755,6 @@ const completionSpec: Fig.Spec = {
 								{
 									name: 'auth-type',
 									suggestions: ['federated', 'client-credentials'],
-								},
-							],
-						},
-						{
-							name: ['--environment', '-e'],
-							description: 'The name of the environment to use.',
-							args: [
-								{
-									name: 'environment',
 								},
 							],
 						},
@@ -2554,15 +2814,6 @@ const completionSpec: Fig.Spec = {
 			description: 'Provision Azure resources for your project.',
 			options: [
 				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
-				{
 					name: ['--location', '-l'],
 					description: 'Azure location for the new environment',
 					args: [
@@ -2603,15 +2854,6 @@ const completionSpec: Fig.Spec = {
 					description: 'Publishes all services that are listed in azure.yaml',
 				},
 				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
-				{
 					name: ['--from-package'],
 					description: 'Publishes the service from a container image (image tag).',
 					args: [
@@ -2643,15 +2885,6 @@ const completionSpec: Fig.Spec = {
 					name: ['--all'],
 					description: 'Restores all services that are listed in azure.yaml',
 				},
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
 			],
 			args: {
 				name: 'service',
@@ -2662,15 +2895,6 @@ const completionSpec: Fig.Spec = {
 			name: ['show'],
 			description: 'Display information about your project and its resources.',
 			options: [
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
 				{
 					name: ['--show-secrets'],
 					description: 'Unmask secrets in output.',
@@ -2776,18 +3000,62 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
+			name: ['tool'],
+			description: 'Manage Azure development tools.',
+			subcommands: [
+				{
+					name: ['check'],
+					description: 'Check for tool updates.',
+				},
+				{
+					name: ['install'],
+					description: 'Install specified tools.',
+					options: [
+						{
+							name: ['--all'],
+							description: 'Install all recommended tools',
+						},
+						{
+							name: ['--dry-run'],
+							description: 'Preview what would be installed without making changes',
+						},
+					],
+					args: {
+						name: 'tool-name...',
+						isOptional: true,
+					},
+				},
+				{
+					name: ['list'],
+					description: 'List all tools with status.',
+				},
+				{
+					name: ['show'],
+					description: 'Show details for a specific tool.',
+					args: {
+						name: 'tool-name',
+					},
+				},
+				{
+					name: ['upgrade'],
+					description: 'Upgrade installed tools.',
+					options: [
+						{
+							name: ['--dry-run'],
+							description: 'Preview what would be upgraded without making changes',
+						},
+					],
+					args: {
+						name: 'tool-name...',
+						isOptional: true,
+					},
+				},
+			],
+		},
+		{
 			name: ['up'],
 			description: 'Provision and deploy your project to Azure with a single command.',
 			options: [
-				{
-					name: ['--environment', '-e'],
-					description: 'The name of the environment to use.',
-					args: [
-						{
-							name: 'environment',
-						},
-					],
-				},
 				{
 					name: ['--location', '-l'],
 					description: 'Azure location for the new environment',
@@ -2803,6 +3071,30 @@ const completionSpec: Fig.Spec = {
 					args: [
 						{
 							name: 'subscription',
+						},
+					],
+				},
+			],
+		},
+		{
+			name: ['update'],
+			description: 'Updates azd to the latest version.',
+			options: [
+				{
+					name: ['--channel'],
+					description: 'Update channel: stable or daily.',
+					args: [
+						{
+							name: 'channel',
+						},
+					],
+				},
+				{
+					name: ['--check-interval-hours'],
+					description: 'Override the update check interval in hours.',
+					args: [
+						{
+							name: 'check-interval-hours',
 						},
 					],
 				},
@@ -3063,19 +3355,79 @@ const completionSpec: Fig.Spec = {
 					subcommands: [
 						{
 							name: ['agent'],
-							description: 'Extension for the Foundry Agent Service. (Preview)',
+							description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 							subcommands: [
+								{
+									name: ['files'],
+									description: 'Manage files in a hosted agent session.',
+									subcommands: [
+										{
+											name: ['delete', 'remove', 'rm'],
+											description: 'Delete a file or directory from a hosted agent session.',
+										},
+										{
+											name: ['download'],
+											description: 'Download a file from a hosted agent session.',
+										},
+										{
+											name: ['list', 'ls'],
+											description: 'List files in a hosted agent session.',
+										},
+										{
+											name: ['mkdir'],
+											description: 'Create a directory in a hosted agent session.',
+										},
+										{
+											name: ['stat'],
+											description: 'Get file or directory metadata in a hosted agent session.',
+										},
+										{
+											name: ['upload'],
+											description: 'Upload a file to a hosted agent session.',
+										},
+									],
+								},
 								{
 									name: ['init'],
 									description: 'Initialize a new AI agent project. (Preview)',
 								},
 								{
+									name: ['invoke'],
+									description: 'Send a message to your agent.',
+								},
+								{
 									name: ['monitor'],
-									description: 'Monitor logs from a hosted agent container.',
+									description: 'Monitor logs from a hosted agent.',
+								},
+								{
+									name: ['run'],
+									description: 'Run your agent locally for development.',
+								},
+								{
+									name: ['sessions'],
+									description: 'Manage sessions for a hosted agent endpoint.',
+									subcommands: [
+										{
+											name: ['create'],
+											description: 'Create a new session for a hosted agent.',
+										},
+										{
+											name: ['delete'],
+											description: 'Delete a session.',
+										},
+										{
+											name: ['list'],
+											description: 'List sessions for a hosted agent.',
+										},
+										{
+											name: ['show'],
+											description: 'Show details of a session.',
+										},
+									],
 								},
 								{
 									name: ['show'],
-									description: 'Show the status of a hosted agent deployment.',
+									description: 'Show the status of a hosted agent.',
 								},
 								{
 									name: ['version'],
@@ -3290,6 +3642,30 @@ const completionSpec: Fig.Spec = {
 					],
 				},
 				{
+					name: ['copilot'],
+					description: 'Manage GitHub Copilot agent settings. (Preview)',
+					subcommands: [
+						{
+							name: ['consent'],
+							description: 'Manage tool consent.',
+							subcommands: [
+								{
+									name: ['grant'],
+									description: 'Grant consent trust rules.',
+								},
+								{
+									name: ['list'],
+									description: 'List consent rules.',
+								},
+								{
+									name: ['revoke'],
+									description: 'Revoke consent rules.',
+								},
+							],
+						},
+					],
+				},
+				{
 					name: ['demo'],
 					description: 'This extension provides examples of the azd extension framework.',
 					subcommands: [
@@ -3463,7 +3839,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['upgrade'],
-							description: 'Upgrade specified extensions.',
+							description: 'Upgrade installed extensions to the latest version.',
 						},
 					],
 				},
@@ -3473,7 +3849,7 @@ const completionSpec: Fig.Spec = {
 					subcommands: [
 						{
 							name: ['run'],
-							description: 'Runs the specified hook for the project and services',
+							description: 'Runs the specified hook for the project, provisioning layers, and services',
 						},
 					],
 				},
@@ -3495,24 +3871,6 @@ const completionSpec: Fig.Spec = {
 					name: ['mcp'],
 					description: 'Manage Model Context Protocol (MCP) server. (Alpha)',
 					subcommands: [
-						{
-							name: ['consent'],
-							description: 'Manage MCP tool consent.',
-							subcommands: [
-								{
-									name: ['grant'],
-									description: 'Grant consent trust rules.',
-								},
-								{
-									name: ['list'],
-									description: 'List consent rules.',
-								},
-								{
-									name: ['revoke'],
-									description: 'Revoke consent rules.',
-								},
-							],
-						},
 						{
 							name: ['start'],
 							description: 'Starts the MCP server.',
@@ -3586,8 +3944,38 @@ const completionSpec: Fig.Spec = {
 					],
 				},
 				{
+					name: ['tool'],
+					description: 'Manage Azure development tools.',
+					subcommands: [
+						{
+							name: ['check'],
+							description: 'Check for tool updates.',
+						},
+						{
+							name: ['install'],
+							description: 'Install specified tools.',
+						},
+						{
+							name: ['list'],
+							description: 'List all tools with status.',
+						},
+						{
+							name: ['show'],
+							description: 'Show details for a specific tool.',
+						},
+						{
+							name: ['upgrade'],
+							description: 'Upgrade installed tools.',
+						},
+					],
+				},
+				{
 					name: ['up'],
 					description: 'Provision and deploy your project to Azure with a single command.',
+				},
+				{
+					name: ['update'],
+					description: 'Updates azd to the latest version.',
 				},
 				{
 					name: ['version'],
@@ -3647,8 +4035,18 @@ const completionSpec: Fig.Spec = {
 			isPersistent: true,
 		},
 		{
+			name: ['--environment', '-e'],
+			description: 'The name of the environment to use.',
+			isPersistent: true,
+			args: [
+				{
+					name: 'environment',
+				},
+			],
+		},
+		{
 			name: ['--no-prompt'],
-			description: 'Accepts the default value instead of prompting, or it fails if there is no default.',
+			description: 'Runs without prompts. Uses existing values; fails if any required value or decision cannot be resolved automatically.',
 			isPersistent: true,
 		},
 		{
