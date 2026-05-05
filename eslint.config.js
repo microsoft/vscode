@@ -1067,7 +1067,7 @@ export default tseslint.config(
 			'local/code-no-static-node-module-import': [
 				'error',
 				// Files that run in separate processes, not on the electron-main startup path
-				'src/vs/platform/agentHost/node/copilot/**/*.ts',
+				'src/vs/platform/agentHost/node/**/*.ts',
 				'src/vs/platform/files/node/watcher/**/*.ts',
 				'src/vs/platform/terminal/node/**/*.ts',
 				// Files that use small, safe modules
@@ -1618,6 +1618,21 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
+					'target': 'src/vs/platform/agentHost/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'tas-client', // node module allowed even in /common/
+						'@microsoft/1ds-core-js', // node module allowed even in /common/
+						'@microsoft/1ds-post-js', // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
+						'@vscode/copilot-api', // used by agentHost for Copilot API requests
+						'@anthropic-ai/sdk' // used by agentHost for Anthropic API requests
 					]
 				},
 				{

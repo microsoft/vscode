@@ -23,6 +23,11 @@ export interface IAgentHostSessionWorkspaceOptions {
 	readonly requiresWorkspaceTrust: boolean;
 	readonly description?: string;
 	/**
+	 * Group label used by the workspace picker to bucket the produced
+	 * workspace into a top-level tab (e.g. `"Local"`, `"Remote"`).
+	 */
+	readonly group?: string;
+	/**
 	 * Configured `git.branchProtection` glob patterns. Used to compute
 	 * `baseBranchProtected` on the resulting repository.
 	 */
@@ -102,6 +107,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			label: options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName,
 			description: options.description,
 			icon: Codicon.repo,
+			group: options.group,
 			repositories: [{ uri: project.uri, workingDirectory: repositoryWorkingDirectory, detail: undefined, ...gitFields }],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		};
@@ -116,6 +122,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 		label: options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName,
 		description: options.description,
 		icon: options.fallbackIcon,
+		group: options.group,
 		repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: undefined, ...gitFields }],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 	};

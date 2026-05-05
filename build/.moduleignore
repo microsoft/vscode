@@ -159,14 +159,6 @@ vsda/**
 @vscode/policy-watcher/index.d.ts
 !@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-@vscode/macos-keychain/build/**
-@vscode/macos-keychain/src/**
-@vscode/macos-keychain/test/**
-@vscode/macos-keychain/binding.gyp
-@vscode/macos-keychain/README.md
-@vscode/macos-keychain/index.d.ts
-!@vscode/macos-keychain/build/Release/keychainNative.node
-
 @vscode/windows-ca-certs/**/*
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node

@@ -118,6 +118,8 @@ export const CopilotChatAttr = {
 	REASONING_CONTENT: 'copilot_chat.reasoning_content',
 	/** User's actual typed message text, extracted from prompt context */
 	USER_REQUEST: 'copilot_chat.user_request',
+	/** Cache-relevant request options as a JSON blob (tool_choice, reasoning_effort, thinking, response_format, etc.). Used by Cache Explorer. */
+	REQUEST_OPTIONS: 'copilot_chat.request.options',
 	/** Resolved context section (code snippets, file contents, etc.) */
 	PROMPT_CONTEXT: 'copilot_chat.prompt_context',
 	/** Custom instructions section */

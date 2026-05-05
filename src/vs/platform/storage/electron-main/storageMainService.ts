@@ -208,7 +208,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		// from APPLICATION to APPLICATION_SHARED scope:
 		// In VS Code: reuse the own application storage (keys are local)
 		let fallbackStorage: IStorageMain = this.applicationStorage;
-		const hostUserRoamingDataHome = this.environmentService.hostUserRoamingDataHome;
+		const hostUserRoamingDataHome = this.environmentService.parentAppUserRoamingDataHome;
 		if (hostUserRoamingDataHome) {
 			// - In the Agents App: create a storage backed by the host (VS Code)
 			//   app's application DB so keys are found even if VS Code hasn't

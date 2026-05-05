@@ -338,6 +338,7 @@
 	gap: 6px;
 	padding: 4px 8px;
 	cursor: pointer;
+	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 4px;
 }
@@ -1239,12 +1240,184 @@
 	opacity: 1;
 }
 
+.ai-customization-management-editor .editor-mode-button {
+	flex-shrink: 0;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 24px;
+	transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.ai-customization-management-editor .editor-mode-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.ai-customization-management-editor .editor-mode-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.ai-customization-management-editor .editor-preview-container,
 .ai-customization-management-editor .embedded-editor-container {
 	flex: 1;
-	overflow: hidden;
 	margin-top: 8px;
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: 4px;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .editor-preview-container {
+	background: var(--vscode-editor-background);
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .editor-preview-scroll-container {
+	height: 100%;
+	overflow: auto;
+	padding: 16px;
+	box-sizing: border-box;
+	outline: none;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.ai-customization-management-editor .editor-preview-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.ai-customization-management-editor .editor-preview-frontmatter-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.ai-customization-management-editor .editor-preview-row {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 12px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+}
+
+.ai-customization-management-editor .editor-preview-row-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.ai-customization-management-editor .editor-preview-row-key {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	font-family: var(--monaco-monospace-font);
+}
+
+.ai-customization-management-editor .editor-preview-row-help {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: none;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .editor-preview-row-help:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .editor-preview-row-help:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.ai-customization-management-editor .editor-preview-row-help-icon {
+	font-size: 14px;
+	line-height: 14px;
+}
+
+.ai-customization-management-editor .editor-preview-row-value {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.ai-customization-management-editor .editor-preview-row-value.multiline {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .editor-preview-body-content {
+	padding: 12px 14px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+}
+
+.ai-customization-management-editor .editor-preview-body-content > :first-child {
+	margin-top: 0;
+}
+
+.ai-customization-management-editor .editor-preview-body-content > :last-child {
+	margin-bottom: 0;
+}
+
+.ai-customization-management-editor .editor-preview-empty-state {
+	padding: 12px 14px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px dashed var(--vscode-widget-border);
+	border-radius: 6px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .editor-preview-issues-box {
+	padding: 12px 14px;
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+	border-radius: 6px;
+	color: var(--vscode-inputValidation-warningForeground);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ai-customization-management-editor .editor-preview-issues-title {
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.ai-customization-management-editor .editor-preview-issues-description,
+.ai-customization-management-editor .editor-preview-issues-list {
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.ai-customization-management-editor .editor-preview-issues-list {
+	margin: 0;
+	padding-left: 18px;
+}
+
+.ai-customization-management-editor .embedded-editor-container {
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {

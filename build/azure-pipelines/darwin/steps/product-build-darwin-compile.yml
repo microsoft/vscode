@@ -332,16 +332,6 @@ steps:
         BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
-    # Re-sign the app without the provisioning profile for tests.
-    # This strips the keychain-access-groups entitlement which requires a
-    # provisioning profile and is not needed for running tests. The codesign
-    # step reads from the archives packaged above which have the full entitlements.
-    - script: |
-        set -e
-        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
-        DEBUG=electron-osx-sign* node build/darwin/sign.ts --skip-provisioning-profile $(agent.builddirectory)
-      displayName: Set Hardened Entitlements (for tests)
-
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml@self
       parameters:

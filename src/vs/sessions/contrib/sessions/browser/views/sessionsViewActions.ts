@@ -18,6 +18,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
@@ -28,6 +29,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 
 //  Constants
 
@@ -633,7 +635,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^agenthost-/),
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}
@@ -785,20 +787,10 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', false),
-							ContextKeyExpr.equals('sessions.hasIncomingChanges', false),
-							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
-							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
-						),
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', true),
-							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
-						)
-					)
+					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
+					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
 				)
 			}]
 		});
