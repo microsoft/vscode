@@ -29,7 +29,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/br
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
+import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -504,7 +504,7 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs in the Integrated Browser when the setting is enabled.
+ * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
  */
 class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
@@ -530,7 +530,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
 				return false;
 			}
-			if (!isLocalhostAuthority(parsed.host)) {
+			if (!isLocalhostAuthority(parsed.host) && !isAllInterfacesAuthority(parsed.host)) {
 				return false;
 			}
 		} catch {
@@ -696,7 +696,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
-				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			)
 		}
 	}
