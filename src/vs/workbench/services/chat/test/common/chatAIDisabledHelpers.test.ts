@@ -148,7 +148,7 @@ suite('chat - chatSetupAIDisabled', () => {
 			]);
 		});
 
-		test('clears all overrides when set in multiple scopes', () => {
+		test('clears all overrides when set in multiple scopes (no remote split)', () => {
 			const inspect: Inspect = {
 				value: true,
 				applicationValue: true,
@@ -162,10 +162,30 @@ suite('chat - chatSetupAIDisabled', () => {
 			]);
 		});
 
-		test('does not duplicate a USER write when userLocalValue mirrors userValue', () => {
+		test('prefers USER_LOCAL over USER when userLocalValue is set', () => {
 			const inspect: Inspect = { value: true, userValue: true, userLocalValue: true };
 			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
-				{ value: false, target: ConfigurationTarget.USER },
+				{ value: false, target: ConfigurationTarget.USER_LOCAL },
+			]);
+		});
+
+		test('emits both USER_LOCAL and USER_REMOTE when both are set (avoids missing local override in remote scenarios)', () => {
+			const inspect: Inspect = {
+				value: true,
+				userValue: true,
+				userLocalValue: true,
+				userRemoteValue: true,
+			};
+			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
+				{ value: false, target: ConfigurationTarget.USER_LOCAL },
+				{ value: false, target: ConfigurationTarget.USER_REMOTE },
+			]);
+		});
+
+		test('emits only USER_REMOTE when only the remote scope is set', () => {
+			const inspect: Inspect = { value: true, userValue: true, userRemoteValue: true };
+			assert.deepStrictEqual(computeAIDisabledClearForGlobalOptIn(inspect), [
+				{ value: false, target: ConfigurationTarget.USER_REMOTE },
 			]);
 		});
 	});

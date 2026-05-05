@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -784,7 +785,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			const inspect = this.configurationService.inspect<boolean>(ChatConfiguration.AIDisabled);
 			const update = computeAIDisabledSyncOnExtensionEnabled(defaultChatExtension.enablementState, inspect);
 			if (update) {
-				this.configurationService.updateValue(ChatConfiguration.AIDisabled, update.value, update.target);
+				this.configurationService.updateValue(ChatConfiguration.AIDisabled, update.value, update.target).catch(onUnexpectedError);
 			}
 		}));
 	}

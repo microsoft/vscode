@@ -55,6 +55,12 @@ export function computeAIDisabledOverrideForWorkspaceEnable(
  * trigger), clear every scope that currently has an explicit disable override. We pick targets
  * explicitly per scope to avoid `updateValue`'s implicit scope-walking which causes
  * https://github.com/microsoft/vscode/issues/309947.
+ *
+ * In remote scenarios the user scope splits into local/remote. We emit those explicitly so
+ * that:
+ *   - we never duplicate-write to the same underlying settings file (a `USER` target may be
+ *     routed to `USER_REMOTE` by `WorkbenchConfigurationService` when a remote value exists);
+ *   - we never miss a local override when both local and remote are set.
  */
 export function computeAIDisabledClearForGlobalOptIn(
 	settingInspect: Pick<IConfigurationValue<boolean>, 'value' | 'applicationValue' | 'userValue' | 'userLocalValue' | 'userRemoteValue' | 'workspaceValue'>
@@ -66,14 +72,17 @@ export function computeAIDisabledClearForGlobalOptIn(
 	if (settingInspect.applicationValue === true) {
 		updates.push({ value: false, target: ConfigurationTarget.APPLICATION });
 	}
-	if (settingInspect.userValue === true) {
-		updates.push({ value: false, target: ConfigurationTarget.USER });
-	}
-	if (settingInspect.userLocalValue === true && settingInspect.userValue !== true) {
+	const userLocalSet = settingInspect.userLocalValue === true;
+	const userRemoteSet = settingInspect.userRemoteValue === true;
+	if (userLocalSet) {
 		updates.push({ value: false, target: ConfigurationTarget.USER_LOCAL });
 	}
-	if (settingInspect.userRemoteValue === true) {
+	if (userRemoteSet) {
 		updates.push({ value: false, target: ConfigurationTarget.USER_REMOTE });
+	}
+	if (settingInspect.userValue === true && !userLocalSet && !userRemoteSet) {
+		// Inspect did not surface a split local/remote value; fall back to the generic target.
+		updates.push({ value: false, target: ConfigurationTarget.USER });
 	}
 	if (settingInspect.workspaceValue === true) {
 		updates.push({ value: false, target: ConfigurationTarget.WORKSPACE });
