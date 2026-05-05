@@ -171,8 +171,8 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingPromptType = PromptsType.agent;
 		editor.editorDisplayMode = 'preview';
 
-		// Sanity: setting is on, so preview is supported.
-		assert.strictEqual(editor.getEditorModeButtonLabel(), 'View Raw');
+		// Sanity: setting is on and file is editable, so label is "Edit" (preview mode).
+		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
 
 		// Flip the setting off and run the change handler.
 		configurationService.setValue(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled, false);
