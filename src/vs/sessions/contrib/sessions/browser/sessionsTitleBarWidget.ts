@@ -30,6 +30,7 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -150,29 +151,38 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.tabIndex = 0;
 
 			// Session pill: icon + label + folder together
-			const sessionPill = $('span.agent-sessions-titlebar-pill');
+			const sessionPill = $('div.agent-sessions-titlebar-pill');
 
 			// Center group: icon + label + folder
-			const centerGroup = $('span.agent-sessions-titlebar-center');
+			const centerGroup = $('div.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
 			if (icon) {
-				const iconEl = $('span.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
+				const iconEl = $('div.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
 				centerGroup.appendChild(iconEl);
 			}
 
 			// Label
-			const labelEl = $('span.agent-sessions-titlebar-label');
+			const labelEl = $('div.agent-sessions-titlebar-label');
 			labelEl.textContent = label;
 			centerGroup.appendChild(labelEl);
 
 			// Folder shown next to the title
 			if (repoLabel) {
-				const detailsEl = $('span.agent-sessions-titlebar-details');
+				const detailsEl = $('div.agent-sessions-titlebar-details');
 
-				const repoEl = $('span.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
+				const repoEl = $('div.agent-sessions-titlebar-repo');
+				repoEl.textContent = repoLabel;
 				detailsEl.appendChild(repoEl);
+
+				if (repoDetailLabel) {
+					const separatorEl = $('div.agent-sessions-titlebar-separator');
+					detailsEl.appendChild(separatorEl);
+
+					const branchEl = $('div.agent-sessions-titlebar-branch');
+					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoDetailLabel}`));
+					detailsEl.appendChild(branchEl);
+				}
 
 				centerGroup.appendChild(detailsEl);
 			}
