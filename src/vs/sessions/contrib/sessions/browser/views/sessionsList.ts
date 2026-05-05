@@ -5,6 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
@@ -98,10 +99,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
-	 * meet the 44px minimum touch target without overflowing. Geometry:
-	 * 6px padding + 44px content (title row + details row, anchored to
-	 * a 44px toolbar) + 6px padding = 56px content + slack within 76px.
-	 * Keep in sync with `.phone-layout .session-item` rules in
+	 * meet the 44px minimum touch target without overflowing. Sized to
+	 * fit a 44px toolbar centered between the title and details rows.
+	 * Keep in sync with the `.phone-layout .session-item` rules in
 	 * `sessionsList.css`.
 	 */
 	private static readonly ITEM_HEIGHT_PHONE = 76;
@@ -208,9 +208,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
+		// The list opens a session on click and on Gesture `tap` (touch).
+		// DOM event propagation stops only cover mouse/pointer events; the
+		// list's tap handler reads from `Gesture` directly, bypassing
+		// bubbling. Combine both: stop pointer/click for mouse, and
+		// register the toolbar with `Gesture.ignoreTarget` so synthesized
+		// tap events on touch never reach the list either.
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleToolbarContainer, eventType, e => e.stopPropagation()));
 		}
+		disposables.add(Gesture.ignoreTarget(titleToolbarContainer));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
 		// Approval row
@@ -871,11 +878,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		// React to phone <-> desktop viewport transitions: refresh heights for
-		// all known sessions so the virtual list reserves the correct space
-		// for the new layout. Cheap O(visible) call; relies on the existing
-		// `IsPhoneLayoutContext` reactive signal already maintained by the
-		// agents workbench.
+		// React to phone <-> desktop viewport transitions: refresh heights
+		// for all known sessions so the virtual list reserves the correct
+		// space for the new layout. Iterates `this.sessions` (all known
+		// sessions) — a phone/desktop transition is a rare event so the
+		// extra work over filtered-out sessions is negligible. Relies on
+		// the `IsPhoneLayoutContext` reactive signal already maintained by
+		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (!e.affectsSome(phoneKeys)) {

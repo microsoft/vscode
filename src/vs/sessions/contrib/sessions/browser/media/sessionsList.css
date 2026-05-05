@@ -442,14 +442,18 @@
 }
 
 /*
- * Phone layout: roomier rows, larger title that wraps to 2 lines, and a
- * slightly larger details row. The taller row height is reserved by
- * `SessionsTreeDelegate.ITEM_HEIGHT_PHONE` — keep these rules in sync if
- * paddings/font sizes change here.
+ * Phone layout: roomier rows with a centered, always-visible action
+ * toolbar that meets the 44px minimum touch target. The taller row
+ * height is reserved by `SessionsTreeDelegate.ITEM_HEIGHT_PHONE` —
+ * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
 	.monaco-list-row:has(.session-item) {
-		margin: 2px 8px;
+		/* Horizontal-only margin: virtual list rows are absolutely
+		 * positioned with JS-set `top`/`height`, so vertical margins
+		 * here would not produce reliable inter-row spacing. Any gap
+		 * lives inside the row via padding. */
+		margin: 0 8px;
 		width: calc(100% - 16px);
 		border-radius: 10px;
 	}
