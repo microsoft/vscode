@@ -422,6 +422,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				inputCost: model.metadata.inputCost,
 				outputCost: model.metadata.outputCost,
 				cacheCost: model.metadata.cacheCost,
+				priceTier: model.metadata.priceTier,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
