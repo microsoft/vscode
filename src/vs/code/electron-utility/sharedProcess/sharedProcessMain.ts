@@ -43,7 +43,7 @@ import { InstantiationService } from '../../../platform/instantiation/common/ins
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { ILanguagePackService } from '../../../platform/languagePacks/common/languagePacks.js';
 import { NativeLanguagePackService } from '../../../platform/languagePacks/node/languagePacks.js';
-import { ConsoleLogger, ILoggerService, ILogService, LoggerGroup } from '../../../platform/log/common/log.js';
+import { ConsoleLogger, ILoggerService, ILogService, isDevConsoleLogForwardingEnabled, LoggerGroup, registerDevConsoleLogForwarder } from '../../../platform/log/common/log.js';
 import { LoggerChannelClient } from '../../../platform/log/common/logIpc.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
@@ -242,6 +242,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const logger = this._register(loggerService.createLogger('sharedprocess', { name: localize('sharedLog', "Shared"), group: sharedLogGroup }));
 		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
+		if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
+			this._register(registerDevConsoleLogForwarder(logService));
+		}
 		services.set(ILogService, logService);
 
 		// Lifecycle

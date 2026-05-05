@@ -244,6 +244,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			if (category.promptType) {
 				const generateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				generateBtn.textContent = localize('new', "New...");
+				generateBtn.setAttribute('aria-label', localize('newCategoryAriaLabel', "New {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.closeEditor();
@@ -257,6 +258,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			} else {
 				const browseBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				browseBtn.textContent = localize('browse', "Browse...");
+				browseBtn.setAttribute('aria-label', localize('browseCategoryAriaLabel', "Browse {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.selectSectionWithMarketplace(category.id);

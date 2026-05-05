@@ -21,6 +21,17 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { isString, Mutable } from '../../../base/common/types.js';
 
+export const AGENTS_WINDOW_PROFILE_ID = 'agents';
+const AGENTS_WINDOW_PROFILE_OPTIONS: IUserDataProfileOptions = {
+	useDefaultFlags: {
+		keybindings: true,
+		prompts: true,
+		mcp: true,
+		snippets: true,
+		tasks: true,
+	}
+};
+
 export const enum ProfileResourceType {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
@@ -57,7 +68,9 @@ export interface IUserDataProfile {
 	readonly agentPluginsHome: URI;
 	readonly cacheHome: URI;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
+	readonly isInternal?: boolean;
 	readonly isTransient?: boolean;
+	readonly isAgentsWindowProfile?: boolean;
 	readonly workspaces?: readonly URI[];
 }
 
@@ -160,6 +173,8 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		cacheHome: URI.revive(profile.cacheHome).with({ scheme }),
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
+		isInternal: profile.isInternal,
+		isAgentsWindowProfile: profile.isAgentsWindowProfile,
 		workspaces: profile.workspaces?.map(w => URI.revive(w)),
 	};
 }
@@ -183,6 +198,8 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
+		isInternal: id === AGENTS_WINDOW_PROFILE_ID || options?.transient,
+		isAgentsWindowProfile: id === AGENTS_WINDOW_PROFILE_ID,
 		workspaces: options?.workspaces,
 	};
 }
@@ -197,13 +214,14 @@ export type StoredUserDataProfile = {
 	location: URI;
 	icon?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
-	isSystem?: boolean;
 };
 
 export type StoredProfileAssociations = {
 	workspaces?: IStringDictionary<string>;
 	emptyWindows?: IStringDictionary<string>;
 };
+
+const SYSTEM_PROFILES_HOME = 'builtin';
 
 export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
 
@@ -320,12 +338,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!storedProfile.location) {
 			return true;
 		}
-		if (storedProfile.isSystem) {
-			return true;
-		}
-		if (this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(storedProfile.location)) === 'builtin') {
-			return true;
-		}
 		return false;
 	}
 
@@ -366,7 +378,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!profileCreationPromise) {
 			profileCreationPromise = (async () => {
 				try {
-					const existing = this.profiles.find(p => p.id === id || (!p.isTransient && !options?.transient && p.name === name));
+					const existing = this.profiles.find(p => p.id === id || (id !== AGENTS_WINDOW_PROFILE_ID && !p.isTransient && !options?.transient && p.name === name));
 					if (existing) {
 						throw new Error(`Profile with ${name} name already exists`);
 					}
@@ -379,9 +391,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 					const profile = toUserDataProfile(
 						id,
 						name,
-						this.uriIdentityService.extUri.joinPath(this.profilesHome, id),
+						this.uriIdentityService.extUri.joinPath(this.profilesHome, ...(id === AGENTS_WINDOW_PROFILE_ID ? [SYSTEM_PROFILES_HOME, id] : [id])),
 						this.profilesCacheHome,
-						options,
+						id === AGENTS_WINDOW_PROFILE_ID ? AGENTS_WINDOW_PROFILE_OPTIONS : options,
 						this.defaultProfile);
 					await this.fileService.createFolder(profile.location);
 
@@ -409,6 +421,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async updateProfile(profile: IUserDataProfile, options: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
+		if (profile.isAgentsWindowProfile) {
+			throw new Error('Cannot update agents window profile');
+		}
+
 		const profilesToUpdate: IUserDataProfile[] = [];
 		for (const existing of this.profiles) {
 			let profileToUpdate: Mutable<IUserDataProfile> | undefined;
@@ -536,17 +552,9 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	async cleanUp(): Promise<void> {
 		try {
 			if (await this.fileService.exists(this.profilesHome)) {
-				const systemProfilesFolder = this.uriIdentityService.extUri.joinPath(this.profilesHome, 'builtin');
-				if (await this.fileService.exists(systemProfilesFolder)) {
-					try {
-						await this.fileService.del(systemProfilesFolder, { recursive: true });
-					} catch (error) {
-						this.logService.error(error);
-					}
-				}
 				const stat = await this.fileService.resolve(this.profilesHome);
 				await Promise.all((stat.children || [])
-					.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
+					.filter(child => child.isDirectory && child.name !== SYSTEM_PROFILES_HOME && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
 					.map(child => this.fileService.del(child.resource, { recursive: true })));
 			}
 		} catch (error) {

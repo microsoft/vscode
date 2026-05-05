@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	JSON_RPC_PARSE_ERROR,
 	type InitializeResult,
@@ -41,7 +41,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		this.timeout(5_000);
 
 		const result = await client.call<InitializeResult>('initialize', {
-			protocolVersion: PROTOCOL_VERSION,
+			protocolVersions: [PROTOCOL_VERSION],
 			clientId: 'test-handshake',
 			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' }).toString()],
 		});
@@ -71,7 +71,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 	test('createSession with invalid provider does not crash server', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-invalid-create' });
 
 		let gotError = false;
 		try {

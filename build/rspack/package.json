@@ -13,7 +13,7 @@
     "source-map-loader": "^5.0.0"
   },
   "dependencies": {
-    "@vscode/component-explorer": "^0.2.1-17",
-    "@vscode/component-explorer-webpack-plugin": "^0.3.1-14"
+    "@vscode/component-explorer": "^0.2.1-25",
+    "@vscode/component-explorer-webpack-plugin": "^0.3.1-22"
   }
 }

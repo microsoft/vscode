@@ -129,7 +129,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { readonly forceNewWindow?: boolean }): Promise<void>;
+	openAgentsWindow(): Promise<void>;
 
 	/**
 	 * Launches the sibling application (host ↔ embedded).

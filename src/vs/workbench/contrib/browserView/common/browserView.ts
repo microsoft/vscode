@@ -688,6 +688,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	override dispose(): void {
 		this._onWillDispose.fire();
 
+		// Stop sharing with the agent before destroying the view so the
+		// tracked-pages set stays in sync with live views.
+		if (this._sharedWithAgent) {
+			void this.playwrightService.stopTrackingPage(this.id);
+		}
+
 		// Clean up the browser view when the model is disposed
 		void this.browserViewService.destroyBrowserView(this.id);
 

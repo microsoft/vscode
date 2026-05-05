@@ -16,7 +16,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ModelPickerActionItem, type IModelPickerDelegate } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
-import { ActiveSessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -40,7 +40,10 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionAgentHost,
+				// On phone the {@link MobileChatInputConfigPicker} replaces
+				// this picker with a unified mode + model bottom sheet, so
+				// gate this desktop-only Action out of phone layouts.
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}],
 		});
 	}

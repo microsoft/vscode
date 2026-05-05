@@ -8,13 +8,76 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
-/** Connection status for a remote agent host. */
-export const enum RemoteAgentHostConnectionStatus {
-	Connected = 'connected',
-	Connecting = 'connecting',
-	Disconnected = 'disconnected',
+/**
+ * Connection status for a remote agent host.
+ *
+ * Discriminated by `kind`. The `incompatible` variant carries the rejection
+ * message returned by the host (typically when its protocol version is not
+ * compatible with anything the client offered) so the UI can surface it.
+ */
+export type RemoteAgentHostConnectionStatus =
+	| { readonly kind: 'connected' }
+	| { readonly kind: 'connecting' }
+	| { readonly kind: 'disconnected' }
+	| {
+		readonly kind: 'incompatible';
+		/** Human-readable reason from the host (or a synthesised one when the host did not send one). */
+		readonly message: string;
+		/** Protocol versions the client offered. */
+		readonly supportedByClient: readonly string[];
+		/** Protocol versions the server reported it can speak, if available. */
+		readonly offeredByServer?: readonly string[];
+	};
+
+export namespace RemoteAgentHostConnectionStatus {
+	/** Singleton "connected" status. */
+	export const connected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connected' });
+	/** Singleton "connecting" status. */
+	export const connecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connecting' });
+	/** Singleton "disconnected" status. */
+	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected' });
+	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
+	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[]): RemoteAgentHostConnectionStatus {
+		return Object.freeze({ kind: 'incompatible', message, supportedByClient, offeredByServer });
+	}
+	/** Whether the connection is fully established and ready for traffic. */
+	export function isConnected(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'connected';
+	}
+	/** Whether the connection is mid-handshake. */
+	export function isConnecting(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'connecting';
+	}
+	/** Whether the connection is in the plain disconnected state. */
+	export function isDisconnected(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind === 'disconnected';
+	}
+	/** Whether the connection rejected our protocol version. */
+	export function isIncompatible(status: RemoteAgentHostConnectionStatus | undefined): status is RemoteAgentHostConnectionStatus & { kind: 'incompatible' } {
+		return status?.kind === 'incompatible';
+	}
+	/** Whether the connection is anything except `connected`. */
+	export function isUnavailable(status: RemoteAgentHostConnectionStatus | undefined): boolean {
+		return status?.kind !== 'connected';
+	}
+	/**
+	 * If `err` is a protocol-version mismatch reported by an agent host
+	 * during the `initialize` handshake, returns an `incompatible` status
+	 * carrying the host's message. Returns `undefined` otherwise so callers
+	 * can fall back to their existing failure handling.
+	 */
+	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
+		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
+			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
+			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
+			return incompatible(err.message, supportedByClient, offeredByServer);
+		}
+		return undefined;
+	}
 }
 
 /** Configuration key for the list of remote agent host addresses. */

@@ -9,7 +9,7 @@ import { tmpdir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type SessionAddedNotification } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import type { SessionState } from '../../../common/state/sessionState.js';
 import {
@@ -39,7 +39,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		this.timeout(10_000);
 		client = new TestProtocolClient(server.port);
 		await client.connect();
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-session-config' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-session-config' });
 	});
 
 	teardown(function () {
@@ -173,7 +173,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 		try {
 			const client1 = new TestProtocolClient(server1.port);
 			await client1.connect();
-			await client1.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-config-restore-1' });
+			await client1.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-1' });
 
 			await client1.call('createSession', {
 				session: nextSessionUri(),
@@ -224,7 +224,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 		try {
 			const client2 = new TestProtocolClient(server2.port);
 			await client2.connect();
-			await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-config-restore-2' });
+			await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-config-restore-2' });
 
 			// Subscribing triggers the restore-on-subscribe path on the server,
 			// which reads `configValues` from the per-session DB and overlays

@@ -192,6 +192,12 @@ declare module 'vscode' {
 		 * Whether this skill should be shown to users as invocable.
 		 */
 		readonly userInvocable?: boolean;
+
+		/**
+		 * Whether this skill should be excluded from model invocation.
+		 * When true, the skill can only be triggered manually via `/name`.
+		 */
+		readonly disableModelInvocation: boolean;
 	}
 
 	/**

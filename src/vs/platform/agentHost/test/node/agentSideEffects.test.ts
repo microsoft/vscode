@@ -426,7 +426,23 @@ suite('AgentSideEffects', () => {
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,
+				_meta: undefined,
 			}]);
+		});
+
+		test('model observable update publishes model metadata', async () => {
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents[0]?.models.length === 1;
+			}));
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, _meta: { multiplierNumeric: 2 } }]);
+
+			const { action } = await envelope;
+
+			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(action.agents[0].models[0]._meta, { multiplierNumeric: 2 });
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {

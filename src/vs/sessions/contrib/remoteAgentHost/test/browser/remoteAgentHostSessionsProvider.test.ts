@@ -325,6 +325,25 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.label, 'myhost:9999');
 	});
 
+	test('session type icons use per-agent codicons', () => {
+		connection.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
+			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
+		]);
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		assert.deepStrictEqual(
+			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
+			[
+				{ id: COPILOT_CLI_SESSION_TYPE, icon: 'copilot' },
+				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'openai', icon: 'openai' },
+				{ id: 'unknown-agent', icon: 'remote' },
+			],
+		);
+	});
+
 	// ---- Workspace resolution -------
 
 	test('resolveWorkspace builds workspace from URI', () => {

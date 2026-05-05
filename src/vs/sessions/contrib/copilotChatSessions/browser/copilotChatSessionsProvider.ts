@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -71,6 +71,8 @@ export interface ICopilotChatSession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** File changesets produced by the session. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
@@ -180,6 +182,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
+	private readonly _changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
@@ -258,6 +263,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 		this._description = observableValue(this, undefined);
 		this.description = this._description;
+
+		this._changesets = observableValue<readonly ISessionChangeset[]>(this, []);
+		this.changesets = this._changesets;
 
 		this._changes = observableValue<readonly ISessionFileChange[]>(this, []);
 		this.changes = this._changes;
@@ -416,6 +424,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
 		this._updatedAt.set(session.updatedAt.get(), undefined);
+		this._changesets.set(session.changesets.get(), undefined);
 		this._changes.set(session.changes.get(), undefined);
 		this._description.set(session.description.get(), undefined);
 	}
@@ -463,6 +472,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
+	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValue<readonly ISessionFileChange[]>(this, []);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
@@ -705,6 +715,7 @@ class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
+	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValue<readonly ISessionFileChange[]>(this, []);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
@@ -844,6 +855,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
 	readonly status: IObservable<SessionStatus>;
 
+	private readonly _changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
@@ -895,6 +909,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		this._status = observableValue(this, toSessionStatus(session.status));
 		this.status = this._status;
+
+		this._changesets = observableValue<readonly ISessionChangeset[]>(this, this._extractChangesets(session));
+		this.changesets = this._changesets;
 
 		this._changes = observableValue<readonly ISessionFileChange[]>(this, this._extractChanges(session));
 		this.changes = this._changes;
@@ -1092,6 +1109,10 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		}
 
 		return undefined;
+	}
+
+	private _extractChangesets(session: IAgentSession): readonly ISessionChangeset[] {
+		return [];
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
@@ -2593,6 +2614,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
+			changesets: primaryChat.changesets,
 			changes: primaryChat.changes,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
@@ -2623,6 +2645,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
+			changesets: chat.changesets,
 			changes: chat.changes,
 			modelId: chat.modelId,
 			mode: chat.mode,
@@ -2645,6 +2668,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,
+			changesets: chat.changesets,
 			changes: chat.changes,
 			modelId: chat.modelId,
 			mode: chat.mode,

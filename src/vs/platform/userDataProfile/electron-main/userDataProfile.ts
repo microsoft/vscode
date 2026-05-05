@@ -12,7 +12,7 @@ import { refineServiceDecorator } from '../../instantiation/common/instantiation
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from '../common/userDataProfile.js';
+import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile, AGENTS_WINDOW_PROFILE_ID } from '../common/userDataProfile.js';
 import { UserDataProfilesService } from '../node/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IStateService } from '../../state/node/state.js';
@@ -23,6 +23,7 @@ import { join, resolve } from '../../../base/common/path.js';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
+	createAgentsWindowProfile(): Promise<IUserDataProfile>;
 	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined;
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void;
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[];
@@ -66,6 +67,15 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
 			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentPluginsHome
 		};
+	}
+
+	async createAgentsWindowProfile(): Promise<IUserDataProfile> {
+		const existing = this.profiles.find(p => p.id === AGENTS_WINDOW_PROFILE_ID);
+		if (existing) {
+			return existing;
+		}
+
+		return this.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents');
 	}
 
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {

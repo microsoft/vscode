@@ -460,6 +460,13 @@ suite('OutputMonitor', () => {
 		});
 		test('matches password and press-any-key prompts', () => {
 			assert.strictEqual(detectsHighConfidenceInputPattern('Password: '), true);
+			// xterm's translateToString(trimRight=true) strips trailing whitespace from
+			// non-wrapped buffer lines, so a real `Password: ` prompt is captured as
+			// `Password:` with no trailing space (e.g. when running `sudo su`).
+			assert.strictEqual(detectsHighConfidenceInputPattern('Password:'), true);
+			// The colon is required: a bare line ending with the word "password" should
+			// not match (avoids false positives on log/help output that mentions the word).
+			assert.strictEqual(detectsHighConfidenceInputPattern('Enter your password'), false);
 			assert.strictEqual(detectsHighConfidenceInputPattern('Press any key to continue...'), true);
 		});
 		test('matches parenthesized defaults', () => {

@@ -126,7 +126,7 @@ export class WorkspacePicker extends Disposable {
 	/** Provider ID chosen during the last local folder browse. */
 	private _selectedLocalProviderId: string | undefined;
 
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
@@ -344,10 +344,8 @@ export class WorkspacePicker extends Disposable {
 	private _buildDelegate(triggerElement: HTMLElement, hide: () => void): IActionListDelegate<IWorkspacePickerItem> {
 		return {
 			onSelect: (item) => {
-				hide();
-				if (item.run) {
-					item.run();
-				} else if (item.commandId) {
+				this.actionWidgetService.hide();
+				if (item.commandId) {
 					this.commandService.executeCommand(item.commandId);
 				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
@@ -439,6 +437,28 @@ export class WorkspacePicker extends Disposable {
 			width: TABBED_PICKER_WIDTH,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
+	}
+
+	/**
+	 * Dispatch logic for a picker item once the user picks it. Shared
+	 * between the desktop action-widget delegate and any mobile sheet
+	 * subclass that opts to render a different UI but reuse the
+	 * selection semantics. Treats unavailable workspaces as a no-op.
+	 */
+	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		if (item.run) {
+			item.run();
+		} else if (item.commandId) {
+			this.commandService.executeCommand(item.commandId);
+		} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+			// Workspace belongs to an unavailable remote — ignore selection
+			return;
+		}
+		if (item.browseActionIndex !== undefined) {
+			this._executeBrowseAction(item.browseActionIndex);
+		} else if (item.selection) {
+			this._selectProject(item.selection);
+		}
 	}
 
 	/**
@@ -623,7 +643,7 @@ export class WorkspacePicker extends Disposable {
 			const isOwnRecent = i < ownRecentCount;
 			const provider = allProviders.find(p => p.id === providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isDisconnected = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected;
+			const isDisconnected = RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus) || RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
 			const selection: IWorkspaceSelection = { providerId, workspace };
 			const selected = this._isSelectedWorkspace(selection);
 			items.push({
@@ -654,7 +674,7 @@ export class WorkspacePicker extends Disposable {
 		allBrowseActions.forEach((action, index) => {
 			const provider = allProviders.find(p => p.id === action.providerId);
 			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isUnavailable = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected || connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
+			const isUnavailable = !!connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(connectionStatus);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.browseSelectAction', "Select..."),
@@ -684,7 +704,9 @@ export class WorkspacePicker extends Disposable {
 					},
 				});
 				const extended = action as IWorkspacePickerAction;
-				extended.icon = isTunnel ? Codicon.cloud : Codicon.remote;
+				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
+					? Codicon.warning
+					: (isTunnel ? Codicon.cloud : Codicon.remote);
 				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress) {
 					extended.onRemove = async () => {
@@ -764,7 +786,7 @@ export class WorkspacePicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
-		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
+		return !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
 	}
 
 	protected _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
@@ -872,7 +894,7 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		const connStatus = provider.connectionStatus;
-		if (connStatus.get() === RemoteAgentHostConnectionStatus.Connected) {
+		if (RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
 			return;
 		}
 
@@ -892,9 +914,9 @@ export class WorkspacePicker extends Disposable {
 		let isFirstRun = true;
 		store.add(autorun(reader => {
 			const status = connStatus.read(reader);
-			if (status === RemoteAgentHostConnectionStatus.Connected) {
+			if (RemoteAgentHostConnectionStatus.isConnected(status)) {
 				this._connectionStatusWatch.clear();
-			} else if (status === RemoteAgentHostConnectionStatus.Disconnected && !isFirstRun) {
+			} else if ((RemoteAgentHostConnectionStatus.isDisconnected(status) || RemoteAgentHostConnectionStatus.isIncompatible(status)) && !isFirstRun) {
 				fallback();
 			}
 			isFirstRun = false;
@@ -904,7 +926,7 @@ export class WorkspacePicker extends Disposable {
 		// fall back. Catches the case where the provider's status flips before
 		// our autorun subscribes (so we never observe a transition).
 		disposableTimeout(() => {
-			if (connStatus.get() !== RemoteAgentHostConnectionStatus.Connected) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connStatus.get())) {
 				fallback();
 			}
 		}, RESTORE_CONNECT_GRACE_MS, store);

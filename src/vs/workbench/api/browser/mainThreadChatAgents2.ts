@@ -251,6 +251,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			pluginUri: skill.pluginUri,
 			sessionTypes: skill.sessionTypes,
 			userInvocable: skill.userInvocable,
+			disableModelInvocation: skill.disableModelInvocation,
 		};
 	}
 

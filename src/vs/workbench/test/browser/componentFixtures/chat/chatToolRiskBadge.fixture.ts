@@ -30,10 +30,15 @@ function renderBadge(context: ComponentFixtureContext, state: RenderState): void
 
 	container.style.padding = '8px';
 	container.style.width = '320px';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('interactive-session');
 
+	// Wrap in `.chat-confirmation-widget2` so the production CSS rules
+	// (scoped to that ancestor selector in toolRiskBadge.css) apply.
 	const itemContainer = dom.$('.interactive-item-container');
-	itemContainer.appendChild(widget.domNode);
+	const widgetContainer = dom.$('.chat-confirmation-widget2');
+	widgetContainer.appendChild(widget.domNode);
+	itemContainer.appendChild(widgetContainer);
 	container.appendChild(itemContainer);
 }
 

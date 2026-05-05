@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IModelChangedAction, IResponsePartAction, SessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import { PendingMessageKind, ResponsePartKind, type SessionState } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
@@ -156,7 +156,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	test('session model flows through create, subscribe, listSessions, and modelChanged', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-model-summary' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-model-summary' });
 
 		const sessionUri = nextSessionUri();
 		await client.call('createSession', { session: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
@@ -512,7 +512,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	test('fork with invalid source session returns error', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-fork-no-source' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fork-no-source' });
 
 		let gotError = false;
 		try {

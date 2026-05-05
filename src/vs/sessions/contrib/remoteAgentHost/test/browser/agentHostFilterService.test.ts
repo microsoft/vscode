@@ -24,7 +24,7 @@ class StubRemoteProvider {
 	private readonly _status;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus>;
 
-	constructor(address: string, label: string, status = RemoteAgentHostConnectionStatus.Connected) {
+	constructor(address: string, label: string, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected) {
 		this.id = `agenthost-${address}`;
 		this.label = label;
 		this.remoteAddress = address;
@@ -94,7 +94,7 @@ suite('AgentHostFilterService', () => {
 	test('defaults based on platform when none persisted', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B') as unknown as ISessionsProvider));
-		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.Disconnected) as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.disconnected) as unknown as ISessionsProvider));
 		const service = createService(providers);
 		assert.strictEqual(service.selectedProviderId, isWeb ? pid('localhost:4321') : undefined);
 	});
@@ -102,7 +102,7 @@ suite('AgentHostFilterService', () => {
 	test('surfaces registered remote providers with their connection status', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
-		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B', RemoteAgentHostConnectionStatus.Disconnected) as unknown as ISessionsProvider));
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B', RemoteAgentHostConnectionStatus.disconnected) as unknown as ISessionsProvider));
 		const service = createService(providers);
 
 		const hosts = [...service.hosts].map(h => ({ label: h.label, status: h.status, providerId: h.providerId }));
@@ -121,7 +121,7 @@ suite('AgentHostFilterService', () => {
 		let events = 0;
 		store.add(service.onDidChange(() => events++));
 
-		hostA.setStatus(RemoteAgentHostConnectionStatus.Disconnected);
+		hostA.setStatus(RemoteAgentHostConnectionStatus.disconnected);
 		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Disconnected);
 		assert.strictEqual(events, 1);
 	});

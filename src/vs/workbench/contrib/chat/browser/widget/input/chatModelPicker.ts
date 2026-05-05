@@ -163,7 +163,6 @@ function createModelAction(
 	languageModelsService: ILanguageModelsService,
 	section?: string,
 ): IActionWidgetDropdownAction & { section?: string } {
-	const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
 	const configDescription = getModelConfigurationDescription(model, languageModelsService);
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
@@ -183,7 +182,6 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
-		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 }

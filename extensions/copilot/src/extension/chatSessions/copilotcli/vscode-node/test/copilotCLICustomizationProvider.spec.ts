@@ -60,7 +60,7 @@ function makeInstruction(uri: URI, name: string, pattern: string | undefined, de
 
 /** Creates a ChatSkill stub, deriving the name from the parent directory for SKILL.md files. */
 function makeSkill(uri: URI, name: string): vscode.ChatSkill {
-	return { uri, name: name, source: 'local' };
+	return { uri, name: name, source: 'local', disableModelInvocation: false };
 }
 
 /** Creates a ChatHook stub. */

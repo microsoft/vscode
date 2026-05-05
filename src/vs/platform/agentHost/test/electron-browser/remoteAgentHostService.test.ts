@@ -129,7 +129,7 @@ suite('RemoteAgentHostService', () => {
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {
-		while (!service.connections.some(c => c.status === RemoteAgentHostConnectionStatus.Connected)) {
+		while (!service.connections.some(c => RemoteAgentHostConnectionStatus.isConnected(c.status))) {
 			await Event.toPromise(service.onDidChangeConnections);
 		}
 	}
@@ -168,7 +168,7 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
-		const connected = service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected);
+		const connected = service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status));
 		assert.strictEqual(connected.length, 1);
 		assert.strictEqual(connected[0].address, 'host1:8080');
 		assert.strictEqual(connected[0].name, 'Host 1');
@@ -213,7 +213,7 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		const entry = service.connections.find(c => c.address === 'host1:8080');
 		assert.ok(entry);
-		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.Disconnected);
+		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
 	});
 
 	test('removes connection on connect failure', async () => {
@@ -240,7 +240,7 @@ suite('RemoteAgentHostService', () => {
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
 
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 2);
 
 		const conn1 = service.getConnection('ws://host1:8080');
 		const conn2 = service.getConnection('ws://host2:8080');
@@ -294,7 +294,7 @@ suite('RemoteAgentHostService', () => {
 			name: 'Host 1',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
-			status: RemoteAgentHostConnectionStatus.Connected,
+			status: RemoteAgentHostConnectionStatus.connected,
 		});
 	});
 
@@ -320,7 +320,7 @@ suite('RemoteAgentHostService', () => {
 			name: 'Updated Host',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
-			status: RemoteAgentHostConnectionStatus.Connected,
+			status: RemoteAgentHostConnectionStatus.connected,
 		});
 	});
 
@@ -375,7 +375,7 @@ suite('RemoteAgentHostService', () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 
 		configService.setEnabled(false);
 
@@ -395,7 +395,7 @@ suite('RemoteAgentHostService', () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 
 		configService.setEnabled(false);
 		assert.strictEqual(service.connections.length, 0);
@@ -404,7 +404,7 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(createdClients.length, 2); // new client created
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 	});
 
 	test('removeRemoteAgentHost removes entry and disconnects', async () => {
@@ -415,14 +415,14 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 2);
 
 		await service.removeRemoteAgentHost('ws://host1:8080');
 
 		assert.deepStrictEqual(configService.entries, [
 			{ address: 'ws://host2:9090', name: 'Host 2', connectionToken: undefined },
 		]);
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		assert.ok(service.getConnection('ws://host2:9090'));
 	});

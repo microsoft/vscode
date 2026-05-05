@@ -39,29 +39,34 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
-			.map(m => ({
-				identifier: `${this._vendor}:${m.id}`,
-				metadata: {
-					extension: nullExtensionDescription.identifier,
-					name: m.name,
-					id: m.id,
-					vendor: this._vendor,
-					version: '1.0',
-					family: m.id,
-					maxInputTokens: m.maxContextWindow ?? 0,
-					maxOutputTokens: 0,
-					isDefaultForLocation: {},
-					isUserSelectable: true,
-					modelPickerCategory: undefined,
-					targetChatSessionType: this._sessionType,
-					capabilities: {
-						vision: m.supportsVision ?? false,
-						toolCalling: true,
-						agentMode: true,
+			.map(m => {
+				const multiplierNumeric = typeof m._meta?.multiplierNumeric === 'number' ? m._meta.multiplierNumeric : undefined;
+				return {
+					identifier: `${this._vendor}:${m.id}`,
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: m.name,
+						id: m.id,
+						vendor: this._vendor,
+						version: '1.0',
+						family: m.id,
+						maxInputTokens: m.maxContextWindow ?? 0,
+						maxOutputTokens: 0,
+						isDefaultForLocation: {},
+						isUserSelectable: true,
+						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
+						multiplierNumeric,
+						modelPickerCategory: undefined,
+						targetChatSessionType: this._sessionType,
+						capabilities: {
+							vision: m.supportsVision ?? false,
+							toolCalling: true,
+							agentMode: true,
+						},
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
 					},
-					configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
-				},
-			}));
+				};
+			});
 	}
 
 	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {

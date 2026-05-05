@@ -17,22 +17,32 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobileWorkspacePickerSheet.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 
 /**
- * A simplified workspace picker that scopes its contents to the host
- * currently selected in the agent host filter. It shows:
+ * Web variant of {@link WorkspacePicker} for the Agents window's
+ * vscode.dev / insiders.vscode.dev surface. Two responsibilities on
+ * top of the desktop picker:
  *
- *  1. Recent workspaces for the selected host
- *  2. A single "Select Folder..." entry that invokes the host's browse action
+ *  1. Scopes its contents to the host currently selected in the agent
+ *     host filter — recent workspaces for that host plus a single
+ *     "Select Folder..." entry that invokes the host's browse action.
+ *  2. On phone-layout viewports renders the picker as a bottom sheet
+ *     (via `showMobileWorkspacePickerSheet`) instead of the desktop
+ *     action-widget popup. Falls through to `super.showPicker()` on
+ *     non-phone viewports, so a single instance works correctly
+ *     across rotation across the phone breakpoint.
  *
- * Falls back to the Copilot local provider when no host is selected (e.g. on
- * desktop, where the host filter UI is not surfaced).
+ * Falls back to the Copilot local provider when no host is selected
+ * (e.g. on Electron desktop, where the host filter UI is not
+ * surfaced).
  */
-export class ScopedWorkspacePicker extends WorkspacePicker {
+export class WebWorkspacePicker extends WorkspacePicker {
 
 	constructor(
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
@@ -49,6 +59,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
 			actionWidgetService,
@@ -73,9 +84,31 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _showTabs(): boolean {
-		// Scoped picker is already filtered to a single host \u2014 the categorical
+		// Scoped picker is already filtered to a single host — the categorical
 		// tab bar would be redundant.
 		return false;
+	}
+
+	override showPicker(): void {
+		if (!this._triggerElement) {
+			return;
+		}
+		// On phone, render the picker as a bottom sheet instead of the
+		// desktop action-widget popup. Falls through to `super` on non-
+		// phone viewports so a single instance handles both desktop
+		// browsers and rotation across the phone breakpoint.
+		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
+			super.showPicker();
+			return;
+		}
+		const items = this._buildItems();
+		showMobileWorkspacePickerSheet(
+			this._layoutService,
+			this._triggerElement,
+			items,
+			item => this._dispatchPickerItem(item),
+			this._getAllBrowseActions(),
+		);
 	}
 
 	private _onScopedHostChanged(): void {
