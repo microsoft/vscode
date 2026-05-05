@@ -21,7 +21,7 @@ import { SessionTruncatedAction } from '../../../../../../platform/agentHost/com
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type AgentSelection, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -966,6 +966,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					model: selectedModel,
 				});
 			}
+		}
+
+		// Same dance for the custom-agent selection: derive from the request's
+		// `modeInstructions` (which the chat layer plumbs from the chat widget's
+		// current mode) and dispatch a `SessionAgentChanged` if it differs from
+		// the persisted summary. Built-in modes (Ask/Edit/Agent) clear the
+		// selection.
+		const selectedAgent = this._createAgentSelection(request.modeInstructions);
+		const currentAgent = this._getSessionState(session.toString())?.summary.agent;
+		if (!this._agentSelectionsEqual(currentAgent, selectedAgent)) {
+			this._config.connection.dispatch({
+				type: ActionType.SessionAgentChanged,
+				session: session.toString(),
+				agent: selectedAgent,
+			});
 		}
 
 		// If the chat model has fewer previous requests than the protocol has
@@ -2342,6 +2357,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const aKeys = Object.keys(aConfig);
 		const bKeys = Object.keys(bConfig);
 		return aKeys.length === bKeys.length && aKeys.every(key => aConfig[key] === bConfig[key]);
+	}
+
+	/**
+	 * Derives the active custom-agent selection from a chat request's
+	 * `modeInstructions`. Returns `{ id }` (the agent's source URI) when the
+	 * user picked a customization-derived custom agent that carries a URI, or
+	 * `undefined` for built-in modes (Ask/Edit/Agent — `modeInstructions` is
+	 * absent or `isBuiltin: true`) or when no URI is available.
+	 */
+	private _createAgentSelection(modeInstructions: { readonly uri?: URI; readonly isBuiltin?: boolean } | undefined): AgentSelection | undefined {
+		if (!modeInstructions || modeInstructions.isBuiltin || !modeInstructions.uri) {
+			return undefined;
+		}
+		return { id: modeInstructions.uri.toString() };
+	}
+
+	private _agentSelectionsEqual(a: AgentSelection | undefined, b: AgentSelection | undefined): boolean {
+		return a?.id === b?.id;
 	}
 
 	/**

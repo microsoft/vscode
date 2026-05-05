@@ -566,6 +566,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
 			};
 
+		case ActionType.SessionAgentChanged:
+			return {
+				...state,
+				summary: { ...state.summary, agent: action.agent, modifiedAt: Date.now() },
+			};
+
 		case ActionType.SessionIsReadChanged:
 			return {
 				...state,

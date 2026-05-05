@@ -752,6 +752,13 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.SessionAgentChanged: {
+				const agent = this._options.getAgent(action.session);
+				agent?.changeAgent?.(URI.parse(action.session), action.agent).catch(err => {
+					this._logService.error('[AgentSideEffects] changeAgent failed', err);
+				});
+				break;
+			}
 			case ActionType.SessionTitleChanged: {
 				this._persistSessionFlag(action.session, 'customTitle', action.title);
 				break;

@@ -606,6 +606,16 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.setModel(model, { reasoningEffort });
 	}
 
+	async setAgent(name: string | undefined): Promise<void> {
+		if (name) {
+			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
+			await this._wrapper.session.rpc.agent.select({ name });
+		} else {
+			this._logService.info(`[Copilot:${this.sessionId}] Clearing custom agent selection`);
+			await this._wrapper.session.rpc.agent.deselect();
+		}
+	}
+
 	// ---- permission handling ------------------------------------------------
 
 	/**

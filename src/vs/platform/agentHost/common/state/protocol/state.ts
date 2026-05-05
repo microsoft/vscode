@@ -236,6 +236,22 @@ export interface ModelSelection {
 	config?: Record<string, string>;
 }
 
+/**
+ * An agent selection: the URI of the chosen custom agent's source `.agent.md`
+ * file (matching `INamedPluginResource.uri` / `ICustomAgent.uri` in the
+ * customization pipeline). URIs are unique by construction, so selection is
+ * unambiguous even when two plugins contribute agents with the same `name`.
+ * Selection is opaque to the protocol — providers translate the URI to their
+ * backend's representation (e.g. the Copilot SDK addresses agents by `name`,
+ * so the Copilot provider does a URI → name lookup at its SDK boundary).
+ *
+ * @category Root State
+ */
+export interface AgentSelection {
+	/** URI of the agent's source file (a stringified URI; same shape as `ModelSelection.id`). */
+	id: URI;
+}
+
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
 /**
@@ -401,6 +417,8 @@ export interface SessionSummary {
 	project?: ProjectInfo;
 	/** Currently selected model */
 	model?: ModelSelection;
+	/** Currently selected custom agent */
+	agent?: AgentSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
 	/** Files changed during this session with diff statistics */

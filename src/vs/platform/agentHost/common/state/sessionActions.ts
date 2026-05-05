@@ -24,6 +24,7 @@ export {
 	type SessionDiffsChangedAction,
 	type SessionErrorAction,
 	type SessionModelChangedAction,
+	type SessionAgentChangedAction,
 	type SessionReadyAction,
 	type SessionReasoningAction,
 	type SessionResponsePartAction,

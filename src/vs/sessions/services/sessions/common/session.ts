@@ -208,6 +208,12 @@ export interface IChat {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/**
+	 * Currently selected custom-agent URI (the agent's source `.agent.md` —
+	 * matches `INamedPluginResource.uri` / `ICustomAgent.uri`), or `undefined`
+	 * for the default agent.
+	 */
+	readonly agentId?: IObservable<URI | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the chat is archived. */
@@ -254,6 +260,12 @@ export interface ISession {
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
+	/**
+	 * Currently selected custom-agent URI (the agent's source `.agent.md` —
+	 * matches `INamedPluginResource.uri` / `ICustomAgent.uri`), or `undefined`
+	 * for the default agent.
+	 */
+	readonly agentId?: IObservable<URI | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */

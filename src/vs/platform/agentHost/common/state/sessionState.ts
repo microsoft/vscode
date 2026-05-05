@@ -50,6 +50,7 @@ export {
 	type SessionConfigState,
 	type FileEdit as ISessionFileDiff,
 	type ModelSelection,
+	type AgentSelection,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary,
