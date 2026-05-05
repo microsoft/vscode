@@ -40,7 +40,7 @@ import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus } from '../../prompt/common/conversation';
-import { IBuildPromptContext } from '../../prompt/common/intents';
+import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
@@ -48,6 +48,7 @@ import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
@@ -71,6 +72,34 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Returns true when the user explicitly referenced the todo tool (e.g. typed
+ * `#todo` in their message) or a custom agent configuration includes it as a
+ * tool reference. Checking `request.toolReferences` is a stronger signal than
+ * `request.tools` because core tools always appear as enabled in the default
+ * tool picker state, which would prevent the experiment from taking effect.
+ *
+ * @internal - exported for testing
+ */
+export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolean {
+	const todoReferenceName = 'todo';
+	return request.toolReferences.some(ref =>
+		ref.name === todoReferenceName
+		|| ref.name === ToolName.CoreManageTodoList
+	);
+}
+
+/**
+ * Returns true when the background todo agent should manage todos instead of
+ * exposing the regular todo tool to the main agent.
+ *
+ * @internal - exported for testing
+ */
+export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
+	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+		&& !isTodoToolExplicitlyEnabled(request);
 }
 
 export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
@@ -125,9 +154,15 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	allowTools[ToolName.SessionStoreSql] = true;
+
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	if (model.family.includes('grok-code')) {
+		allowTools[ToolName.CoreManageTodoList] = false;
+	}
+
+	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -136,7 +171,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools['task_complete'] = request.permissionLevel === 'autopilot';
 
 	allowTools[ToolName.EditFilesPlaceholder] = false;
-	allowTools[ToolName.SessionStoreSql] = false; // Only available via /chronicle
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;
@@ -186,6 +220,7 @@ export class AgentIntent extends EditCodeIntent {
 	override readonly id = AgentIntent.ID;
 
 	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
+	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoProcessor>();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -196,6 +231,7 @@ export class AgentIntent extends EditCodeIntent {
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IChatSessionService chatSessionService: IChatSessionService,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
 		chatSessionService.onDidDisposeChatSession(sessionId => {
@@ -203,6 +239,11 @@ export class AgentIntent extends EditCodeIntent {
 			if (summarizer) {
 				summarizer.cancel();
 				this._backgroundSummarizers.delete(sessionId);
+			}
+			const todoProcessor = this._backgroundTodoProcessors.get(sessionId);
+			if (todoProcessor) {
+				todoProcessor.cancel();
+				this._backgroundTodoProcessors.delete(sessionId);
 			}
 		});
 	}
@@ -214,6 +255,15 @@ export class AgentIntent extends EditCodeIntent {
 			this._backgroundSummarizers.set(sessionId, summarizer);
 		}
 		return summarizer;
+	}
+
+	getOrCreateBackgroundTodoProcessor(sessionId: string): BackgroundTodoProcessor {
+		let processor = this._backgroundTodoProcessors.get(sessionId);
+		if (!processor) {
+			processor = new BackgroundTodoProcessor(this._logService);
+			this._backgroundTodoProcessors.set(sessionId, processor);
+		}
+		return processor;
 	}
 
 	protected override getIntentHandlerOptions(request: vscode.ChatRequest): IDefaultIntentRequestHandlerOptions | undefined {
@@ -240,7 +290,25 @@ export class AgentIntent extends EditCodeIntent {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
 
-		return super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
+		try {
+			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
+		} finally {
+			// Fire one final bg todo review pass once the agent loop has ended for
+			// this turn. The per-round passes never see the very last round, so any
+			// task that just completed otherwise stays stuck as 'in-progress'.
+			// Await completion so the tool invocation runs while the request is
+			// still active — the platform rejects tool calls for completed requests.
+			// Do NOT pass the request `token` as parentToken — it may be cancelled
+			// by the framework after the turn ends, which would immediately abort
+			// the background pass even on a normal completion.
+			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
+				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+				if (todoProcessor) {
+					todoProcessor.executeFinalReview();
+					await todoProcessor.waitForCompletion();
+				}
+			}
+		}
 	}
 
 	private async handleSummarizeCommand(
@@ -271,12 +339,18 @@ export class AgentIntent extends EditCodeIntent {
 			return {};
 		}
 
+		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
 			history,
 			chatVariables: new ChatVariablesCollection([]),
 			query: '',
 			toolCallRounds: [],
 			conversation,
+			tools: {
+				availableTools,
+				toolReferences: request.toolReferences.map(InternalToolReference.from),
+				toolInvocationToken: request.toolInvocationToken,
+			},
 		};
 
 		try {
@@ -286,6 +360,7 @@ export class AgentIntent extends EditCodeIntent {
 				endpoint,
 				location: ChatLocation.Agent,
 				promptContext,
+				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
 
@@ -727,6 +802,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
+		// ── Background todo processing ──────────────────────────────────
+		this._maybeStartBackgroundTodoPass(promptContext, token);
+
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
 			const currentTurn = promptContext.conversation?.getLatestTurn();
@@ -1118,6 +1196,54 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			contextRatio,
 		});
 		GenAiMetrics.incrementAgentSummarizationCount(this.otelService, outcome);
+	}
+
+	// ── Background todo processing ──────────────────────────────────
+
+	/**
+	 * Returns the `BackgroundTodoProcessor` for this session, or `undefined`
+	 * if the intent is not an `AgentIntent`.
+	 */
+	private _getOrCreateBackgroundTodoProcessor(sessionId: string | undefined): BackgroundTodoProcessor | undefined {
+		if (!sessionId || !(this.intent instanceof AgentIntent)) {
+			return undefined;
+		}
+		return this.intent.getOrCreateBackgroundTodoProcessor(sessionId);
+	}
+
+	/**
+	 * Kick off a background todo pass if the policy says to run.
+	 */
+	private _maybeStartBackgroundTodoPass(
+		promptContext: IBuildPromptContext,
+		token: vscode.CancellationToken,
+	): void {
+		const sessionId = promptContext.conversation?.sessionId;
+		const processor = this._getOrCreateBackgroundTodoProcessor(sessionId);
+		if (!processor) {
+			return;
+		}
+
+		const { decision, reason, delta } = processor.shouldRun({
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
+			isAgentPrompt: this.prompt === AgentPrompt,
+			promptContext,
+		});
+
+		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
+
+		if (decision !== BackgroundTodoDecision.Run || !delta) {
+			return;
+		}
+
+		processor.executePass(delta, {
+			instantiationService: this.instantiationService,
+			logService: this.logService,
+			toolsService: this.toolsService,
+			telemetryService: this.telemetryService,
+			promptContext,
+		}, token);
 	}
 
 	override processResponse = undefined;

@@ -51,7 +51,7 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 export interface IBackgroundCommand {
 	readonly command: string;
 	readonly termId: string;
-	readonly reason: 'timeout' | 'async';
+	readonly reason: 'timeout' | 'async' | 'inputNeeded';
 	/** Only set when `reason === 'timeout'`. */
 	readonly timeoutMs?: number;
 }
@@ -247,6 +247,13 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 					reason: 'timeout',
 					timeoutMs,
 				});
+			} else if (this.getInputNeeded(meta.result)) {
+				this._seenBackgroundCallIds.add(meta.toolCallId);
+				this._backgroundCommands.push({
+					command: call.command,
+					termId,
+					reason: 'inputNeeded',
+				});
 			} else if (call.invokedAsAsync) {
 				this._seenBackgroundCallIds.add(meta.toolCallId);
 				this._backgroundCommands.push({
@@ -295,6 +302,24 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			return undefined;
 		}
 		return typeof m.timeoutMs === 'number' ? m.timeoutMs : undefined;
+	}
+
+	/**
+	 * Returns `true` if the result indicates the terminal command is waiting
+	 * for user input. The subagent cannot handle this (it lacks
+	 * `send_to_terminal`), so the command should be handed back to the main
+	 * agent.
+	 */
+	private getInputNeeded(toolResult: LanguageModelToolResult2): boolean {
+		if (!('toolMetadata' in toolResult)) {
+			return false;
+		}
+		const metadata = (toolResult as { toolMetadata?: unknown }).toolMetadata;
+		if (!metadata || typeof metadata !== 'object') {
+			return false;
+		}
+		const m = metadata as { inputNeeded?: unknown };
+		return m.inputNeeded === true;
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {

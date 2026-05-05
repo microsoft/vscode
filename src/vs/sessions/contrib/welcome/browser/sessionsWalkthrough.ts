@@ -5,7 +5,7 @@
 
 import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { localize } from '../../../../nls.js';
@@ -14,6 +14,7 @@ import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -24,7 +25,7 @@ import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/co
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchThemeService } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
-import { IThemeImporterService } from '../../../services/vscode/common/themeImporter.js';
+import { IThemeImporterService, IThemePreviewResult } from '../../../services/vscode/common/themeImporter.js';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
@@ -96,6 +97,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
@@ -223,12 +225,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
 		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
-		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
+		const taglineEl = append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
-		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
+		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl, taglineEl);
 	}
 
-	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
+	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement): void {
 		this._isShowingSignIn = true;
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
@@ -278,6 +280,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				errorContainer,
 				titleEl,
 				subtitleEl,
+				taglineEl,
 				signInActions
 			)));
 		} else {
@@ -296,6 +299,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 					strategy,
 					titleEl,
 					subtitleEl,
+					taglineEl,
 					signInActions
 				)));
 			}
@@ -391,10 +395,16 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const themeCards: HTMLElement[] = [];
 		let vscodeThemeBtn: HTMLElement | undefined;
 		let isVSCodeThemeSelected = false;
+		let previewResult: IThemePreviewResult | undefined;
+		const disposePreview = () => {
+			previewResult?.dispose();
+			previewResult = undefined;
+		};
 		for (const theme of themes) {
 			const card = this._createThemeCard(stepDisposables, themeGrid, theme, themeCards, selectedThemeId, id => {
 				selectedThemeId = id;
 				isVSCodeThemeSelected = false;
+				disposePreview();
 				if (vscodeThemeBtn) {
 					vscodeThemeBtn.classList.remove('selected');
 					vscodeThemeBtn.setAttribute('aria-checked', 'false');
@@ -405,7 +415,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Show a VS Code theme option as a radio-style button inside the radiogroup
 		if (parentThemeSettingsId) {
-			const parentName = this.productService.embedded?.nameShort ?? 'VS Code';
+			const parentName = this.environmentService.parentAppNameShort ?? 'VS Code';
 			const option = append(themeGrid, $('.sessions-walkthrough-vscode-theme-option'));
 			vscodeThemeBtn = append(option, $('div.sessions-walkthrough-vscode-theme-radio'));
 			vscodeThemeBtn.setAttribute('role', 'radio');
@@ -418,7 +428,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				parentThemeSettingsId,
 			);
 			vscodeThemeBtn.textContent = labelText;
-			let previewDisposable: IDisposable | undefined;
 			const selectVSCodeTheme = async () => {
 				for (const c of themeCards) {
 					c.classList.remove('selected');
@@ -429,12 +438,11 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				isVSCodeThemeSelected = true;
 
 				// Preview the theme (temporary install from host location)
-				previewDisposable?.dispose();
-				previewDisposable = await this.themeImporterService.previewVSCodeTheme();
+				previewResult = await this.themeImporterService.previewVSCodeTheme();
 				vscodeThemeBtn!.textContent = labelText;
 			};
 			// Dispose preview on step teardown (escape)
-			stepDisposables.add(toDisposable(() => previewDisposable?.dispose()));
+			stepDisposables.add(toDisposable(disposePreview));
 			stepDisposables.add(Gesture.addTarget(vscodeThemeBtn));
 			for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
 				stepDisposables.add(addDisposableListener(vscodeThemeBtn, eventType, selectVSCodeTheme));
@@ -453,7 +461,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		continueBtn.textContent = localize('walkthrough.theme.continue', "Continue");
 		stepDisposables.add(addDisposableListener(continueBtn, EventType.CLICK, async () => {
 			if (isVSCodeThemeSelected) {
-				await this.themeImporterService.importVSCodeTheme();
+				await previewResult?.apply();
 			}
 			this._isShowingWelcome = false;
 			this._isShowingThemeStep = false;
@@ -523,8 +531,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -571,8 +579,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	 * this triggers an OAuth popup. On localhost the embedder's
 	 * env-contributed auth provider handles the flow (e.g. device code).
 	 */
-	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -588,7 +596,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
@@ -608,6 +616,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Swap title and subtitle in-place
 		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
 		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
+		taglineEl.remove();
 
 		// Replace sign-in actions with progress bar
 		const heroText = signInActions.parentElement;
@@ -615,6 +624,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 		signInActions.remove();
+
 		append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
 
 		// Fade back in

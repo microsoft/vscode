@@ -23,7 +23,7 @@ export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 			userDataDir: getUserDataPath(args, productService.nameShort),
 			parentAppUserDataDir: getParentAppUserDataDir(args, productService),
 			parentAppUserHomeDir: getParentAppUserHomeDir(homeDir, productService)
-		}, productService);
+		}, productService, isEmbeddedApp());
 	}
 }
 
@@ -85,4 +85,8 @@ function getParentAppUserHomeDir(homeDir: string, productService: IProductServic
 		return undefined;
 	}
 	return join(homeDir, hostDataFolderName);
+}
+
+function isEmbeddedApp(): boolean {
+	return !!(process as INodeProcess).isEmbeddedApp;
 }
