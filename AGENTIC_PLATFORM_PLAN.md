@@ -610,7 +610,7 @@ Three sprints to land the subscription-integration foundation, then the existing
 
 **Goal:** Production-quality instrumentation and failover.
 
-- [ ] **Provider failover** (§10.1).
+- [x] **Provider failover** (§10.1).
 - [ ] **Connection pooling** and **endpoint probing** (§8.3, §8.4).
 - [ ] **Shared metrics library** + `/metrics` on every service (§11.1, F-9, F-24).
 - [ ] **Cache-hit-rate instrumentation** (§11.2, F-10).

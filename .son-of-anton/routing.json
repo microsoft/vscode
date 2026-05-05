@@ -1,0 +1,37 @@
+{
+	"orchestrator": {
+		"primary": { "provider": "anthropic-oauth", "model": "claude-opus-4-7" },
+		"fallback": [
+			{ "provider": "copilot", "model": "claude-opus" },
+			{ "provider": "anthropic", "model": "claude-opus-4-7" }
+		]
+	},
+	"coder": {
+		"primary": { "provider": "anthropic-oauth", "model": "claude-sonnet-4-6" },
+		"fallback": [
+			{ "provider": "copilot", "model": "claude-sonnet-4" },
+			{ "provider": "anthropic", "model": "claude-sonnet-4-6" }
+		]
+	},
+	"explorer": {
+		"primary": { "provider": "anthropic-oauth", "model": "claude-haiku-4-5-20251001" },
+		"fallback": [
+			{ "provider": "copilot", "model": "gpt-4o" },
+			{ "provider": "anthropic", "model": "claude-haiku-4-5-20251001" }
+		]
+	},
+	"completer": {
+		"primary": { "provider": "anthropic-oauth", "model": "claude-haiku-4-5-20251001" },
+		"fallback": [
+			{ "provider": "copilot", "model": "gpt-4o" },
+			{ "provider": "anthropic", "model": "claude-haiku-4-5-20251001" }
+		]
+	},
+	"*": {
+		"primary": { "provider": "anthropic-oauth", "model": "claude-sonnet-4-6" },
+		"fallback": [
+			{ "provider": "copilot", "model": "claude-sonnet-4" },
+			{ "provider": "anthropic", "model": "claude-sonnet-4-6" }
+		]
+	}
+}

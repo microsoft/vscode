@@ -1,13 +1,21 @@
 // Copyright (c) Son-Of-Anton. All rights reserved.
 // Licensed under the MIT License.
 
+export interface FallbackTarget {
+	provider: string;
+	model: string;
+}
+
 export interface RouteConfig {
 	name: string;
 	match: RouteMatch;
 	provider?: string;
 	model?: string;
 	priority: number;
-	fallback?: { provider: string; model: string };
+	/** Single fallback — kept for backward compatibility. `fallbacks` takes precedence when both are set. */
+	fallback?: FallbackTarget;
+	/** Ordered failover chain tried in sequence after the primary fails. */
+	fallbacks?: FallbackTarget[];
 	split?: SplitConfig[];
 }
 
