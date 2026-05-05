@@ -57,6 +57,7 @@ import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider
 import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
+import { StaleSessionProviderKind, StaleSessionWarningAction } from '../../common/staleSessionWarning/staleSessionWarning';
 
 // Mock terminal integration to avoid importing PowerShell asset (.ps1) which Vite cannot parse during tests
 vi.mock('../copilotCLITerminalIntegration', () => {
@@ -482,6 +483,54 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests.length).toBe(1);
 		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], model: { model: 'base' }, authInfo, token });
+	});
+
+	it('warns before sending in stale high-context sessions', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.StaleSessionWarningThresholdHours, 0.001);
+		await configurationService.setConfig(ConfigKey.Advanced.StaleSessionWarningThresholdTokens, 1);
+		const request = new TestChatRequest('Say hi');
+		const context = createChatContext('existing-session', false, request);
+		(context as { history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] }).history = [{ prompt: 'existing history' } as vscode.ChatRequestTurn];
+		context.chatSessionContext!.chatSessionItem.timing = {
+			created: 0,
+			lastRequestEnded: Date.now() - 60 * 60 * 1000,
+		};
+		const responseParts: unknown[] = [];
+		const stream = new MockChatResponseStream(part => responseParts.push(part));
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		await participant.createHandler()(request, context, stream, token);
+
+		expect([cliSessions.length, responseParts.length]).toEqual([0, 1]);
+	});
+
+	it('sends the original prompt after stale-session send-anyway confirmation', async () => {
+		const sessionId = 'existing-session';
+		manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+		const metadata = {
+			kind: 'staleSessionWarning',
+			providerKind: StaleSessionProviderKind.CopilotCLI,
+			originalPrompt: 'Say hi',
+			sessionId,
+			modelId: 'base',
+		} as const;
+		const request = new TestChatRequest('Send Anyway: "Long, idle session"');
+		(request as vscode.ChatRequest).rejectedConfirmationData = [{
+			metadata: {
+				metadataByAction: {
+					[StaleSessionWarningAction.StartNewSession]: { ...metadata, action: StaleSessionWarningAction.StartNewSession },
+					[StaleSessionWarningAction.CompactAndContinue]: { ...metadata, action: StaleSessionWarningAction.CompactAndContinue },
+					[StaleSessionWarningAction.SendAnyway]: { ...metadata, action: StaleSessionWarningAction.SendAnyway },
+				}
+			}
+		}];
+		const context = createChatContext(sessionId, false, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		await participant.createHandler()(request, context, stream, token);
+
+		expect(cliSessions[0].requests[0].input).toEqual({ prompt: 'Say hi' });
 	});
 
 	it('uses permissionLevel from initial session options', async () => {

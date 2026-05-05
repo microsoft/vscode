@@ -57,6 +57,7 @@ import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotC
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
 
 const REPOSITORY_OPTION_ID = 'repository';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -1374,6 +1375,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	private async handleRequestImpl(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> {
 		let { chatSessionContext } = context;
+		const staleSessionConfirmation = getStaleSessionWarningConfirmation(request);
 		const disposables = new DisposableStore();
 		let sessionId: string | undefined = undefined;
 		let sessionParentId: string | undefined = undefined;
@@ -1457,6 +1459,23 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const id = SessionIdForCLI.parse(resource);
 			sessionId = id;
 			const isUntitled = chatSessionContext.isUntitled;
+			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
+				/* __GDPR__
+					"staleSessionWarning.action" : {
+						"owner": "gcianci",
+						"comment": "Tracks which action users take when the stale session warning is shown.",
+						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+						"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The action selected by the user." },
+						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation, stream);
+				return createStaleSessionWarningActionResult(staleSessionConfirmation);
+			}
+			if (staleSessionConfirmation) {
+				request = { ...request, prompt: staleSessionConfirmation.originalPrompt, command: undefined, acceptedConfirmationData: undefined, rejectedConfirmationData: undefined };
+			}
 			const invalidSessionMessage = _invalidCopilotCLISessionIdsWithErrorMessage.get(id);
 			if (invalidSessionMessage) {
 				const { issueUrl } = getSessionLoadFailureIssueInfo(invalidSessionMessage);
@@ -1478,6 +1497,38 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				contextForRequest?.model ? Promise.resolve(contextForRequest.model) : this.getModelId(request, token),
 				this.getAgent(id, request, token),
 			]);
+
+			const staleSessionWarning = !isUntitled && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+				? shouldWarnAboutStaleSession(this.configurationService, {
+					providerKind: StaleSessionProviderKind.CopilotCLI,
+					modelId: model?.model ?? request.model?.id,
+					tokenCount: estimateChatHistoryTokens(context.history),
+					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem),
+				})
+				: undefined;
+			if (staleSessionWarning) {
+				const telemetry = getStaleSessionWarningTelemetry(staleSessionWarning);
+				/* __GDPR__
+					"staleSessionWarning.shown" : {
+						"owner": "gcianci",
+						"comment": "Tracks when users are warned before sending a request in an old session with a large context.",
+						"providerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session provider that showed the warning." },
+						"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID selected for the request." },
+						"idleHours": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The approximate number of hours since the session was last active." },
+						"tokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The estimated token count in the session context." }
+					}
+				*/
+				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.shown', telemetry.properties, telemetry.measurements);
+				const warningMetadata = {
+					kind: 'staleSessionWarning',
+					providerKind: StaleSessionProviderKind.CopilotCLI,
+					originalPrompt: request.prompt,
+					sessionId: id,
+					modelId: model?.model ?? request.model?.id,
+				} as const;
+				showStaleSessionWarningConfirmation(stream, staleSessionWarning, warningMetadata);
+				return createStaleSessionWarningResult(warningMetadata);
+			}
 
 			const requestTurn = new ChatRequestTurn2(request.prompt ?? '', request.command, [], '', [], [], undefined, undefined, undefined);
 			const fakeContext: vscode.ChatContext = {
@@ -1542,6 +1593,16 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else {
+				if (staleSessionConfirmation?.action === StaleSessionWarningAction.CompactAndContinue) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+					stream.progress(l10n.t('Compacting session'));
+					await session.object.handleRequest(request, { command: 'compact', prompt: '' }, [], model, authInfo, token);
+					if (token.isCancellationRequested) {
+						return {};
+					}
+				} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
+					this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
+				}
 				// Construct the full prompt with references to be sent to CLI.
 				const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token);
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
@@ -1960,6 +2021,17 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
 		await this.recordPushToSession(session, `/delegate ${request.prompt}`, prInfo);
 
+	}
+
+	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, stream: vscode.ChatResponseStream): Promise<void> {
+		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
+		if (autoSend) {
+			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli', { prompt: metadata.originalPrompt });
+			return;
+		}
+
+		await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
+		stream.markdown(l10n.t('Opened a new Copilot CLI session. Copy your pending message into the new session when you are ready to send it:\n\n```text\n{0}\n```', metadata.originalPrompt));
 	}
 
 	private async getOrInitializeWorkingDirectory(
