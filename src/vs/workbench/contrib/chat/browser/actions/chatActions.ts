@@ -1111,10 +1111,8 @@ export function registerChatActions() {
 	const copilotAuthProviderConfigKey = `config.${defaultChat.completionsAdvancedSetting}.authProvider`;
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.not(copilotAuthProviderConfigKey),
-			ContextKeyExpr.regex(copilotAuthProviderConfigKey, /^(?!(github-enterprise|github-enterprise-copilot)$).+/)
-		)
+		ContextKeyExpr.notEquals(copilotAuthProviderConfigKey, 'github-enterprise'),
+		ContextKeyExpr.notEquals(copilotAuthProviderConfigKey, 'github-enterprise-copilot')
 	);
 	registerAction2(class extends Action2 {
 		constructor() {

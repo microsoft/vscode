@@ -74,6 +74,20 @@ assertDefined(product.defaultChatAgent, 'Onboarding requires a default chat agen
 const defaultChat = product.defaultChatAgent;
 const legacyEnterpriseUriSetting = 'github-enterprise.uri';
 
+function getConfiguredEnterpriseUri(configurationService: IConfigurationService): string | undefined {
+	const configuredUri = configurationService.getValue<string>(defaultChat.providerUriSetting);
+	if (typeof configuredUri === 'string' && configuredUri.trim().length > 0) {
+		return configuredUri;
+	}
+
+	const legacyUri = configurationService.getValue<string>(legacyEnterpriseUriSetting);
+	if (typeof legacyUri === 'string' && legacyUri.trim().length > 0) {
+		return legacyUri;
+	}
+
+	return undefined;
+}
+
 /**
  * Variation A — Classic Wizard Modal
  *
@@ -613,7 +627,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const domainRegEx = /^[a-zA-Z\-_]+$/;
 		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 
-		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting) ?? this.configurationService.getValue<string>(legacyEnterpriseUriSetting);
+		const uri = getConfiguredEnterpriseUri(this.configurationService);
 		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
 			return true;
 		}

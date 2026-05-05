@@ -891,12 +891,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private getEnterpriseUrl(): URL | undefined {
-		const value = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting)
-			?? this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriFallbackSetting);
-		if (!isString(value)) {
-			return undefined;
+		const configuredValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriSetting);
+		if (isString(configuredValue) && configuredValue.trim().length > 0) {
+			return new URL(configuredValue);
 		}
-		return new URL(value);
+
+		const fallbackValue = this.configurationService.getValue(this.defaultAccountConfig.authenticationProvider.enterpriseProviderUriFallbackSetting);
+		if (isString(fallbackValue) && fallbackValue.trim().length > 0) {
+			return new URL(fallbackValue);
+		}
+
+		return undefined;
 	}
 
 	async signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {

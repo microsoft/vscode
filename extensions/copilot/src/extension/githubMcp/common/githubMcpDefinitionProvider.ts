@@ -5,7 +5,7 @@
 
 import * as l10n from '@vscode/l10n';
 import type { CancellationToken, McpHttpServerDefinition, McpServerDefinitionProvider } from 'vscode';
-import { authProviderId, COPILOT_GITHUB_ENTERPRISE_URI_SETTING, getCopilotEnterpriseUri, IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { authProviderId, COPILOT_GITHUB_ENTERPRISE_URI_SETTING, getCopilotEnterpriseUri, IAuthenticationService, LEGACY_GITHUB_ENTERPRISE_URI_SETTING } from '../../../platform/authentication/common/authentication';
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Event } from '../../../util/vs/base/common/event';
@@ -50,7 +50,7 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 					return true;
 				}
 				// If they change the GHE URL
-				if (e.affectsConfiguration(COPILOT_GITHUB_ENTERPRISE_URI_SETTING) || e.affectsConfiguration('github-enterprise.uri')) {
+				if (e.affectsConfiguration(COPILOT_GITHUB_ENTERPRISE_URI_SETTING) || e.affectsConfiguration(LEGACY_GITHUB_ENTERPRISE_URI_SETTING)) {
 					logService.debug('GitHubMcpDefinitionProvider: Configuration change affects GitHub Enterprise URL configuration.');
 					return true;
 				}

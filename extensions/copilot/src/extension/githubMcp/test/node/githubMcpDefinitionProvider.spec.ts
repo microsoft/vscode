@@ -205,6 +205,18 @@ describe('GitHubMcpDefinitionProvider', () => {
 			expect(definitions[0].uri.toString()).toBe('https://copilot-api.fallback.enterprise.com/mcp/');
 		});
 
+		test('falls back to the legacy GitHub Enterprise URI when the Copilot URI is blank', async () => {
+			const gheProvider = await createProvider({
+				authProvider: AuthProviderId.GitHubEnterprise,
+				gheUri: '   ',
+				legacyGheUri: 'https://fallback.enterprise.com'
+			});
+
+			const definitions = gheProvider.provideMcpServerDefinitions();
+
+			expect(definitions[0].uri.toString()).toBe('https://copilot-api.fallback.enterprise.com/mcp/');
+		});
+
 		test('includes X-MCP-Readonly header when readonly is true', async () => {
 			const readonlyProvider = await createProvider({ readonly: true });
 

@@ -355,6 +355,15 @@ export function isGitHubEnterpriseAuthProvider(providerId: string | undefined): 
 }
 
 export function getCopilotEnterpriseUri(configurationService: IConfigurationService): string | undefined {
-	return configurationService.getNonExtensionConfig<string>(COPILOT_GITHUB_ENTERPRISE_URI_SETTING)
-		?? configurationService.getNonExtensionConfig<string>(LEGACY_GITHUB_ENTERPRISE_URI_SETTING);
+	const copilotUri = configurationService.getNonExtensionConfig<string>(COPILOT_GITHUB_ENTERPRISE_URI_SETTING);
+	if (typeof copilotUri === 'string' && copilotUri.trim().length > 0) {
+		return copilotUri;
+	}
+
+	const legacyUri = configurationService.getNonExtensionConfig<string>(LEGACY_GITHUB_ENTERPRISE_URI_SETTING);
+	if (typeof legacyUri === 'string' && legacyUri.trim().length > 0) {
+		return legacyUri;
+	}
+
+	return undefined;
 }
