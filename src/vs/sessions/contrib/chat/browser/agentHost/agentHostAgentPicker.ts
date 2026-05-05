@@ -36,6 +36,7 @@ import { PickerActionViewItem } from './agentHostSessionConfigPicker.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
 const STORAGE_KEY = 'sessions.agentHostAgentPicker.lastPickedAgentId';
 
@@ -224,13 +225,15 @@ export class AgentHostAgentPicker extends Disposable {
 		const previouslyFocusedElement = dom.getActiveElement();
 
 		const defaultItem: IAgentPickerItem = { id: undefined, label: DEFAULT_LABEL, description: DEFAULT_LABEL_DESCRIPTION };
-		const customItems: IAgentPickerItem[] = this._chatMode?.custom
+		const customItems: IAgentPickerItem[] = (this._chatMode?.custom ?? [])
 			.filter(c => !c.isBuiltin)
+			.filter(c => c.target.get() !== Target.VSCode)
 			.map(agent => ({
 				id: URI.parse(agent.id),
 				label: agent.name.get(),
 				description: agent.description.get(),
-			})) ?? [];
+			}))
+			.sort((a, b) => a.label.localeCompare(b.label));
 		customItems.forEach(item => item.id ? cachedDescriptions.set(item.id, item.label) : undefined);
 
 		// If the current selection's URI isn't in the live list (harness still
