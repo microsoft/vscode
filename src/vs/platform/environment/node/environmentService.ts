@@ -9,7 +9,6 @@ import { IDebugParams } from '../common/environment.js';
 import { AbstractNativeEnvironmentService, parseDebugParams } from '../common/environmentService.js';
 import { getUserDataPath } from './userDataPath.js';
 import { IProductService } from '../../product/common/productService.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 import { join } from '../../../base/common/path.js';
 import { env } from '../../../base/common/process.js';
 
@@ -23,7 +22,7 @@ export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 			userDataDir: getUserDataPath(args, productService.nameShort),
 			parentAppUserDataDir: getParentAppUserDataDir(args, productService),
 			parentAppUserHomeDir: getParentAppUserHomeDir(homeDir, productService)
-		}, productService, isEmbeddedApp());
+		}, productService);
 	}
 }
 
@@ -41,9 +40,6 @@ export function parseSharedProcessDebugPort(args: NativeParsedArgs, isBuilt: boo
 
 
 function getParentAppUserDataDir(args: NativeParsedArgs, productService: IProductService): string | undefined {
-	if (!(process as INodeProcess).isEmbeddedApp) {
-		return undefined;
-	}
 	if (env['VSCODE_DEV']) {
 		return undefined;
 	}
@@ -67,9 +63,6 @@ function getParentAppUserDataDir(args: NativeParsedArgs, productService: IProduc
 }
 
 function getParentAppUserHomeDir(homeDir: string, productService: IProductService): string | undefined {
-	if (!(process as INodeProcess).isEmbeddedApp) {
-		return undefined;
-	}
 	if (env['VSCODE_DEV']) {
 		return undefined;
 	}
@@ -85,8 +78,4 @@ function getParentAppUserHomeDir(homeDir: string, productService: IProductServic
 		return undefined;
 	}
 	return join(homeDir, hostDataFolderName);
-}
-
-function isEmbeddedApp(): boolean {
-	return !!(process as INodeProcess).isEmbeddedApp;
 }

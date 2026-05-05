@@ -39,16 +39,12 @@ export interface INativeEnvironmentPaths {
 	tmpDir: string;
 
 	/**
-	 * The parent application user data directory, if the current instance is running as an embedded application.
-	 * This can be used to access data from the parent application that is not shared with the embedded application.
-	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 * The host VS Code application's user data directory.
 	 */
 	parentAppUserDataDir: string | undefined;
 
 	/**
-	 * The parent application home directory, if the current instance is running as an embedded application.
-	 * This can be used to access data from the parent application that is not shared with the embedded application.
-	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 * The host VS Code application's home directory.
 	 */
 	parentAppUserHomeDir: string | undefined;
 }
@@ -333,12 +329,12 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get parentAppNameShort(): string | undefined {
-		return getParentAppName(this.productService, this.isEmbeddedApp, 'short');
+		return getParentAppName(this.productService, 'short');
 	}
 
 	@memoize
 	get parentAppNameLong(): string | undefined {
-		return getParentAppName(this.productService, this.isEmbeddedApp, 'long');
+		return getParentAppName(this.productService, 'long');
 	}
 
 	get args(): NativeParsedArgs { return this._args; }
@@ -346,8 +342,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	constructor(
 		private readonly _args: NativeParsedArgs,
 		private readonly paths: INativeEnvironmentPaths,
-		protected readonly productService: IProductService,
-		readonly isEmbeddedApp: boolean = false
+		protected readonly productService: IProductService
 	) { }
 }
 
@@ -371,10 +366,8 @@ export function parseDebugParams(debugArg: string | undefined, debugBrkArg: stri
 	return { port, break: brk, debugId, env };
 }
 
-function getParentAppName(productService: IProductService, isEmbeddedApp: boolean, variant: 'short' | 'long'): string | undefined {
-	if (!isEmbeddedApp) {
-		return undefined;
-	}
+
+function getParentAppName(productService: IProductService, variant: 'short' | 'long'): string | undefined {
 	const quality = productService.quality;
 	if (quality === 'stable') {
 		return variant === 'short' ? 'VS Code' : 'Visual Studio Code';
