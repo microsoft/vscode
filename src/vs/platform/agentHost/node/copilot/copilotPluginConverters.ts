@@ -84,7 +84,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				name: headerName ?? agent.name,
 				...(headerName !== undefined ? { displayName: headerName } : {}),
 				...(parsed.description !== undefined ? { description: parsed.description } : {}),
-				...(parsed.tools !== undefined ? { tools: parsed.tools } : {}),
+				...(parsed.tools !== undefined ? { tools: parsed.tools } : { tools: null }),
 				prompt: parsed.body,
 				...(parsed.infer !== undefined ? { infer: parsed.infer } : {}),
 			});
