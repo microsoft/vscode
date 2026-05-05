@@ -28,7 +28,6 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
-import { basename } from '../../../../base/common/resources.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
@@ -130,10 +129,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
-			const repoDetailLabel = this._getRepositoryDetailLabel();
-			const pillLabel = repoLabel ? `${label} ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
+			const repoBranchLabel = this._getRepositoryBranchLabel();
+
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoDetailLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -175,12 +174,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				repoEl.textContent = repoLabel;
 				detailsEl.appendChild(repoEl);
 
-				if (repoDetailLabel) {
+				if (repoBranchLabel) {
 					const separatorEl = $('div.agent-sessions-titlebar-separator');
 					detailsEl.appendChild(separatorEl);
 
 					const branchEl = $('div.agent-sessions-titlebar-branch');
-					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoDetailLabel}`));
+					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoBranchLabel}`));
 					detailsEl.appendChild(branchEl);
 				}
 
@@ -208,10 +207,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.appendChild(sessionPill);
 
 			// Hover
+			const hover = `${label}${repoLabel ? `, ${repoLabel}` : ''}${repoBranchLabel ? `, ${repoBranchLabel}` : ''}`;
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
 				sessionPill,
-				pillLabel
+				hover
 			));
 
 			// Keyboard handler
@@ -263,33 +263,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		return undefined;
 	}
 
-	private _getRepositoryDetailLabel(): string | undefined {
+	/**
+	 * Get the branch label for the active session (only when using a worktree).
+	 */
+	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
 		const workspace = sessionData?.workspace.get();
 		const repository = workspace?.repositories[0];
-		if (!workspace || !repository) {
+		if (!workspace || !repository || !repository.workingDirectory) {
 			return undefined;
 		}
 
-		if (repository.detail && !workspace.label.includes(`[${repository.detail}]`)) {
-			return repository.detail;
-		}
-
-		if (!repository.workingDirectory) {
-			return undefined;
-		}
-
-		const worktreeName = basename(repository.workingDirectory);
-		if (!worktreeName) {
-			return undefined;
-		}
-
-		const repositoryName = basename(repository.uri);
-		if (worktreeName === workspace.label || worktreeName === repositoryName) {
-			return undefined;
-		}
-
-		return worktreeName;
+		return repository.branchName ?? repository.detail;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
