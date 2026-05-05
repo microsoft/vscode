@@ -13,7 +13,7 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { errorResult, playwrightInvokeRaw } from './browserToolHelpers.js';
+import { errorResult, getSessionId, playwrightInvokeRaw } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 import { ReadBrowserToolData } from './readBrowserTool.js';
@@ -85,6 +85,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IScreenshotBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
@@ -102,7 +103,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			return errorResult(`No browser page found with ID ${params.pageId}`);
 		}
 
-		const bounds = selector && await playwrightInvokeRaw(this.playwrightService, params.pageId, async (page, selector, scrollIntoViewIfNeeded) => {
+		const bounds = selector && await playwrightInvokeRaw(this.playwrightService, sessionId, params.pageId, async (page, selector, scrollIntoViewIfNeeded) => {
 			const locator = page.locator(selector);
 			if (scrollIntoViewIfNeeded) {
 				await locator.scrollIntoViewIfNeeded();
