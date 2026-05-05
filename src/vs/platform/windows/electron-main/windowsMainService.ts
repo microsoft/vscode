@@ -1031,18 +1031,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
-				const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
-
 				const pathsToOpen = await Promise.all(lastSessionWindows.map(async lastSessionWindow => {
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
-						// Never restore the agents window from the previous session.
-						// It is only opened explicitly via `--agents`; otherwise a
-						// previously-opened agents workspace would "stick" and reopen on every launch.
-						if (agentSessionsWorkspaceUri && isEqual(lastSessionWindow.workspace.configPath, agentSessionsWorkspaceUri)) {
-							return undefined;
-						}
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
 							return pathToOpen;
@@ -1523,7 +1515,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const lastActiveWindow = this.getLastActiveWindow();
 		const newWindowProfile = windowConfig?.newWindowProfile
 			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
-		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const defaultProfile = newWindowProfile ?? (lastActiveWindow?.profile?.isAgentsWindowProfile ? undefined : lastActiveWindow?.profile) ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
