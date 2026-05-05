@@ -33,10 +33,10 @@ declare module 'vscode' {
 		readonly cacheCost?: number;
 
 		/**
-		 * Optional relative pricing tier for this model (e.g. "low", "medium", "high", "very_high").
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
 		 * Displayed in the model picker as a visual indicator of relative cost.
 		 */
-		readonly priceTier?: string;
+		readonly priceCategory?: string;
 	}
 
 	export interface LanguageModelChat {
@@ -62,9 +62,9 @@ declare module 'vscode' {
 		readonly cacheCost?: number;
 
 		/**
-		 * Optional relative pricing tier for this model (e.g. "low", "medium", "high", "very_high").
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
 		 * Displayed in the model picker as a visual indicator of relative cost.
 		 */
-		readonly priceTier?: string;
+		readonly priceCategory?: string;
 	}
 }

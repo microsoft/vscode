@@ -263,7 +263,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.outputPrice,
 				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.cacheReadTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
-				priceTier: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceTier,
+				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				detail: modelDetail,
 				category: modelCategory,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,

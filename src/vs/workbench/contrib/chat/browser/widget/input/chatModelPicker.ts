@@ -145,13 +145,13 @@ function resolveConfigProperty(
 }
 
 /**
- * Returns a visual pricing tier indicator using codicon circles.
+ * Returns a visual pricing category indicator using codicon circles.
  * One filled circle for "low", two for "medium", three for "high", four for "very_high".
  * Empty circles are shown for the remaining slots (out of four total).
  */
-function getPriceTierIndicator(priceTier: string | undefined): string | undefined {
+function getPriceCategoryIndicator(priceCategory: string | undefined): string | undefined {
 	let filled: number;
-	switch (priceTier) {
+	switch (priceCategory) {
 		case 'low': filled = 1; break;
 		case 'medium': filled = 2; break;
 		case 'high': filled = 3; break;
@@ -172,17 +172,17 @@ function createModelAction(
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	const priceTierIndicator = getPriceTierIndicator(model.metadata.priceTier);
+	const priceCategoryIndicator = getPriceCategoryIndicator(model.metadata.priceCategory);
 	const textParts = [model.metadata.detail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
 
 	let descriptionOverride: MarkdownString | undefined;
-	if (priceTierIndicator) {
+	if (priceCategoryIndicator) {
 		const md = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
 		if (textDescription) {
 			md.appendText(textDescription + ' · ');
 		}
-		md.appendMarkdown(priceTierIndicator);
+		md.appendMarkdown(priceCategoryIndicator);
 		descriptionOverride = md;
 	}
 
@@ -192,7 +192,7 @@ function createModelAction(
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: priceTierIndicator ? undefined : textDescription,
+		description: priceCategoryIndicator ? undefined : textDescription,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
@@ -606,6 +606,10 @@ export class ModelPickerWidget extends Disposable {
 		return this._domNode;
 	}
 
+	get nameButton(): HTMLElement | undefined {
+		return this._nameButton;
+	}
+
 	constructor(
 		private readonly _delegate: IModelPickerDelegate,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
@@ -759,13 +763,13 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 		);
 
-		const hasPriceTiers = models.some(m => !!m.metadata.priceTier);
+		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
 
 		const listOptions = {
 			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			filterActions: undefined,
-			filterLabel: hasPriceTiers ? localize('chat.modelPicker.cost', "Cost") : undefined,
+			filterLabel: hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -862,6 +866,7 @@ export class ModelPickerWidget extends Disposable {
 			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
 			this._effortButton.style.display = '';
 			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
+			this._effortButton.title = localize('chat.modelPicker.effortTooltip', "Set Thinking Effort");
 		} else if (this._effortButton) {
 			this._effortButton.style.display = 'none';
 		}
@@ -876,6 +881,7 @@ export class ModelPickerWidget extends Disposable {
 			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
 			this._tokensButton.style.display = '';
 			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Max Tokens: {0}", tokensLabel);
+			this._tokensButton.title = localize('chat.modelPicker.tokensTooltip', "Set Context Size");
 		} else if (this._tokensButton) {
 			this._tokensButton.style.display = 'none';
 		}

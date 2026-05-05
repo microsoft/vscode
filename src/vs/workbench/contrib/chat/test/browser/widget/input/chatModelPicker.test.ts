@@ -781,14 +781,14 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(gptItem.item?.description, undefined);
 	});
 
-	test('model with priceTier shows MarkdownString description with circle indicators', () => {
+	test('model with priceCategory shows MarkdownString description with circle indicators', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, priceTier: 'medium' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
-		// When priceTier is set, the action's plain description should be undefined
+		// When priceCategory is set, the action's plain description should be undefined
 		assert.strictEqual(gptItem.item?.description, undefined);
 		// The item's description should be a MarkdownString with circle icons
 		assert.ok(gptItem.description instanceof MarkdownString);
@@ -796,14 +796,14 @@ suite('buildModelPickerItems', () => {
 		assert.ok(gptItem.description.value.includes('circle'));
 	});
 
-	test('model with unknown priceTier shows no circle indicators', () => {
+	test('model with unknown priceCategory shows no circle indicators', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, priceTier: 'unknown_tier' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'unknown_tier' } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
-		// Unknown tier should fall through to normal description (undefined since no detail)
+		// Unknown category should fall through to normal description (undefined since no detail)
 		assert.strictEqual(gptItem.item?.description, undefined);
 		assert.strictEqual(gptItem.description, undefined);
 	});

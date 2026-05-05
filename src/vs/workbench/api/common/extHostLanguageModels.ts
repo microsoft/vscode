@@ -226,7 +226,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					inputCost: m.inputCost,
 					outputCost: m.outputCost,
 					cacheCost: m.cacheCost,
-					priceTier: m.priceTier,
+					priceCategory: m.priceCategory,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
@@ -422,7 +422,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				inputCost: model.metadata.inputCost,
 				outputCost: model.metadata.outputCost,
 				cacheCost: model.metadata.cacheCost,
-				priceTier: model.metadata.priceTier,
+				priceCategory: model.metadata.priceCategory,
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
