@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
-import { AssistantMessage, BasePromptElementProps, PromptRenderer as BasePromptRenderer, Chunk, IfEmpty, Image, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
+import { AssistantMessage, BasePromptElementProps, Chunk, IfEmpty, Image, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
 import type { ChatParticipantToolToken, LanguageModelToolInvocationOptions, LanguageModelToolResult2, LanguageModelToolTokenizationOptions } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IChatHookService, IPreToolUseHookResult } from '../../../../platform/chat/common/chatHookService';
@@ -21,11 +21,11 @@ import { IFileSystemService } from '../../../../platform/filesystem/common/fileS
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { IImageService } from '../../../../platform/image/common/imageService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
-import { ITokenizer } from '../../../../util/common/tokenizer';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
 import { getExtensionForMimeType } from '../../../../util/vs/base/common/mime';
@@ -41,7 +41,7 @@ import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatDiskSessionResources } from '../../common/chatDiskSessionResources';
-import { IPromptEndpoint } from '../base/promptRenderer';
+import { IPromptEndpoint, PromptRenderer } from '../base/promptRenderer';
 import { Tag } from '../base/tag';
 
 export interface ChatToolCallsProps extends BasePromptElementProps {
@@ -222,6 +222,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 	const sessionTranscriptService = accessor.get(ISessionTranscriptService);
 	const chatHookService = accessor.get(IChatHookService);
 	const otelService = accessor.get(IOTelService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const tool = toolsService.getTool(props.toolCall.name);
 
 	async function getToolResult(sizing: PromptSizing) {
@@ -311,7 +312,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 					}
 
 					toolResult = await toolsService.invokeToolWithEndpoint(props.toolCall.name, invocationOptions, promptEndpoint, props.token);
-					sendInvokedToolTelemetry(promptEndpoint.acquireTokenizer(), telemetryService, props.toolCall.name, toolResult);
+					sendInvokedToolTelemetry(instantiationService, promptEndpoint, telemetryService, props.toolCall.name, toolResult);
 
 					// Run hook context handling after tool execution
 					appendHookContext(toolResult, hookResult, chatHookService, props, inputObj, promptContext);
@@ -483,16 +484,23 @@ class ToolResultElement extends PromptElement<IToolResultElementActualProps & Ba
 	}
 }
 
-export function sendInvokedToolTelemetry(tokenizer: ITokenizer, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
-	new BasePromptRenderer(
-		{ modelMaxPromptTokens: Infinity },
+export function sendInvokedToolTelemetry(instantiationService: IInstantiationService, endpoint: IChatEndpoint, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
+	// Override the token budget to Infinity for telemetry counting to avoid truncation,
+	// matching the prior behavior with modelMaxPromptTokens: Infinity
+	const endpointWithUnlimitedBudget: IChatEndpoint = {
+		...endpoint,
+		modelMaxPromptTokens: Infinity,
+	};
+
+	PromptRenderer.create(
+		instantiationService,
+		endpointWithUnlimitedBudget,
 		class extends PromptElement {
 			render() {
 				return <UserMessage><PrimitiveToolResult content={toolResult.content} /></UserMessage>;
 			}
 		},
 		{},
-		tokenizer,
 	).render().then(({ tokenCount }) => {
 		/* __GDPR__
 			"agent.tool.responseLength" : {
