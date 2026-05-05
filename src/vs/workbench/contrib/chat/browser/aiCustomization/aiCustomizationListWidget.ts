@@ -553,6 +553,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
+	private lastHeight = 0;
+	private lastWidth = 0;
 
 	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
 	private _sectionLoadId = 0;
@@ -1251,6 +1253,9 @@ export class AICustomizationListWidget extends Disposable {
 	private commitDisplayEntries(): void {
 		this.list.splice(0, this.list.length, this.displayEntries);
 		this.updateEmptyState();
+		if (this.lastHeight > 0 && this.searchAndButtonContainer.offsetHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
 	}
 
 	/**
@@ -1454,6 +1459,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
+		this.lastHeight = height;
+		this.lastWidth = width;
+
 		this.element.style.height = `${height}px`;
 		this.searchInput.layout();
 
@@ -1467,7 +1475,7 @@ export class AICustomizationListWidget extends Disposable {
 			this._layoutDeferred = true;
 			DOM.getWindow(this.element).requestAnimationFrame(() => {
 				try {
-					this.layout(height, width);
+					this.layout(this.lastHeight, this.lastWidth);
 				} finally {
 					this._layoutDeferred = false;
 				}
