@@ -8,8 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -24,12 +26,24 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
 		editorPreviewDisposables: { add<T>(value: T): T; dispose(): void };
 		hoverService: IHoverService;
+		configurationService: IConfigurationService;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 	};
 
-	function createTestEditor(hoverService?: IHoverService): TestableEditor {
+	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
+		// Default to enabling the structured preview so existing assertions exercise the preview path.
+		const merged: Record<string, unknown> = {
+			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			...values,
+		};
+		return {
+			getValue: (key: string) => merged[key],
+		} as unknown as IConfigurationService;
+	}
+
+	function createTestEditor(hoverService?: IHoverService, configurationService?: IConfigurationService): TestableEditor {
 		const editor = Object.create(AICustomizationManagementEditor.prototype) as unknown as TestableEditor;
 		editor.currentEditingPromptType = undefined;
 		editor.currentEditingStorage = undefined;
@@ -50,6 +64,7 @@ suite('aiCustomizationManagementEditor', () => {
 				update() { },
 			}),
 		} as unknown as IHoverService;
+		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		return editor;
 	}
 
@@ -121,5 +136,20 @@ suite('aiCustomizationManagementEditor', () => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
 		}
+	});
+
+	test('hides preview button when structured preview setting is disabled', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
+		}));
+		editor.currentEditingPromptType = PromptsType.agent;
+		editor.currentEditingStorage = BUILTIN_STORAGE;
+		editor.currentEditingReadOnly = false;
+		editor.editorDisplayMode = 'preview';
+
+		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
+		assert.strictEqual(editor.getEditorModeButtonTooltip(), '');
+
+		editor.editorPreviewDisposables.dispose();
 	});
 });
