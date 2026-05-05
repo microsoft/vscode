@@ -20,7 +20,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -51,6 +51,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
+import { computeAIDisabledClearForGlobalOptIn, computeAIDisabledSyncOnExtensionEnabled, isExtensionEnablementChangeable } from '../../../../services/chat/common/chatAIDisabledHelpers.js';
 import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
@@ -248,7 +249,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const configurationService = accessor.get(IConfigurationService);
 
 				await context.update({ hidden: false });
-				configurationService.updateValue(ChatConfiguration.AIDisabled, false);
+
+				// Explicit opt-in: clear any disable override at the right scope(s) so the merged value becomes false.
+				// Avoids the bare `updateValue(key, false)` form which can wipe a setting from an unintended scope.
+				// See https://github.com/microsoft/vscode/issues/309947.
+				const disableInspect = configurationService.inspect<boolean>(ChatConfiguration.AIDisabled);
+				for (const update of computeAIDisabledClearForGlobalOptIn(disableInspect)) {
+					await configurationService.updateValue(ChatConfiguration.AIDisabled, update.value, update.target);
+				}
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
@@ -766,14 +774,17 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			}
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-				if (defaultChatExtension.enablementState === EnablementState.EnabledWorkspace) {
-					if (this.configurationService.inspect(ChatConfiguration.AIDisabled).workspaceValue === true) {
-						this.configurationService.updateValue(ChatConfiguration.AIDisabled, false, ConfigurationTarget.WORKSPACE);
-					}
-				} else {
-					this.configurationService.updateValue(ChatConfiguration.AIDisabled, false);
-				}
+			if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
+				return;
+			}
+
+			// Reconcile the setting with the extension's enablement state. This must NOT silently overwrite a
+			// higher-scope setting value (see https://github.com/microsoft/vscode/issues/309947). The helper only
+			// emits a workspace-scoped write when needed.
+			const inspect = this.configurationService.inspect<boolean>(ChatConfiguration.AIDisabled);
+			const update = computeAIDisabledSyncOnExtensionEnabled(defaultChatExtension.enablementState, inspect);
+			if (update) {
+				this.configurationService.updateValue(ChatConfiguration.AIDisabled, update.value, update.target);
 			}
 		}));
 	}
@@ -781,6 +792,13 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 		if (!defaultChatExtension) {
+			return;
+		}
+
+		// The chat extension's enablement may be locked by the environment (extension kind, virtual workspace,
+		// allow-list, etc.). Calling `setEnablement` in those states throws an unhandled error
+		// (https://github.com/microsoft/vscode/issues/312381).
+		if (!isExtensionEnablementChangeable(defaultChatExtension.enablementState)) {
 			return;
 		}
 

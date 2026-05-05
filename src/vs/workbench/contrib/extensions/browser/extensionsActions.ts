@@ -16,6 +16,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionCont
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { computeAIDisabledClearForGlobalOptIn, computeAIDisabledOverrideForWorkspaceEnable } from '../../../services/chat/common/chatAIDisabledHelpers.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage, TargetPlatform, isApplicationScopedExtension } from '../../../../platform/extensions/common/extensions.js';
@@ -26,7 +27,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExtensionService, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
@@ -1836,7 +1837,13 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 	}
 
 	override async run(): Promise<void> {
-		await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false);
+		// Clear the disable override at the right scope(s) using explicit ConfigurationTargets, instead of relying
+		// on `updateValue`'s implicit scope-walking which is the underlying cause of
+		// https://github.com/microsoft/vscode/issues/309947.
+		const inspect = this.configurationService.inspect<boolean>(CHAT_AI_DISABLED_SETTING);
+		for (const update of computeAIDisabledClearForGlobalOptIn(inspect)) {
+			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, update.value, update.target);
+		}
 	}
 }
 
@@ -1892,8 +1899,14 @@ class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 			return;
 		}
 		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
-		if (this.configurationService.inspect(CHAT_AI_DISABLED_SETTING).workspaceValue === true) {
-			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false, ConfigurationTarget.WORKSPACE);
+		// Force the merged value of `chat.disableAIFeatures` to false at workspace scope, regardless of which
+		// higher scope says disabled. Otherwise the per-workspace opt-in does not survive a reload because
+		// `handleChatDisabled` would see merged-true and disable the extension on next open
+		// (https://github.com/microsoft/vscode/issues/311898).
+		const inspect = this.configurationService.inspect<boolean>(CHAT_AI_DISABLED_SETTING);
+		const update = computeAIDisabledOverrideForWorkspaceEnable(inspect);
+		if (update) {
+			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, update.value, update.target);
 		}
 	}
 }
