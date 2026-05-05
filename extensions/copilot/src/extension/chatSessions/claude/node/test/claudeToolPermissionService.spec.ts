@@ -6,26 +6,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
-import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
-import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
-import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { Emitter } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { constObservable, IObservable } from '../../../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { LanguageModelTextPart } from '../../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { ICopilotTool } from '../../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../../tools/common/toolsService';
+import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../../common/claudePlanFileTracker';
 import { ClaudeToolPermissionContext, ClaudeToolPermissionResult, IClaudeToolConfirmationParams, IClaudeToolPermissionHandler } from '../../common/claudeToolPermission';
 import { registerToolPermissionHandler } from '../../common/claudeToolPermissionRegistry';
 import { ClaudeToolPermissionService } from '../../common/claudeToolPermissionService';
 import { ClaudeToolNames } from '../../common/claudeTools';
 
 // Import existing handlers to ensure they're registered
-import '../../common/toolPermissionHandlers/index';
+import '../toolPermissionHandlers/index';
 
 /**
  * Mock tools service that can be configured for different test scenarios
@@ -129,9 +128,10 @@ class MockToolsService implements IToolsService {
 /**
  * Creates a mock tool permission context
  */
-function createMockContext(): ClaudeToolPermissionContext {
+function createMockContext(overrides?: Partial<ClaudeToolPermissionContext>): ClaudeToolPermissionContext {
 	return {
-		toolInvocationToken: {} as vscode.ChatParticipantToolToken
+		toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+		...overrides,
 	};
 }
 
@@ -140,6 +140,7 @@ describe('ClaudeToolPermissionService', () => {
 	let instantiationService: IInstantiationService;
 	let mockToolsService: MockToolsService;
 	let service: ClaudeToolPermissionService;
+	let planFileTracker: IClaudePlanFileTracker;
 
 	beforeEach(() => {
 		store = new DisposableStore();
@@ -147,9 +148,11 @@ describe('ClaudeToolPermissionService', () => {
 
 		mockToolsService = new MockToolsService();
 		serviceCollection.set(IToolsService, mockToolsService);
+		serviceCollection.set(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 
 		const accessor = serviceCollection.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
+		planFileTracker = accessor.get(IClaudePlanFileTracker);
 		service = instantiationService.createInstance(ClaudeToolPermissionService);
 	});
 
@@ -415,6 +418,7 @@ describe('ClaudeToolPermissionService', () => {
 
 				const serviceCollection = store.add(createExtensionUnitTestingServices());
 				serviceCollection.set(IToolsService, failingService);
+				serviceCollection.set(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 				const accessor = serviceCollection.createTestingAccessor();
 				const newService = accessor.get(IInstantiationService).createInstance(ClaudeToolPermissionService);
 
@@ -440,129 +444,92 @@ describe('ClaudeToolPermissionService', () => {
 				const planContent = 'Step 1: Do something\nStep 2: Do another thing';
 				// Matches NullNativeEnvService.userHome.
 				const planDir = URI.file('/home/testuser/.claude/plans');
+				const sessionId = 'session-under-test';
 
-				async function setupWithFs(setupFs: (fs: MockFileSystemService) => void): Promise<{
-					mockFs: MockFileSystemService;
-					mockTools: MockToolsService;
-					svc: ClaudeToolPermissionService;
-				}> {
-					const collection = store.add(createExtensionUnitTestingServices());
-					const mockFs = new MockFileSystemService();
-					setupFs(mockFs);
-					collection.set(IFileSystemService, mockFs);
-					const mockTools = new MockToolsService();
-					mockTools.setReviewPlanResult({ rejected: false, actionId: 'approve', action: 'Approve' });
-					collection.set(IToolsService, mockTools);
-					const accessor = collection.createTestingAccessor();
-					const svc = accessor.get(IInstantiationService).createInstance(ClaudeToolPermissionService);
-					return { mockFs, mockTools, svc };
+				function getPlanArg(): string | undefined {
+					const exitCall = mockToolsService.invokeToolCalls.find(c => c.name === ToolName.CoreReviewPlan);
+					const input = exitCall?.input as { plan?: string } | undefined;
+					return input?.plan;
 				}
 
-				function getPlanArg(mockTools: MockToolsService): string | undefined {
-					const input = mockTools.invokeToolCalls[0].input as { plan?: string };
-					return input.plan;
-				}
-
-				it('attaches plan URI when an exact content match is found', async () => {
-					const matching = URI.joinPath(planDir, 'matching.md');
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['matching.md', FileType.File], ['stale.md', FileType.File]]);
-						// `matching.md` was just written; `stale.md` is older.
-						fs.mockFile(matching, planContent, 2000);
-						fs.mockFile(URI.joinPath(planDir, 'stale.md'), 'unrelated content', 1000);
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
-
-					expect(getPlanArg(mockTools)).toBe(matching.toString());
+				beforeEach(() => {
+					mockToolsService.setReviewPlanResult({ rejected: false, actionId: 'approve', action: 'Approve' });
 				});
 
-				it('omits plan URI when the newest file does not match (no fallback scan)', async () => {
-					const matching = URI.joinPath(planDir, 'matching.md');
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['matching.md', FileType.File], ['unrelated.md', FileType.File]]);
-						// `unrelated.md` is the newest, but its content does
-						// not match — we deliberately do not fall through to
-						// older candidates.
-						fs.mockFile(matching, planContent, 1000);
-						fs.mockFile(URI.joinPath(planDir, 'unrelated.md'), 'unrelated content', 2000);
-					});
+				it('attaches plan URI for the most recent plan-directory Write', async () => {
+					const planFile = URI.joinPath(planDir, 'matching.md');
+					planFileTracker.recordIfPlanFile(sessionId, planFile.fsPath);
 
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
 
-					expect(getPlanArg(mockTools)).toBeUndefined();
+					expect(getPlanArg()).toBe(planFile.toString());
 				});
 
-				it('omits plan URI when no file matches', async () => {
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['old.md', FileType.File]]);
-						fs.mockFile(URI.joinPath(planDir, 'old.md'), 'completely different');
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
-
-					expect(getPlanArg(mockTools)).toBeUndefined();
-				});
-
-				it('omits plan URI when the plans directory is missing', async () => {
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockError(planDir, new Error('ENOENT'));
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
-
-					expect(getPlanArg(mockTools)).toBeUndefined();
-				});
-
-				it('omits plan URI when input.plan is empty', async () => {
-					const matching = URI.joinPath(planDir, 'matching.md');
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['matching.md', FileType.File]]);
-						fs.mockFile(matching, '');
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: '   ' }, createMockContext());
-
-					expect(getPlanArg(mockTools)).toBeUndefined();
-				});
-
-				it('rejects symlinked candidates', async () => {
-					const matching = URI.joinPath(planDir, 'matching.md');
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['matching.md', FileType.File | FileType.SymbolicLink]]);
-						fs.mockFile(matching, planContent);
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
-
-					// Symlinks should be filtered out; no URI attached.
-					expect(getPlanArg(mockTools)).toBeUndefined();
-				});
-
-				it('ignores non-.md files', async () => {
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['matching.txt', FileType.File]]);
-						fs.mockFile(URI.joinPath(planDir, 'matching.txt'), planContent);
-					});
-
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
-
-					expect(getPlanArg(mockTools)).toBeUndefined();
-				});
-
-				it('matches the most recent file first when multiple files have the same content', async () => {
-					const oldFile = URI.joinPath(planDir, 'old.md');
+				it('uses the most recent Write when multiple plan files are written', async () => {
+					planFileTracker.recordIfPlanFile(sessionId, URI.joinPath(planDir, 'old.md').fsPath);
 					const newFile = URI.joinPath(planDir, 'new.md');
-					const { mockTools, svc } = await setupWithFs(fs => {
-						fs.mockDirectory(planDir, [['old.md', FileType.File], ['new.md', FileType.File]]);
-						fs.mockFile(oldFile, planContent, 1000);
-						fs.mockFile(newFile, planContent, 2000);
-					});
+					planFileTracker.recordIfPlanFile(sessionId, newFile.fsPath);
 
-					await svc.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
 
-					// Newest matching file wins.
-					expect(getPlanArg(mockTools)).toBe(newFile.toString());
+					expect(getPlanArg()).toBe(newFile.toString());
+				});
+
+				it('omits plan URI when no plan-directory Write was observed', async () => {
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('omits plan URI when context has no sessionId', async () => {
+					planFileTracker.recordIfPlanFile(sessionId, URI.joinPath(planDir, 'matching.md').fsPath);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext());
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('does not leak plan files between sessions', async () => {
+					const otherSessionFile = URI.joinPath(planDir, 'from-other-session.md');
+					planFileTracker.recordIfPlanFile('other-session', otherSessionFile.fsPath);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('clear() removes the entry for the given session', async () => {
+					const planFile = URI.joinPath(planDir, 'matching.md');
+					planFileTracker.recordIfPlanFile(sessionId, planFile.fsPath);
+					planFileTracker.clear(sessionId);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('ignores Writes outside the plan directory', async () => {
+					planFileTracker.recordIfPlanFile(sessionId, URI.file('/home/testuser/elsewhere/plan.md').fsPath);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('ignores Writes nested below the plan directory', async () => {
+					planFileTracker.recordIfPlanFile(sessionId, URI.joinPath(planDir, 'sub', 'plan.md').fsPath);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
+				});
+
+				it('ignores non-.md Writes in the plan directory', async () => {
+					planFileTracker.recordIfPlanFile(sessionId, URI.joinPath(planDir, 'notes.txt').fsPath);
+
+					await service.canUseTool(ClaudeToolNames.ExitPlanMode, { plan: planContent }, createMockContext({ sessionId }));
+
+					expect(getPlanArg()).toBeUndefined();
 				});
 			});
 		});

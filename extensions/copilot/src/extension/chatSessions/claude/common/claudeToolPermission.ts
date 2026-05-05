@@ -21,6 +21,8 @@ export interface ClaudeToolPermissionContext {
 	readonly toolInvocationToken: vscode.ChatParticipantToolToken;
 	readonly permissionMode?: PermissionMode;
 	readonly stream?: vscode.ChatResponseStream;
+	/** Claude SDK session id this tool call belongs to. */
+	readonly sessionId?: string;
 }
 
 /**

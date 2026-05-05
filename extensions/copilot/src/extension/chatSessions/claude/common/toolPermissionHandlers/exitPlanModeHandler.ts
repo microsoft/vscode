@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { INativeEnvService } from '../../../../../platform/env/common/envService';
-import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
-import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
-import { URI } from '../../../../../util/vs/base/common/uri';
 import { LanguageModelTextPart } from '../../../../../vscodeTypes';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService } from '../../../../tools/common/toolsService';
+import { IClaudePlanFileTracker } from '../claudePlanFileTracker';
 import { ClaudeToolPermissionContext, ClaudeToolPermissionResult, IClaudeToolPermissionHandler } from '../claudeToolPermission';
 import { registerToolPermissionHandler } from '../claudeToolPermissionRegistry';
 import { ClaudeToolNames, ExitPlanModeInput } from '../claudeTools';
@@ -46,20 +43,21 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 	constructor(
 		@IToolsService private readonly toolsService: IToolsService,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvService private readonly envService: INativeEnvService,
-		@IFileSystemService private readonly fileSystemService: IFileSystemService,
+		@IClaudePlanFileTracker private readonly planFileTracker: IClaudePlanFileTracker,
 	) { }
 
 	public async handle(
 		_toolName: ClaudeToolNames.ExitPlanMode,
 		input: ExitPlanModeInput,
-		{ toolInvocationToken }: ClaudeToolPermissionContext
+		{ toolInvocationToken, sessionId }: ClaudeToolPermissionContext
 	): Promise<ClaudeToolPermissionResult> {
 		try {
-			// Claude writes the plan markdown to ~/.claude/plans/*.md before
-			// invoking ExitPlanMode. Find that file so the review widget can
-			// surface inline editor comments.
-			const planUri = await this.findPlanUri(input.plan);
+			// Claude writes the plan markdown to ~/.claude/plans/*.md via the
+			// Write tool before invoking ExitPlanMode. The dispatch layer
+			// observes that tool_use and records the path on the tracker
+			// (see claudeMessageDispatch.handleAssistantMessage) so the
+			// review widget can surface it for inline editor comments.
+			const planUri = sessionId ? this.planFileTracker.getLastPlanFile(sessionId) : undefined;
 
 			const reviewInput: {
 				title: string;
@@ -150,80 +148,7 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			return { behavior: 'deny', message: 'Failed to show plan review.' };
 		}
 	}
-
-	/**
-	 * Locate the plan markdown file Claude wrote to `~/.claude/plans/`.
-	 * Claude calls `ExitPlanMode` immediately after writing the plan, so the
-	 * file we want is overwhelmingly the most recently modified `.md` in
-	 * that directory. We pick the newest valid candidate and verify its
-	 * contents exactly match `planContent` — if anything else slipped in
-	 * between (rare) we simply return `undefined` and the review widget
-	 * falls back to content-only rendering.
-	 *
-	 * Safety:
-	 *  - Symlinks are rejected so `foo.md -> /etc/passwd` can't redirect
-	 *    the editor open.
-	 *  - Files over `MAX_PLAN_FILE_BYTES` are skipped so a stray multi-MB
-	 *    file in the directory can't stall the permission path.
-	 */
-	private async findPlanUri(planContent: string | undefined): Promise<URI | undefined> {
-		const target = planContent?.trim();
-		if (!target) {
-			return undefined;
-		}
-
-		const planDir = URI.joinPath(this.envService.userHome, '.claude', 'plans');
-		let entries: [string, FileType][];
-		try {
-			entries = await this.fileSystemService.readDirectory(planDir);
-		} catch {
-			return undefined;
-		}
-
-		// Pick the newest regular `.md` candidate (single stat sweep).
-		let newest: { uri: URI; mtime: number } | undefined;
-		await Promise.all(entries.map(async ([name, dirType]) => {
-			if (dirType !== FileType.File || !name.toLowerCase().endsWith('.md')) {
-				return;
-			}
-			const uri = URI.joinPath(planDir, name);
-			try {
-				const stat = await this.fileSystemService.stat(uri);
-				const isPlainFile = stat.type === FileType.File
-					&& (stat.type & FileType.SymbolicLink) === 0;
-				if (!isPlainFile || stat.size > MAX_PLAN_FILE_BYTES) {
-					return;
-				}
-				if (!newest || stat.mtime > newest.mtime) {
-					newest = { uri, mtime: stat.mtime };
-				}
-			} catch {
-				// Ignore unstatable candidates.
-			}
-		}));
-
-		if (!newest) {
-			return undefined;
-		}
-
-		// Verify content. If the newest file isn't actually our plan we bail
-		// out rather than scan further — the staleness window is tiny and
-		// the wrong-file failure mode is worse than no-URI.
-		try {
-			const bytes = await this.fileSystemService.readFile(newest.uri);
-			if (new TextDecoder().decode(bytes).trim() === target) {
-				return newest.uri;
-			}
-		} catch {
-			// Fall through to undefined.
-		}
-		return undefined;
-	}
 }
-
-/** Cap individual plan file reads (1 MB) to bound disk I/O on the
- * permission path. Plans are markdown summaries and never approach this. */
-const MAX_PLAN_FILE_BYTES = 1024 * 1024;
 
 // Self-register the handler
 registerToolPermissionHandler(
