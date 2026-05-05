@@ -33,7 +33,7 @@ import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCom
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
-import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
 import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
@@ -126,7 +126,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
-				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation, stream);
+				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation);
 				return {};
 			}
 
@@ -176,7 +176,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 					providerKind: StaleSessionProviderKind.Claude,
 					modelId: modelId.toEndpointModelId(),
 					tokenCount: estimateChatHistoryTokens(context.history),
-					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem),
+					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem) ?? getLastActivityFromTiming(existingSession),
 				})
 				: undefined;
 			if (staleSessionWarning) {
@@ -218,6 +218,15 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 					this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
 					return {};
 				}
+				// Schedule a session restart so the follow-up prompt goes through a
+				// fresh SDK conversation that resumes from the now-compacted history.
+				// Without this, sending the original prompt inline races with the
+				// SDK's internal restart triggered by the compact_boundary event
+				// and hangs.
+				this.claudeAgentManager.scheduleRestartForNextRequest(effectiveSessionId);
+				// Insert a paragraph break so the post-compact response is rendered as
+				// a separate paragraph, not concatenated with the compact_boundary message.
+				stream.markdown('\n\n');
 			} else if (staleSessionConfirmation?.action === StaleSessionWarningAction.SendAnyway) {
 				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
 			}
@@ -236,15 +245,13 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		};
 	}
 
-	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, stream: vscode.ChatResponseStream): Promise<void> {
+	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata): Promise<void> {
 		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
-		if (autoSend) {
-			await vscode.commands.executeCommand(`workbench.action.chat.openNewSessionEditor.${ClaudeSessionUri.scheme}`, { prompt: metadata.originalPrompt });
-			return;
-		}
-
-		await vscode.commands.executeCommand(`workbench.action.chat.openNewSessionEditor.${ClaudeSessionUri.scheme}`);
-		stream.markdown(vscode.l10n.t('Opened a new Claude Code session. Copy your pending message into the new session when you are ready to send it:\n\n```text\n{0}\n```', metadata.originalPrompt));
+		await vscode.commands.executeCommand('workbench.action.chat.newChat', {
+			inputValue: metadata.originalPrompt,
+			isPartialQuery: !autoSend,
+			agentMode: true,
+		});
 	}
 
 	// #endregion

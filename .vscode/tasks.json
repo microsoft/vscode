@@ -115,7 +115,8 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": []
+			"problemMatcher": [],
+			"inAgents": true
 		},
 		{
 			"type": "npm",
@@ -254,7 +255,8 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"problemMatcher": []
+			"problemMatcher": [],
+			"inAgents": true
 		},
 		{
 			"label": "Run Dev Agents",

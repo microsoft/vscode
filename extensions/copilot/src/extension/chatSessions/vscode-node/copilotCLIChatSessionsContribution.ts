@@ -57,7 +57,7 @@ import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotC
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { convertReferenceToVariable } from '../copilotcli/vscode-node/copilotCLIPromptReferences';
 import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
 
 const REPOSITORY_OPTION_ID = 'repository';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -1470,7 +1470,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
-				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation, stream);
+				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation);
 				return createStaleSessionWarningActionResult(staleSessionConfirmation);
 			}
 			if (staleSessionConfirmation) {
@@ -1498,12 +1498,36 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				this.getAgent(id, request, token),
 			]);
 
+			const requestTurn = new ChatRequestTurn2(request.prompt ?? '', request.command, [], '', [], [], undefined, undefined, undefined);
+			const fakeContext: vscode.ChatContext = {
+				history: [requestTurn],
+				yieldRequested: false,
+			};
+			const newBranch = (isUntitled && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : undefined;
+
+			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch, sessionParentId, permissionLevel: sessionPermissionLevel }, disposables, token);
+			const session = sessionResult.session;
+			if (session) {
+				disposables.add(session);
+			}
+			if (!session || token.isCancellationRequested) {
+				// If user didn't trust, then reset the session options to make it read-write.
+				if (!sessionResult.trusted) {
+					await this.unlockRepoOptionForSession(context, token);
+				}
+				return {};
+			}
+
+			sdkSessionId = session.object.sessionId;
+			activeSession = session.object;
+			this.contentProvider.trackActiveSession(sessionId, activeSession);
+
 			const staleSessionWarning = !isUntitled && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.CopilotCLI,
 					modelId: model?.model ?? request.model?.id,
-					tokenCount: estimateChatHistoryTokens(context.history),
-					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem),
+					tokenCount: await this.estimateCopilotCLISessionTokens(context.history, id, session.object.workspace, token),
+					lastActivityTime: await this.getCopilotCLILastActivityTime(id, chatSessionContext.chatSessionItem, token),
 				})
 				: undefined;
 			if (staleSessionWarning) {
@@ -1530,34 +1554,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return createStaleSessionWarningResult(warningMetadata);
 			}
 
-			const requestTurn = new ChatRequestTurn2(request.prompt ?? '', request.command, [], '', [], [], undefined, undefined, undefined);
-			const fakeContext: vscode.ChatContext = {
-				history: [requestTurn],
-				yieldRequested: false,
-			};
-			const newBranch = (isUntitled && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : undefined;
-
-			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch, sessionParentId, permissionLevel: sessionPermissionLevel }, disposables, token);
-			const session = sessionResult.session;
-			if (session) {
-				disposables.add(session);
-			}
-			if (!session || token.isCancellationRequested) {
-				// If user didn't trust, then reset the session options to make it read-write.
-				if (!sessionResult.trusted) {
-					await this.unlockRepoOptionForSession(context, token);
-				}
-				return {};
-			}
-
 			if (context.history.length === 0) {
 				// Create baseline checkpoint when handling the first request
 				await this.copilotCLIWorktreeCheckpointService.handleRequest(session.object.sessionId);
 			}
 
-			sdkSessionId = session.object.sessionId;
-			activeSession = session.object;
-			this.contentProvider.trackActiveSession(sessionId, activeSession);
 			const modeInstructions = this.createModeInstructions(request);
 			this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
@@ -2023,15 +2024,30 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	}
 
-	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, stream: vscode.ChatResponseStream): Promise<void> {
+	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata): Promise<void> {
 		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
-		if (autoSend) {
-			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli', { prompt: metadata.originalPrompt });
-			return;
-		}
+		await vscode.commands.executeCommand('workbench.action.chat.newChat', {
+			inputValue: metadata.originalPrompt,
+			isPartialQuery: !autoSend,
+			agentMode: true,
+		});
+	}
 
-		await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
-		stream.markdown(l10n.t('Opened a new Copilot CLI session. Copy your pending message into the new session when you are ready to send it:\n\n```text\n{0}\n```', metadata.originalPrompt));
+	private async estimateCopilotCLISessionTokens(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[], sessionId: string, workspace: IWorkspaceInfo, token: CancellationToken): Promise<number> {
+		if (history.length > 0) {
+			return estimateChatHistoryTokens(history);
+		}
+		const persistedHistory = await this.sessionService.getChatHistory({ sessionId, workspace }, token);
+		return estimateChatHistoryTokens(persistedHistory);
+	}
+
+	private async getCopilotCLILastActivityTime(sessionId: string, chatSessionItem: vscode.ChatSessionItem, token: vscode.CancellationToken): Promise<number | undefined> {
+		const fromItem = getLastActivityFromChatSessionItem(chatSessionItem);
+		if (fromItem !== undefined) {
+			return fromItem;
+		}
+		const sessionItem = await this.sessionService.getSessionItem(sessionId, token);
+		return getLastActivityFromTiming(sessionItem?.timing);
 	}
 
 	private async getOrInitializeWorkingDirectory(

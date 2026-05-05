@@ -108,6 +108,17 @@ export class ClaudeAgentManager extends Disposable {
 			};
 		}
 	}
+
+	/**
+	 * Schedules a session restart so that the next queued request is processed
+	 * in a fresh SDK conversation that resumes from the persisted history. Used
+	 * after `/compact` to avoid the race between sending a follow-up prompt and
+	 * the SDK's internal restart triggered by `compact_boundary`.
+	 */
+	public scheduleRestartForNextRequest(claudeSessionId: string): void {
+		const session = this._sessions.get(claudeSessionId);
+		session?.scheduleRestartForNextRequest();
+	}
 }
 
 /**
@@ -143,6 +154,8 @@ export class ClaudeCodeSession extends Disposable {
 	private _currentEffort: EffortLevel | undefined;
 	private _isResumed: boolean;
 	private _pendingRestart = false;
+	/** Set when an external caller (e.g. post-compact flow) requested that the next dispatched request triggers a controlled session restart. */
+	private _scheduledRestart = false;
 	private _sessionStarting: Promise<void> | undefined;
 	private _currentToolNames: ReadonlySet<string> | undefined;
 	private _gateway: vscode.McpGateway | undefined;
@@ -525,6 +538,18 @@ export class ClaudeCodeSession extends Disposable {
 			}
 			const request = this._queuedRequests.shift()!;
 
+			// Honor an externally-scheduled restart (e.g. after a /compact run).
+			// Treat it like the settings/tool change path: requeue the request and
+			// trigger a controlled restart that resumes the fresh SDK conversation.
+			if (this._scheduledRestart) {
+				this.logService.trace('[ClaudeCodeSession] Scheduled restart requested, restarting session with resume');
+				this._scheduledRestart = false;
+				this._queuedRequests.unshift(request);
+				this._pendingRestart = true;
+				this._isResumed = true;
+				return;
+			}
+
 			// Check settings file changes when no other request is in flight
 			if (this._inFlightRequests.length === 0 && await this._settingsChangeTracker.hasChanges()) {
 				this.logService.trace('[ClaudeCodeSession] Settings files changed, restarting session with resume');
@@ -735,6 +760,15 @@ export class ClaudeCodeSession extends Disposable {
 		this._abortController.abort();
 		this._abortController = new AbortController();
 		this._isResumed = true;
+	}
+
+	/**
+	 * Schedules a controlled session restart that will fire when the next
+	 * queued request is dispatched. The dispatched request is unshifted back
+	 * onto the queue and processed by the freshly started SDK session.
+	 */
+	public scheduleRestartForNextRequest(): void {
+		this._scheduledRestart = true;
 	}
 
 	// #region Gateway Lifecycle

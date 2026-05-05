@@ -178,7 +178,7 @@ export function removeStaleSessionWarningHistory(history: readonly (vscode.ChatR
 	return filtered;
 }
 
-export function estimateChatHistoryTokens(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]): number {
+export function estimateChatHistoryTokens(history: readonly unknown[]): number {
 	let characters = 0;
 	for (const turn of history) {
 		characters += extractTurnText(turn).length;
@@ -187,11 +187,21 @@ export function estimateChatHistoryTokens(history: readonly (vscode.ChatRequestT
 }
 
 export function getLastActivityFromChatSessionItem(item: vscode.ChatSessionItem | undefined): number | undefined {
-	if (!item?.timing) {
+	return getLastActivityFromTiming(item?.timing);
+}
+
+export interface StaleSessionTimingLike {
+	readonly created?: number;
+	readonly startTime?: number;
+	readonly lastRequestStarted?: number;
+	readonly lastRequestEnded?: number;
+	readonly endTime?: number;
+}
+
+export function getLastActivityFromTiming(timing: StaleSessionTimingLike | undefined): number | undefined {
+	if (!timing) {
 		return undefined;
 	}
-
-	const timing = item.timing;
 	return timing.lastRequestEnded
 		?? timing.endTime
 		?? timing.lastRequestStarted
@@ -200,7 +210,8 @@ export function getLastActivityFromChatSessionItem(item: vscode.ChatSessionItem 
 }
 
 export function isStaleSessionWarningBypass(request: vscode.ChatRequest): boolean {
-	return getStaleSessionWarningConfirmation(request)?.action === StaleSessionWarningAction.SendAnyway;
+	const action = getStaleSessionWarningConfirmation(request)?.action;
+	return action === StaleSessionWarningAction.SendAnyway;
 }
 
 export function getStaleSessionWarningTelemetry(warning: StaleSessionWarning): { readonly properties: Record<string, string>; readonly measurements: Record<string, number> } {
@@ -314,12 +325,17 @@ function getSelectedAction(prompt: string): StaleSessionWarningAction | undefine
 	}
 }
 
-function extractTurnText(turn: vscode.ChatRequestTurn | vscode.ChatResponseTurn): string {
-	if ('prompt' in turn && typeof turn.prompt === 'string') {
-		return turn.prompt;
+function extractTurnText(turn: unknown): string {
+	if (!turn || typeof turn !== 'object') {
+		return '';
 	}
-	if ('response' in turn && Array.isArray(turn.response)) {
-		return turn.response.map(extractResponsePartText).join('\n');
+	const prompt = (turn as { prompt?: unknown }).prompt;
+	if (typeof prompt === 'string') {
+		return prompt;
+	}
+	const response = (turn as { response?: unknown }).response;
+	if (Array.isArray(response)) {
+		return response.map(extractResponsePartText).join('\n');
 	}
 	return '';
 }

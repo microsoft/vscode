@@ -32,7 +32,7 @@ import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatS
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
@@ -827,7 +827,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('staleSessionWarning.action', { providerKind: staleSessionConfirmation.providerKind, action: staleSessionConfirmation.action, modelId: staleSessionConfirmation.modelId ?? 'unknown' });
-				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation, stream);
+				await this.openNewSessionFromStaleSessionWarning(staleSessionConfirmation);
 				return {};
 			}
 			const effectiveRequest = staleSessionConfirmation
@@ -875,8 +875,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.CopilotCLI,
 					modelId: model?.model ?? request.model?.id,
-					tokenCount: estimateChatHistoryTokens(context.history),
-					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem),
+					tokenCount: await this.estimateCopilotCLISessionTokens(context.history, sessionId, session.object.workspace, token),
+					lastActivityTime: await this.getCopilotCLILastActivityTime(sessionId, chatSessionContext.chatSessionItem, token),
 				})
 				: undefined;
 			if (staleSessionWarning) {
@@ -956,15 +956,30 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata, stream: vscode.ChatResponseStream): Promise<void> {
+	private async openNewSessionFromStaleSessionWarning(metadata: StaleSessionWarningMetadata): Promise<void> {
 		const autoSend = this.configurationService.getConfig(ConfigKey.Advanced.StaleSessionWarningStartNewSessionAutoSend);
-		if (autoSend) {
-			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli', { prompt: metadata.originalPrompt });
-			return;
-		}
+		await vscode.commands.executeCommand('workbench.action.chat.newChat', {
+			inputValue: metadata.originalPrompt,
+			isPartialQuery: !autoSend,
+			agentMode: true,
+		});
+	}
 
-		await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.copilotcli');
-		stream.markdown(l10n.t('Opened a new Copilot CLI session. Copy your pending message into the new session when you are ready to send it:\n\n```text\n{0}\n```', metadata.originalPrompt));
+	private async estimateCopilotCLISessionTokens(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[], sessionId: string, workspace: IWorkspaceInfo, token: CancellationToken): Promise<number> {
+		if (history.length > 0) {
+			return estimateChatHistoryTokens(history);
+		}
+		const persistedHistory = await this.sessionService.getChatHistory({ sessionId, workspace }, token);
+		return estimateChatHistoryTokens(persistedHistory);
+	}
+
+	private async getCopilotCLILastActivityTime(sessionId: string, chatSessionItem: vscode.ChatSessionItem, token: CancellationToken): Promise<number | undefined> {
+		const fromItem = getLastActivityFromChatSessionItem(chatSessionItem);
+		if (fromItem !== undefined) {
+			return fromItem;
+		}
+		const sessionItem = await this.sessionService.getSessionItem(sessionId, token);
+		return getLastActivityFromTiming(sessionItem?.timing);
 	}
 
 	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {

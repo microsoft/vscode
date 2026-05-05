@@ -29,7 +29,7 @@ import { Disposable, DisposableStore } from '../../../../util/vs/base/common/lif
 import { sep } from '../../../../util/vs/base/common/path';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelTextPart, LanguageModelToolResult2 } from '../../../../vscodeTypes';
+import { ChatRequestTurn2, LanguageModelTextPart, LanguageModelToolResult2 } from '../../../../vscodeTypes';
 import { NullPromptVariablesService } from '../../../prompt/node/promptVariablesService';
 import { ChatSummarizerProvider } from '../../../prompt/node/summarizer';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
@@ -488,20 +488,24 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	it('warns before sending in stale high-context sessions', async () => {
 		await configurationService.setConfig(ConfigKey.Advanced.StaleSessionWarningThresholdHours, 0.001);
 		await configurationService.setConfig(ConfigKey.Advanced.StaleSessionWarningThresholdTokens, 1);
+		const sessionId = 'existing-session';
+		manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+		vi.spyOn(sessionService, 'getChatHistory').mockResolvedValue([{ prompt: 'existing persisted history' } as ChatRequestTurn2]);
+		vi.spyOn(sessionService, 'getSessionItem').mockResolvedValue({
+			id: sessionId,
+			label: 'session',
+			timing: { created: 0, lastRequestEnded: Date.now() - 60 * 60 * 1000 },
+		});
 		const request = new TestChatRequest('Say hi');
-		const context = createChatContext('existing-session', false, request);
-		(context as { history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] }).history = [{ prompt: 'existing history' } as vscode.ChatRequestTurn];
-		context.chatSessionContext!.chatSessionItem.timing = {
-			created: 0,
-			lastRequestEnded: Date.now() - 60 * 60 * 1000,
-		};
+		const context = createChatContext(sessionId, false, request);
 		const responseParts: unknown[] = [];
 		const stream = new MockChatResponseStream(part => responseParts.push(part));
 		const token = disposables.add(new CancellationTokenSource()).token;
 
 		await participant.createHandler()(request, context, stream, token);
 
-		expect([cliSessions.length, responseParts.length]).toEqual([0, 1]);
+		expect([cliSessions.length, cliSessions[0].requests.length, responseParts.length]).toEqual([1, 0, 1]);
+		expect(sessionService.getChatHistory).toHaveBeenCalled();
 	});
 
 	it('sends the original prompt after stale-session send-anyway confirmation', async () => {
