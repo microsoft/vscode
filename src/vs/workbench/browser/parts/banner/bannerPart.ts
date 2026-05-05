@@ -179,6 +179,10 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	show(item: IBannerItem): void {
+		if (!this.element) {
+			return;
+		}
+
 		if (item.id === this.item?.id) {
 			this.setVisibility(true);
 			return;
