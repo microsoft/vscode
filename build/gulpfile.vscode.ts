@@ -463,7 +463,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			...config,
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: false,
+			ffmpegChromium: platform === 'darwin', // On macOS, use the open-source ffmpeg and rely on system decoders (VideoToolbox/AudioToolbox)
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppDisplayName: embedded.nameLong,

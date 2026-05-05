@@ -216,7 +216,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 			...config,
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: false,
+			ffmpegChromium: process.platform === 'darwin', // On macOS, use the open-source ffmpeg and rely on system decoders (VideoToolbox/AudioToolbox)
 			keepDefaultApp: true
 		};
 

@@ -324,8 +324,19 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
 	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
-	const featuresToEnable =
+	let featuresToEnable =
 		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+
+	// On macOS, enable platform media decoders to leverage the system's
+	// VideoToolbox (video) and AudioToolbox (audio) frameworks for media
+	// playback in the Integrated Browser without bundling proprietary
+	// codec libraries in the product.
+	// `PlatformHEVCDecoderSupport` - HEVC/H.265 decoding via VideoToolbox
+	// `PlatformHEVCEncoderSupport` - HEVC/H.265 encoding via VideoToolbox
+	if (process.platform === 'darwin') {
+		featuresToEnable += ',PlatformHEVCDecoderSupport,PlatformHEVCEncoderSupport';
+	}
+
 	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Following features are disabled from the runtime:
