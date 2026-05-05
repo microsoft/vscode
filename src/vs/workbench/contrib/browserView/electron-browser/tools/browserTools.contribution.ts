@@ -16,6 +16,7 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { formatBrowserEditorList } from './browserToolHelpers.js';
+import { BrowserMcpServerContribution } from './browserMcpServerContribution.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
 import { DragElementTool, DragElementToolData } from './dragElementTool.js';
 import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';
@@ -178,3 +179,4 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	}
 }
 registerWorkbenchContribution2(BrowserChatAgentToolsContribution.ID, BrowserChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(BrowserMcpServerContribution.ID, BrowserMcpServerContribution, WorkbenchPhase.AfterRestored);
