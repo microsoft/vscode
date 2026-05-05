@@ -382,6 +382,51 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual(changed.length, 0, 'should not emit for deleted sessions');
 		});
 	});
+
+	test('removeSession flushes pending status=Idle notification before eviction', () => {
+		// Regression: when _maybeEvictIdleSession calls removeSession within the
+		// 100 ms scheduler window after a turn completes, the client must still
+		// receive a SessionSummaryChanged with status=Idle so the spinner clears.
+		//
+		// The key precondition is that _lastNotifiedSummaries already has
+		// status=InProgress (the scheduler must have fired after TurnStarted so
+		// the client knows the session is busy). Then TurnComplete flips the
+		// summary back to Idle and schedules another flush. If removeSession
+		// races with that 100 ms window the flush must happen synchronously.
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			// Start a turn → status becomes InProgress.
+			manager.dispatchServerAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri,
+				turnId: 'turn-1',
+				userMessage: { text: 'hello' },
+			});
+
+			// Let the scheduler fire so _lastNotifiedSummaries now has status=InProgress.
+			await new Promise(r => setTimeout(r, 150));
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			// Turn completes — status flips back to Idle. This schedules a summary
+			// flush 100 ms later but we will call removeSession before it fires.
+			manager.dispatchServerAction({
+				type: ActionType.SessionTurnComplete,
+				session: sessionUri,
+				turnId: 'turn-1',
+			});
+
+			// Simulate eviction within the 100 ms debounce window.
+			manager.removeSession(sessionUri);
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedNotification[];
+			assert.strictEqual(changed.length, 1, 'should emit SessionSummaryChanged synchronously in removeSession');
+			assert.strictEqual(changed[0].changes.status, SessionStatus.Idle, 'status should be Idle so the spinner clears');
+		});
+	});
 });
 
 suite('Subagent URI helpers', () => {
