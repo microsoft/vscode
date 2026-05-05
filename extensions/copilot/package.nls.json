@@ -451,7 +451,7 @@
 	"github.copilot.command.cli.remote.description": "Show remote control status, or use /remote on and /remote off",
 	"github.copilot.command.claude.sessions.rename": "Rename...",
 	"github.copilot.command.claude.sessions.commit": "Commit",
-	"github.copilot.command.claude.sessions.commitAndSync": "Commitand Sync",
+	"github.copilot.command.claude.sessions.commitAndSync": "Commit and Sync",
 	"github.copilot.command.claude.sessions.sync": "Sync Changes",
 	"github.copilot.command.claude.sessions.initializeRepository": "Initialize Repository",
 	"github.copilot.command.cli.sessions.openRepository": "Open Repository",
