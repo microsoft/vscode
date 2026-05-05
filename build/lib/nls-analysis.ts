@@ -74,6 +74,7 @@ export class SingleFileServiceHost implements ts.LanguageServiceHost {
 	private lib: ts.IScriptSnapshot;
 	private options: ts.CompilerOptions;
 	private filename: string;
+	private version: number = 1;
 
 	constructor(options: ts.CompilerOptions, filename: string, contents: string) {
 		this.options = options;
@@ -82,9 +83,14 @@ export class SingleFileServiceHost implements ts.LanguageServiceHost {
 		this.lib = ts.ScriptSnapshot.fromString('');
 	}
 
+	setContents(contents: string) {
+		this.file = ts.ScriptSnapshot.fromString(contents);
+		this.version++;
+	}
+
 	getCompilationSettings = () => this.options;
 	getScriptFileNames = () => [this.filename];
-	getScriptVersion = () => '1';
+	getScriptVersion = () => this.version.toString();
 	getScriptSnapshot = (name: string) => name === this.filename ? this.file : this.lib;
 	getCurrentDirectory = () => '';
 	getDefaultLibFileName = () => 'lib.d.ts';
@@ -105,6 +111,9 @@ export class SingleFileServiceHost implements ts.LanguageServiceHost {
 // Analysis
 // ============================================================================
 
+let sharedServiceHost: SingleFileServiceHost | undefined;
+let sharedService: ts.LanguageService | undefined;
+
 /**
  * Analyzes TypeScript source code to find localize() or localize2() calls.
  */
@@ -112,11 +121,22 @@ export function analyzeLocalizeCalls(
 	contents: string,
 	functionName: 'localize' | 'localize2'
 ): ILocalizeCall[] {
+	if (!contents.includes(functionName) || !contents.includes('/nls')) {
+		return [];
+	}
+
 	const filename = 'file.ts';
 	const options: ts.CompilerOptions = { noResolve: true };
-	const serviceHost = new SingleFileServiceHost(options, filename, contents);
-	const service = ts.createLanguageService(serviceHost);
-	const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
+
+	if (!sharedServiceHost || !sharedService) {
+		sharedServiceHost = new SingleFileServiceHost(options, filename, contents);
+		sharedService = ts.createLanguageService(sharedServiceHost);
+	} else {
+		sharedServiceHost.setContents(contents);
+	}
+
+	const service = sharedService;
+	const sourceFile = service.getProgram()!.getSourceFile(filename)!;
 
 	// Find all imports
 	const imports = collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse);
