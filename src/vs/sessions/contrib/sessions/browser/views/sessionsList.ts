@@ -316,11 +316,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(typeIconEl);
 			} else if (
 				element.sessionType === CopilotCLISessionType.id &&
-				sessionStatus !== SessionStatus.InProgress &&
-				isWorkspaceSession
+				sessionStatus !== SessionStatus.InProgress
 			) {
+				const icon = isWorkspaceSession ? Codicon.folder : Codicon.worktree;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(Codicon.folder)}`));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
 			}
 

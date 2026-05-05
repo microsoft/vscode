@@ -12,7 +12,6 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -25,18 +24,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { resolveRemoteAuthority } from '../browser/openInVSCodeUtils.js';
 import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
-import { isLinux } from '../../../../base/common/platform.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
-/**
- * Desktop version of the "Open in VS Code" action.
- *
- * In built builds with a sibling app configured, launches the host VS Code app
- * via {@link INativeHostService.launchSiblingApp} (child_process.spawn) with
- * direct CLI arguments, bypassing protocol handlers and their OS security
- * prompts. In dev builds (no sibling app), falls back to the protocol handler
- * approach via {@link IOpenerService}.
- */
 registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
 
@@ -60,7 +48,6 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
 		const productService = accessor.get(IProductService);
-		const environmentService = accessor.get(IEnvironmentService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
@@ -74,36 +61,7 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			? resolveRemoteAuthority(activeSession.providerId, sessionsProvidersService, remoteAgentHostService)
 			: undefined;
 
-		if (environmentService.isBuilt && !isLinux) {
-			await this.launchViaSiblingApp(accessor, activeSession, folderUri, remoteAuthority);
-		} else {
-			await this.launchViaProtocolHandler(accessor, productService, activeSession, folderUri, remoteAuthority);
-		}
-	}
-
-	private async launchViaSiblingApp(
-		accessor: ServicesAccessor,
-		activeSession: ReturnType<ISessionsManagementService['activeSession']['get']>,
-		folderUri: URI | undefined,
-		remoteAuthority: string | undefined,
-	): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
-
-		const args: string[] = ['--new-window'];
-
-		if (folderUri) {
-			if (remoteAuthority) {
-				args.push('--folder-uri', URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: folderUri.path }).toString());
-			} else {
-				args.push('--folder-uri', folderUri.toString());
-			}
-		}
-
-		if (activeSession) {
-			args.push('--open-chat-session', activeSession.resource.toString());
-		}
-
-		await nativeHostService.launchSiblingApp(args);
+		await this.launchViaProtocolHandler(accessor, productService, activeSession, folderUri, remoteAuthority);
 	}
 
 	private async launchViaProtocolHandler(

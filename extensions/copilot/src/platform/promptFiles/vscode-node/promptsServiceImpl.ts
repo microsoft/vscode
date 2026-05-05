@@ -11,10 +11,12 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { PromptFileParser } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
-import { IPromptsService, ParsedPromptFile } from '../common/promptsService';
+import { AgentInstructionsLocator } from './agentInstructionsLocator';
+import { AgentInstructionsLogger, IAgentInstructionFile, IPromptsService, ParsedPromptFile } from '../common/promptsService';
 
 export class PromptsServiceImpl extends Disposable implements IPromptsService {
 	declare _serviceBrand: undefined;
@@ -34,12 +36,16 @@ export class PromptsServiceImpl extends Disposable implements IPromptsService {
 	private readonly _onDidChangePlugins = this._register(new Emitter<void>());
 	readonly onDidChangePlugins: Event<void> = this._onDidChangePlugins.event;
 
+	private readonly _agentInstructionsLocator: AgentInstructionsLocator;
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileService: IFileSystemService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._agentInstructionsLocator = this._register(instantiationService.createInstance(AgentInstructionsLocator));
 
 		this._register(vscode.chat.onDidChangeCustomAgents(() => this._onDidChangeCustomAgents.fire()));
 		this._register(vscode.chat.onDidChangeInstructions(() => this._onDidChangeInstructions.fire()));
@@ -70,6 +76,14 @@ export class PromptsServiceImpl extends Disposable implements IPromptsService {
 
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]> {
 		return Promise.resolve(vscode.chat.getPlugins(token));
+	}
+
+	listAgentInstructions(token: CancellationToken, logger?: AgentInstructionsLogger): Promise<IAgentInstructionFile[]> {
+		return this._agentInstructionsLocator.listAgentInstructions(token, logger);
+	}
+
+	listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]> {
+		return this._agentInstructionsLocator.listNestedAgentMDs(token);
 	}
 
 	public async parseFile(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {

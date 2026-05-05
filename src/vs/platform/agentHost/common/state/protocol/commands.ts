@@ -25,8 +25,16 @@ export type { ConfigPropertySchema, ConfigSchema, SessionConfigPropertySchema, S
  * @see {@link /specification/lifecycle | Lifecycle} for the full handshake flow.
  */
 export interface InitializeParams {
-	/** Protocol version the client speaks */
-	protocolVersion: number;
+	/**
+	 * Protocol versions the client is willing to speak, ordered from most
+	 * preferred to least preferred. Each entry is a [SemVer](https://semver.org)
+	 * `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+	 *
+	 * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
+	 * If the server cannot speak any of the offered versions, it MUST return
+	 * error code `-32005` (`UnsupportedProtocolVersion`).
+	 */
+	protocolVersions: string[];
 	/** Unique client identifier */
 	clientId: string;
 	/** URIs to subscribe to during handshake */
@@ -42,12 +50,19 @@ export interface InitializeParams {
 /**
  * Result of the `initialize` command.
  *
- * If the server does not support the client's protocol version, it MUST return
- * error code `-32005` (`UnsupportedProtocolVersion`).
+ * `protocolVersion` is the version the server has selected from the client's
+ * `protocolVersions` list. The client and server MUST use this version for
+ * the rest of the connection. If the server cannot speak any of the offered
+ * versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
+ * instead of a result.
  */
 export interface InitializeResult {
-	/** Protocol version the server speaks */
-	protocolVersion: number;
+	/**
+	 * Protocol version selected by the server. MUST be one of the entries in
+	 * `InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)
+	 * `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+	 */
+	protocolVersion: string;
 	/** Current server sequence number */
 	serverSeq: number;
 	/** Snapshots for each `initialSubscriptions` URI */

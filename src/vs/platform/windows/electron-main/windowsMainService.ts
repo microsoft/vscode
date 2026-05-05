@@ -320,7 +320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
-			forceNewWindow: openConfig.forceNewWindow,
+			forceNewWindow: true,
 		};
 	}
 
@@ -1571,6 +1571,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
+			isEmbeddedApp: this.environmentMainService.isEmbeddedApp,
 			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
 			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
@@ -1731,15 +1732,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-		const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
-		const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
-		configuration.profiles.profile = profile;
 
-		if (!configuration.extensionDevelopmentPath) {
-			// Associate the configured profile to the workspace
-			// unless the window is for extension development,
-			// where we do not persist the associations
-			await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+		if (configuration.isSessionsWindow) {
+			configuration.profiles.profile = this.userDataProfilesMainService.profiles.find(p => p.isAgentsWindowProfile) ?? await this.userDataProfilesMainService.createAgentsWindowProfile();
+		} else {
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+			configuration.profiles.profile = profile;
+
+			if (!configuration.extensionDevelopmentPath) {
+				// Associate the configured profile to the workspace
+				// unless the window is for extension development,
+				// where we do not persist the associations
+				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+			}
 		}
 
 		// Load it

@@ -84,6 +84,7 @@ export interface IEnvironmentService {
 	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
+	isEmbeddedApp?: boolean;
 
 	// --- telemetry/exp
 	disableTelemetry: boolean;
@@ -114,6 +115,20 @@ export interface IEnvironmentService {
 	 * the host VS Code application. `undefined` when not running as embedded.
 	 */
 	readonly parentAppExtensionsHome?: URI;
+
+	/**
+	 * When running as the embedded app, the short display name of the
+	 * parent VS Code application (e.g. "VS Code Insiders").
+	 * `undefined` when not running as embedded.
+	 */
+	readonly parentAppNameShort?: string;
+
+	/**
+	 * When running as the embedded app, the long display name of the
+	 * parent VS Code application (e.g. "Visual Studio Code Insiders").
+	 * `undefined` when not running as embedded.
+	 */
+	readonly parentAppNameLong?: string;
 
 	// --- Policy
 	policyFile?: URI;
