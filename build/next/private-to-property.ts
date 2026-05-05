@@ -269,6 +269,22 @@ interface AbsoluteSegment {
 	name?: number;
 }
 
+interface OrderedSegment extends AbsoluteSegment {
+	order: number;
+}
+
+function readBase64Digit(str: string, index: number): number {
+	if (index >= str.length) {
+		throw new Error(`Malformed source map mappings: unexpected end of VLQ segment at offset ${index}`);
+	}
+	const charCode = str.charCodeAt(index);
+	const digit = charCode < charToInteger.length ? charToInteger[charCode] : -1;
+	if (digit < 0) {
+		throw new Error(`Malformed source map mappings: invalid base64 digit at offset ${index}`);
+	}
+	return digit;
+}
+
 function decodeMappings(str: string): AbsoluteSegment[][] {
 	let index = 0;
 	const len = str.length;
@@ -289,14 +305,14 @@ function decodeMappings(str: string): AbsoluteSegment[][] {
 			index++;
 			continue;
 		}
-		const segment = [];
+		const segment: number[] = [];
 		for (let i = 0; i < 5; i++) {
 			if (index >= len) { break; }
 			const c = str.charCodeAt(index);
 			if (c === 59 || c === 44) { break; }
 			let result = 0, shift = 0, continuation = false;
 			do {
-				const digit = charToInteger[str.charCodeAt(index++)];
+				const digit = readBase64Digit(str, index++);
 				continuation = (digit & 32) !== 0;
 				result += (digit & 31) << shift;
 				shift += 5;
@@ -304,6 +320,9 @@ function decodeMappings(str: string): AbsoluteSegment[][] {
 			const isNegative = (result & 1) === 1;
 			result >>= 1;
 			segment.push(isNegative ? -result : result);
+		}
+		if (segment.length !== 1 && segment.length !== 4 && segment.length !== 5) {
+			throw new Error(`Malformed source map mappings: invalid segment length ${segment.length} at offset ${index}`);
 		}
 		prevGenCol += segment[0];
 		const absolute: AbsoluteSegment = { genCol: prevGenCol };
@@ -437,7 +456,8 @@ export function adjustSourceMap(
 
 	// Use custom string encoder instead of source map consumer
 	const oldLines = decodeMappings(sourceMapJson.mappings);
-	const newLines: AbsoluteSegment[][] = [];
+	const newLines: OrderedSegment[][] = [];
+	let order = 0;
 
 	for (let oldLineIdx = 0; oldLineIdx < oldLines.length; oldLineIdx++) {
 		const lineSegments = oldLines[oldLineIdx];
@@ -456,13 +476,14 @@ export function adjustSourceMap(
 				source: seg.source,
 				origLine: seg.origLine,
 				origCol: seg.origCol,
-				name: seg.name
+				name: seg.name,
+				order: order++
 			});
 		}
 	}
 
 	for (const line of newLines) {
-		line.sort((a, b) => a.genCol - b.genCol);
+		line.sort((a, b) => a.genCol - b.genCol || a.order - b.order);
 	}
 
 	return {

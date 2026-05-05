@@ -74,16 +74,22 @@ export class SingleFileServiceHost implements ts.LanguageServiceHost {
 	private lib: ts.IScriptSnapshot;
 	private options: ts.CompilerOptions;
 	private filename: string;
+	private contents: string;
 	private version: number = 1;
 
 	constructor(options: ts.CompilerOptions, filename: string, contents: string) {
 		this.options = options;
 		this.filename = filename;
+		this.contents = contents;
 		this.file = ts.ScriptSnapshot.fromString(contents);
 		this.lib = ts.ScriptSnapshot.fromString('');
 	}
 
 	setContents(contents: string) {
+		if (contents === this.contents) {
+			return;
+		}
+		this.contents = contents;
 		this.file = ts.ScriptSnapshot.fromString(contents);
 		this.version++;
 	}
