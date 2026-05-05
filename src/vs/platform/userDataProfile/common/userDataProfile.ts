@@ -24,6 +24,7 @@ import { isString, Mutable } from '../../../base/common/types.js';
 export const AGENTS_WINDOW_PROFILE_ID = 'agents';
 const AGENTS_WINDOW_PROFILE_OPTIONS: IUserDataProfileOptions = {
 	useDefaultFlags: {
+		settings: true,
 		keybindings: true,
 		prompts: true,
 		mcp: true,
