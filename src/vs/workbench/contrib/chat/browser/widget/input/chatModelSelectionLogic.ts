@@ -222,16 +222,15 @@ export function resolveModelFromSyncState(
 }
 
 /**
- * Merges live models with cached models per-vendor.
- * For vendors whose models have resolved, uses live data.
- * For vendors that are contributed but haven't resolved yet (startup race), keeps cached models.
- * Vendors no longer contributed are evicted from cache.
+ * Merges live models with cached models per-vendor, evicting cache for vendors
+ * no longer contributed.
  *
- * `resolvedVendors` lists vendors whose providers have completed at least one
- * resolution. Cached entries for those vendors are NOT used to bridge an empty
- * live result — an empty live result for a resolved vendor is authoritative
- * (e.g. user removed a BYOK provider group, so its models genuinely don't exist
- * anymore and should disappear from the picker).
+ * - `resolvedVendors`: vendors whose providers have produced at least one
+ *   result. An empty live list for these is authoritative (e.g. BYOK key
+ *   removed) and their cache entries are dropped.
+ * - When no contributor info is available yet and there are no live models
+ *   (startup / extension reload), the full cache is returned to avoid
+ *   flickering the picker to empty.
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
@@ -239,17 +238,15 @@ export function mergeModelsWithCache(
 	contributedVendors: Set<string>,
 	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
+	if (contributedVendors.size === 0 && liveModels.length === 0) {
+		return cachedModels;
+	}
 	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
 	const usableCached = cachedModels.filter(m =>
 		contributedVendors.has(m.metadata.vendor) &&
 		!liveVendors.has(m.metadata.vendor) &&
-		!(resolvedVendors?.has(m.metadata.vendor))
+		!resolvedVendors?.has(m.metadata.vendor)
 	);
-	if (liveModels.length === 0 && !resolvedVendors) {
-		// Backwards-compat path: no resolution info, keep prior behavior of
-		// returning the entire cache during a global startup race.
-		return cachedModels;
-	}
 	return [...liveModels, ...usableCached];
 }
 

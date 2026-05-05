@@ -34,8 +34,9 @@ function computeAvailableModels(
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors);
+	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
 	merged.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 	return filterModelsForSession(merged, sessionType, currentModeKind, location);
 }
@@ -685,6 +686,22 @@ suite('ChatModelSelectionLogic', () => {
 			);
 			assert.strictEqual(result.length, 0);
 		});
+
+		test('preserves full cache when no vendors are contributed yet (startup race)', () => {
+			// During startup or an extension reload, vendor descriptors may not be
+			// registered yet. contributedVendors is empty and so is resolvedVendors.
+			// We must NOT drop the cache — that would reset the user's selected model
+			// before the vendors come back.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
+		});
 	});
 
 	suite('model switching scenarios', () => {
@@ -1090,6 +1107,25 @@ suite('ChatModelSelectionLogic', () => {
 				ChatAgentLocation.Chat,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['tool']);
+		});
+
+		test('startup/extension reload with no contributors yet preserves cache (production path)', () => {
+			// Mirrors chatInputPart.getAllMergedModels at a moment when getVendors()
+			// is temporarily empty (extension host reloading). resolvedVendors is
+			// also empty because nothing has resolved. The picker must continue to
+			// show cached models so the user's selection isn't reset.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = computeAvailableModels(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				undefined,
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
 		});
 	});
 
