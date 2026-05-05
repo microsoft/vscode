@@ -30,7 +30,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, estimateChatHistoryTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, removeStaleSessionWarningHistory, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningResult, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, removeStaleSessionWarningHistory, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
 
 const LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY = 'chat.localStaleSessionLastActivity';
 
@@ -220,6 +220,9 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
+			// Wrap the stream so that any usage(...) reports are also recorded for the
+			// stale-session warning so it mirrors the chat context window widget.
+			stream = wrapStreamForStaleSessionUsageTracking(stream, StaleSessionProviderKind.Local, request.sessionId);
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
@@ -268,7 +271,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					? shouldWarnAboutStaleSession(this.configurationService, {
 						providerKind: StaleSessionProviderKind.Local,
 						modelId: request.model?.id,
-						tokenCount: estimateChatHistoryTokens(historyWithoutStaleWarnings),
+						tokenCount: getRecordedStaleSessionTokens(StaleSessionProviderKind.Local, request.sessionId),
 						lastActivityTime: this.getLastLocalSessionActivity(request.sessionId),
 					})
 					: undefined;

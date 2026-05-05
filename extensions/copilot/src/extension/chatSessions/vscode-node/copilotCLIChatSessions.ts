@@ -32,7 +32,7 @@ import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatS
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
@@ -815,6 +815,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			const { resource } = chatSessionContext.chatSessionItem;
 			const sessionId = SessionIdForCLI.parse(resource);
+			// Wrap the stream so that any usage(...) reports are also recorded for the
+			// stale-session warning so it mirrors the chat context window widget.
+			stream = wrapStreamForStaleSessionUsageTracking(stream, StaleSessionProviderKind.CopilotCLI, sessionId);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
 			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
 				/* __GDPR__
@@ -875,7 +878,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.CopilotCLI,
 					modelId: model?.model ?? request.model?.id,
-					tokenCount: await this.estimateCopilotCLISessionTokens(context.history, sessionId, session.object.workspace, token),
+					tokenCount: getRecordedStaleSessionTokens(StaleSessionProviderKind.CopilotCLI, sessionId),
 					lastActivityTime: await this.getCopilotCLILastActivityTime(sessionId, chatSessionContext.chatSessionItem, token),
 				})
 				: undefined;
@@ -963,14 +966,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			isPartialQuery: !autoSend,
 			agentMode: true,
 		});
-	}
-
-	private async estimateCopilotCLISessionTokens(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[], sessionId: string, workspace: IWorkspaceInfo, token: CancellationToken): Promise<number> {
-		if (history.length > 0) {
-			return estimateChatHistoryTokens(history);
-		}
-		const persistedHistory = await this.sessionService.getChatHistory({ sessionId, workspace }, token);
-		return estimateChatHistoryTokens(persistedHistory);
 	}
 
 	private async getCopilotCLILastActivityTime(sessionId: string, chatSessionItem: vscode.ChatSessionItem, token: CancellationToken): Promise<number | undefined> {

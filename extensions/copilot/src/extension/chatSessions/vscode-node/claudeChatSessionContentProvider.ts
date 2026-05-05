@@ -33,7 +33,7 @@ import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCom
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
-import { createStaleSessionWarningResult, estimateChatHistoryTokens, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, getStaleSessionWarningTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
 import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
@@ -115,6 +115,11 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				return {};
 			}
 
+			const effectiveSessionIdForTracking = ClaudeSessionUri.getSessionId(chatSessionContext.chatSessionItem.resource);
+			// Wrap the stream so that any usage(...) reports are also recorded for the
+			// stale-session warning so it mirrors the chat context window widget.
+			stream = wrapStreamForStaleSessionUsageTracking(stream, StaleSessionProviderKind.Claude, effectiveSessionIdForTracking);
+
 			if (staleSessionConfirmation?.action === StaleSessionWarningAction.StartNewSession) {
 				/* __GDPR__
 					"staleSessionWarning.action" : {
@@ -175,7 +180,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.Claude,
 					modelId: modelId.toEndpointModelId(),
-					tokenCount: estimateChatHistoryTokens(context.history),
+					tokenCount: getRecordedStaleSessionTokens(StaleSessionProviderKind.Claude, effectiveSessionId),
 					lastActivityTime: getLastActivityFromChatSessionItem(chatSessionContext.chatSessionItem) ?? getLastActivityFromTiming(existingSession),
 				})
 				: undefined;

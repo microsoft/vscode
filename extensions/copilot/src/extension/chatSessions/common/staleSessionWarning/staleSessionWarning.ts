@@ -110,7 +110,7 @@ export function showStaleSessionWarningConfirmation(stream: vscode.ChatResponseS
 
 	stream.confirmation(
 		l10n.t('Long, idle session'),
-		l10n.t('This session was last active {0} and currently holds {1} of context. Sending another message now will likely miss the prompt cache and re-bill the full context. Consider starting fresh or compacting before continuing.', idleTime, tokenCount),
+		l10n.t('This session was last active {0} and currently holds {1} of context. Sending another message now will likely miss the prompt cache. Consider starting a fresh session or compacting before continuing to save tokens.', idleTime, tokenCount),
 		{
 			metadata: {
 				metadataByAction: {
@@ -178,12 +178,78 @@ export function removeStaleSessionWarningHistory(history: readonly (vscode.ChatR
 	return filtered;
 }
 
-export function estimateChatHistoryTokens(history: readonly unknown[]): number {
-	let characters = 0;
-	for (const turn of history) {
-		characters += extractTurnText(turn).length;
+/**
+ * Returns the recorded token count for `(providerKind, sessionId)` if the
+ * provider previously reported usage via `wrapStreamForStaleSessionUsageTracking`.
+ * Mirrors the source used by the chat context-window widget, which is the
+ * model's actual `stream.usage(...)` report (`promptTokens + completionTokens`).
+ *
+ * Returns undefined when no usage has been reported yet (e.g. on the first
+ * message in a new session). Callers should treat that as "no warning" rather
+ * than fall back to a character-based estimate, so the warning only fires when
+ * we have an authoritative token count to compare against the threshold.
+ */
+export function getRecordedStaleSessionTokens(providerKind: StaleSessionProviderKind, sessionId: string | undefined): number | undefined {
+	if (!sessionId) {
+		return undefined;
 	}
-	return Math.ceil(characters / 4);
+	return recordedStaleSessionTokens.get(makeRecordedKey(providerKind, sessionId));
+}
+
+/**
+ * Records token usage for `(providerKind, sessionId)`. Subsequent calls to
+ * `getRecordedStaleSessionTokens` will return `promptTokens + completionTokens`.
+ */
+export function recordStaleSessionTokens(providerKind: StaleSessionProviderKind, sessionId: string | undefined, usage: { readonly promptTokens?: number; readonly completionTokens?: number }): void {
+	if (!sessionId) {
+		return;
+	}
+	const total = (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+	if (total <= 0) {
+		return;
+	}
+	recordedStaleSessionTokens.set(makeRecordedKey(providerKind, sessionId), total);
+}
+
+/**
+ * Wraps a chat response stream so that any `usage(...)` reports are captured
+ * for the stale-session warning. Method calls other than `usage` are forwarded
+ * to the underlying stream unchanged via prototype-chain delegation.
+ *
+ * Implementation note: the underlying `vscode.ChatResponseStream` is frozen by
+ * the extension host (see `extHostChatAgents2.ts`), so we cannot use a `Proxy`
+ * (which would violate the non-configurable property invariant) and we cannot
+ * mutate the stream itself. Instead we create a child object inheriting from
+ * the stream and shadow `usage` on the child as an own property — a plain
+ * assignment would walk the prototype chain and be rejected by the frozen
+ * parent.
+ */
+export function wrapStreamForStaleSessionUsageTracking<T extends { usage(usage: { readonly promptTokens?: number; readonly completionTokens?: number }): void }>(
+	stream: T,
+	providerKind: StaleSessionProviderKind,
+	sessionId: string | undefined,
+): T {
+	if (!sessionId) {
+		return stream;
+	}
+	const trackingUsage: T['usage'] = ((usage) => {
+		recordStaleSessionTokens(providerKind, sessionId, usage);
+		return stream.usage(usage);
+	}) as T['usage'];
+	return Object.create(stream, {
+		usage: {
+			value: trackingUsage,
+			writable: true,
+			enumerable: true,
+			configurable: true,
+		},
+	}) as T;
+}
+
+const recordedStaleSessionTokens = new Map<string, number>();
+
+function makeRecordedKey(providerKind: StaleSessionProviderKind, sessionId: string): string {
+	return `${providerKind}::${sessionId}`;
 }
 
 export function getLastActivityFromChatSessionItem(item: vscode.ChatSessionItem | undefined): number | undefined {
@@ -323,40 +389,4 @@ function getSelectedAction(prompt: string): StaleSessionWarningAction | undefine
 		default:
 			return undefined;
 	}
-}
-
-function extractTurnText(turn: unknown): string {
-	if (!turn || typeof turn !== 'object') {
-		return '';
-	}
-	const prompt = (turn as { prompt?: unknown }).prompt;
-	if (typeof prompt === 'string') {
-		return prompt;
-	}
-	const response = (turn as { response?: unknown }).response;
-	if (Array.isArray(response)) {
-		return response.map(extractResponsePartText).join('\n');
-	}
-	return '';
-}
-
-function extractResponsePartText(part: unknown): string {
-	if (!part || typeof part !== 'object') {
-		return '';
-	}
-
-	const value = (part as { value?: unknown }).value;
-	if (typeof value === 'string') {
-		return value;
-	}
-	if (value && typeof value === 'object' && 'value' in value && typeof (value as { value?: unknown }).value === 'string') {
-		return (value as { value: string }).value;
-	}
-
-	const content = (part as { content?: unknown }).content;
-	if (typeof content === 'string') {
-		return content;
-	}
-
-	return '';
 }
