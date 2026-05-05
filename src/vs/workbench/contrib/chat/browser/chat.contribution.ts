@@ -578,12 +578,6 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
-		'chat.sendElementsToChat.attachCSS': {
-			default: true,
-			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat."),
-			type: 'boolean',
-			tags: ['preview']
-		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat."),
@@ -1024,12 +1018,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, terminal tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
 			default: false,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			},
 		},
 		[ChatConfiguration.ToolRiskAssessmentModel]: {
 			type: 'string',
 			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
 			default: 'copilot-fast',
 			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			},
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
 			type: 'string',

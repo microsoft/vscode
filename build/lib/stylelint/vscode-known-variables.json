@@ -621,6 +621,7 @@
 		"--vscode-quickInput-list-focusBackground",
 		"--vscode-quickInputList-focusBackground",
 		"--vscode-quickInputList-focusForeground",
+		"--vscode-quickInputList-focusHighlightForeground",
 		"--vscode-quickInputList-focusIconForeground",
 		"--vscode-quickInputTitle-background",
 		"--vscode-radio-activeBackground",
