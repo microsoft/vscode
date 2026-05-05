@@ -76,8 +76,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				// changes - the initial push from `_reconcile()` may have raced an
 				// undefined `rootState.value`, in which case the schema gate below
 				// in `_pushDefaultShell` returned early.
-				// Fix #314385
-				// store.add(this._agentHostService.rootState.onDidChange(() => this._pushDefaultShell()));
+				store.add(this._agentHostService.rootState.onDidChange(() => this._pushDefaultShell()));
 				this._conditionalListeners.value = store;
 				this._reconcile();
 			}
@@ -141,6 +140,16 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		}
 
 		if (!profile.path) {
+			return;
+		}
+
+		const currentRootState = this._agentHostService.rootState.value;
+		if (!currentRootState || currentRootState instanceof Error) {
+			return;
+		}
+
+		// Fix #314385
+		if (rootState.config.values[AgentHostConfigKey.DefaultShell] === profile.path) {
 			return;
 		}
 
