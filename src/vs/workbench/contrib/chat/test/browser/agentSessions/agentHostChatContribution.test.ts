@@ -2122,7 +2122,7 @@ suite('AgentHostChatContribution', () => {
 		test('maps models with correct metadata', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([
-				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true, _meta: { pricing: '1.5x', multiplierNumeric: 1.5 } },
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true, _meta: { multiplierNumeric: 1.5 } },
 			]);
 
 			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);

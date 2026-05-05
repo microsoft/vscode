@@ -437,12 +437,12 @@ suite('AgentSideEffects', () => {
 				}
 				return e.action.agents[0]?.models.length === 1;
 			}));
-			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, _meta: { pricing: '2x', multiplierNumeric: 2 } }]);
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, _meta: { multiplierNumeric: 2 } }]);
 
 			const { action } = await envelope;
 
 			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
-			assert.deepStrictEqual(action.agents[0].models[0]._meta, { pricing: '2x', multiplierNumeric: 2 });
+			assert.deepStrictEqual(action.agents[0].models[0]._meta, { multiplierNumeric: 2 });
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
