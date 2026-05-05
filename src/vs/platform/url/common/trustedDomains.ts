@@ -18,7 +18,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean 
 	url = URI.parse(normalizeURL(url));
 	trustedDomains = trustedDomains.map(normalizeURL);
 
-	if (isLocalhostAuthority(url.authority) || isAllInterfacesAuthority(url.authority)) {
+	if (isLocalhostAuthority(url.authority)) {
 		return true;
 	}
 
