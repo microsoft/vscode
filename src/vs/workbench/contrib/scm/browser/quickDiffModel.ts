@@ -34,12 +34,11 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
 export interface QuickDiffModelOptions {
-	readonly algorithm: DiffAlgorithmName;
+	readonly algorithm?: DiffAlgorithmName;
 	readonly maxComputationTimeMs?: number;
 }
 
 const decoratorQuickDiffModelOptions: QuickDiffModelOptions = {
-	algorithm: 'advanced',
 	maxComputationTimeMs: 1000
 };
 
@@ -142,7 +141,9 @@ export class QuickDiffModel extends Disposable {
 		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 		this._register(
 			Event.filter(configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') || e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
+				e => e.affectsConfiguration('scm.diffDecorationsAlgorithm') ||
+					e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') ||
+					e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
@@ -266,12 +267,13 @@ export class QuickDiffModel extends Disposable {
 			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
 				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 				: ignoreTrimWhitespaceSetting !== 'false';
+			const algorithm = this.options.algorithm ?? this.configurationService.getValue<DiffAlgorithmName>('scm.diffDecorationsAlgorithm');
 
 			const diffs: QuickDiffChange[] = [];
 			const secondaryDiffs: QuickDiffChange[] = [];
 
 			for (const quickDiff of quickDiffs) {
-				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				const diff = await this._diff(quickDiff.originalResource, this._model.resource, algorithm, ignoreTrimWhitespace);
 				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
 					for (let index = 0; index < diff.changes.length; index++) {
 						const change2 = diff.changes2[index];
@@ -335,12 +337,12 @@ export class QuickDiffModel extends Disposable {
 		});
 	}
 
-	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
+	private async _diff(original: URI, modified: URI, algorithm: DiffAlgorithmName, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
 		const maxComputationTimeMs = this.options.maxComputationTimeMs ?? Number.MAX_SAFE_INTEGER;
 
 		const result = await this.editorWorkerService.computeDiff(original, modified, {
 			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
-		}, this.options.algorithm);
+		}, algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
 	}
