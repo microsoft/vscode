@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parse, parseMarkdownFrontMatter, parseCommaSeparatedList, YamlNode, YamlScalarNode, YamlMapNode, YamlSequenceNode, YamlParseError } from '../../common/yaml.js';
+import { parse, parseFrontMatter, parseCommaSeparatedList, YamlNode, YamlScalarNode, YamlMapNode, YamlSequenceNode, YamlParseError } from '../../common/yaml.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 // Helper to parse and assert no errors
@@ -1150,14 +1150,14 @@ suite('YAML Parser', () => {
 
 		test('no frontmatter returns undefined header and full input as body', () => {
 			const input = 'Just some markdown text\nwithout frontmatter.';
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
 			assert.strictEqual(result.header, undefined);
 			assert.strictEqual(result.body, input);
 		});
 
 		test('empty input returns undefined header and empty body', () => {
-			const result = parseMarkdownFrontMatter('');
+			const result = parseFrontMatter('');
 			assert.ok(result);
 			assert.strictEqual(result.header, undefined);
 			assert.strictEqual(result.body, '');
@@ -1172,7 +1172,7 @@ suite('YAML Parser', () => {
 				'# Heading',
 				'Body text here.',
 			].join('\n');
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
 			const map = assertMap(result.header, 2);
 			assert.strictEqual((map.properties[0].value as YamlScalarNode).value, 'Hello');
@@ -1188,7 +1188,7 @@ suite('YAML Parser', () => {
 				'key: value',
 				'---',
 			].join('\n');
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
 			const map = assertMap(result.header, 1);
 			assert.strictEqual((map.properties[0].value as YamlScalarNode).value, 'value');
@@ -1196,17 +1196,42 @@ suite('YAML Parser', () => {
 			assert.strictEqual(result.body, '');
 		});
 
+		test('empty frontmatter strips delimiters', () => {
+			const input = [
+				'---',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, '');
+		});
+
+		test('comment-only frontmatter strips delimiters and preserves body', () => {
+			const input = [
+				'---',
+				'# note',
+				'---',
+				'Body text here.',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.strictEqual(result.header, undefined);
+			assert.strictEqual(result.body, 'Body text here.');
+		});
+
 		test('getStringValue returns the scalar for a known key', () => {
 			const input = [
 				'---',
-				'title: My Doc',
+				'name: my-agent',
+				'tools: foo, bar',
 				'---',
 				'body content',
 			].join('\n');
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
-			assert.strictEqual(result.getStringValue('title'), 'My Doc');
-			assert.strictEqual(result.getStringValue('missing'), undefined);
+			assert.strictEqual(result.getStringValue('name'), 'my-agent');
+			assert.deepStrictEqual(result.getStringArrayValue('tools'), ['foo', 'bar']);
 		});
 
 		test('getStringArrayValue returns array for a sequence key', () => {
@@ -1218,7 +1243,7 @@ suite('YAML Parser', () => {
 				'  - baz',
 				'---',
 			].join('\n');
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
 			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo', 'bar', 'baz']);
 		});
@@ -1229,7 +1254,7 @@ suite('YAML Parser', () => {
 				'tags: foo, bar, baz',
 				'---',
 			].join('\n');
-			const result = parseMarkdownFrontMatter(input);
+			const result = parseFrontMatter(input);
 			assert.ok(result);
 			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo', 'bar', 'baz']);
 		});

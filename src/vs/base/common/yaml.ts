@@ -30,16 +30,17 @@ export function parse(input: string, errors: YamlParseError[] = [], options: Par
  * Helper to parse a Markdown with YAML frontmatter document
  * @returns
  */
-export function parseMarkdownFrontMatter(input: string, errors: YamlParseError[] = [], options: ParseOptions = {}): MarkdownNode | undefined {
+export function parseFrontMatter(input: string, errors: YamlParseError[] = [], options: ParseOptions = {}): MarkdownNode | undefined {
 	const tokens = new YamlScanner(input).scan();
 	if (tokens.length === 0 || tokens[0].type !== TokenType.DocumentStart) {
 		// does not start with a frontmatter header (---)
 		return new MarkdownNode(undefined, input);
 	}
-	const header = new YamlParser(tokens, input, errors, options).parse();
-	if (!header) {
+	const hasClosingFrontMatter = tokens.slice(1).some(token => token.type === TokenType.DocumentStart);
+	if (!hasClosingFrontMatter) {
 		return new MarkdownNode(undefined, input);
 	}
+	const header = new YamlParser(tokens, input, errors, options).parse();
 	const lastToken = tokens[tokens.length - 1];
 	const body = lastToken.type === TokenType.EOF ? input.substring(lastToken.startOffset) : '';
 	return new MarkdownNode(header, body);
