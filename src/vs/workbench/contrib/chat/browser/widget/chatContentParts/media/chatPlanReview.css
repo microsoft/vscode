@@ -190,6 +190,18 @@
 	margin-bottom: 0;
 }
 
+.interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
+	min-height: min(280px, 35vh);
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
+	min-height: min(520px, 60vh);
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-body-editor > .monaco-editor {
+	height: 100%;
+}
+
 /* ---------- Feedback section (fixed; outside scroll) ---------- */
 .interactive-session .chat-plan-review-container .chat-plan-review-feedback {
 	display: flex;
