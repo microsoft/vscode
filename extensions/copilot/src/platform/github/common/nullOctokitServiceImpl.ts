@@ -14,6 +14,14 @@ export class NullBaseOctoKitService extends BaseOctoKitService {
 		return { avatar_url: '', login: 'NullUser', name: 'Null User' };
 	}
 
+	async getCurrentAuthedUser(): Promise<IOctoKitUser | undefined> {
+		return { avatar_url: '', login: 'NullUser', name: 'Null User' };
+	}
+
+	async getUserOrganizations(): Promise<string[]> {
+		return [];
+	}
+
 	override async _makeGHAPIRequest(routeSlug: string, method: 'GET' | 'POST', token: string, body?: { [key: string]: any }, options?: { silent404?: boolean }, callSite?: string) {
 		return undefined;
 	}
