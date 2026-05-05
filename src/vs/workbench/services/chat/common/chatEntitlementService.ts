@@ -852,7 +852,7 @@ export class ChatEntitlementRequests extends Disposable {
 				const quotaSnapshot: IQuotaSnapshot = {
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					unlimited: rawQuotaSnapshot.unlimited,
-					usageBasedBilling: rawQuotaSnapshot.token_based_billing,
+					usageBasedBilling: entitlementsData.token_based_billing,
 					resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 					entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
 				};
