@@ -58,7 +58,6 @@ import '../workbench/services/mcp/electron-browser/mcpWorkbenchManagementService
 import '../workbench/services/encryption/electron-browser/encryptionService.js';
 import '../workbench/services/imageResize/electron-browser/imageResizeService.js';
 import '../workbench/services/secrets/electron-browser/secretStorageService.js';
-import '../workbench/services/secrets/electron-browser/sharedKeychainService.js';
 import '../workbench/services/localization/electron-browser/languagePackService.js';
 import '../workbench/services/telemetry/electron-browser/telemetryService.js';
 import '../workbench/services/extensions/electron-browser/extensionHostStarter.js';
@@ -183,10 +182,6 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 // Remote Tunnel
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
-// Chat
-import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
-import './contrib/chat/electron-browser/openInVSCode.contribution.js';
-
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
 
@@ -204,6 +199,7 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './electron-browser/sessions.desktop.contribution.js';
 import './services/vscode/electron-browser/themeImporterService.js';
 
 // Remote Agent Host
@@ -214,6 +210,9 @@ import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// Chat
+import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/agentHost/browser/localAgentHost.contribution.js';

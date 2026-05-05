@@ -12,8 +12,9 @@ import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
+import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
-import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
@@ -79,7 +80,7 @@ type RequestHandlerMap = {
  */
 interface IConnectedClient {
 	readonly clientId: string;
-	readonly protocolVersion: number;
+	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
 	readonly subscriptions: Set<string>;
 	readonly disposables: DisposableStore;
@@ -158,13 +159,19 @@ export class ProtocolServerHandler extends Disposable {
 					return;
 				}
 				if (!client && msg.method === 'reconnect') {
+					let responsePromise: Promise<unknown>;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						responsePromise = result.responsePromise;
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
+						return;
 					}
+					responsePromise.then(
+						response => transport.send(jsonRpcSuccess(msg.id, response)),
+						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+					);
 					return;
 				}
 
@@ -178,7 +185,10 @@ export class ProtocolServerHandler extends Disposable {
 				switch (msg.method) {
 					case 'unsubscribe':
 						if (client) {
-							client.subscriptions.delete(msg.params.resource);
+							const resource = msg.params.resource;
+							if (client.subscriptions.delete(resource)) {
+								this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+							}
 						}
 						break;
 					case 'dispatchAction':
@@ -196,7 +206,11 @@ export class ProtocolServerHandler extends Disposable {
 				if (pending) {
 					this._pendingReverseRequests.delete(msg.id);
 					if (hasKey(msg, { error: true })) {
-						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+						pending.reject(new ProtocolError(
+							msg.error?.code ?? -32000,
+							msg.error?.message ?? 'Reverse RPC error',
+							msg.error?.data,
+						));
 					} else {
 						pending.resolve(msg.result);
 					}
@@ -207,6 +221,13 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
+				// Treat disconnect as an implicit unsubscribe of every resource the
+				// client held, so the server-side refcount can drop to zero and any
+				// idle restored session state can be evicted.
+				for (const resource of client.subscriptions) {
+					this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+				}
+				client.subscriptions.clear();
 				this._clients.delete(client.clientId);
 				this._rejectPendingReverseRequests(client.clientId);
 				this._handleClientDisconnected(client.clientId);
@@ -225,18 +246,21 @@ export class ProtocolServerHandler extends Disposable {
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
-		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, version=${params.protocolVersion}`);
+		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
+		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
-		if (params.protocolVersion < MIN_PROTOCOL_VERSION) {
+		const negotiated = offered.find(v => v === PROTOCOL_VERSION);
+		if (!negotiated) {
 			throw new ProtocolError(
 				AHP_UNSUPPORTED_PROTOCOL_VERSION,
-				`Client protocol version ${params.protocolVersion} is below minimum ${MIN_PROTOCOL_VERSION}`,
+				`Client offered protocol versions [${offered.join(', ')}], but this server only supports ${PROTOCOL_VERSION}.`,
+				{ supportedVersions: [`^${PROTOCOL_VERSION}`] } satisfies UnsupportedProtocolVersionErrorData,
 			);
 		}
 
 		const client: IConnectedClient = {
 			clientId: params.clientId,
-			protocolVersion: params.protocolVersion,
+			protocolVersion: negotiated,
 			transport,
 			subscriptions: new Set(),
 			disposables,
@@ -250,6 +274,7 @@ export class ProtocolServerHandler extends Disposable {
 			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
 			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
 			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(params.clientId, 'resourceRequest', params_),
 		}));
 
 
@@ -259,8 +284,10 @@ export class ProtocolServerHandler extends Disposable {
 				const snapshot = this._stateManager.getSnapshot(uri);
 				if (snapshot) {
 					snapshots.push(snapshot);
-					client.subscriptions.add(uri.toString());
-					this._clearClientToolCallDisconnectTimeout(params.clientId, uri.toString());
+					const key = uri.toString();
+					client.subscriptions.add(key);
+					this._agentService.addSubscriber(URI.parse(key), client.clientId);
+					this._clearClientToolCallDisconnectTimeout(params.clientId, key);
 				}
 			}
 		}
@@ -268,7 +295,7 @@ export class ProtocolServerHandler extends Disposable {
 		return {
 			client,
 			response: {
-				protocolVersion: PROTOCOL_VERSION,
+				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
@@ -280,9 +307,12 @@ export class ProtocolServerHandler extends Disposable {
 		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; responsePromise: Promise<unknown> } {
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 
+		// Synchronously install the client so messages arriving on this transport
+		// while we restore subscriptions can find a valid client object. The
+		// reconnect response is only sent once `responsePromise` resolves below.
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
@@ -296,12 +326,40 @@ export class ProtocolServerHandler extends Disposable {
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
+		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
+		return { client, responsePromise };
+	}
+
+	/**
+	 * Re-establish each of the client's prior subscriptions on the server side.
+	 * Uses {@link IAgentService.subscribe} (rather than a bare `addSubscriber`
+	 * + `getSnapshot`) so any session state that was evicted while the client
+	 * was disconnected is restored. Returns the appropriate reconnect response
+	 * payload — `replay` actions when the client's last-seen seq is still in
+	 * the buffer, otherwise fresh `snapshot`s.
+	 */
+	private async _restoreReconnectSubscriptions(
+		client: IConnectedClient,
+		params: ReconnectParams,
+		canReplay: boolean,
+	): Promise<unknown> {
+		const missing: string[] = [];
+		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
+			const key = sub.toString();
+			try {
+				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
+				client.subscriptions.add(key);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
+				return snapshot;
+			} catch (err) {
+				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
+				missing.push(sub);
+				return undefined;
+			}
+		}));
+
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
-			for (const sub of params.subscriptions) {
-				client.subscriptions.add(sub.toString());
-				this._clearClientToolCallDisconnectTimeout(params.clientId, sub.toString());
-			}
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
 					if (this._isRelevantToClient(client, envelope)) {
@@ -309,19 +367,9 @@ export class ProtocolServerHandler extends Disposable {
 					}
 				}
 			}
-			return { client, response: { type: 'replay', actions } };
-		} else {
-			const snapshots: IStateSnapshot[] = [];
-			for (const sub of params.subscriptions) {
-				const snapshot = this._stateManager.getSnapshot(sub);
-				if (snapshot) {
-					snapshots.push(snapshot);
-					client.subscriptions.add(sub);
-					this._clearClientToolCallDisconnectTimeout(params.clientId, sub);
-				}
-			}
-			return { client, response: { type: 'snapshot', snapshots } };
+			return { type: 'replay', actions, missing };
 		}
+		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
 	private _handleClientDisconnected(clientId: string): void {
@@ -428,7 +476,7 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.resource));
+				const snapshot = await this._agentService.subscribe(URI.parse(params.resource), client.clientId);
 				client.subscriptions.add(params.resource);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, params.resource);
 				return { snapshot };
@@ -509,6 +557,7 @@ export class ProtocolServerHandler extends Disposable {
 					provider,
 					title: s.summary ?? 'Session',
 					status,
+					activity: s.activity,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
@@ -571,6 +620,12 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
+		},
+		resourceRequest: async (_client, _params) => {
+			// The local agent host does not yet enforce per-resource grants
+			// for client → server access. Always grant; receivers MAY rescind
+			// access by returning `PermissionDenied` on subsequent operations.
+			return {};
 		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);

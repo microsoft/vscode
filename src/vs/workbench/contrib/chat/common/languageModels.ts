@@ -192,6 +192,9 @@ export interface ILanguageModelChatMetadata {
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
 	readonly pricing?: string;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;

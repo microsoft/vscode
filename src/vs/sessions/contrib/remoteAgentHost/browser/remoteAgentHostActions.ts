@@ -27,11 +27,13 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -606,6 +608,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: Menus.SessionWorkspaceManage,
 				order: 20,
+				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
 			},
 		});
 	}
@@ -979,6 +982,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: Menus.SessionWorkspaceManage,
 				order: 10,
+				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
 			},
 		});
 	}

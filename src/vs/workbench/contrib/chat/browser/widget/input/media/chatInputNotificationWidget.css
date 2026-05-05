@@ -81,13 +81,31 @@
 	white-space: nowrap;
 }
 
+/* Body row: description + actions inline */
+/* Markdown-rendered title: keep the title inline (no block <p> margins). */
+.chat-input-notification .chat-input-notification-title-markdown {
+	display: inline;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown > p {
+	display: inline;
+	margin: 0;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 0 3px;
+	border-radius: 3px;
+	background: var(--vscode-textCodeBlock-background);
+}
+
 /* Body row: description + actions inline, wraps at small widths */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
-	flex-wrap: wrap;
 }
 
 /* Description */
@@ -96,7 +114,10 @@
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
-	min-width: 150px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* Actions container */

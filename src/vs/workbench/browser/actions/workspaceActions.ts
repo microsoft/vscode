@@ -195,7 +195,7 @@ class OpenWorkspaceConfigFileAction extends Action2 {
 			title: localize2('openWorkspaceConfigFile', 'Open Workspace Configuration File'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -241,7 +241,7 @@ export class RemoveRootFolderAction extends Action2 {
 			title: localize2('globalRemoveFolderFromWorkspace', 'Remove Folder from Workspace...'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
+			precondition: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')), IsSessionsWindowContext.negate())
 		});
 	}
 

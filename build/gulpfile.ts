@@ -13,6 +13,7 @@ import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask }
 import * as compilation from './lib/compilation.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
+import { runEsbuildTranspile } from './lib/esbuild.ts';
 
 // Extension point names
 gulp.task(compilation.compileExtensionPointNamesTask);
@@ -23,9 +24,11 @@ const require = createRequire(import.meta.url);
 gulp.task(compilation.compileApiProposalNamesTask);
 gulp.task(compilation.watchApiProposalNamesTask);
 
-// SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out', true)));
-gulp.task(transpileClientSWCTask);
+// Client Transpile
+gulp.task(task.define('transpile-client-esbuild', task.series(
+	compilation.copyCodiconsTask,
+	task.define('esbuild-out-build', () => runEsbuildTranspile('out', false)),
+)));
 
 // Transpile only
 const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));

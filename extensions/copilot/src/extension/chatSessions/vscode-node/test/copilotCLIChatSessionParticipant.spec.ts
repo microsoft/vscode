@@ -248,12 +248,17 @@ function createChatContext(sessionId: string, isUntitled: boolean, ...requests: 
 	} as vscode.ChatContext;
 }
 
+async function waitForScheduledUntitledSwap(): Promise<void> {
+	await new Promise(resolve => setTimeout(resolve, 125));
+}
+
 class TestCopilotCLISession extends CopilotCLISession {
 	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
 	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
 	public static statusOverride?: vscode.ChatSessionStatus;
+	public static lastResponseModelId: string | undefined;
 	override get status(): vscode.ChatSessionStatus | undefined {
 		return TestCopilotCLISession.statusOverride;
 	}
@@ -267,6 +272,9 @@ class TestCopilotCLISession extends CopilotCLISession {
 	override setPermissionLevel(level: string | undefined): void {
 		this.permissionLevel = level;
 		super.setPermissionLevel(level);
+	}
+	override getLastResponseModelId(): string | undefined {
+		return TestCopilotCLISession.lastResponseModelId;
 	}
 }
 
@@ -317,6 +325,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		TestCopilotCLISession.nextHandleRequestResult = undefined;
 		TestCopilotCLISession.handleRequestHook = undefined;
 		TestCopilotCLISession.statusOverride = undefined;
+		TestCopilotCLISession.lastResponseModelId = undefined;
 		// By default, simulate VS Code core opening the delegated session and
 		// re-invoking handleRequest with the copilotcli:// resource. This matches
 		// the production flow where executeCommand opens the session.
@@ -818,6 +827,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 		resolveSteeringRequest3();
 		await fourthPromise;
+		await waitForScheduledUntitledSwap();
 
 		expect(itemProvider.swap).toHaveBeenCalledTimes(1);
 	});
@@ -1040,6 +1050,66 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions[0].requests[0].input).toEqual({ prompt: 'my prompt' });
 	});
 
+	it('returns live response details from the model reported by assistant usage', async () => {
+		const sessionId = 'existing-live-model';
+		const sdkSession = new MockCliSdkSession(sessionId, new Date());
+		manager.sessions.set(sessionId, sdkSession);
+		models.getModels = vi.fn(async () => [
+			{ id: 'base', name: 'Base', maxContextWindowTokens: 128000, supportsVision: false },
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext(sessionId, false, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({ details: 'Claude Opus 4.7 • 4x' });
+	});
+
+	it('does not return live response details when model details are disabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIModelDetailsEnabled, false);
+		const sessionId = 'existing-live-model-disabled';
+		const sdkSession = new MockCliSdkSession(sessionId, new Date());
+		manager.sessions.set(sessionId, sdkSession);
+		models.getModels = vi.fn(async () => [
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext(sessionId, false, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({});
+		expect(models.getModels).not.toHaveBeenCalled();
+	});
+
+	it('returns live response details before swapping an untitled session', async () => {
+		(itemProvider.isNewSession as ReturnType<typeof vi.fn>).mockImplementation((sessionId: string) => sessionId.startsWith('untitled:'));
+		models.getModels = vi.fn(async () => [
+			{ id: 'claude-opus-4.7', name: 'Claude Opus 4.7', multiplier: 4, maxContextWindowTokens: 200000, supportsVision: true }
+		] as CopilotCLIModelInfo[]);
+		TestCopilotCLISession.lastResponseModelId = 'claude-opus-4.7';
+		const request = new TestChatRequest('my prompt');
+		const context = createChatContext('untitled:live-model', true, request);
+		const stream = new MockChatResponseStream();
+		const token = disposables.add(new CancellationTokenSource()).token;
+
+		const result = await participant.createHandler()(request, context, stream, token);
+
+		expect(result).toEqual({ details: 'Claude Opus 4.7 • 4x' });
+		expect(itemProvider.swap).not.toHaveBeenCalled();
+
+		await waitForScheduledUntitledSwap();
+
+		expect(itemProvider.swap).toHaveBeenCalledTimes(1);
+	});
+
 	it('handles existing session with rejectedConfirmationData (proceeds normally)', async () => {
 		// With the new flow, rejectedConfirmationData is no longer used for uncommitted changes.
 		const sessionId = 'existing-confirm-reject';
@@ -1135,6 +1205,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const token = disposables.add(new CancellationTokenSource()).token;
 
 		await participant.createHandler()(request, context, stream, token);
+		await waitForScheduledUntitledSwap();
 
 		// Should swap with request.prompt as label
 		expect(itemProvider.swap).toHaveBeenCalled();
@@ -2222,6 +2293,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 			// Mapping should have existed during the request
 			expect(mappingExistedDuringRequest).toBe(true);
+			await waitForScheduledUntitledSwap();
 			// After the request completes and the session is swapped, the mapping should be cleaned up
 			expect(itemProvider.sdkToUntitledUriMapping.has(capturedSdkSessionId!)).toBe(false);
 		});

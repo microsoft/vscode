@@ -11,7 +11,7 @@ import { basename, dirname, isEqualOrParent } from '../../../../../base/common/r
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationPromptsStorage, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -312,7 +312,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): ICustomizationItem[] {
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		const withStorage = groupedItems.filter((item): item is ICustomizationItem & { readonly storage: PromptsStorage } => item.storage !== undefined);
+		const withStorage = groupedItems.filter((item): item is ICustomizationItem & { readonly storage: AICustomizationPromptsStorage } => item.storage !== undefined);
 		const withoutStorage = groupedItems.filter(item => item.storage === undefined);
 		let items = [...applyStorageSourceFilter(withStorage, filter), ...withoutStorage];
 

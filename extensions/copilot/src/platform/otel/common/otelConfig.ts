@@ -20,6 +20,15 @@ export interface OTelConfig {
 	readonly otlpEndpoint: string;
 	readonly otlpProtocol: 'grpc' | 'http';
 	readonly captureContent: boolean;
+	/**
+	 * Maximum size (in characters) for free-form content attributes (prompts,
+	 * tool args, etc.). A value of `0` disables truncation entirely (the
+	 * default), matching the OTel spec's `AttributeValueLengthLimit` default of
+	 * `Infinity`. Set to a positive value when targeting backends that cap
+	 * per-attribute size to keep OTLP batches under the backend limit; consult
+	 * the backend's documentation for the appropriate value.
+	 */
+	readonly maxAttributeSizeChars: number;
 	readonly fileExporterPath?: string;
 	readonly dbSpanExporter: boolean;
 	readonly logLevel: 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -75,6 +84,7 @@ export interface OTelConfigInput {
 	settingExporterType?: OTelExporterType;
 	settingOtlpEndpoint?: string;
 	settingCaptureContent?: boolean;
+	settingMaxAttributeSizeChars?: number;
 	settingOutfile?: string;
 	settingDbSpanExporter?: boolean;
 	extensionVersion: string;
@@ -157,6 +167,11 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		?? input.settingCaptureContent
 		?? false;
 
+	// Max attribute size in characters: env > setting > default(0 = unlimited).
+	const maxAttributeSizeChars = parseMaxAttributeSizeChars(env['COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS'])
+		?? input.settingMaxAttributeSizeChars
+		?? 0;
+
 	// Log level
 	const validLogLevels = new Set<OTelConfig['logLevel']>(['trace', 'debug', 'info', 'warn', 'error']);
 	const rawLogLevel = env['COPILOT_OTEL_LOG_LEVEL'];
@@ -181,6 +196,7 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		otlpEndpoint,
 		otlpProtocol: protocol,
 		captureContent,
+		maxAttributeSizeChars: maxAttributeSizeChars < 0 ? 0 : maxAttributeSizeChars,
 		fileExporterPath,
 		dbSpanExporter,
 		logLevel,
@@ -201,6 +217,7 @@ function createDisabledConfig(input: OTelConfigInput): OTelConfig {
 		otlpEndpoint: '',
 		otlpProtocol: 'http' as const,
 		captureContent: false,
+		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,
 		logLevel: 'info' as const,
 		httpInstrumentation: false,
@@ -216,4 +233,21 @@ function envBool(val: string | undefined): boolean | undefined {
 		return undefined;
 	}
 	return val === 'true' || val === '1';
+}
+
+/**
+ * Parse a numeric env var representing the max attribute size in characters.
+ * Accepts non-negative safe integers; fractional, unsafe, or non-numeric input
+ * returns `undefined` so the caller can fall back to the next config layer.
+ * Negative values are clamped to `0` (no truncation) by the caller.
+ */
+function parseMaxAttributeSizeChars(val: string | undefined): number | undefined {
+	if (val === undefined || val === '') {
+		return undefined;
+	}
+	const n = Number(val);
+	if (!Number.isSafeInteger(n)) {
+		return undefined;
+	}
+	return n;
 }

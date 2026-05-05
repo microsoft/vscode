@@ -440,3 +440,89 @@
 	-webkit-touch-callout: none;
 	touch-action: manipulation;
 }
+
+/*
+ * Phone layout: roomier rows with a centered, always-visible action
+ * toolbar that meets the 44px minimum touch target. The taller row
+ * height is reserved by `SessionsTreeDelegate.ITEM_HEIGHT_PHONE` —
+ * keep these rules in sync if paddings/font sizes change here.
+ */
+.agent-sessions-workbench.phone-layout .sessions-list-control {
+	.monaco-list-row:has(.session-item) {
+		/* Horizontal-only margin: virtual list rows are absolutely
+		 * positioned with JS-set `top`/`height`, so vertical margins
+		 * here would not produce reliable inter-row spacing. Any gap
+		 * lives inside the row via padding. */
+		margin: 0 8px;
+		width: calc(100% - 16px);
+		border-radius: 10px;
+	}
+
+	.session-item {
+		padding: 10px 10px;
+		/* Vertically center the icon + main column inside the fixed phone row height. */
+		align-items: center;
+		/* Anchor for the absolutely positioned title toolbar (kept out
+		 * of the title-row flow so a 44px tap target doesn't inflate
+		 * the title line-height or shift the details row down). */
+		position: relative;
+	}
+
+	.session-item .session-icon {
+		line-height: 20px;
+
+		> .codicon {
+			font-size: 14px;
+			height: 20px;
+		}
+	}
+
+	.session-item .session-main {
+		padding-left: 10px;
+		/* Reserve space for the right-aligned toolbar so long titles
+		 * don't overlap the action icons. Sized to fit two 44px actions
+		 * (88px) plus a small gap. */
+		padding-right: 96px;
+	}
+
+	.session-item .session-title-row {
+		line-height: 20px;
+		padding-bottom: 4px;
+	}
+
+	.session-item .session-title {
+		font-size: 15px;
+		line-height: 20px;
+	}
+
+	.session-item .session-details-row {
+		font-size: 12.5px;
+		line-height: 16px;
+		max-height: 16px;
+	}
+
+	/*
+	 * Reveal the per-row action toolbar at rest. The default workbench
+	 * rule shows it on `:hover`/`:focus`, neither of which fire reliably
+	 * on touch. Pull the toolbar out of the title row flow and vertically
+	 * center it against the full row so 44px tap targets don't push the
+	 * details row down.
+	 */
+	.monaco-list-row .session-title-toolbar {
+		display: block;
+		position: absolute;
+		right: 6px;
+		top: 50%;
+		transform: translateY(-50%);
+		height: auto;
+	}
+
+	/* Center the codicon inside the 44x44 tap target. The base
+	 * `.action-label` is a flex container that defaults to start
+	 * alignment, so the icon sticks to the top-left of the square. */
+	.monaco-list-row .session-title-toolbar .action-item.menu-entry > .action-label {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+}

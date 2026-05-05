@@ -190,6 +190,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			// Check if web search is enabled and append web_search tool if not already present.
 			// We need to do this because there is no local web_search tool definition we can replace.
 			const webSearchEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.AnthropicWebSearchToolEnabled, this._experimentationService);
+			let webSearchDomainConflictError: string | undefined;
 			if (webSearchEnabled && !tools.some(tool => 'name' in tool && tool.name === 'web_search')) {
 				const maxUses = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchMaxUses);
 				const allowedDomains = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchAllowedDomains);
@@ -204,11 +205,13 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					...(shouldDeferWebSearch ? { defer_loading: shouldDeferWebSearch } : {})
 				};
 
-				// Add domain filtering if configured
-				// Cannot use both allowed and blocked domains simultaneously
-				if (allowedDomains && allowedDomains.length > 0) {
+				const hasAllowed = !!allowedDomains && allowedDomains.length > 0;
+				const hasBlocked = !!blockedDomains && blockedDomains.length > 0;
+				if (hasAllowed && hasBlocked) {
+					webSearchDomainConflictError = vscode.l10n.t('The settings `github.copilot.chat.anthropic.tools.websearch.allowedDomains` and `github.copilot.chat.anthropic.tools.websearch.blockedDomains` cannot be used together. Please configure only one.');
+				} else if (hasAllowed) {
 					webSearchTool.allowed_domains = allowedDomains;
-				} else if (blockedDomains && blockedDomains.length > 0) {
+				} else if (hasBlocked) {
 					webSearchTool.blocked_domains = blockedDomains;
 				}
 
@@ -273,6 +276,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			const wrappedProgress = new RecordedProgress(progress);
 
 			try {
+				if (webSearchDomainConflictError) {
+					throw new Error(webSearchDomainConflictError);
+				}
 				const result = await this._makeRequest(anthropicClient, wrappedProgress, params, betas, token, issuedTime);
 				if (result.ttft) {
 					pendingLoggedChatRequest.markTimeToFirstToken(result.ttft);
@@ -342,7 +348,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						if (responseText) { parts.push({ type: 'text', content: responseText }); }
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 				}
@@ -485,7 +491,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				// per OTel GenAI semantic conventions (issue #300318).
 				const toolDefs = toToolDefinitions(options.tools);
 				if (toolDefs) {
-					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs)));
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
@@ -510,7 +516,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						}
 						return { role, parts };
 					});
-					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs)));
+					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}
 			try {
