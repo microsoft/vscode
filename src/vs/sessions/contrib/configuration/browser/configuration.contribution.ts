@@ -68,6 +68,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.browser.openLocalhostLinks': true,
 		'workbench.browser.enableChatTools': true,
 
+		'workbench.editorAssociations': {
+			'*.md': 'vscode.markdown.preview.editor'
+		},
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
 		'update.showReleaseNotes': false,
