@@ -40,7 +40,8 @@ export class GlassBoxServiceImpl extends Disposable implements IGlassBoxService 
 	) {
 		super();
 
-		// Glass Box is opt-in; starts disabled until the panel is opened
+		// Starts disabled; the contribution enables capture at startup when the
+		// setting is on (the default), so data is captured from the very first request.
 		this._isEnabled = false;
 
 		// Subscribe to request logger changes
@@ -119,10 +120,15 @@ export class GlassBoxServiceImpl extends Disposable implements IGlassBoxService 
 					continue; // Skip markdown-only entries
 				}
 
-				// Only include tool calls that belong to the same capture context as this request.
-				// Matching on CapturingToken ensures tool calls from other turns aren't mixed in.
+				// Only include tool calls that belong to the same capture context AND
+				// whose completion timestamp falls within this request's time window.
+				// A single CapturingToken can cover multiple LLM requests (e.g.
+				// title/intent/main), so the time bound prevents unrelated tool calls
+				// from being attributed to every request in the turn.
+				const reqStart = request.startTime.getTime();
+				const reqEnd = request.endTime.getTime();
 				const matchedToolCalls = entry.token
-					? toolCalls.filter(tc => tc.token === entry.token)
+					? toolCalls.filter(tc => tc.token === entry.token && tc.time >= reqStart && tc.time <= reqEnd)
 					: [];
 
 				const aggregate = this._buildRequestAggregate(entry.id, request, matchedToolCalls);

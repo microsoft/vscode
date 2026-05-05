@@ -37,8 +37,8 @@ export class GlassBoxContribution extends Disposable implements IExtensionContri
 	) {
 		super();
 
-		// Set the context key so commands/menus can be gated
-		vscode.commands.executeCommand('setContext', CONTEXT_KEY, true);
+		// Set the context key so commands/menus can be gated — reflects actual setting state
+		vscode.commands.executeCommand('setContext', CONTEXT_KEY, this._isEnabled());
 
 		// If already enabled at startup, begin collection immediately so data is captured
 		// from the very first request — not just after the panel is opened.
@@ -49,7 +49,9 @@ export class GlassBoxContribution extends Disposable implements IExtensionContri
 		// React to setting changes at runtime
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SETTING_KEY)) {
-				if (this._configurationService.getConfig(ConfigKey.Advanced.GlassBoxEnabled)) {
+				const enabled = this._configurationService.getConfig(ConfigKey.Advanced.GlassBoxEnabled);
+				vscode.commands.executeCommand('setContext', CONTEXT_KEY, enabled);
+				if (enabled) {
 					this._glassBoxService.setEnabled(true);
 					this._logService.info('GlassBox: DevTools enabled — capturing requests');
 				} else {

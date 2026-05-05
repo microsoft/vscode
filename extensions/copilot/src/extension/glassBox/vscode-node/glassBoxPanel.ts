@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IGlassBoxService } from '../common/glassBoxService';
 import {
 	GlassBoxHostMessage,
@@ -21,6 +21,7 @@ export class GlassBoxPanel extends Disposable {
 	private static readonly title = 'Copilot DevTools \u2014 Glass Box AI';
 
 	private _panel: vscode.WebviewPanel | undefined;
+	private _panelDisposables = this._register(new DisposableStore());
 	private _focusRequestId: string | undefined;
 	private _replayCts: vscode.CancellationTokenSource | undefined;
 
@@ -30,6 +31,20 @@ export class GlassBoxPanel extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+	}
+
+	private _disposeReplayCts(): void {
+		if (!this._replayCts) {
+			return;
+		}
+		this._replayCts.cancel();
+		this._replayCts.dispose();
+		this._replayCts = undefined;
+	}
+
+	public override dispose(): void {
+		this._disposeReplayCts();
+		super.dispose();
 	}
 
 	/**
@@ -60,7 +75,7 @@ export class GlassBoxPanel extends Disposable {
 		this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
 
 		// Handle messages from the webview
-		this._register(this._panel.webview.onDidReceiveMessage((message: GlassBoxHostMessage) => {
+		this._panelDisposables.add(this._panel.webview.onDidReceiveMessage((message: GlassBoxHostMessage) => {
 			switch (message.type) {
 				case 'refresh':
 					this._sendUpdatedData();
@@ -96,13 +111,14 @@ export class GlassBoxPanel extends Disposable {
 		}));
 
 		// Handle panel disposal
-		this._register(this._panel.onDidDispose(() => {
-			this._replayCts?.cancel();
+		this._panelDisposables.add(this._panel.onDidDispose(() => {
+			this._disposeReplayCts();
 			this._panel = undefined;
+			this._panelDisposables.clear();
 		}));
 
 		// Subscribe to data changes
-		this._register(this._glassBoxService.onDidChangeRequests(() => {
+		this._panelDisposables.add(this._glassBoxService.onDidChangeRequests(() => {
 			this._sendUpdatedData();
 		}));
 
@@ -145,9 +161,10 @@ export class GlassBoxPanel extends Disposable {
 	}
 
 	private async _runReplay(requestId: string, userQuery: string, modelId: string): Promise<void> {
-		this._replayCts?.cancel();
-		this._replayCts = new vscode.CancellationTokenSource();
-		const token = this._replayCts.token;
+		this._disposeReplayCts();
+		const cts = new vscode.CancellationTokenSource();
+		this._replayCts = cts;
+		const token = cts.token;
 
 		this._postMessage({ type: 'replayStarted', requestId });
 		const start = Date.now();
@@ -192,6 +209,12 @@ export class GlassBoxPanel extends Disposable {
 				const error = redactSensitiveData(rawError);
 				this._postMessage({ type: 'replayResult', requestId, error, latencyMs: Date.now() - start, responseText: '', promptTokens: 0, completionTokens: 0, model: modelId });
 			}
+		} finally {
+			// Only clear if this CTS hasn't been replaced by a newer replay
+			if (this._replayCts === cts) {
+				this._replayCts = undefined;
+			}
+			cts.dispose();
 		}
 	}
 
@@ -204,7 +227,7 @@ export class GlassBoxPanel extends Disposable {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; style-src 'nonce-${nonce}' 'unsafe-inline'; script-src 'nonce-${nonce}';">
+		content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 	<title>${GlassBoxPanel.title}</title>
 	<style nonce="${nonce}">
 		:root {
@@ -224,6 +247,15 @@ export class GlassBoxPanel extends Disposable {
 			--bar-remaining: var(--vscode-editorWidget-background);
 		}
 		* { box-sizing: border-box; margin: 0; padding: 0; }
+		.hidden { display: none; }
+		.muted { opacity: 0.5; }
+		.context-item-success { border-left-color: var(--success); }
+		.context-item-error { border-left-color: var(--error); }
+		.kind-badge-failed { background: var(--error); color: #fff; }
+		.token-explain-calc-total { margin-left: 6ch; }
+		.token-explain-calc-remaining { margin-left: 10ch; }
+		.tool-footnote { font-size: 10px; opacity: 0.5; margin-top: 4px; }
+		.loading-text { font-size: 11px; opacity: 0.5; }
 		body {
 			font-family: var(--vscode-font-family);
 			font-size: var(--vscode-font-size);
@@ -398,6 +430,9 @@ export class GlassBoxPanel extends Disposable {
 			text-align: center;
 			opacity: 0.7;
 			flex-shrink: 0;
+			background: none;
+			color: inherit;
+			font-family: inherit;
 		}
 		.call-node:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
 		.call-node.selected { opacity: 1; border-color: var(--bar-used); background: var(--vscode-list-hoverBackground); }
@@ -720,12 +755,12 @@ export class GlassBoxPanel extends Disposable {
 		</div>
 
 		<div class="request-selector">
-			<select id="requestSelect">
+			<select id="requestSelect" aria-label="Select a request to inspect">
 				<option value="">\u2014 No requests yet \u2014</option>
 			</select>
 		</div>
 
-		<div id="call-flow" class="call-flow-section" style="display:none">
+		<div id="call-flow" class="call-flow-section hidden">
 			<div class="call-flow-label">Session call flow \u2014 click any step to inspect</div>
 			<div id="call-flow-strip" class="call-flow-strip"></div>
 		</div>
@@ -793,6 +828,20 @@ export class GlassBoxPanel extends Disposable {
 			selectedRequestId = e.target.value || null;
 			renderCallFlow();
 			renderActiveTab();
+		});
+
+		// Call-flow strip click delegation — registered once (not per-render)
+		document.getElementById('call-flow-strip').addEventListener('click', (e) => {
+			const node = e.target.closest('.call-node');
+			if (node) {
+				const idx = parseInt(node.dataset.idx, 10);
+				if (!isNaN(idx) && allRequests[idx]) {
+					selectedRequestId = allRequests[idx].id;
+					document.getElementById('requestSelect').value = selectedRequestId;
+					renderCallFlow();
+					renderActiveTab();
+				}
+			}
 		});
 
 		// Handle messages from extension
@@ -887,14 +936,21 @@ export class GlassBoxPanel extends Disposable {
 			return div.innerHTML;
 		}
 
+		/** Apply dynamic widths from data-width attributes (avoids inline style attributes for CSP). */
+		function applyDataWidths(container) {
+			container.querySelectorAll('[data-width]').forEach(el => {
+				el.style.width = el.dataset.width + '%';
+			});
+		}
+
 		function renderCallFlow() {
 			const section = document.getElementById('call-flow');
 			const strip = document.getElementById('call-flow-strip');
 			if (allRequests.length === 0) {
-				section.style.display = 'none';
+				section.classList.add('hidden');
 				return;
 			}
-			section.style.display = '';
+			section.classList.remove('hidden');
 			let html = '';
 			allRequests.forEach((req, i) => {
 				if (i > 0) {
@@ -904,25 +960,14 @@ export class GlassBoxPanel extends Disposable {
 				const cls = (isSel ? ' selected' : '') + (req.success ? '' : ' failed');
 				const shortLabel = getShortCallLabel(req.label);
 				html +=
-					'<div class="call-node' + cls + '" data-idx="' + i + '"' +
+					'<button type="button" class="call-node' + cls + '" data-idx="' + i + '"' +
+					' aria-pressed="' + (isSel ? 'true' : 'false') + '"' +
 					' title="' + esc(req.label + ' (' + req.model + ')') + '">' +
-						'<div class="call-badge">' + (i + 1) + '</div>' +
-						'<div class="call-type-label">' + esc(shortLabel) + '</div>' +
-					'</div>';
+						'<span class="call-badge">' + (i + 1) + '</span>' +
+						'<span class="call-type-label">' + esc(shortLabel) + '</span>' +
+					'</button>';
 			});
 			strip.innerHTML = html;
-			strip.addEventListener('click', (e) => {
-				const node = e.target.closest('.call-node');
-				if (node) {
-					const idx = parseInt(node.dataset.idx, 10);
-					if (!isNaN(idx) && allRequests[idx]) {
-						selectedRequestId = allRequests[idx].id;
-						document.getElementById('requestSelect').value = selectedRequestId;
-						renderCallFlow();
-						renderActiveTab();
-					}
-				}
-			});
 		}
 
 		function getShortCallLabel(label) {
@@ -1005,14 +1050,14 @@ export class GlassBoxPanel extends Disposable {
 						}
 					}
 				}
-				html += '<div class="relevance-bar"><div class="fill" style="width:' + pct + '%"></div></div>' +
+				html += '<div class="relevance-bar"><div class="fill" data-width="' + pct + '"></div></div>' +
 					'</div>';
 			});
 
 			// Model response output
 			if (req.responseText) {
 				html += '<h3>Model Response</h3>';
-				html += '<div class="context-item" style="border-left-color:var(--success)">' +
+				html += '<div class="context-item context-item-success">' +
 					'<div class="header">' +
 						'<span><strong>Response</strong> <span class="kind-badge">Output</span></span>' +
 						(req.tokenBudget ? '<span class="tokens">' + req.tokenBudget.completionTokens.toLocaleString() + ' completion tokens</span>' : '') +
@@ -1024,15 +1069,18 @@ export class GlassBoxPanel extends Disposable {
 				html += '</div>';
 			} else if (req.errorMessage) {
 				html += '<h3>Model Response</h3>';
-				html += '<div class="context-item" style="border-left-color:var(--error)">' +
+				html += '<div class="context-item context-item-error">' +
 					'<div class="header">' +
-						'<span><strong>Error</strong> <span class="kind-badge" style="background:var(--error);color:#fff">Failed</span></span>' +
+						'<span><strong>Error</strong> <span class="kind-badge kind-badge-failed">Failed</span></span>' +
 					'</div>' +
 					'<div class="preview">' + esc(req.errorMessage) + '</div>' +
 				'</div>';
 			}
 
 			panel.innerHTML = html;
+
+			// Apply dynamic widths from data attributes (inline style attributes not used for CSP compliance)
+			applyDataWidths(panel);
 
 			// Wire expand toggles via addEventListener (inline onclick is blocked by CSP)
 			panel.querySelectorAll('.expand-toggle').forEach(btn => {
@@ -1064,10 +1112,10 @@ export class GlassBoxPanel extends Disposable {
 			const completionPct = pct(b.completionTokens);
 			html += '<div class="budget-bar">';
 			if (promptPct > 0) {
-				html += '<div class="segment prompt" style="width:' + promptPct + '%" title="Prompt: ' + fmt(b.promptTokens) + ' (' + fmtPct(b.promptTokens) + ')"></div>';
+				html += '<div class="segment prompt" data-width="' + promptPct + '" title="Prompt: ' + fmt(b.promptTokens) + ' (' + fmtPct(b.promptTokens) + ')"></div>';
 			}
 			if (completionPct > 0) {
-				html += '<div class="segment completion" style="width:' + completionPct + '%" title="Completion: ' + fmt(b.completionTokens) + ' (' + fmtPct(b.completionTokens) + ')"></div>';
+				html += '<div class="segment completion" data-width="' + completionPct + '" title="Completion: ' + fmt(b.completionTokens) + ' (' + fmtPct(b.completionTokens) + ')"></div>';
 			}
 			html += '</div>';
 			html += '<div class="bar-pct-labels">';
@@ -1100,14 +1148,14 @@ export class GlassBoxPanel extends Disposable {
 			// Total
 			html += '<div class="token-explain-row">';
 			html += '<div class="token-explain-formula">Total = Prompt + Completion</div>';
-			html += '<div class="token-explain-calc" style="margin-left:6ch">= ' + fmt(b.promptTokens) + ' + ' + fmt(b.completionTokens) + ' = <strong>' + fmt(b.totalTokens) + '</strong></div>';
+			html += '<div class="token-explain-calc token-explain-calc-total">= ' + fmt(b.promptTokens) + ' + ' + fmt(b.completionTokens) + ' = <strong>' + fmt(b.totalTokens) + '</strong></div>';
 			html += '<div class="token-explain-why">Every token used in this exchange \u2014 everything you sent in plus everything the model wrote back.</div>';
 			html += '</div>';
 
 			// Remaining
 			html += '<div class="token-explain-row">';
 			html += '<div class="token-explain-formula">Remaining = Max Context \u2212 Prompt</div>';
-			html += '<div class="token-explain-calc" style="margin-left:10ch">= ' + fmt(b.modelMaxTokens) + ' \u2212 ' + fmt(b.promptTokens) + ' = <strong>' + fmt(b.remainingTokens) + '</strong></div>';
+			html += '<div class="token-explain-calc token-explain-calc-remaining">= ' + fmt(b.modelMaxTokens) + ' \u2212 ' + fmt(b.promptTokens) + ' = <strong>' + fmt(b.remainingTokens) + '</strong></div>';
 			html += '<div class="token-explain-why">How much more you could send before reaching the context window limit. Completion tokens do <em>not</em> count against this \u2014 only what you send in (Prompt) does.</div>';
 			html += '</div>';
 
@@ -1141,7 +1189,7 @@ export class GlassBoxPanel extends Disposable {
 					const elemPct = elem.maxTokens > 0 ? (elem.tokens / elem.maxTokens * 100) : 0;
 					html += '<div class="element-row">' +
 						'<span class="name">' + esc(elem.name) + '</span>' +
-						'<div class="bar-container"><div class="bar-fill" style="width:' + Math.min(100, elemPct) + '%"></div></div>' +
+						'<div class="bar-container"><div class="bar-fill" data-width="' + Math.min(100, elemPct) + '"></div></div>' +
 						'<span class="count">' + elem.tokens.toLocaleString() + '</span>' +
 					'</div>';
 				}
@@ -1149,6 +1197,7 @@ export class GlassBoxPanel extends Disposable {
 			}
 
 			panel.innerHTML = html;
+			applyDataWidths(panel);
 		}
 
 		function renderPerformance(req) {
@@ -1175,11 +1224,11 @@ export class GlassBoxPanel extends Disposable {
 				html += '<h3>Tool Call Breakdown</h3>';
 				html += '<table class="tool-calls-table"><thead><tr><th>Tool</th><th title="Gap between consecutive tool completion times. First call duration is not available.">Duration \u2139</th></tr></thead><tbody>';
 				for (const tc of p.toolCalls) {
-					const dur = tc.durationMs == null ? '<span style="opacity:0.5">N/A</span>' : '~' + tc.durationMs + 'ms';
+					const dur = tc.durationMs == null ? '<span class="muted">N/A</span>' : '~' + tc.durationMs + 'ms';
 					html += '<tr><td>' + esc(tc.name) + '</td><td>' + dur + '</td></tr>';
 				}
 				html += '</tbody></table>';
-				html += '<p style="font-size:10px;opacity:0.5;margin-top:4px">\u2139 Duration = gap between consecutive tool completion timestamps (includes model think time between calls). First call has no prior reference so shows N/A.</p>';
+				html += '<p class="tool-footnote">\u2139 Duration = gap between consecutive tool completion timestamps (includes model think time between calls). First call has no prior reference so shows N/A.</p>';
 			}
 
 			// Aggregate stats across all requests
@@ -1241,7 +1290,7 @@ export class GlassBoxPanel extends Disposable {
 			html += '<div class="replay-field">';
 			html += '<label class="replay-label">Model</label>';
 			if (replayState.availableModels.length === 0) {
-				html += '<div style="font-size:11px;opacity:0.5">Loading available models...</div>';
+				html += '<div class="loading-text">Loading available models...</div>';
 			} else {
 				html += '<select class="replay-select" id="replay-model">';
 				replayState.availableModels.forEach(m => {
