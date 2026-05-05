@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -11,7 +12,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IToolResult, IToolResultTextPart } from '../../common/tools/languageModelToolsService.js';
 import { formatCompressionBanner, IToolResultCompressor, IToolResultFilter, MIN_COMPRESSIBLE_LENGTH } from '../../common/tools/toolResultCompressor.js';
 
-type LanguageModelToolInvokedClassification = {
+type ToolResultCompressedClassification = {
 	owner: 'meganrogge';
 	comment: 'Reports tool output compression savings.';
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool whose output was compressed.' };
@@ -20,7 +21,7 @@ type LanguageModelToolInvokedClassification = {
 	afterChars: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total text part length in UTF-16 code units after compression.' };
 };
 
-type LanguageModelToolInvokedEvent = {
+type ToolResultCompressedEvent = {
 	toolId: string;
 	filters: string;
 	beforeChars: number;
@@ -81,7 +82,9 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 				return part;
 			}
 			const original = part.value;
+			totalBefore += original.length;
 			if (original.length < MIN_COMPRESSIBLE_LENGTH) {
+				totalAfter += original.length;
 				return part;
 			}
 
@@ -104,12 +107,11 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 					activeFilters.splice(i, 1);
 					if (!disabledFilterIds.has(filter.id)) {
 						disabledFilterIds.add(filter.id);
-						this._logService.warn(`[ToolResultCompressor] filter ${filter.id} threw on tool ${toolId}; disabled for this pass: ${err}`);
+						this._logService.warn(`[ToolResultCompressor] filter ${filter.id} threw on tool ${toolId}; disabled for this pass: ${getErrorMessage(err)}`, err);
 					}
 				}
 			}
 
-			totalBefore += original.length;
 			totalAfter += current.length;
 			if (current !== original) {
 				anyCompressed = true;
@@ -143,7 +145,7 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 	}
 
 	private _sendTelemetry(toolId: string, filterIds: string[], beforeChars: number, afterChars: number) {
-		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
+		this._telemetryService.publicLog2<ToolResultCompressedEvent, ToolResultCompressedClassification>(
 			'toolResultCompressed',
 			{
 				toolId,

@@ -117,7 +117,7 @@ export const gitDiffFilter: IToolResultFilter = {
 			if (line.startsWith('diff --git')) {
 				flushContextRun();
 				flushHunk();
-				inBinaryOrLock = /package-lock\.json|yarn\.lock|pnpm-lock\.yaml|\.lockb?$|\.snap$/.test(line);
+				inBinaryOrLock = /package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb|\.snap$/.test(line);
 				if (inBinaryOrLock) {
 					out.push(line);
 					out.push('... lockfile/snapshot diff omitted ...');
@@ -166,6 +166,12 @@ export const gitDiffFilter: IToolResultFilter = {
 				flushContextRun();
 				out.push(line);
 				pendingOldLines++;
+				continue;
+			}
+			// Hunk context lines start with a single space.
+			if (!line.startsWith(' ')) {
+				flushContextRun();
+				out.push(line);
 				continue;
 			}
 			// Unchanged context line: keep the first KEEP_CONTEXT lines of each run,
@@ -256,7 +262,12 @@ export const npmInstallFilter: IToolResultFilter = {
 			return true;
 		}
 		if ((parsed.head === 'yarn' || parsed.head === 'pnpm') && parsed.sub !== 'test') {
-			return /\binstall\b|\badd\b/.test(input.command ?? '') || parsed.sub === undefined;
+			if (/\binstall\b|\badd\b/.test(input.command ?? '')) {
+				return true;
+			}
+			if (parsed.sub === undefined) {
+				return /^\s*(?:[A-Z_][A-Z0-9_]*=\S+\s+)*(?:yarn|pnpm)\s*$/.test(input.command ?? '');
+			}
 		}
 		return false;
 	},

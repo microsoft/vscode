@@ -111,6 +111,36 @@ suite('gitDiffFilter', () => {
 		strictEqual(out.compressed, true);
 	});
 
+	test('does not omit arbitrary .lock file diffs', () => {
+		const text = [
+			'diff --git a/custom.lock b/custom.lock',
+			'--- a/custom.lock',
+			'+++ b/custom.lock',
+			'@@ -1,2 +1,2 @@',
+			' unchanged',
+			'-old',
+			'+new',
+		].join('\n');
+		const out = gitDiffFilter.apply(text, input);
+		ok(!out.text.includes('lockfile/snapshot diff omitted'));
+		ok(out.text.includes('-old'));
+		ok(out.text.includes('+new'));
+	});
+
+	test('preserves non-context metadata lines', () => {
+		const text = [
+			'diff --git a/foo.ts b/foo.ts',
+			'new file mode 100644',
+			'--- /dev/null',
+			'+++ b/foo.ts',
+			'@@ -0,0 +2,2 @@',
+			'+line 1',
+			'+line 2',
+		].join('\n');
+		const out = gitDiffFilter.apply(text, input);
+		ok(out.text.includes('new file mode 100644'));
+	});
+
 	test('rewrites hunk header counts to match emitted body', () => {
 		const ctxLines = Array.from({ length: 20 }, (_, i) => ` ctx line ${i}`);
 		const text = [
@@ -159,6 +189,11 @@ suite('npmInstallFilter', () => {
 		ok(npmInstallFilter.matches('run_in_terminal', { command: 'npm install' }));
 		ok(npmInstallFilter.matches('run_in_terminal', { command: 'npm ci' }));
 		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'npm test' }));
+	});
+
+	test('does not match flag-only yarn commands', () => {
+		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'yarn --version' }));
+		ok(!npmInstallFilter.matches('run_in_terminal', { command: 'FOO=1 yarn --help' }));
 	});
 
 	test('drops audit and funding noise', () => {
