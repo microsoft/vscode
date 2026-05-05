@@ -2118,6 +2118,7 @@ export class CollapsedCellOverlayWidget extends Disposable implements IDiffCellM
 				title: localize('showUnchangedCells', 'Show Unchanged Cells'),
 				role: 'button',
 				tabindex: 0,
+				'aria-label': localize('showUnchangedCells', 'Show Unchanged Cells'),
 				onclick: () => { this._action.fire(); }
 			},
 				...renderLabelWithIcons('$(unfold)'))]
@@ -2158,6 +2159,7 @@ export class UnchangedCellOverlayWidget extends Disposable implements IDiffCellM
 				title: localize('hideUnchangedCells', 'Hide Unchanged Cells'),
 				role: 'button',
 				tabindex: 0,
+				'aria-label': localize('hideUnchangedCells', 'Hide Unchanged Cells'),
 				onclick: () => { this._action.fire(); }
 			},
 				...renderLabelWithIcons('$(fold)')

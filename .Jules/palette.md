@@ -13,3 +13,10 @@
 ## 2026-04-30 - Custom Button Keyboard Navigation
 **Learning:** Custom interactive UI elements (like `<a>` or `<div>`) with `role="button"` created using internal DOM helpers (e.g., `DOM.$()` or `h()`) must explicitly be given a `tabindex: '0'` attribute. Otherwise, they are completely skipped by keyboard navigation, breaking accessibility for a core interaction pattern.
 **Action:** When adding or modifying custom button elements, always ensure they have `tabindex: 0` and an `aria-label` (if icon-only) to guarantee they are reachable and readable by all users.
+## 2026-05-02 - Missing aria-label in custom Notebook Diff Cell Overlay widgets
+**Learning:** The custom  elements used as icon-only buttons in  and  within  define  and  but miss an explicitly localized  attribute, which breaks accessibility for screen readers.
+**Action:** When working on custom icon-only overlay widgets or inline buttons constructed via DOM helper functions, ensure the  attribute is added utilizing the localized title string.
+
+## 2026-05-02 - Missing aria-label in custom Notebook Diff Cell Overlay widgets
+**Learning:** The custom `DOM.$('a')` elements used as icon-only buttons in `CollapsedCellOverlayWidget` and `UnchangedCellOverlayWidget` within `notebook/browser/diff/diffComponents.ts` define `role: 'button'` and `tabindex: 0` but miss an explicitly localized `aria-label` attribute, which breaks accessibility for screen readers.
+**Action:** When working on custom icon-only overlay widgets or inline buttons constructed via DOM helper functions, ensure the `aria-label` attribute is added utilizing the localized title string.
