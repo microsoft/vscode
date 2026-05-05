@@ -682,7 +682,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[]): string[] {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandReadAllowKeywords), ...this._getSandboxRuntimeReadPaths(), ...allowWrite])];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandReadAllowKeywords), ...this._getSandboxRuntimeReadPaths(), ...this._getWorkspaceStorageReadPaths(), ...allowWrite])];
 	}
 
 	private _resolveLinuxFileSystemPaths(paths: string[] | undefined): string[] {
@@ -717,6 +717,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _isPathUnderAppRoot(path: string): boolean {
 		return path === this._appRoot || path.startsWith(`${this._appRoot}${this._os === OperatingSystem.Windows ? win32.sep : posix.sep}`);
+	}
+
+	private _getWorkspaceStorageReadPaths(): string[] {
+		const workspaceStorageHome = this._remoteEnvDetails?.workspaceStorageHome ?? this._environmentService.workspaceStorageHome;
+		const workspaceId = this._workspaceContextService.getWorkspace().id;
+		return [URI.joinPath(workspaceStorageHome, workspaceId).path];
 	}
 
 	private _getUserHomePath(): string | undefined {

@@ -190,6 +190,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			// Check if web search is enabled and append web_search tool if not already present.
 			// We need to do this because there is no local web_search tool definition we can replace.
 			const webSearchEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.AnthropicWebSearchToolEnabled, this._experimentationService);
+			let webSearchDomainConflictError: string | undefined;
 			if (webSearchEnabled && !tools.some(tool => 'name' in tool && tool.name === 'web_search')) {
 				const maxUses = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchMaxUses);
 				const allowedDomains = this._configurationService.getConfig(ConfigKey.AnthropicWebSearchAllowedDomains);
@@ -204,11 +205,13 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					...(shouldDeferWebSearch ? { defer_loading: shouldDeferWebSearch } : {})
 				};
 
-				// Add domain filtering if configured
-				// Cannot use both allowed and blocked domains simultaneously
-				if (allowedDomains && allowedDomains.length > 0) {
+				const hasAllowed = !!allowedDomains && allowedDomains.length > 0;
+				const hasBlocked = !!blockedDomains && blockedDomains.length > 0;
+				if (hasAllowed && hasBlocked) {
+					webSearchDomainConflictError = vscode.l10n.t('The settings `github.copilot.chat.anthropic.tools.websearch.allowedDomains` and `github.copilot.chat.anthropic.tools.websearch.blockedDomains` cannot be used together. Please configure only one.');
+				} else if (hasAllowed) {
 					webSearchTool.allowed_domains = allowedDomains;
-				} else if (blockedDomains && blockedDomains.length > 0) {
+				} else if (hasBlocked) {
 					webSearchTool.blocked_domains = blockedDomains;
 				}
 
@@ -273,6 +276,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			const wrappedProgress = new RecordedProgress(progress);
 
 			try {
+				if (webSearchDomainConflictError) {
+					throw new Error(webSearchDomainConflictError);
+				}
 				const result = await this._makeRequest(anthropicClient, wrappedProgress, params, betas, token, issuedTime);
 				if (result.ttft) {
 					pendingLoggedChatRequest.markTimeToFirstToken(result.ttft);

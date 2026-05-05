@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage, Settings } from '@anthropic-ai/claude-agent-sdk';
 import type { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 
 /**
@@ -16,6 +16,8 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 	public lastSetModel: string | undefined;
 	public setPermissionModeCallCount = 0;
 	public lastSetPermissionMode: string | undefined;
+	public applyFlagSettingsCallCount = 0;
+	public lastAppliedFlagSettings: Settings | undefined;
 	public lastQueryOptions: Options | undefined;
 	public readonly receivedMessages: SDKUserMessage[] = [];
 
@@ -81,6 +83,10 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 			setPermissionMode: async (mode: string) => {
 				this.setPermissionModeCallCount++;
 				this.lastSetPermissionMode = mode;
+			},
+			applyFlagSettings: async (settings: Settings) => {
+				this.applyFlagSettingsCallCount++;
+				this.lastAppliedFlagSettings = settings;
 			},
 			abort: () => { /* no-op for mock */ },
 		} as unknown as Query;
