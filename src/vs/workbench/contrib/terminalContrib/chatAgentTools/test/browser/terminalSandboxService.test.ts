@@ -463,6 +463,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const nodeConfig = JSON.parse(nodeConfigContent);
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
+		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
 
 		await sandboxService.wrapCommand('git status', false, 'bash', ['git']);
@@ -472,6 +473,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
 		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command keywords');
+		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command keywords');
 	});
 
 	test('should not rewrite sandbox config when the parsed command keywords are unchanged', async () => {
