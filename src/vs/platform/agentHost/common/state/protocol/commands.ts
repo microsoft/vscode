@@ -221,7 +221,7 @@ export interface CreateSessionParams {
 	provider?: string;
 	/** Model selection (ID and optional model-specific configuration) */
 	model?: ModelSelection;
-	/** Custom agent selection (name) — selects a customization-pipeline agent for this session */
+	/** Custom agent selection identified by URI — selects a customization-pipeline agent for this session */
 	agent?: AgentSelection;
 	/** Working directory for the session */
 	workingDirectory?: URI;
