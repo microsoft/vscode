@@ -297,9 +297,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
-		if (!collapsed) {
-			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
 
 		dom.reset(element, ...labelElements);
 		return null;

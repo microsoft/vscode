@@ -666,6 +666,27 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('routes a nested subagent session URI (depth > 1) to the root session entry', async () => {
+			// Regression for depth > 1: a nested subagent URI like
+			// `copilot:/root/subagent/tc1/subagent/tc2` must walk all the way
+			// to the root session entry in `_sessions`, not stop at the
+			// intermediate parent `copilot:/root/subagent/tc1`.
+			const agent = createTestAgent(disposables);
+			try {
+				const rootUri = AgentSession.uri('copilotcli', 'session-root');
+				const { calls } = installStubSession(agent, AgentSession.id(rootUri));
+
+				const subagentUri = URI.parse(buildSubagentSessionUri(rootUri.toString(), 'tc-parent'));
+				const nestedUri = URI.parse(buildSubagentSessionUri(subagentUri.toString(), 'tc-nested'));
+				const result: ToolCallResult = { success: true, pastTenseMessage: 'nested done' };
+				agent.onClientToolCallComplete(nestedUri, 'tc-inner', result);
+
+				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('is a no-op when no session entry exists for the resolved id', async () => {
 			const agent = createTestAgent(disposables);
 			try {
