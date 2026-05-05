@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -107,15 +107,11 @@ class SearchOperation {
 		readonly matches = new Map<string, IFileMatch>(),
 		readonly keywords: AISearchKeyword[] = []
 	) {
-		//
 	}
 
 	addMatch(match: IFileMatch): void {
 		const existingMatch = this.matches.get(match.resource.toString());
 		if (existingMatch) {
-			// TODO@rob clean up text/file result types
-			// If a file search returns the same file twice, we would enter this branch.
-			// It's possible that could happen, #90813
 			if (existingMatch.results && match.results) {
 				existingMatch.results.push(...match.results);
 			}
@@ -175,12 +171,29 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		const search = new SearchOperation(onProgress);
 		this._searches.set(search.id, search);
 
-		const searchP = this._provideSearchResults(query, search.id, token);
+		const timeoutTokenSource = new CancellationTokenSource();
+		const timeout = setTimeout(() => timeoutTokenSource.cancel(), 30000);
+
+		const combinedTokenSource = new CancellationTokenSource();
+		const tokenRegistration = token.onCancellationRequested(() => combinedTokenSource.cancel());
+		const timeoutRegistration = timeoutTokenSource.token.onCancellationRequested(() => combinedTokenSource.cancel());
+
+		const searchP = this._provideSearchResults(query, search.id, combinedTokenSource.token);
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
+			clearTimeout(timeout);
+			tokenRegistration.dispose();
+			timeoutRegistration.dispose();
+			timeoutTokenSource.dispose();
+			combinedTokenSource.dispose();
 			this._searches.delete(search.id);
 			return { results: Array.from(search.matches.values()), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
+			clearTimeout(timeout);
+			tokenRegistration.dispose();
+			timeoutRegistration.dispose();
+			timeoutTokenSource.dispose();
+			combinedTokenSource.dispose();
 			this._searches.delete(search.id);
 			return Promise.reject(err);
 		});
@@ -194,7 +207,6 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		const searchOp = this._searches.get(session);
 
 		if (!searchOp) {
-			// ignore...
 			return;
 		}
 
@@ -213,7 +225,6 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		const searchOp = this._searches.get(session);
 
 		if (!searchOp) {
-			// ignore...
 			return;
 		}
 		searchOp.addKeyword(data);
