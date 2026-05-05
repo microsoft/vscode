@@ -202,60 +202,6 @@ export class ChatMLFetcherTelemetrySender {
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
 		});
-
-		// --- BEGIN: Debug logging for response.success telemetry ---
-		console.log('[response.success telemetry]', JSON.stringify({
-			properties: {
-				reason: chatCompletion.finishReason,
-				filterReason: chatCompletion.filterReason,
-				source: baseTelemetry?.properties.messageSource ?? 'unknown',
-				initiatorType: userInitiatedRequest ? 'user' : 'agent',
-				conversationId: baseTelemetry?.properties.conversationId,
-				model: chatEndpointInfo?.model,
-				modelInvoked: chatCompletion.model,
-				apiType: chatEndpointInfo?.apiType,
-				requestId: chatCompletion.requestId.headerRequestId,
-				gitHubRequestId: chatCompletion.requestId.gitHubRequestId,
-				associatedRequestId: baseTelemetry?.properties.associatedRequestId,
-				reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
-				reasoningSummary: requestBody.reasoning?.summary,
-				modelCallId,
-				...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType.replace(/[^a-zA-Z0-9]/g, '_') } : {}),
-				...(baseTelemetry?.properties.parentHeaderRequestId ? { parentRequestId: baseTelemetry.properties.parentHeaderRequestId } : {}),
-				...(baseTelemetry?.properties.parentModelCallId ? { parentModelCallId: baseTelemetry.properties.parentModelCallId } : {}),
-				...(baseTelemetry?.properties.iterationNumber ? { iterationNumber: baseTelemetry.properties.iterationNumber } : {}),
-				...(fetcher ? { fetcher } : {}),
-				transport,
-				...(baseTelemetry?.properties.retryAfterError ? { retryAfterError: baseTelemetry.properties.retryAfterError } : {}),
-				...(baseTelemetry?.properties.retryAfterErrorGitHubRequestId ? { retryAfterErrorGitHubRequestId: baseTelemetry.properties.retryAfterErrorGitHubRequestId } : {}),
-				...(baseTelemetry?.properties.connectivityTestError ? { connectivityTestError: baseTelemetry.properties.connectivityTestError } : {}),
-				...(baseTelemetry?.properties.connectivityTestErrorGitHubRequestId ? { connectivityTestErrorGitHubRequestId: baseTelemetry.properties.connectivityTestErrorGitHubRequestId } : {}),
-				...(baseTelemetry?.properties.retryAfterFilterCategory ? { retryAfterFilterCategory: baseTelemetry.properties.retryAfterFilterCategory } : {}),
-			},
-			measurements: {
-				totalTokenMax: chatEndpointInfo?.modelMaxPromptTokens ?? -1,
-				tokenCountMax: maxResponseTokens,
-				promptTokenCount: chatCompletion.usage?.prompt_tokens,
-				promptCacheTokenCount: chatCompletion.usage?.prompt_tokens_details?.cached_tokens,
-				clientPromptTokenCount: promptTokenCount,
-				tokenCount: chatCompletion.usage?.total_tokens,
-				reasoningTokens: chatCompletion.usage?.completion_tokens_details?.reasoning_tokens,
-				acceptedPredictionTokens: chatCompletion.usage?.completion_tokens_details?.accepted_prediction_tokens,
-				rejectedPredictionTokens: chatCompletion.usage?.completion_tokens_details?.rejected_prediction_tokens,
-				completionTokens: chatCompletion.usage?.completion_tokens,
-				timeToFirstToken,
-				timeToFirstTokenEmitted,
-				timeToComplete: Date.now() - baseTelemetry.issuedTime,
-				issuedTime: baseTelemetry.issuedTime,
-				isVisionRequest: hasImageMessages ? 1 : -1,
-				isBYOK: isBYOKModel(chatEndpointInfo),
-				isAuto: isAutoModel(chatEndpointInfo),
-				bytesReceived,
-				suspendEventSeen: suspendEventSeen ? 1 : 0,
-				resumeEventSeen: resumeEventSeen ? 1 : 0,
-			},
-		}, null, 2));
-		// --- END: Debug logging for response.success telemetry ---
 	}
 
 	public static sendCancellationTelemetry(
