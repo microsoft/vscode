@@ -57,7 +57,7 @@ interface IMobileChangesRow {
  */
 export type MobileChangesOpenHandler = (diff: IFileDiffViewData, siblings: readonly IFileDiffViewData[], index: number) => void;
 
-function toRow(change: ISessionFileChange): IMobileChangesRow {
+export function toRow(change: ISessionFileChange): IMobileChangesRow {
 	// `IChatSessionFileChange2` carries `uri` as the canonical identity; the
 	// legacy `IChatSessionFileChange` only has `modifiedUri` (required, never
 	// absent). We detect v2 by the presence of `uri` (it's a non-optional
@@ -85,7 +85,7 @@ function toRow(change: ISessionFileChange): IMobileChangesRow {
 	};
 }
 
-function rowToDiffData(row: IMobileChangesRow): IFileDiffViewData {
+export function rowToDiffData(row: IMobileChangesRow): IFileDiffViewData {
 	return {
 		originalURI: row.originalUri,
 		modifiedURI: row.modifiedUri,

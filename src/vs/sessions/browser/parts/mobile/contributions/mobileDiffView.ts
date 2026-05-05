@@ -552,26 +552,15 @@ function hasMultipleTokenClasses(lines: readonly string[]): boolean {
 }
 
 // -- Regex-based syntax highlighter ------------------------------------------
-// Used when the Monaco TextMate grammar isn't available (sessions workbench
-// doesn't load built-in language extensions). Produces inline `style` spans
-// for the most common token types. Theme-aware: colours are VS Code CSS
-// variable names that resolve correctly in both light and dark themes.
-
-// We emit regex-tokenized output as CSS-class spans rather than inline
-// hex colours so the colours adapt to the active theme. The classes
-// are styled in `media/mobileOverlayViews.css` against per-theme CSS
-// variables (light/dark/HC defaults), keeping all theme-specific
-// concerns in the stylesheet.
-//
-// Why hex values rather than reading the theme's TextMate token colors?
-// The active theme's syntax-highlighting palette is exposed by Monaco
-// through `TokenizationRegistry.getColorMap()`, but only for languages
-// that have a TextMate grammar loaded — the agents window doesn't load
-// language extensions yet, so for the regex-fallback path we have no
-// per-language grammar and therefore no theme-resolved scope colours.
-// The hex values mirror the Light+ / Dark+ defaults so the diff blends
-// in until language extensions become available; once they do this
-// fallback only fires for languages without a registered grammar.
+// Used when the Monaco TextMate grammar isn't available (the agents window
+// doesn't load built-in language extensions yet; this fallback fires for any
+// language without a registered grammar). Produces CSS-class spans rather than
+// inline `style` spans so token colors adapt to the active theme without
+// needing to read any color map here. The classes (`mobile-diff-tok-comment`,
+// `mobile-diff-tok-string`, `mobile-diff-tok-keyword`, `mobile-diff-tok-number`)
+// are styled in `media/mobileOverlayViews.css` using per-theme CSS variables
+// defined against the `.vs`, `.hc-black`, and `.hc-light` body class selectors,
+// keeping all theme-specific values in the stylesheet rather than in JS.
 type RegexTokenKind = 'comment' | 'string' | 'keyword' | 'number' | 'default';
 
 interface IRegexToken {

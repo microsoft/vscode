@@ -13,8 +13,9 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
 import { ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 import { IFileDiffViewData, IMobileDiffViewData, MobileDiffView, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, openMobileDiffView } from '../../../../../sessions/browser/parts/mobile/contributions/mobileDiffView.js';
-import { MobileChangesView, MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID, openMobileChangesView } from '../../../../../sessions/browser/parts/mobile/contributions/mobileChangesView.js';
+import { MobileChangesView, MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID, openMobileChangesView, toRow, rowToDiffData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileChangesView.js';
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
+import { localize2 } from '../../../../../nls.js';
 
 // Module-level slots for the active overlays so a re-invocation of the
 // command (e.g. rapid double-tap) closes the prior overlay before opening
@@ -29,7 +30,7 @@ class MobileOpenDiffViewAction extends Action2 {
 	constructor() {
 		super({
 			id: MOBILE_OPEN_DIFF_VIEW_COMMAND_ID,
-			title: { value: 'Open File Diff', original: 'Open File Diff' },
+			title: localize2('mobileOpenFileDiff', 'Open File Diff'),
 			precondition: IsPhoneLayoutContext,
 			f1: false,
 		});
@@ -66,7 +67,7 @@ class MobileOpenChangesViewAction extends Action2 {
 	constructor() {
 		super({
 			id: MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID,
-			title: { value: 'Open Session Changes', original: 'Open Session Changes' },
+			title: localize2('mobileOpenSessionChanges', 'Open Session Changes'),
 			precondition: IsPhoneLayoutContext,
 			f1: false,
 		});
@@ -83,16 +84,7 @@ class MobileOpenChangesViewAction extends Action2 {
 		const session = sessionsManagementService.activeSession.get();
 		const changes = session?.changes.get() ?? [];
 		if (changes.length === 1) {
-			const change = changes[0];
-			const v2Uri = (change as { uri?: import('../../../../../base/common/uri.js').URI }).uri;
-			const modifiedUri = (change as { modifiedUri?: import('../../../../../base/common/uri.js').URI }).modifiedUri;
-			const diff: IFileDiffViewData = {
-				originalURI: change.originalUri,
-				modifiedURI: modifiedUri ?? v2Uri,
-				identical: change.insertions === 0 && change.deletions === 0,
-				added: change.insertions,
-				removed: change.deletions,
-			};
+			const diff = rowToDiffData(toRow(changes[0]));
 			commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, { diff });
 			return;
 		}
