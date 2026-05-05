@@ -182,6 +182,21 @@ export class ClaudeCodeSession extends Disposable {
 		}
 	}
 
+	/**
+	 * Sets the reasoning effort on the active SDK session, or stores it for the next session start.
+	 */
+	private async _setEffort(effort: EffortLevel | undefined): Promise<void> {
+		if (effort === this._currentEffort) {
+			return;
+		}
+		this._currentEffort = effort;
+		if (this._queryGenerator) {
+			this.logService.trace(`[ClaudeCodeSession] Setting effort to ${effort} on active session`);
+			// Settings.effortLevel does not include 'max'; the SDK treats it as a 'high' fallback.
+			await this._queryGenerator.applyFlagSettings({ effortLevel: effort as 'low' | 'medium' | 'high' | 'xhigh' | undefined });
+		}
+	}
+
 	constructor(
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
@@ -520,16 +535,17 @@ export class ClaudeCodeSession extends Disposable {
 			}
 
 			// Check non-hot-swappable changes that require a session restart
-			if (request.effort !== this._currentEffort || !this._toolsMatch(request.toolsSnapshot)) {
+			if (!this._toolsMatch(request.toolsSnapshot)) {
 				this._queuedRequests.unshift(request);
 				this._pendingRestart = true;
 				this._isResumed = true;
 				return;
 			}
 
-			// Hot-swap model and permission mode on the active session
+			// Hot-swap model, permission mode, and effort on the active session
 			await this._setModel(request.modelId);
 			await this._setPermissionMode(request.permissionMode);
+			await this._setEffort(request.effort);
 
 			// Mark this request as yielded to the SDK; it becomes the current request.
 			this._inFlightRequests.push(request);
@@ -652,7 +668,7 @@ export class ClaudeCodeSession extends Disposable {
 			throw new Error('Session ended unexpectedly');
 		} catch (error) {
 			// Graceful restart: the prompt iterable detected a non-hot-swappable change
-			// (effort or tools). Preserve queued requests and start a fresh session.
+			// (tools). Preserve queued requests and start a fresh session.
 			if (this._pendingRestart) {
 				this._pendingRestart = false;
 				this._restartSession();

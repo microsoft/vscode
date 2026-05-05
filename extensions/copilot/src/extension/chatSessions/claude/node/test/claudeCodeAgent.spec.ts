@@ -506,10 +506,11 @@ describe('ClaudeCodeSession', () => {
 		expect(mockService.lastQueryOptions?.effort).toBeUndefined();
 	});
 
-	it('restarts session when effort level changes', async () => {
+	it('calls applyFlagSettings when effort level changes instead of restarting session', async () => {
 		const mockServer = createMockLangModelServer();
 		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
 		mockService.queryCallCount = 0;
+		mockService.applyFlagSettingsCallCount = 0;
 
 		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
 		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
@@ -522,16 +523,19 @@ describe('ClaudeCodeSession', () => {
 		// Change effort level
 		sessionStateService.setReasoningEffortForSession('test-session', 'high');
 
-		// Second request should restart session (new query created)
+		// Second request should hot-swap effort, not restart the session
 		const stream2 = new MockChatResponseStream();
 		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
-		expect(mockService.queryCallCount).toBe(2);
+		expect(mockService.queryCallCount).toBe(1);
+		expect(mockService.applyFlagSettingsCallCount).toBe(1);
+		expect(mockService.lastAppliedFlagSettings).toEqual({ effortLevel: 'high' });
 	});
 
-	it('does not restart session when effort level is unchanged', async () => {
+	it('does not call applyFlagSettings when effort level is unchanged', async () => {
 		const mockServer = createMockLangModelServer();
 		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
 		mockService.queryCallCount = 0;
+		mockService.applyFlagSettingsCallCount = 0;
 
 		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
 		sessionStateService.setReasoningEffortForSession('test-session', 'medium');
@@ -546,6 +550,7 @@ describe('ClaudeCodeSession', () => {
 		const stream2 = new MockChatResponseStream();
 		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
 		expect(mockService.queryCallCount).toBe(1);
+		expect(mockService.applyFlagSettingsCallCount).toBe(0);
 	});
 });
 
@@ -733,7 +738,7 @@ describe('ClaudeCodeSession - settings change restart', () => {
 	});
 });
 
-describe('ClaudeCodeSession - effort and tools restart', () => {
+describe('ClaudeCodeSession - tools restart', () => {
 	const store = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let sessionStateService: IClaudeSessionStateService;
@@ -753,7 +758,7 @@ describe('ClaudeCodeSession - effort and tools restart', () => {
 		vi.resetAllMocks();
 	});
 
-	it('uses resume after effort change restart', async () => {
+	it('hot-swaps effort instead of restarting the session', async () => {
 		const mockServer = createMockLangModelServer();
 		commitTestState(sessionStateService, 'test-session');
 		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
@@ -762,15 +767,17 @@ describe('ClaudeCodeSession - effort and tools restart', () => {
 		const stream1 = new MockChatResponseStream();
 		await session.invoke(createMockChatRequest('Hello'), stream1, undefined, CancellationToken.None);
 		expect(mockService.lastQueryOptions?.sessionId).toBe('test-session');
+		expect(mockService.queryCallCount).toBe(1);
 
 		// Change effort
 		sessionStateService.setReasoningEffortForSession('test-session', 'high');
 
-		// Restarted session should use resume
+		// Same query is reused via applyFlagSettings
 		const stream2 = new MockChatResponseStream();
 		await session.invoke(createMockChatRequest('Hello again'), stream2, undefined, CancellationToken.None);
-		expect(mockService.lastQueryOptions?.resume).toBe('test-session');
-		expect(mockService.lastQueryOptions?.effort).toBe('high');
+		expect(mockService.queryCallCount).toBe(1);
+		expect(mockService.applyFlagSettingsCallCount).toBe(1);
+		expect(mockService.lastAppliedFlagSettings).toEqual({ effortLevel: 'high' });
 	});
 
 	it('restarts session when MCP tools change', async () => {
