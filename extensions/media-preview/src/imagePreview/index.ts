@@ -216,6 +216,11 @@ class ImagePreview extends MediaPreview {
 	}
 
 	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
+		if (resource.scheme === 'data') {
+			// Data URIs are used as-is; pass skipEncoding=true to avoid corrupting the base64 payload
+			return resource.toString(/* skipEncoding */ true);
+		}
+
 		if (resource.scheme === 'git') {
 			const stat = await vscode.workspace.fs.stat(resource);
 			if (stat.size === 0) {
