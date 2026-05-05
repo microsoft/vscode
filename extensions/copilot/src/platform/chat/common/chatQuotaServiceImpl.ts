@@ -132,6 +132,14 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	private _processUserInfoQuotaSnapshot(quotaInfo: CopilotUserQuotaInfo | undefined) {
 		if (!quotaInfo || !quotaInfo.quota_snapshots || !quotaInfo.quota_reset_date) {
+			// Clear stale quota data when auth changes without quota info
+			// (e.g. user signed out). This ensures quota-exhausted
+			// notifications from the previous account don't persist.
+			if (this._quotaInfo) {
+				this._quotaInfo = undefined;
+				this._rateLimitInfo = { session: undefined, weekly: undefined };
+				this._onDidChange.fire();
+			}
 			return;
 		}
 		this._quotaInfo = {
