@@ -24,7 +24,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingReadOnly: boolean;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
-		editorPreviewDisposables: { add<T>(value: T): T; dispose(): void };
+		editorPreviewDisposables: { add<T>(value: T): T; clear(): void; dispose(): void };
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail';
 		dimension: undefined;
@@ -59,6 +59,7 @@ suite('aiCustomizationManagementEditor', () => {
 			add<T>(value: T): T {
 				return value;
 			},
+			clear(): void { },
 			dispose(): void { },
 		};
 		editor.hoverService = hoverService ?? {
