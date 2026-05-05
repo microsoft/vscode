@@ -227,20 +227,6 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			this._log('Waiting for done event');
 			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
 			if (onDoneResult && onDoneResult.type === 'disposal') {
-				// `terminalInstance` calls `dispose()` (which fires `onDisposed`)
-				// before firing `onExit`, and `_exitCode` is set even earlier.
-				// If the pty captured an exit code before disposal, treat this
-				// as a normal process exit so the caller surfaces the exit code
-				// (e.g. running `exit 42` in bash) rather than throwing and
-				// leaving the command stuck in a "Running" state.
-				if (this._instance.exitCode !== undefined) {
-					this._log(`Terminal disposed but exit code is captured (code=${this._instance.exitCode})`);
-					return {
-						output: undefined,
-						exitCode: this._instance.exitCode,
-						additionalInformation: `Command exited with code ${this._instance.exitCode}`,
-					};
-				}
 				throw new Error('The terminal was closed');
 			}
 			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
