@@ -82,12 +82,20 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 
 			const installed = await this._installFromHostLocation(theme);
 			await this._setTheme(theme.settingsId);
+			let applied = false;
 
 			return {
-				apply: () => this._apply(theme),
-				reset: () => {
+				apply: async () => {
+					applied = true;
 					this._previewPromise = undefined;
-					return this._reset(installed);
+					await this._apply(theme);
+				},
+				dispose: () => {
+					this._previewPromise = undefined;
+					if (applied) {
+						return;
+					}
+					void this._disposePreview(installed);
 				},
 			};
 		} catch (err) {
@@ -118,7 +126,7 @@ class ThemeImporterService extends Disposable implements IThemeImporterService {
 		}
 	}
 
-	private async _reset(installed: ILocalExtension | undefined): Promise<void> {
+	private async _disposePreview(installed: ILocalExtension | undefined): Promise<void> {
 		if (!installed) {
 			return;
 		}

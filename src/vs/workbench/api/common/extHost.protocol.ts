@@ -1020,8 +1020,27 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-export interface CustomTextEditorCapabilities {
+export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
+}
+
+export interface CustomEditorDiffInitData {
+	readonly title: string;
+	readonly contentOptions: IWebviewContentOptions;
+	readonly options: IWebviewPanelOptions;
+	readonly active: boolean;
+}
+
+export interface CustomEditorSideBySideDiffWebviewHandles {
+	readonly original: WebviewHandle;
+	readonly modified: WebviewHandle;
+}
+
+export interface CustomEditorSideBySideDiffInitData {
+	readonly original: CustomEditorDiffInitData;
+	readonly modified: CustomEditorDiffInitData;
 }
 
 export const enum WebviewMessageArrayBufferViewType {
@@ -1089,8 +1108,8 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -1149,6 +1168,24 @@ export interface ExtHostCustomEditorsShape {
 			options: IWebviewPanelOptions;
 			active: boolean;
 		},
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorInlineDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		newWebviewHandle: WebviewHandle,
+		viewType: string,
+		initData: CustomEditorDiffInitData,
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorSideBySideDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		webviewHandles: CustomEditorSideBySideDiffWebviewHandles,
+		viewType: string,
+		initData: CustomEditorSideBySideDiffInitData,
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
 	): Promise<void>;
@@ -1713,6 +1750,7 @@ export interface IInstructionDto extends IChatResourceDto {
 
 export interface ISkillDto extends IChatResourceDto {
 	readonly userInvocable: boolean;
+	readonly disableModelInvocation: boolean;
 }
 
 export interface ISlashCommandDto extends IChatResourceDto {
