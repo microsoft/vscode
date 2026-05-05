@@ -203,6 +203,8 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './services/vscode/electron-browser/themeImporterService.js';
+
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
@@ -216,6 +218,7 @@ import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 import './contrib/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSkillButtons.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

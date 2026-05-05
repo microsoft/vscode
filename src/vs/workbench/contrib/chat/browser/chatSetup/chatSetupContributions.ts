@@ -41,15 +41,15 @@ import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } fro
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatModeService } from '../../common/chatModes.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
-import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
+import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
@@ -59,7 +59,7 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	manageAdditionalSpendUrl: product.defaultChatAgent?.manageAdditionalSpendUrl ?? '',
+	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
@@ -252,7 +252,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
-					chatWidget?.input.setChatMode(mode);
+					if (chatWidget) {
+						const resolvedMode = this.resolveAgentId(mode, chatWidget);
+						if (resolvedMode) {
+							chatWidget.input.setChatMode(resolvedMode);
+						}
+					}
 				}
 
 				if (options?.inputValue) {
@@ -276,6 +281,18 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				return Boolean(success);
+			}
+
+			private resolveAgentId(agentParam: string, chatWidget: IChatWidget): string | undefined {
+				const modes = chatWidget.input.currentChatModesObs.get();
+				const foundAgent = modes.findModeById(agentParam);
+				if (foundAgent) {
+					return foundAgent.id;
+				}
+				const allAgents = [...modes.builtin, ...modes.custom];
+				const nameLower = agentParam.toLowerCase();
+				const agentByName = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
+				return agentByName?.id;
 			}
 		}
 
@@ -383,11 +400,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
-							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
+
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.has('updateTitleBar').negate()
+							ContextKeyExpr.has('updateTitleBar').negate(),
+							InEditorZenModeContext.negate(),
 						),
 					}]
 				});
@@ -438,7 +456,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const openerService = accessor.get(IOpenerService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
 
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.upgradePlan', from: 'command' });
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
 				const entitlement = context.state.entitlement;
@@ -474,6 +494,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planMax,
 							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
@@ -485,6 +506,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planMax,
 								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
@@ -498,7 +520,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(defaultChat.manageAdditionalSpendUrl));
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'command' });
+				openerService.open(URI.parse(defaultChat.manageOverageUrl));
 			}
 		}
 
@@ -664,7 +688,6 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
 	) { }
 
 	canHandleURL(url: URI): boolean {
@@ -681,24 +704,10 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 			return false;
 		}
 
-		const agentId = agentParam ? this.resolveAgentId(agentParam) : undefined;
-		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentId, inputParam ? { inputValue: inputParam } : undefined);
+		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentParam, inputParam ? { inputValue: inputParam } : undefined);
 		return true;
 	}
 
-	private resolveAgentId(agentParam: string): string | undefined {
-		const agents = this.chatModeService.getModes();
-		const allAgents = [...agents.builtin, ...agents.custom];
-
-		const foundAgent = allAgents.find(agent => agent.id === agentParam);
-		if (foundAgent) {
-			return foundAgent.id;
-		}
-
-		const nameLower = agentParam.toLowerCase();
-		const agentByName = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
-		return agentByName?.id;
-	}
 }
 
 export class ChatTeardownContribution extends Disposable implements IWorkbenchContribution {

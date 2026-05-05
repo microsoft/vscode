@@ -73,12 +73,21 @@ describe('modelSupportsToolSearch', () => {
 		const experimentationService = {} as IExperimentationService;
 
 		expect(modelSupportsToolSearch('gpt-5.4', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.5', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.5-preview', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt5.5-preview', configurationService, experimentationService)).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.4')).toBe(false);
 		expect(modelSupportsToolSearch('gpt-5.5')).toBe(false);
+	});
+
+	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {
+		const configurationService = {
+			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
+		} as unknown as IConfigurationService;
+		const experimentationService = {} as IExperimentationService;
+
+		expect(modelSupportsToolSearch('gpt-5.4-mini', configurationService, experimentationService)).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.5-preview', configurationService, experimentationService)).toBe(false);
+		expect(modelSupportsToolSearch('gpt5.5-preview', configurationService, experimentationService)).toBe(false);
 	});
 
 	test('rejects other non-Claude models', () => {

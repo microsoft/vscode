@@ -10,12 +10,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -101,6 +103,13 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly urlProtocol = 'vscode';
+			}());
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeItemsProviders = Event.None;
+				override readonly onDidChangeSessionItems = Event.None;
+				override readonly onDidChangeAvailability = Event.None;
+				override readonly onDidChangeInProgress = Event.None;
+				override async resolveChatSessionItem() { return undefined; }
 			}());
 		},
 	});

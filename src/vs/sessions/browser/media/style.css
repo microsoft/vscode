@@ -150,8 +150,8 @@
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
-	background: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;

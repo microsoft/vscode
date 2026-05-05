@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -176,6 +176,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private agentSpan: ISpanHandle | undefined;
 	private chatSessionIdForTools: string | undefined;
 	private toolsAvailableEmitted = false;
+	private lastHeaderRequestId: string | undefined;
+	private lastModelCallId: string | undefined;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -191,6 +193,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	private readonly _onDidReceiveResponse = this._register(new Emitter<IToolCallingResponseEvent>());
 	public readonly onDidReceiveResponse = this._onDidReceiveResponse.event;
+
+	protected get currentToolCallRounds(): readonly IToolCallRound[] {
+		return this.toolCallRounds;
+	}
 
 	private get turn() {
 		return this.options.conversation.getLatestTurn();
@@ -269,6 +275,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			hasStopHookQuery,
 			modeInstructions: this.options.request.modeInstructions2,
 			additionalHookContext: this.additionalHookContext,
+			parentHeaderRequestId: this.lastHeaderRequestId,
+			parentModelCallId: this.lastModelCallId,
 		};
 	}
 
@@ -764,7 +772,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
-					...(customModeName ? { 'copilot_chat.mode_name': customModeName } : {}),
+					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
@@ -823,16 +831,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// Always capture user input message for the debug panel
 				{
 					const userMessage = this.turn.request.message;
+					const maxLen = this._otelService.config.maxAttributeSizeChars;
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
-					])));
+					]), maxLen));
 					// Set USER_REQUEST so event translator can emit user.message
 					if (userMessage) {
-						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage, maxLen));
 					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
-						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
+						span.addEvent('user_message', { content: truncateForOTel(userMessage, maxLen), ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
 					}
 				}
 
@@ -878,11 +887,18 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 								{ role: 'assistant', parts: [{ type: 'text', content: responseText }] }
 							])));
 						}
-						// Log tool definitions once on the agent span (same set across all turns)
+						// Log tool definitions once on the agent span (same set across all turns).
+						// Includes `parameters` (inputSchema) per OTel GenAI semantic convention so
+						// trace viewers can render full tool signatures (issue #300318).
 						if (result.availableTools.length > 0) {
-							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, JSON.stringify(
-								result.availableTools.map(t => ({ type: 'function', name: t.name, description: t.description }))
-							));
+							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(
+								result.availableTools.map(t => ({
+									type: 'function',
+									name: t.name,
+									description: t.description,
+									parameters: t.inputSchema,
+								}))
+							)));
 						}
 					}
 					span.setStatus(SpanStatusCode.OK);
@@ -1190,7 +1206,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (!this.toolsAvailableEmitted && this.agentSpan && availableTools.length > 0) {
 			this.toolsAvailableEmitted = true;
 			this.agentSpan.addEvent('tools_available', {
-				toolDefinitions: JSON.stringify(availableTools.map(t => ({ type: 'function', name: t.name, description: t.description }))),
+				toolDefinitions: truncateForOTel(JSON.stringify(availableTools.map(t => ({
+					type: 'function',
+					name: t.name,
+					description: t.description,
+					parameters: t.inputSchema,
+				})))),
 				...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
 			});
 		}
@@ -1375,6 +1396,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				})),
 			},
 			userInitiatedRequest: (iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId && !this.options.request.isSystemInitiated) || this.stopHookUserInitiated,
+			iterationNumber,
 			modelCapabilities: {
 				enableThinking,
 			},
@@ -1382,6 +1404,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.stopHookUserInitiated = false;
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
+
+		// Store the server-echoed headerRequestId from the fetch response for subagent telemetry linking.
+		// Prefer serverRequestId (the server's x-request-id response header) because it matches
+		// chatCompletion.requestId.headerRequestId which is reported as `requestId` in response.success.
+		// Fall back to requestId (client-generated UUID) if the server didn't echo the header.
+		// Use || instead of ?? because getRequestId() returns '' for missing headers.
+		if (fetchResult.type === ChatFetchResponseType.Success) {
+			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
+			this.lastModelCallId = fetchResult.modelCallId;
+		}
 
 		const promptTokenDetails = await computePromptTokenDetails({
 			messages: effectiveBuildPromptResult.messages,

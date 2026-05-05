@@ -235,7 +235,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		if (this.#isScrolling) {
-			this.#isScrolling = false;
 			return;
 		}
 
@@ -507,6 +506,8 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		opener: MdLinkOpener,
 		scrollLine?: number,
 	): StaticMarkdownPreview {
+		webview.iconPath = contentProvider.iconPath;
+
 		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, opener, scrollLine);
 	}
 

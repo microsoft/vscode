@@ -537,7 +537,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
+			return;
 		}
 
 		data.impl.setRequestTools?.(requestId, tools);

@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
@@ -26,7 +27,6 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -39,6 +39,16 @@ export interface ICustomizationItemConfig {
 	readonly modelSection?: ItemsModelSection;
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
+}
+
+/**
+ * Per-section context key indicating whether the active harness exposes
+ * the section in the sidebar customizations toolbar. Driven by
+ * `IHarnessDescriptor.hiddenSections` and consumed via the menu `when`
+ * clause registered alongside each customization action.
+ */
+function customizationSectionVisibleKey(section: string): string {
+	return `sessionsCustomizationSectionVisible.${section}`;
 }
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
@@ -89,8 +99,8 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + a single count badge driven by the same
- * `IAICustomizationItemsModel` observables that feed the customizations
- * editor — so the badge always matches the editor's count exactly.
+ * observables that feed the customizations editor — so the badge always
+ * matches the editor's count exactly.
  */
 export class CustomizationLinkViewItem extends ActionViewItem {
 
@@ -104,7 +114,6 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -156,7 +165,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._mcpService.servers.read(reader).length;
 		}
 		if (this._config.isPlugins) {
-			return this._agentPluginService.plugins.read(reader).length;
+			return this._itemsModel.getPluginCount().read(reader);
 		}
 		return 0;
 	}
@@ -181,14 +190,37 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		// Per-section visibility context keys, kept in sync with the active
+		// harness's `hiddenSections`. Each customization action's menu entry
+		// is gated on its key so that harnesses (e.g. Claude, AHP) which
+		// don't support a customization type don't surface its row.
+		const visibilityKeys = new Map<string, IContextKey<boolean>>();
+		for (const config of CUSTOMIZATION_ITEMS) {
+			const key = new RawContextKey<boolean>(customizationSectionVisibleKey(config.section), true).bindTo(contextKeyService);
+			visibilityKeys.set(config.section, key);
+		}
+		this._register(autorun(reader => {
+			harnessService.activeHarness.read(reader);
+			harnessService.availableHarnesses.read(reader);
+			const descriptor = harnessService.getActiveDescriptor();
+			const hidden = new Set(descriptor.hiddenSections ?? []);
+			for (const config of CUSTOMIZATION_ITEMS) {
+				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
+			}
+		}));
 
 		for (const [index, config] of CUSTOMIZATION_ITEMS.entries()) {
 			// Register the custom ActionViewItem for this action
 			this._register(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
+
+			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(config.section));
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -200,6 +232,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
+							when: sectionVisibleWhen,
 						}
 					});
 				}
@@ -223,3 +256,42 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Keeps the active customization harness in sync with the currently active
+ * session's `sessionType`. This drives the customizations sidebar (counts,
+ * filtering) and the customizations editor so they reflect the harness that
+ * matches the session the user is interacting with.
+ *
+ * This covers two cases identically:
+ *  - opening / navigating into an existing session
+ *  - selecting "New session in {workspace}" (which sets a pending active
+ *    session before the user has sent the first request)
+ */
+export class ActiveSessionHarnessSyncContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
+
+	constructor(
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const sessionType = sessionsManagementService.activeSession.read(reader)?.sessionType;
+			if (!sessionType) {
+				return;
+			}
+			// Re-read available harnesses so we re-run when an external harness
+			// (e.g. agent host, CLI) registers asynchronously after the session
+			// has already been selected.
+			harnessService.availableHarnesses.read(reader);
+			if (harnessService.findHarnessById(sessionType)) {
+				harnessService.setActiveHarness(sessionType);
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(ActiveSessionHarnessSyncContribution.ID, ActiveSessionHarnessSyncContribution, WorkbenchPhase.AfterRestored);

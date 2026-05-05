@@ -230,4 +230,92 @@ describe('resolveOTelConfig', () => {
 			expect(config.enabledVia).toBe('envVar');
 		});
 	});
+
+	describe('maxAttributeSizeChars', () => {
+		it('defaults to 0 (unlimited) when nothing is set', () => {
+			const config = resolveOTelConfig(makeInput({ settingEnabled: true }));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('defaults to 0 (unlimited) even when OTel is disabled', () => {
+			const config = resolveOTelConfig(makeInput());
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('uses VS Code setting when env var is unset', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingEnabled: true,
+				settingMaxAttributeSizeChars: 64_000,
+			}));
+			expect(config.maxAttributeSizeChars).toBe(64_000);
+		});
+
+		it('treats setting value 0 as unlimited (no truncation)', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingEnabled: true,
+				settingMaxAttributeSizeChars: 0,
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('env var overrides VS Code setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS': '128000',
+				},
+				settingMaxAttributeSizeChars: 32_000,
+			}));
+			expect(config.maxAttributeSizeChars).toBe(128_000);
+		});
+
+		it('env var value 0 disables truncation', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS': '0',
+				},
+				settingMaxAttributeSizeChars: 32_000,
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('clamps negative values to 0 (unlimited)', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingEnabled: true,
+				settingMaxAttributeSizeChars: -1,
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('falls back to default (0) when env var is non-numeric', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS': 'not-a-number',
+				},
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('falls back to default (0) when env var is fractional', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS': '1.5',
+				},
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+
+		it('falls back to default (0) when env var exceeds safe integer range', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: {
+					'COPILOT_OTEL_ENABLED': 'true',
+					'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS': '1e308',
+				},
+			}));
+			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+	});
 });

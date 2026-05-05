@@ -10,6 +10,7 @@ export interface IQuotaSnapshotData {
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
+	readonly entitlement?: string;
 }
 
 export interface ILegacyQuotaSnapshotData {
@@ -41,10 +42,19 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	};
 }
 
+export const enum CopilotSessionSearchPolicy {
+	Unknown = 0,
+	Enabled = 1,
+	Disabled = 2,
+	Unconfigured = 3,
+	NoPolicy = 4,
+}
+
 export interface IPolicyData {
 	readonly mcp?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
 	readonly chat_agent_enabled?: boolean;
+	readonly session_search?: CopilotSessionSearchPolicy;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
 }

@@ -12,20 +12,26 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../menus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
+import { basename } from '../../../../base/common/resources.js';
+import { IFileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from './contributions/mobileDiffView.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -33,7 +39,7 @@ import { IChatDashboardService } from '../../chatDashboardService.js';
  *
  * Layout (contextual right slot):
  *
- *  - **In a chat session** → `[toggle sidebar]  [session title]  [+]`
+ *  - **In a chat session** → `[toggle sidebar]  [session title]  [changes pill]  [+]`
  *  - **Welcome / new session** → `[toggle sidebar]  [host widget | title]  [account]`
  *
  * The center slot switches content based on whether the sessions welcome
@@ -91,6 +97,10 @@ export class MobileTitlebarPart extends Disposable {
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 
+	// Changes pill state — kept here so the click handler can read the
+	// latest set without re-deriving it on each tap.
+	private latestChanges: readonly ISessionFileChange[] = [];
+
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -101,6 +111,8 @@ export class MobileTitlebarPart extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -145,7 +157,24 @@ export class MobileTitlebarPart extends Disposable {
 
 		this.actionsContainer = append(center, $('div.mobile-top-bar-actions'));
 
-		// New session button (+) — shown when in a chat, hidden on welcome
+		// Right slot — laid out left-to-right in DOM order. The new-session
+		// (+) button is appended LAST so it always sits at the right edge,
+		// even when the changes pill is visible.
+
+		// Changes pill — shown when in a chat that has produced changes.
+		// Tap → opens a file picker; selecting a file invokes the
+		// `sessions.mobile.openDiffView` command for that file's diff.
+		const changesPill = append(this.element, $('button.mobile-top-bar-button.mobile-changes-pill', { type: 'button' })) as HTMLButtonElement;
+		changesPill.setAttribute('aria-label', localize('mobileTopBar.changes', "View changes"));
+		changesPill.style.display = 'none';
+		const changesIcon = append(changesPill, $('span.mobile-changes-pill-icon'));
+		changesIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		const changesAddedEl = append(changesPill, $('span.mobile-changes-pill-added'));
+		const changesRemovedEl = append(changesPill, $('span.mobile-changes-pill-removed'));
+		this._register(addDisposableListener(changesPill, EventType.CLICK, () => this.showChangesPicker()));
+
+		// New session button (+) — shown when in a chat, hidden on welcome.
+		// Always rightmost when in a chat.
 		const newSessionButton = append(this.element, $('button.mobile-top-bar-button.mobile-new-session-button'));
 		newSessionButton.setAttribute('aria-label', localize('mobileTopBar.newSessionAria', "New session"));
 		const newSessionIcon = append(newSessionButton, $('span'));
@@ -179,6 +208,33 @@ export class MobileTitlebarPart extends Disposable {
 			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
 		}));
 
+		// Keep the changes pill in sync with the active session's changes.
+		// Hidden when there are no changes (counts are zero and list is empty).
+		const isNewChatRef = { value: !!IsNewChatSessionContext.getValue(contextKeyService) };
+		const renderChangesPill = () => {
+			const changes = this.latestChanges;
+			let added = 0;
+			let removed = 0;
+			for (const c of changes) {
+				added += c.insertions;
+				removed += c.deletions;
+			}
+			const hasChanges = changes.length > 0 && (added > 0 || removed > 0);
+			// Hide on welcome / new-chat — no session changes to view there.
+			const visible = hasChanges && !isNewChatRef.value;
+			changesPill.style.display = visible ? '' : 'none';
+			if (visible) {
+				changesAddedEl.textContent = `+${added}`;
+				changesRemovedEl.textContent = `-${removed}`;
+				changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
+			}
+		};
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSession.read(reader);
+			this.latestChanges = session?.changes.read(reader) ?? [];
+			renderChangesPill();
+		}));
+
 		// Mount the center toolbar (host filter widget on web welcome, etc.)
 		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, Menus.MobileTitleBarCenter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -200,6 +256,10 @@ export class MobileTitlebarPart extends Disposable {
 			// Right slot: swap between [+] (in-chat) and [account] (welcome)
 			newSessionButton.style.display = isNewChat ? 'none' : '';
 			this.accountButton.style.display = isNewChat ? '' : 'none';
+
+			// Changes pill follows the in-chat state — hidden on welcome.
+			isNewChatRef.value = isNewChat;
+			renderChangesPill();
 		};
 		updateCenterMode();
 		this._register(contextKeyService.onDidChangeContext(e => {
@@ -220,6 +280,67 @@ export class MobileTitlebarPart extends Disposable {
 	 */
 	setTitle(title: string): void {
 		this.sessionTitleElement.textContent = title;
+	}
+
+	// --- Changes Pill --- //
+
+	/**
+	 * Open a quick pick listing the files changed in the active session.
+	 * Selecting one invokes {@link MOBILE_OPEN_DIFF_VIEW_COMMAND_ID} with
+	 * the corresponding {@link IFileDiffViewData}.
+	 */
+	private showChangesPicker(): void {
+		const changes = this.latestChanges;
+		if (!changes.length) {
+			return;
+		}
+
+		type Item = IQuickPickItem & { readonly diff: IFileDiffViewData };
+		const items: Item[] = changes.map(change => {
+			// IChatSessionFileChange2 carries `uri` (and may also have `modifiedUri`);
+			// the legacy IChatSessionFileChange only has `modifiedUri`. The discriminator
+			// is the presence of `uri` (required on the v2 shape, absent on v1).
+			const v2 = (change as { uri?: URI }).uri;
+			const modifiedURI = v2 ? (change.modifiedUri ?? v2) : change.modifiedUri!;
+			// `originalURI` may legitimately be undefined for newly-added files;
+			// MobileDiffView treats that as an empty original (all-added diff).
+			// Do NOT fall back to modifiedURI here — that would self-diff and
+			// render "No changes in this file." for added files.
+			const originalURI = change.originalUri;
+			const added = change.insertions;
+			const removed = change.deletions;
+			return {
+				label: basename(modifiedURI),
+				description: `+${added}  -${removed}`,
+				detail: modifiedURI.path,
+				diff: {
+					originalURI,
+					modifiedURI,
+					identical: added === 0 && removed === 0,
+					added,
+					removed,
+				},
+			};
+		});
+
+		const picker = this.quickInputService.createQuickPick<Item>();
+		picker.title = localize('mobileTopBar.changesPickerTitle', "Session Changes");
+		picker.placeholder = localize('mobileTopBar.changesPickerPlaceholder', "Select a file to view its diff");
+		picker.matchOnDescription = true;
+		picker.items = items;
+		const store = new DisposableStore();
+		store.add(picker.onDidAccept(() => {
+			const selected = picker.selectedItems[0];
+			if (selected) {
+				this.commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, selected.diff);
+			}
+			picker.hide();
+		}));
+		store.add(picker.onDidHide(() => {
+			store.dispose();
+			picker.dispose();
+		}));
+		picker.show();
 	}
 
 	// --- Account Indicator --- //

@@ -174,6 +174,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
 			},
 		}));
 
@@ -228,6 +229,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
+			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			customizations,
 		}));

@@ -22,6 +22,7 @@ import { IMarkerData, IMarkerService } from '../../../../../platform/markers/com
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatModeService } from '../../common/chatModes.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -151,7 +152,7 @@ class PromptValidatorContribution extends Disposable {
 
 		const validateAll = (): void => trackers.forEach(tracker => tracker.validate());
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
-		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
+		this.localDisposables.add(this.chatModeService.getModes(localChatSessionType).onDidChange(() => validateAll()));
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
 	}
 }

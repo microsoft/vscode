@@ -72,7 +72,7 @@
 /* Update widget in titlebar */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
-	gap: 0;
+	gap: 5px;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget {
@@ -202,7 +202,17 @@
 	align-items: center;
 	gap: 6px;
 	min-height: 28px;
-	padding: 6px 8px 0;
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-avatar {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 1px solid var(--vscode-commandCenter-border, var(--vscode-contrastBorder, transparent));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-title {
@@ -214,7 +224,6 @@
 	font-size: 12px;
 	font-weight: 500;
 	line-height: 18px;
-	color: var(--vscode-descriptionForeground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-header-actions {
@@ -235,7 +244,7 @@
 	border: none;
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
 	cursor: default;
 	font-size: 14px !important;
 }
@@ -286,7 +295,145 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0;
-	padding: 2px 0;
+	padding: 2px 0 6px 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section {
+	display: flex;
+	flex-direction: column;
+	padding: 6px 0 0;
+}
+
+/* The embedded chat status dashboard ships dividers/HRs and header borders
+	intended for its standalone tooltip presentation. The section headings
+	provide the only visual grouping we want here. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip hr {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip > div.header,
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .contribution > div.header {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+/* Flatten contributed sub-sections (e.g. "Codebase Semantic Index") into
+	the parent Subscription section. The dashboard renders these non-collapsibly
+	(via `disableContributedSectionsCollapsible`); these rules just align the
+	header typography with the panel's quota-title style above it. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	margin-top: 4px;
+	padding: 0 28px 0 0;
+	border-top: none;
+	background: none;
+	font-size: 12px;
+	line-height: 18px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-label {
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
+	margin-left: auto;
+	font-size: 11px;
+	line-height: 15px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
+	gap: 6px;
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-description,
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
+	font-size: 11px;
+	line-height: 15px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
+	padding-bottom: 4px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
+	padding: 4px 8px 2px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+/* Subscription section: place "Subscription" label and the dashboard's
+	plan-name + manage-action header on a single right-aligned row.
+	The dashboard's `div.header` is reparented into this row at runtime,
+	so it's no longer matched by chatStatus.css rules. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 10px 2px 8px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header .sessions-account-titlebar-panel-section-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .header-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .monaco-action-bar {
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 24px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
+	/* `!important` to override `.codicon`'s own `font-size` rule. */
+	font-size: 14px !important;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:hover .sessions-account-titlebar-panel-action-icon,
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:focus-visible .sessions-account-titlebar-panel-action-icon {
+	color: inherit;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-separator {
@@ -302,7 +449,7 @@
 	box-sizing: border-box;
 	height: 24px;
 	margin: 0 4px;
-	padding: 0 16px;
+	padding: 0 6px;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: transparent;
@@ -367,6 +514,35 @@
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	cursor: default;
+}
+
+/* Signed-out CTA inside the embedded chat status dashboard
+	(e.g. "Sign in to use AI Features"). The dashboard ships its own
+	default-styled <Button>; align it with the rest of the account menu
+	by tightening spacing and matching the panel's primary-action look. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 8px 8px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > div.description {
+	margin: 0;
+	padding: 0 2px;
+	font-size: 11px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > .monaco-button {
+	width: 100%;
+	height: 26px;
+	margin: 0;
+	padding: 0 12px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1;
 }
 
 /* Motion animations */
