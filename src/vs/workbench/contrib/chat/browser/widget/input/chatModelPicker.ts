@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -104,7 +105,7 @@ function createModelItem(
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	descriptionOverride?: string | MarkdownString,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hoverContent = model ? getModelHoverContent(model) : undefined;
+	const hoverElement = model ? getModelHoverContent(model) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -113,7 +114,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: hoverContent ? { content: hoverContent } : undefined,
+		hover: hoverElement ? { content: hoverElement } : undefined,
 		tooltip: action.tooltip,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
@@ -1002,39 +1003,77 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString | undefined {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): HTMLElement | undefined {
 	const isAuto = isAutoModel(model);
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	let hasContent = false;
+	const container = dom.$('.chat-model-hover');
 
+	// --- Model name header ---
+	container.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+
+	// --- Description (tooltip as markdown) ---
 	if (model.metadata.tooltip) {
+		container.appendChild(dom.$('.chat-model-hover-separator'));
+		const descriptionContainer = dom.$('.chat-model-hover-description');
+		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (model.metadata.statusIcon) {
-			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
+			md.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
-		markdown.appendMarkdown(`${model.metadata.tooltip}`);
-		hasContent = true;
+		md.appendMarkdown(model.metadata.tooltip);
+		const rendered = renderMarkdown(md);
+		descriptionContainer.appendChild(rendered.element);
+		container.appendChild(descriptionContainer);
 	}
 
-	// Show non-multiplier (UBB/AIC) pricing in hover
-	if (!isAuto && model.metadata.pricing && !isMultiplierPricing(model)) {
-		if (hasContent) {
-			markdown.appendMarkdown(`\n\n`);
+	// --- Cost info ---
+	if (!isAuto) {
+		const costParts: { label: string; value: string }[] = [];
+		if (model.metadata.inputCost !== undefined) {
+			costParts.push({ label: localize('models.inputCostLabel', "In"), value: String(model.metadata.inputCost) });
 		}
-		markdown.appendMarkdown(`${localize('models.cost', 'Cost: {0}', model.metadata.pricing)}`);
-		hasContent = true;
+		if (model.metadata.outputCost !== undefined) {
+			costParts.push({ label: localize('models.outputCostLabel', "Out"), value: String(model.metadata.outputCost) });
+		}
+		if (model.metadata.cacheCost !== undefined) {
+			costParts.push({ label: localize('models.cacheCostLabel', "Cache"), value: String(model.metadata.cacheCost) });
+		}
+
+		if (costParts.length > 0) {
+			const costRow = dom.$('.chat-model-hover-cost');
+			costRow.appendChild(dom.$('span.chat-model-hover-cost-label', undefined, localize('models.creditsPerToken', "Credits per 1M T:")));
+			for (const part of costParts) {
+				costRow.appendChild(dom.$('span.chat-model-hover-cost-item', undefined,
+					dom.$('span.chat-model-hover-cost-item-label', undefined, `${part.label}: `),
+					dom.$('span.chat-model-hover-cost-item-value', undefined, part.value),
+				));
+			}
+			container.appendChild(costRow);
+		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
+			const costRow = dom.$('.chat-model-hover-cost');
+			costRow.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
+			container.appendChild(costRow);
+		}
 	}
 
-	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
-		if (hasContent) {
-			markdown.appendMarkdown(`\n\n`);
+	// --- Configurable properties ---
+	if (!isAuto && model.metadata.configurationSchema?.properties) {
+		const configurableLabels: string[] = [];
+		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
+			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.description) {
+				configurableLabels.push(propSchema.description);
+			}
 		}
-		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
-		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
-		hasContent = true;
+		if (configurableLabels.length > 0) {
+			container.appendChild(dom.$('.chat-model-hover-separator'));
+			const configRow = dom.$('.chat-model-hover-configurable');
+			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable:")));
+			for (const label of configurableLabels) {
+				configRow.appendChild(dom.$('span.chat-model-hover-configurable-tag', undefined, label));
+			}
+			container.appendChild(configRow);
+		}
 	}
 
-	return hasContent ? markdown : undefined;
+	return container.children.length > 0 ? container : undefined;
 }
 
 

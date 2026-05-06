@@ -3975,3 +3975,62 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench:not(.hc-black):not(.hc-light) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response {
 	outline: none !important;
 }
+
+/* --- Chat Model Hover --- */
+.chat-model-hover {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-model-hover-name {
+	font-weight: bold;
+	font-size: 13px;
+}
+
+.chat-model-hover-separator {
+	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	margin: 2px 0;
+}
+
+.chat-model-hover-description {
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.chat-model-hover-description > .rendered-markdown p {
+	margin: 0;
+}
+
+.chat-model-hover-cost {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-cost-label {
+	font-weight: 600;
+}
+
+.chat-model-hover-configurable {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.chat-model-hover-configurable-label {
+	font-weight: 600;
+}
+
+.chat-model-hover-configurable-tag {
+	padding: 1px 6px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 11px;
+}

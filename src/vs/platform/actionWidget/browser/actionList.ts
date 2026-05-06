@@ -47,9 +47,9 @@ export interface IActionListDelegate<T> {
  */
 export interface IActionListItemHover {
 	/**
-	 * Content to display in the hover.
+	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString;
+	readonly content?: string | MarkdownString | HTMLElement;
 }
 
 export interface IActionListItem<T> {
@@ -1350,20 +1350,24 @@ export class ActionListWidget<T> extends Disposable {
 		let hoverHeader: HTMLElement | undefined;
 		const hoverContent = element.hover?.content;
 		if (hoverContent) {
-			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
-			const linkHandler = this._options?.linkHandler;
-			const rendered = renderMarkdown(markdown, {
-				actionHandler: (url: string) => {
-					const uri = URI.parse(url);
-					if (linkHandler) {
-						linkHandler(uri, element);
-					} else {
-						this._openerService.open(uri, { allowCommands: true });
-					}
-				},
-			});
-			this._submenuDisposables.add(rendered);
-			hoverHeader = rendered.element;
+			if (dom.isHTMLElement(hoverContent)) {
+				hoverHeader = hoverContent;
+			} else {
+				const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
+				const linkHandler = this._options?.linkHandler;
+				const rendered = renderMarkdown(markdown, {
+					actionHandler: (url: string) => {
+						const uri = URI.parse(url);
+						if (linkHandler) {
+							linkHandler(uri, element);
+						} else {
+							this._openerService.open(uri, { allowCommands: true });
+						}
+					},
+				});
+				this._submenuDisposables.add(rendered);
+				hoverHeader = rendered.element;
+			}
 			hoverHeader.classList.add('action-list-submenu-hover-header');
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
