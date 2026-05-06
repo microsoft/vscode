@@ -142,7 +142,7 @@ import { IWebContentExtractorService } from '../../platform/webContentExtractor/
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
-import { AgentsLastRunningTracker } from './agentsLastRunningTracker.js';
+import { tryConsumeAgentsLastRunningMarker } from './agentsLastRunningTracker.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -1345,6 +1345,21 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
+		const agentsLastRunning = this.productService.quality !== 'stable'
+			? await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService)
+			: undefined;
+		if (agentsLastRunning?.agentsRunning) {
+			const agentsWindows = await windowsMainService.openAgentsWindow({
+				context,
+				cli: args,
+				initialStartup: true
+			});
+			if (!agentsLastRunning.vscodeRunning) {
+				return agentsWindows;
+			}
+			// Otherwise also restore the editor windows below.
+		}
+
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
 
@@ -1633,16 +1648,6 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// Agents app: write a marker into the host VS Code's user-data dir so
-		// that, after a future update which removes the sub-application, the
-		// host VS Code can detect that the Agents app was running and restore
-		// the appropriate windows on next launch.
-		if ((process as INodeProcess).isEmbeddedApp) {
-			const hostUserRoamingDataHome = this.environmentMainService.parentAppUserRoamingDataHome;
-			if (hostUserRoamingDataHome) {
-				this._register(instantiationService.createInstance(AgentsLastRunningTracker, hostUserRoamingDataHome));
-			}
-		}
 	}
 
 	private async installMutex(): Promise<void> {
