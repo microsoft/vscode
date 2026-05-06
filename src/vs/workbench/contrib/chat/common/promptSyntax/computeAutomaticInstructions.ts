@@ -475,7 +475,7 @@ export class ComputeAutomaticInstructions {
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push(`</skill>`);
 					const entryLength = skillEntry.join('\n').length + 1; // +1 for joining newline
-					if (skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
+					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
 						truncatedAtIndex = i;
 						break;
 					}

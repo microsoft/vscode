@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -177,6 +177,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private chatSessionIdForTools: string | undefined;
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
+	private lastModelCallId: string | undefined;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -275,6 +276,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			modeInstructions: this.options.request.modeInstructions2,
 			additionalHookContext: this.additionalHookContext,
 			parentHeaderRequestId: this.lastHeaderRequestId,
+			parentModelCallId: this.lastModelCallId,
 		};
 	}
 
@@ -829,16 +831,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// Always capture user input message for the debug panel
 				{
 					const userMessage = this.turn.request.message;
+					const maxLen = this._otelService.config.maxAttributeSizeChars;
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
-					])));
+					]), maxLen));
 					// Set USER_REQUEST so event translator can emit user.message
 					if (userMessage) {
-						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage, maxLen));
 					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
-						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
+						span.addEvent('user_message', { content: truncateForOTel(userMessage, maxLen), ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
 					}
 				}
 
@@ -1393,6 +1396,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				})),
 			},
 			userInitiatedRequest: (iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId && !this.options.request.isSystemInitiated) || this.stopHookUserInitiated,
+			iterationNumber,
 			modelCapabilities: {
 				enableThinking,
 			},
@@ -1401,12 +1405,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
 
-		// Store the headerRequestId from the fetch response for subagent telemetry linking.
-		// Use requestId (the client-generated UUID sent as X-Request-Id header), not serverRequestId
-		// (the server's response header value), because requestId is what appears as headerRequestId
-		// across all telemetry events.
+		// Store the server-echoed headerRequestId from the fetch response for subagent telemetry linking.
+		// Prefer serverRequestId (the server's x-request-id response header) because it matches
+		// chatCompletion.requestId.headerRequestId which is reported as `requestId` in response.success.
+		// Fall back to requestId (client-generated UUID) if the server didn't echo the header.
+		// Use || instead of ?? because getRequestId() returns '' for missing headers.
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			this.lastHeaderRequestId = fetchResult.requestId;
+			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
+			this.lastModelCallId = fetchResult.modelCallId;
 		}
 
 		const promptTokenDetails = await computePromptTokenDetails({

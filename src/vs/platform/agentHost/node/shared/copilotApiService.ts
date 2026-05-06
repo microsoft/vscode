@@ -57,12 +57,108 @@ interface ICapiInit {
 // #region Constants
 
 /**
+ * Sentinel {@link CopilotApiError.status} used when the error came from a
+ * mid-stream SSE `event: error` frame rather than an HTTP non-2xx response.
+ * The upstream HTTP status was 200 (the stream had already started); the
+ * real HTTP status is no longer meaningful, so consumers that need an HTTP
+ * status code (e.g. when re-emitting before headers are sent) should not
+ * trust this value. Use `envelope.error.type` instead.
+ */
+export const COPILOT_API_ERROR_STATUS_STREAMING = 520;
+
+/**
  * Refresh the cached Copilot token this many seconds before its real expiry,
  * so an in-flight request never hits a token that expires mid-request.
  */
 const TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60;
 
 const TOKEN_API_VERSION = '2025-04-01';
+
+// #endregion
+
+// #region Errors
+
+/**
+ * Thrown by {@link ICopilotApiService} when CAPI returns an Anthropic-format
+ * API error — either as a non-2xx HTTP response or as a mid-stream
+ * `event: error` SSE frame. Carries enough information for the Phase 2
+ * Claude proxy to re-emit the error passthrough without re-mapping.
+ *
+ * Network/transport failures (connection reset, DNS failure, etc.) are
+ * **not** wrapped as `CopilotApiError` — they propagate as raw `fetch`
+ * rejections so consumers can distinguish API errors from transport errors.
+ */
+export class CopilotApiError extends Error {
+
+	/**
+	 * @param status HTTP status from the originating CAPI response, or
+	 *   {@link COPILOT_API_ERROR_STATUS_STREAMING} for mid-stream SSE errors.
+	 * @param envelope Anthropic-format error envelope. For HTTP errors with a
+	 *   non-conforming body (plain text, malformed JSON, missing fields) this
+	 *   is synthesized; for conforming bodies and SSE frames it is the
+	 *   server's envelope verbatim.
+	 * @param message Optional override for `Error.message`. Defaults to
+	 *   `envelope.error.message`. **Never includes auth tokens.**
+	 */
+	constructor(
+		readonly status: number,
+		readonly envelope: Anthropic.ErrorResponse,
+		message?: string,
+	) {
+		super(message ?? envelope.error.message);
+		this.name = 'CopilotApiError';
+	}
+}
+
+/**
+ * Build a {@link CopilotApiError} from a CAPI HTTP response body. If the
+ * body parses as a conforming Anthropic envelope, it is used verbatim;
+ * otherwise a synthetic envelope is constructed with `error.type:
+ * 'api_error'` and the response body as `error.message` (or status text
+ * when the body is empty). The returned error's `message` deliberately
+ * mirrors the original `"<prefix>: <status> <statusText>"` format so
+ * existing log-line consumers continue to read identifiably. `prefix`
+ * defaults to `"CAPI request failed"` (the historical wording for
+ * `messages`); pass `"CAPI models request failed"` for the `models()` path.
+ */
+function buildCopilotApiHttpError(status: number, statusText: string, bodyText: string, prefix = 'CAPI request failed'): CopilotApiError {
+	let envelope: Anthropic.ErrorResponse | undefined;
+	if (bodyText) {
+		try {
+			const parsed = JSON.parse(bodyText) as unknown;
+			if (
+				parsed && typeof parsed === 'object'
+				&& (parsed as { type?: unknown }).type === 'error'
+			) {
+				const err = (parsed as { error?: unknown }).error;
+				if (
+					err && typeof err === 'object'
+					&& typeof (err as { type?: unknown }).type === 'string'
+					&& typeof (err as { message?: unknown }).message === 'string'
+				) {
+					envelope = parsed as Anthropic.ErrorResponse;
+				}
+			}
+		} catch {
+			// non-JSON body — fall through to synthesis
+		}
+	}
+	if (!envelope) {
+		envelope = {
+			type: 'error',
+			error: {
+				type: 'api_error',
+				message: bodyText || `${status} ${statusText}`,
+			},
+			request_id: null,
+		};
+	}
+	return new CopilotApiError(
+		status,
+		envelope,
+		`${prefix}: ${status} ${statusText} \u2014 ${envelope.error.message}`,
+	);
+}
 
 // #endregion
 
@@ -112,11 +208,21 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  *
  * ## Error semantics
  *
- * - Network/transport errors propagate as raw `fetch` rejections.
- * - Non-2xx responses throw an `Error` whose message includes the HTTP status,
- *   status text, and response body. **Tokens are never embedded in error
- *   messages.**
- * - Streaming `error` SSE events throw with the server-supplied message.
+ * - Network/transport errors propagate as raw `fetch` rejections (e.g.
+ *   connection reset, DNS failure). Consumers can distinguish them from
+ *   API errors by `instanceof CopilotApiError`.
+ * - Non-2xx responses from CAPI's `messages` and `models` endpoints throw
+ *   {@link CopilotApiError} carrying the HTTP `status` and the parsed
+ *   Anthropic error `envelope` (synthesized if the response body isn't a
+ *   conforming envelope). **Tokens are never embedded in error messages.**
+ * - Streaming `event: error` SSE frames throw {@link CopilotApiError} with
+ *   `status` set to {@link COPILOT_API_ERROR_STATUS_STREAMING} (the upstream
+ *   HTTP status was 200 and is no longer meaningful) and the server-supplied
+ *   error envelope preserved verbatim.
+ * - Failures of the internal Copilot token-mint endpoint throw plain
+ *   `Error` (not `CopilotApiError`) with a `"Copilot token minting failed:
+ *   ..."` prefix — token mint is an implementation detail of this service
+ *   and is not part of the Anthropic-shaped CAPI surface.
  * - Malformed JSON in an SSE `data:` line is logged and skipped, not thrown.
  */
 export interface ICopilotApiService {
@@ -246,7 +352,7 @@ export class CopilotApiService implements ICopilotApiService {
 				this._invalidateCachedToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
-			throw new Error(`CAPI models request failed: ${response.status} ${response.statusText} — ${text}`);
+			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI models request failed');
 		}
 
 		const json = await response.json();
@@ -382,7 +488,7 @@ export class CopilotApiService implements ICopilotApiService {
 				this._invalidateCachedToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
-			throw new Error(`CAPI request failed: ${response.status} ${response.statusText} — ${text}`);
+			throw buildCopilotApiHttpError(response.status, response.statusText, text);
 		}
 
 		return response;
@@ -545,8 +651,34 @@ export class CopilotApiService implements ICopilotApiService {
 		}
 
 		if (type === 'error') {
-			const error = (parsed as { error?: { message?: string } }).error;
-			throw new Error(error?.message ?? 'Unknown streaming error');
+			// Preserve the upstream envelope verbatim when it conforms to the
+			// Anthropic shape (so any extra fields propagate to Phase 2's
+			// passthrough proxy). Fall back to a clean api_error synthesis
+			// when fields are missing or `error` is unstructured.
+			const rawError = (parsed as { error?: unknown }).error;
+			let envelope: Anthropic.ErrorResponse;
+			if (
+				rawError && typeof rawError === 'object'
+				&& typeof (rawError as { type?: unknown }).type === 'string'
+				&& typeof (rawError as { message?: unknown }).message === 'string'
+			) {
+				envelope = parsed as Anthropic.ErrorResponse;
+			} else {
+				let errorMessage: string;
+				if (typeof rawError === 'string') {
+					errorMessage = rawError;
+				} else if (typeof (rawError as { message?: unknown } | undefined)?.message === 'string') {
+					errorMessage = (rawError as { message: string }).message;
+				} else {
+					errorMessage = 'Unknown streaming error';
+				}
+				envelope = {
+					type: 'error',
+					error: { type: 'api_error', message: errorMessage },
+					request_id: null,
+				};
+			}
+			throw new CopilotApiError(COPILOT_API_ERROR_STATUS_STREAMING, envelope);
 		}
 
 		if (!KNOWN_SSE_EVENT_TYPES.has(type)) {

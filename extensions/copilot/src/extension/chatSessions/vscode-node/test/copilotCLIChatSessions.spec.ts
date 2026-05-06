@@ -27,7 +27,7 @@ import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepo
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { SessionIdForCLI } from '../../copilotcli/common/utils';
-import { ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
+import { ICopilotCLIModels, ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';
 import { ICustomSessionTitleService } from '../../copilotcli/common/customSessionTitleService';
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
@@ -338,6 +338,8 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			createdPullRequestUrl: undefined,
 			attachStream: vi.fn(() => ({ dispose: vi.fn() })),
 			handleRequest: vi.fn(async () => { }),
+			getSelectedModelId: vi.fn(async () => undefined),
+			getLastResponseModelId: vi.fn(() => undefined),
 		} as unknown as ICopilotCLISession;
 		const sessionService = new TestSessionService();
 		sessionService.isNewSessionId.mockImplementation(id => id === 'new-session');
@@ -391,6 +393,13 @@ describe('CopilotCLIChatSessionParticipant', () => {
 				declare readonly _serviceBrand: undefined;
 				override lockInputStateGroups = vi.fn();
 				override updateBranchInInputState = vi.fn();
+			}(),
+			new class extends mock<ICopilotCLIModels>() {
+				declare readonly _serviceBrand: undefined;
+				override getModels = vi.fn(async () => []);
+			}(),
+			new class extends mock<IChatSessionMetadataStore>() {
+				declare readonly _serviceBrand: undefined;
 			}(),
 		);
 

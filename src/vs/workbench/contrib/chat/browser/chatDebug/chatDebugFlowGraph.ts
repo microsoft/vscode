@@ -784,19 +784,19 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			if (event.model) {
 				parts.push(event.model);
 			}
-			if (event.totalTokens) {
+			if (event.totalTokens !== undefined) {
 				parts.push(localize('tooltipTokens', "Tokens: {0}", event.totalTokens));
 			}
-			if (event.inputTokens) {
+			if (event.inputTokens !== undefined) {
 				parts.push(localize('tooltipInputTokens', "Input tokens: {0}", event.inputTokens));
 			}
-			if (event.outputTokens) {
+			if (event.outputTokens !== undefined) {
 				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
 			if (event.cachedTokens !== undefined) {
 				parts.push(localize('tooltipCachedTokens', "Cached tokens: {0}", event.cachedTokens));
 			}
-			if (event.durationInMillis) {
+			if (event.durationInMillis !== undefined) {
 				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}
 			return parts.length > 0 ? parts.join('\n') : undefined;

@@ -54,7 +54,7 @@ export interface IHistoryToolStartRecord extends IHistoryRecordBase {
 	readonly displayName: string;
 	readonly invocationMessage: StringOrMarkdown;
 	readonly toolInput?: string;
-	readonly toolKind?: 'terminal' | 'subagent';
+	readonly toolKind?: 'terminal' | 'subagent' | 'search';
 	readonly language?: string;
 	readonly toolArguments?: string;
 	readonly subagentAgentName?: string;

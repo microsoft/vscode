@@ -603,9 +603,11 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		/:\s*\([^)]*\) +$/,
 		// Line contains (END) which is common in pagers
 		/\(END\)$/,
-		// Password prompt (must be followed by optional colon and trailing space to indicate
-		// an active prompt; otherwise normal output containing the word "password" would match).
-		/password:? +$/i,
+		// Password prompt. Requires a trailing colon (e.g. "Password:", "[sudo] password for user:")
+		// and tolerates zero or more trailing spaces — xterm's `translateToString(trimRight=true)`
+		// strips trailing whitespace from non-wrapped buffer lines, so a real `Password: ` prompt
+		// is captured from the buffer as `Password:` with no trailing space.
+		/password(?: for [^:]+)?:\s*$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
 		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with

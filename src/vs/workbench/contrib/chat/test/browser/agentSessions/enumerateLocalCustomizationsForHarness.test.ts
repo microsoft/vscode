@@ -13,6 +13,7 @@ import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
 	return { uri, type, storage } as IPromptPath;
@@ -46,7 +47,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtin, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), CancellationToken.None);
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 
 		assert.deepStrictEqual(result, [{
 			uri: builtin,
@@ -64,7 +65,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), CancellationToken.None);
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; storage: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, storage: e.storage, disabled: e.disabled })), [
 			{ uri: userAgent.toString(), type: PromptsType.agent, storage: PromptsStorage.user, disabled: false },
@@ -79,7 +80,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		]));
 		const syncProvider = new FakeSyncProvider(new Set([builtin.toString()]));
 
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, CancellationToken.None);
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, SessionType.CopilotCLI, CancellationToken.None);
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].disabled, true);
@@ -97,7 +98,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 				return [];
 			},
 		} as unknown as IPromptsService;
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), CancellationToken.None);
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 		assert.deepStrictEqual(result, []);
 	});
 });

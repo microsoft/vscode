@@ -303,8 +303,8 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section, one before Manage Models
-		assert.strictEqual(seps.length, 2);
+		// One separator before Other Models section (Manage Models is in the toolbar)
+		assert.strictEqual(seps.length, 1);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
 		// Next should be "Other Models" toggle
@@ -366,13 +366,15 @@ suite('buildModelPickerItems', () => {
 		assert.ok(toggles[0].label!.includes('Other Models'));
 	});
 
-	test('Other Models section includes Manage Models entry', () => {
+	test('Other Models section includes Manage Models in toolbar', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA]);
-		const manageItem = getActionItems(items).find(i => i.item?.id === 'manageModels');
-		assert.ok(manageItem);
-		assert.ok(manageItem.label!.includes('Manage Models'));
+		const toggle = getActionItems(items).find(i => i.isSectionToggle);
+		assert.ok(toggle);
+		assert.ok(toggle.toolbarActions);
+		assert.strictEqual(toggle.toolbarActions!.length, 1);
+		assert.strictEqual(toggle.toolbarActions![0].id, 'manageModels');
 	});
 
 	test('Other Models with minVSCodeVersion that fails shows as disabled', () => {
@@ -732,7 +734,7 @@ suite('buildModelPickerItems', () => {
 	test('model description includes pricing when set', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
@@ -742,10 +744,68 @@ suite('buildModelPickerItems', () => {
 	test('model description combines detail and pricing', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
-		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x' } as ILanguageModelChatMetadata;
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		assert.strictEqual(gptItem.item?.description, 'High · 3x');
 	});
+
+	test('model description hides non-multiplier pricing from description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'Provider', pricing: 'In: 2.04 · Out: 4.34 AICs/1M tokens' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Non-multiplier pricing should not appear in description
+		assert.strictEqual(gptItem.item?.description, 'Provider');
+	});
+
+	test('model description shows multiplier pricing in description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('claude', 'Claude');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const claudeItem = getActionItems(items).find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, '15x');
+	});
+
+	test('model with no pricing and no detail has undefined description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+	});
+
+	test('model with priceCategory shows MarkdownString description with circle indicators', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// When priceCategory is set, the action's plain description should be undefined
+		assert.strictEqual(gptItem.item?.description, undefined);
+		// The item's description should be a MarkdownString with circle icons
+		assert.ok(gptItem.description instanceof MarkdownString);
+		assert.ok(gptItem.description.value.includes('circle-filled'));
+		assert.ok(gptItem.description.value.includes('circle'));
+	});
+
+	test('model with unknown priceCategory shows no circle indicators', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'unknown_tier' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Unknown category should fall through to normal description (undefined since no detail)
+		assert.strictEqual(gptItem.item?.description, undefined);
+		assert.strictEqual(gptItem.description, undefined);
+	});
 });
+

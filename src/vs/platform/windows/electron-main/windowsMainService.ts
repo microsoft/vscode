@@ -292,11 +292,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
-		return this.open(await this.ensureAgentsWindow(openConfig));
+		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+
+		// Tell the agents window to select the given folder in the new chat workspace picker
+		if (folderUri && windows.length > 0) {
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri.toJSON());
+		}
+
+		return windows;
 	}
 
 	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
@@ -320,7 +327,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
-			forceNewWindow: openConfig.forceNewWindow,
+			forceNewWindow: true,
 		};
 	}
 
@@ -1031,18 +1038,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
-				const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
-
 				const pathsToOpen = await Promise.all(lastSessionWindows.map(async lastSessionWindow => {
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
-						// Never restore the agents window from the previous session.
-						// It is only opened explicitly via `--agents`; otherwise a
-						// previously-opened agents workspace would "stick" and reopen on every launch.
-						if (agentSessionsWorkspaceUri && isEqual(lastSessionWindow.workspace.configPath, agentSessionsWorkspaceUri)) {
-							return undefined;
-						}
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
 							return pathToOpen;
@@ -1523,7 +1522,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const lastActiveWindow = this.getLastActiveWindow();
 		const newWindowProfile = windowConfig?.newWindowProfile
 			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
-		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const defaultProfile = newWindowProfile ?? (lastActiveWindow?.profile?.isAgentsWindowProfile ? undefined : lastActiveWindow?.profile) ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1571,6 +1570,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
+			isEmbeddedApp: this.environmentMainService.isEmbeddedApp,
 			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
 			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
@@ -1731,15 +1731,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-		const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
-		const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
-		configuration.profiles.profile = profile;
 
-		if (!configuration.extensionDevelopmentPath) {
-			// Associate the configured profile to the workspace
-			// unless the window is for extension development,
-			// where we do not persist the associations
-			await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+		if (configuration.isSessionsWindow) {
+			configuration.profiles.profile = this.userDataProfilesMainService.profiles.find(p => p.isAgentsWindowProfile) ?? await this.userDataProfilesMainService.createAgentsWindowProfile();
+		} else {
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+			configuration.profiles.profile = profile;
+
+			if (!configuration.extensionDevelopmentPath) {
+				// Associate the configured profile to the workspace
+				// unless the window is for extension development,
+				// where we do not persist the associations
+				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+			}
 		}
 
 		// Load it

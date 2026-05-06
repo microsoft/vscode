@@ -105,6 +105,7 @@ export interface IModelAPIResponse {
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
 	billing?: IModelBilling;
+	model_picker_price_category?: string;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
 	custom_model?: CustomModel;

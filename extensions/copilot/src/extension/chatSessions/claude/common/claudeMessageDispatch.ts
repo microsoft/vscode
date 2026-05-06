@@ -243,6 +243,7 @@ function logToolResult(
 	requestLogger: IRequestLogger,
 	otelToolSpans: Map<string, ISpanHandle>,
 	capturingToken: CapturingToken | undefined,
+	maxAttributeSizeChars: number,
 ): void {
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
@@ -250,13 +251,13 @@ function logToolResult(
 		if (toolResult.is_error) {
 			const errContent = typeof toolResult.content === 'string' ? toolResult.content : 'tool error';
 			toolSpan.setStatus(SpanStatusCode.ERROR, errContent);
-			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`));
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`, maxAttributeSizeChars));
 		} else {
 			toolSpan.setStatus(SpanStatusCode.OK);
 			if (toolResult.content !== undefined) {
 				try {
 					const result = typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content);
-					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result));
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result, maxAttributeSizeChars));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool result: ${e}`);
 				}
@@ -293,6 +294,7 @@ function processToolResult(
 	const logService = accessor.get(ILogService);
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
+	const otelService = accessor.get(IOTelService);
 
 	const { stream } = request;
 	const { unprocessedToolCalls, otelToolSpans } = state;
@@ -313,7 +315,8 @@ function processToolResult(
 		logService,
 		requestLogger,
 		otelToolSpans,
-		claudeSessionStateService.getCapturingTokenForSession(sessionId)
+		claudeSessionStateService.getCapturingTokenForSession(sessionId),
+		otelService.config.maxAttributeSizeChars,
 	);
 
 	// Tool-specific handling
@@ -511,6 +514,7 @@ export function handleHookResponse(
 	state: MessageHandlerState,
 ): void {
 	const logService = accessor.get(ILogService);
+	const otelService = accessor.get(IOTelService);
 	// TODO: can we map these types better
 	const hookType = message.hook_event as ChatHookType;
 
@@ -528,7 +532,7 @@ export function handleHookResponse(
 			span.setAttribute('copilot_chat.hook_exit_code', message.exit_code);
 		}
 		if (message.output) {
-			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output));
+			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output, otelService.config.maxAttributeSizeChars));
 		}
 		span.end();
 		state.otelHookSpans.delete(message.hook_id);

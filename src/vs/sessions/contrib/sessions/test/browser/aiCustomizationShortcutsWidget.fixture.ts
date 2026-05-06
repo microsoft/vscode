@@ -22,7 +22,6 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
@@ -106,6 +105,7 @@ interface ICustomizationCounts {
 	readonly instructions?: number;
 	readonly prompts?: number;
 	readonly hooks?: number;
+	readonly plugins?: number;
 }
 
 function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationItemsModel {
@@ -119,6 +119,7 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		[AICustomizationManagementSection.Prompts, observableValue('promptsItems', fakeItems(counts?.prompts ?? 0))],
 		[AICustomizationManagementSection.Hooks, observableValue('hooksItems', fakeItems(counts?.hooks ?? 0))],
 	]);
+	const pluginCount = observableValue('pluginsCount', counts?.plugins ?? 0);
 
 	return new class extends mock<IAICustomizationItemsModel>() {
 		override getItems(section: ItemsModelSection) {
@@ -127,6 +128,9 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 		override getCount(section: ItemsModelSection): IObservable<number> {
 			const items = sectionItems.get(section)!;
 			return observableValue(`${section}-count`, items.get().length);
+		}
+		override getPluginCount(): IObservable<number> {
+			return pluginCount;
 		}
 	}();
 }
@@ -177,12 +181,6 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
-			}());
-			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
-				override readonly onDidActiveEditorChange = Event.None;
-				override readonly onDidVisibleEditorsChange = Event.None;
-				override readonly onDidEditorsChange = Event.None;
-				override async openEditor() { return undefined; }
 			}());
 		},
 	});

@@ -7,7 +7,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IChatDebugFileLoggerService, IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import type { ISessionStore, SessionRow, TurnRow, FileRow, RefRow } from '../../../../platform/chronicle/common/sessionStore';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
-import { reindexSessions } from '../sessionReindexer';
+import { reindexSessions, reindexCloudSessions } from '../sessionReindexer';
+import type { CloudSessionApiClient } from '../cloudSessionApiClient';
+import type { CloudSessionIdStore } from '../cloudSessionIdStore';
+import type { CloudSessionIds } from '../../common/cloudSessionTypes';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ function createMockStore(): MockSessionStore {
 		insertFile: (f: FileRow) => mock.insertedFiles.push(f),
 		insertRef: (r: RefRow) => mock.insertedRefs.push(r),
 		indexWorkspaceArtifact: () => { },
+		deleteSession: () => { },
 		search: () => [],
 		getSession: (id: string) => mock.existingSessions.has(id) ? { id } as SessionRow : undefined,
 		getTurns: () => [],
@@ -347,5 +351,229 @@ describe('reindexSessions', () => {
 		const result = await reindexSessions(store, debugLog, vi.fn(), cts.token);
 
 		expect(result).toEqual({ processed: 0, skipped: 0, cancelled: false });
+	});
+});
+
+// ── Cloud reindex tests ──────────────────────────────────────────────────────
+
+function createMockCloudClient(overrides: Partial<CloudSessionApiClient> = {}): CloudSessionApiClient {
+	return {
+		createSession: vi.fn().mockResolvedValue({
+			ok: true,
+			response: { id: 'cloud-session-1', task_id: 'task-1' },
+		}),
+		submitSessionEvents: vi.fn().mockResolvedValue(true),
+		backfillAnalytics: vi.fn().mockResolvedValue({ ok: true, sessionsQueued: 5 }),
+		listSessions: vi.fn().mockResolvedValue([]),
+		getSession: vi.fn().mockResolvedValue(undefined),
+		deleteSession: vi.fn().mockResolvedValue('deleted'),
+		...overrides,
+	} as unknown as CloudSessionApiClient;
+}
+
+function createMockCloudSessionIdStore(existingIds: Map<string, CloudSessionIds> = new Map()): CloudSessionIdStore {
+	const map = new Map(existingIds);
+	return {
+		load: vi.fn().mockResolvedValue(undefined),
+		has: (id: string) => map.has(id),
+		get: (id: string) => map.get(id),
+		set: vi.fn((id: string, ids: CloudSessionIds) => { map.set(id, ids); }),
+		delete: vi.fn((id: string) => map.delete(id)),
+		get size() { return map.size; },
+		keys: () => map.keys(),
+		clear: vi.fn(),
+		mergeFromCloud: vi.fn(),
+	} as unknown as CloudSessionIdStore;
+}
+
+describe('reindexCloudSessions', () => {
+	it('creates cloud sessions for local sessions not yet synced', async () => {
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-1', [
+			makeEntry({ type: 'session_start', name: 'session_start', sid: 'session-1', attrs: { cwd: '/workspace' } }),
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-1', attrs: { content: 'Fix it' } }),
+		]);
+
+		const debugLog = createMockDebugLogService(['session-1'], entries);
+		const cloudClient = createMockCloudClient();
+		const cloudStore = createMockCloudSessionIdStore();
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(1);
+		expect(result.eventsUploaded).toBeGreaterThan(0);
+		expect(cloudClient.createSession).toHaveBeenCalledWith(123, 456, 'session-1', 'user');
+		expect(cloudStore.set).toHaveBeenCalledWith('session-1', { cloudSessionId: 'cloud-session-1', cloudTaskId: 'task-1' });
+		expect(cloudClient.backfillAnalytics).toHaveBeenCalledWith('user');
+		expect(result.backfillQueued).toBe(5);
+	});
+
+	it('skips sessions already in the cloud store', async () => {
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-1', [
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-1', attrs: { content: 'Hello' } }),
+		]);
+
+		const existing = new Map<string, CloudSessionIds>([
+			['session-1', { cloudSessionId: 'existing-cloud', cloudTaskId: 'existing-task' }],
+		]);
+
+		const debugLog = createMockDebugLogService(['session-1'], entries);
+		const cloudClient = createMockCloudClient();
+		const cloudStore = createMockCloudSessionIdStore(existing);
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(0);
+		expect(cloudClient.createSession).not.toHaveBeenCalled();
+	});
+
+	it('handles cloud session creation failure', async () => {
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-1', [
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-1', attrs: { content: 'Hello' } }),
+		]);
+
+		const debugLog = createMockDebugLogService(['session-1'], entries);
+		const cloudClient = createMockCloudClient({
+			createSession: vi.fn().mockResolvedValue({ ok: false, reason: 'error' }) as any,
+		});
+		const cloudStore = createMockCloudSessionIdStore();
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(0);
+		expect(result.failed).toBe(1);
+		expect(cloudStore.set).not.toHaveBeenCalled();
+	});
+
+	it('respects cancellation token', async () => {
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-1', [makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-1', attrs: { content: 'Hello' } })]);
+		entries.set('session-2', [makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-2', attrs: { content: 'World' } })]);
+
+		const debugLog = createMockDebugLogService(['session-1', 'session-2'], entries);
+		const cloudClient = createMockCloudClient();
+		const cloudStore = createMockCloudSessionIdStore();
+		const cts = new CancellationTokenSource();
+		cts.cancel();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(0);
+		expect(cloudClient.backfillAnalytics).not.toHaveBeenCalled();
+	});
+
+	it('handles backfill failure gracefully', async () => {
+		const debugLog = createMockDebugLogService([], new Map());
+		const cloudClient = createMockCloudClient({
+			backfillAnalytics: vi.fn().mockResolvedValue({ ok: false }) as any,
+		});
+		const cloudStore = createMockCloudSessionIdStore();
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.backfillFailed).toBe(true);
+	});
+
+	it('handles mixed sessions: some synced, some new, some failing', async () => {
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-new', [
+			makeEntry({ type: 'session_start', name: 'session_start', sid: 'session-new' }),
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-new', attrs: { content: 'Hello' } }),
+		]);
+		entries.set('session-existing', [
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-existing', attrs: { content: 'World' } }),
+		]);
+		entries.set('session-fail', [
+			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-fail', attrs: { content: 'Fail' } }),
+		]);
+
+		const existing = new Map<string, CloudSessionIds>([
+			['session-existing', { cloudSessionId: 'cloud-existing', cloudTaskId: 'task-existing' }],
+		]);
+
+		let callCount = 0;
+		const cloudClient = createMockCloudClient({
+			createSession: vi.fn().mockImplementation(async () => {
+				callCount++;
+				if (callCount === 2) {
+					return { ok: false, reason: 'error' };
+				}
+				return { ok: true, response: { id: `cloud-${callCount}`, task_id: `task-${callCount}` } };
+			}) as any,
+		});
+
+		const debugLog = createMockDebugLogService(['session-new', 'session-existing', 'session-fail'], entries);
+		const cloudStore = createMockCloudSessionIdStore(existing);
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(1);    // session-new succeeded
+		expect(result.failed).toBe(1);     // session-fail failed creation
+		// session-existing was skipped (already synced)
+		expect(cloudClient.createSession).toHaveBeenCalledTimes(2); // Only new + fail, not existing
+	});
+
+	it('uploads events in batches and cleans up', async () => {
+		// Create a session with many entries to test batching
+		const manyEntries: IDebugLogEntry[] = [
+			makeEntry({ type: 'session_start', name: 'session_start', sid: 'session-big' }),
+		];
+		for (let i = 0; i < 10; i++) {
+			manyEntries.push(makeEntry({
+				type: 'user_message',
+				name: 'user_message',
+				sid: 'session-big',
+				attrs: { content: `Message ${i}` },
+			}));
+			manyEntries.push(makeEntry({
+				type: 'agent_response',
+				name: 'agent_response',
+				sid: 'session-big',
+				attrs: { response: `Response ${i}` },
+			}));
+		}
+
+		const entries = new Map<string, IDebugLogEntry[]>();
+		entries.set('session-big', manyEntries);
+
+		const debugLog = createMockDebugLogService(['session-big'], entries);
+		const cloudClient = createMockCloudClient();
+		const cloudStore = createMockCloudSessionIdStore();
+		const cts = new CancellationTokenSource();
+
+		const result = await reindexCloudSessions(
+			cloudClient, cloudStore, debugLog,
+			123, 456, 'user', vi.fn(), cts.token,
+		);
+
+		expect(result.created).toBe(1);
+		// 1 session_start + 10 user + 10 assistant + 1 shutdown = 22 events
+		expect(result.eventsUploaded).toBe(22);
+		expect(cloudClient.submitSessionEvents).toHaveBeenCalled();
 	});
 });

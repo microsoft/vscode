@@ -30,6 +30,7 @@ export const enum OverviewNavigation {
 	Home = 'home',
 	Logs = 'logs',
 	FlowChart = 'flowchart',
+	CacheExplorer = 'cache',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -250,6 +251,13 @@ export class ChatDebugOverviewView extends Disposable {
 		flowChartBtn.label = `$(type-hierarchy) ${localize('chatDebug.agentFlowChart', "Agent Flow Chart")}`;
 		this.loadDisposables.add(flowChartBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.FlowChart);
+		}));
+
+		const cacheBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.cacheExplorer', "Cache Explorer") }));
+		cacheBtn.element.classList.add('chat-debug-overview-action-button');
+		cacheBtn.label = `$(database) ${localize('chatDebug.cacheExplorer', "Cache Explorer")}`;
+		this.loadDisposables.add(cacheBtn.onDidClick(() => {
+			this._onNavigate.fire(OverviewNavigation.CacheExplorer);
 		}));
 
 	}

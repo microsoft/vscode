@@ -38,7 +38,7 @@ import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSu
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext, takePendingCopilotCLIRequestContext } from '../copilotcli/common/pendingRequestContext';
 import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { ICopilotCLISDK } from '../copilotcli/node/copilotCli';
+import { ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
@@ -48,6 +48,7 @@ import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotC
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
+import { getCopilotCLIModelDetails, persistCopilotCLIResponseModelId } from './copilotCLIModelDetails';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
 import { ICopilotCLIChatSessionInitializer, SessionInitOptions } from '../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
@@ -661,6 +662,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		@ISessionRequestLifecycle private readonly sessionRequestLifecycle: ISessionRequestLifecycle,
 		@IPullRequestDetectionService private readonly prDetectionService: IPullRequestDetectionService,
 		@ISessionOptionGroupBuilder private readonly _optionGroupBuilder: ISessionOptionGroupBuilder,
+		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
+		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
 	) {
 		super();
 
@@ -858,12 +861,17 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
+				return {};
 			} else {
 				const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
 				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
 			}
 
-			return {};
+			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled);
+			persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService);
+
+			return result;
 		} catch (ex) {
 			if (isCancellationError(ex)) {
 				return {};

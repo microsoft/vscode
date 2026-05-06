@@ -2654,3 +2654,8 @@ export class AsyncReader<T> {
 		return this._extendBufferPromise;
 	}
 }
+
+export function createTimeout(ms: number, cb: () => void): IDisposable {
+	const t = setTimeout(cb, ms);
+	return toDisposable(() => clearTimeout(t));
+}

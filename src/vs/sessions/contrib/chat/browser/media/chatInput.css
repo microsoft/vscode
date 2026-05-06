@@ -124,7 +124,7 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 1px 3px 7px;
+	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
 	border-radius: 4px;
@@ -167,6 +167,17 @@
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
 	width: auto;
 	height: auto;
+}
+
+/* Left divider for the agents app welcome view */
+.sessions-chat-config-toolbar .action-label.model-picker-split::before {
+	content: '';
+	position: absolute;
+	top: 25%;
+	bottom: 25%;
+	left: 0;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
@@ -544,7 +555,8 @@
 }
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification {
-	padding: 12px 16px;
+	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
+	padding: 10px 16px 16px 16px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;

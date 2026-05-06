@@ -15,6 +15,7 @@ import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from 
 import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -54,8 +55,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 

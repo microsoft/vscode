@@ -29,7 +29,7 @@ import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { storageToIcon } from './aiCustomizationIcons.js';
-import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { type AICustomizationPromptsStorage, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { extractExtensionIdFromPath } from './aiCustomizationListWidgetUtils.js';
 
 // #region Interfaces
@@ -44,7 +44,7 @@ export interface IAICustomizationListItem {
 	readonly filename: string;
 	readonly description?: string;
 	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
-	readonly storage?: PromptsStorage;
+	readonly storage?: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
 	/** When set, overrides `storage` for display grouping purposes. */
@@ -230,10 +230,17 @@ export class AICustomizationItemNormalizer {
 		};
 	}
 
-	private inferStorageAndGroup(item: ICustomizationItem): { storage: PromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
+	private inferStorageAndGroup(item: ICustomizationItem): { storage: AICustomizationPromptsStorage; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
 		const groupKey = item.groupKey;
-		const isBuiltin = groupKey === BUILTIN_STORAGE;
+		const hasBuiltinStorage = item.storage === BUILTIN_STORAGE;
+		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
+		if (hasBuiltinStorage) {
+			return { storage: BUILTIN_STORAGE, groupKey: groupKey ?? BUILTIN_STORAGE, isBuiltin: true, extensionId: item.extensionId };
+		}
+		if (item.storage === PromptsStorage.plugin) {
+			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
 		if (item.extensionId) {
 			const extensionIdentifier = new ExtensionIdentifier(item.extensionId);
 			if (isChatExtensionItem(extensionIdentifier, this.productService)) {
@@ -243,6 +250,9 @@ export class AICustomizationItemNormalizer {
 		}
 		if (item.pluginUri) {
 			return { storage: PromptsStorage.plugin, pluginUri: item.pluginUri, groupKey, isBuiltin };
+		}
+		if (item.storage) {
+			return { storage: item.storage, groupKey, isBuiltin };
 		}
 
 		const uri = item.uri;
@@ -272,7 +282,7 @@ export class AICustomizationItemNormalizer {
 			}
 			return { storage: PromptsStorage.extension, extensionId, groupKey, isBuiltin };
 		}
-		return { storage: PromptsStorage.user };
+		return { storage: PromptsStorage.user, groupKey, isBuiltin };
 	}
 
 }
@@ -299,7 +309,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		const onDidChangeSyncableCustomizations = this.syncProvider
+		// When an itemProvider is present, it is the single source of truth (see fetchItems);
+		// the local syncable enumeration path is not used, so we must not subscribe to syncProvider
+		// or promptsService change events here either. Otherwise, providers that already forward
+		// those underlying events via their own onDidChange would cause duplicate refreshes.
+		const subscribeToSyncableEvents = !this.itemProvider && !!this.syncProvider;
+		const onDidChangeSyncableCustomizations = subscribeToSyncableEvents
 			? Event.any(
 				this.promptsService.onDidChangeCustomAgents,
 				this.promptsService.onDidChangeSlashCommands,
@@ -311,7 +326,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 
 		this.onDidChange = Event.any(
 			this.itemProvider?.onDidChange ?? Event.None,
-			this.syncProvider?.onDidChange ?? Event.None,
+			(subscribeToSyncableEvents && this.syncProvider?.onDidChange) || Event.None,
 			onDidChangeSyncableCustomizations,
 		);
 	}
@@ -321,6 +336,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			? await this.fetchItemsFromProvider(this.itemProvider, promptType)
 			: [];
 		if (!this.syncProvider) {
+			return remoteItems;
+		}
+		// If there's an itemProvider, it is the single source of truth for items.
+		// The provider is responsible for enumerating all items, including synced
+		// ones, so we don't need to add local synced items separately.
+		if (this.itemProvider) {
 			return remoteItems;
 		}
 		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);
@@ -458,26 +479,34 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			return [];
 		}
 
-		const providerItems: ICustomizationItem[] = files
-			.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
-			.map(file => ({
-				uri: file.uri,
-				type: promptType,
-				name: getFriendlyName(basename(file.uri)),
-				groupKey: 'sync-local',
-				enabled: true,
-				extensionId: file.extension?.id,
-				pluginUri: file.pluginUri,
-				userInvocable: undefined
-			}));
+		const toProviderItem = (file: typeof files[number]): ICustomizationItem => ({
+			uri: file.uri,
+			type: promptType,
+			name: getFriendlyName(basename(file.uri)),
+			groupKey: 'sync-local',
+			enabled: true,
+			extensionId: file.extension?.id,
+			pluginUri: file.pluginUri,
+			userInvocable: undefined
+		});
 
-		return this.itemNormalizer.normalizeItems(providerItems, promptType)
+		// Local/user files are sync-eligible (the user picks individual items
+		// to push to the remote agent host). Locally-installed plugin files
+		// always show up but are not individually syncable — the plugin is
+		// the unit of sync.
+		const syncEligibleFiles = files.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user);
+		const pluginFiles = files.filter(file => file.storage === PromptsStorage.plugin);
+
+		const syncEligibleItems = this.itemNormalizer.normalizeItems(syncEligibleFiles.map(toProviderItem), promptType)
 			.map(item => ({
 				...item,
 				id: `sync-${item.id}`,
 				syncable: true,
 				synced: !syncProvider.isDisabled(item.uri),
 			}));
+		const pluginItems = this.itemNormalizer.normalizeItems(pluginFiles.map(toProviderItem), promptType);
+
+		return [...syncEligibleItems, ...pluginItems];
 	}
 }
 

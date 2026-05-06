@@ -41,6 +41,8 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 	parentToolCallId?: string;
 	/** The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
 	parentHeaderRequestId?: string;
+	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
 }
 
 /** A terminal command that is no longer being awaited by the subagent — either
@@ -49,7 +51,7 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 export interface IBackgroundCommand {
 	readonly command: string;
 	readonly termId: string;
-	readonly reason: 'timeout' | 'async';
+	readonly reason: 'timeout' | 'async' | 'inputNeeded';
 	/** Only set when `reason === 'timeout'`. */
 	readonly timeoutMs?: number;
 }
@@ -245,6 +247,13 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 					reason: 'timeout',
 					timeoutMs,
 				});
+			} else if (this.getInputNeeded(meta.result)) {
+				this._seenBackgroundCallIds.add(meta.toolCallId);
+				this._backgroundCommands.push({
+					command: call.command,
+					termId,
+					reason: 'inputNeeded',
+				});
 			} else if (call.invokedAsAsync) {
 				this._seenBackgroundCallIds.add(meta.toolCallId);
 				this._backgroundCommands.push({
@@ -295,6 +304,24 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return typeof m.timeoutMs === 'number' ? m.timeoutMs : undefined;
 	}
 
+	/**
+	 * Returns `true` if the result indicates the terminal command is waiting
+	 * for user input. The subagent cannot handle this (it lacks
+	 * `send_to_terminal`), so the command should be handed back to the main
+	 * agent.
+	 */
+	private getInputNeeded(toolResult: LanguageModelToolResult2): boolean {
+		if (!('toolMetadata' in toolResult)) {
+			return false;
+		}
+		const metadata = (toolResult as { toolMetadata?: unknown }).toolMetadata;
+		if (!metadata || typeof metadata !== 'object') {
+			return false;
+		}
+		const m = metadata as { inputNeeded?: unknown };
+		return m.inputNeeded === true;
+	}
+
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
 		// If any previous terminal call has moved to the background (timeout or
 		// async), expose no tools so the model cannot make further calls and is
@@ -313,7 +340,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
+	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities, iterationNumber }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: ExecutionSubagentToolCallingLoop.ID,
@@ -327,14 +354,18 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			},
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
+			interactionTypeOverride: 'conversation-subagent',
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
 				messageSource: 'chat.editAgent',
-				subType: 'subagent/execution',
+				subType: 'execution_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
+				parentRequestId: this.options.request.id,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
+				parentModelCallId: this.options.parentModelCallId,
+				iterationNumber: iterationNumber.toString(),
 			},
 		}, token);
 	}

@@ -15,18 +15,20 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostEnableClaudeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { ClaudeAgent } from './claude/claudeAgent.js';
+import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
-import { getLogLevel, ILogService } from '../../log/common/log.js';
+import { getLogLevel, ILogService, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../log/common/log.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
 import { LoggerChannel } from '../../log/common/logIpc.js';
@@ -78,6 +80,9 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('agenthost', { name: localize('agentHost', "Agent Host") });
 	const logService = new LogService(logger);
+	if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
+		disposables.add(registerDevConsoleLogForwarder(logService));
+	}
 	logService.info('Agent Host process started successfully');
 
 	// File service
@@ -107,6 +112,8 @@ function startAgentHost(): void {
 		diServices.set(IAgentHostGitService, gitService);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
+		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		diServices.set(IClaudeProxyService, claudeProxyService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
@@ -116,6 +123,12 @@ function startAgentHost(): void {
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
+		// The Claude agent provider is opt-in. Gated on the
+		// `chat.agentHost.claudeAgent.enabled` workbench setting, forwarded by the
+		// agent host starters as `VSCODE_AGENT_HOST_ENABLE_CLAUDE`.
+		if (process.env[AgentHostEnableClaudeEnvVar] === '1') {
+			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;

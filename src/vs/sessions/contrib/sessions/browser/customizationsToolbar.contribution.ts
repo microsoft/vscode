@@ -27,7 +27,6 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -100,8 +99,8 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + a single count badge driven by the same
- * `IAICustomizationItemsModel` observables that feed the customizations
- * editor — so the badge always matches the editor's count exactly.
+ * observables that feed the customizations editor — so the badge always
+ * matches the editor's count exactly.
  */
 export class CustomizationLinkViewItem extends ActionViewItem {
 
@@ -115,7 +114,6 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -167,7 +165,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._mcpService.servers.read(reader).length;
 		}
 		if (this._config.isPlugins) {
-			return this._agentPluginService.plugins.read(reader).length;
+			return this._itemsModel.getPluginCount().read(reader);
 		}
 		return 0;
 	}

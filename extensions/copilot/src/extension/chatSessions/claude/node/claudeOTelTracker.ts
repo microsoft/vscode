@@ -86,7 +86,7 @@ export class ClaudeOTelTracker {
 			},
 			parentTraceContext: this._currentTraceContext,
 		});
-		const userContent = truncateForOTel(promptLabel);
+		const userContent = truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars);
 		userMsgSpan.setAttribute(CopilotChatAttr.USER_REQUEST, userContent);
 		userMsgSpan.addEvent('user_message', { content: userContent, [CopilotChatAttr.CHAT_SESSION_ID]: this._sessionId });
 		userMsgSpan.end();
