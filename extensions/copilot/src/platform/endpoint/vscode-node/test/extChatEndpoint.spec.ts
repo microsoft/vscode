@@ -249,6 +249,11 @@ describe('parseExtensionContributedUsage', () => {
 		expect(parseExtensionContributedUsage(new TextEncoder().encode('42'))).toBeUndefined();
 		expect(parseExtensionContributedUsage(new TextEncoder().encode('"a"'))).toBeUndefined();
 		expect(parseExtensionContributedUsage(new TextEncoder().encode('null'))).toBeUndefined();
+		// Top-level arrays must be rejected even though `typeof [] === 'object'`.
+		// Otherwise a stray `[]` chunk would parse to a zero-filled `APIUsage`
+		// and could overwrite an earlier valid reading at the dispatch site.
+		expect(parseExtensionContributedUsage(new TextEncoder().encode('[]'))).toBeUndefined();
+		expect(parseExtensionContributedUsage(new TextEncoder().encode('[1,2,3]'))).toBeUndefined();
 	});
 });
 

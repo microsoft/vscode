@@ -12,9 +12,11 @@ export namespace CustomDataPartMimeTypes {
 	/**
 	 * Mime type for an extension-contributed token-usage payload, emitted by a
 	 * `vscode.LanguageModelChatProvider` as a `LanguageModelDataPart` in its
-	 * response stream. The `data` is a UTF-8 JSON encoding of an `APIUsage`
-	 * shape (at minimum `prompt_tokens`/`completion_tokens`/`total_tokens`,
-	 * with optional `prompt_tokens_details.cached_tokens`).
+	 * response stream. The `data` is a UTF-8 JSON encoding of an `APIUsage`-shaped
+	 * object. All fields are optional — missing or non-finite numeric values
+	 * are treated as 0, and missing nested objects (`prompt_tokens_details`,
+	 * `completion_tokens_details`) are simply omitted from the parsed result.
+	 * A provider that only knows `prompt_tokens` is free to send just that.
 	 *
 	 * Consumed by `ExtensionContributedChatEndpoint.makeChatRequest2`. When no
 	 * Usage part is emitted, the host falls back to zero counts (which leaves

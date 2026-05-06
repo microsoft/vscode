@@ -85,7 +85,12 @@ export function parseExtensionContributedUsage(data: Uint8Array): APIUsage | und
 	} catch {
 		return undefined;
 	}
-	if (!parsed || typeof parsed !== 'object') {
+	// Reject non-objects, arrays (`typeof [] === 'object'` in JS), and `null`
+	// (`typeof null === 'object'`). Only plain-object payloads are valid;
+	// otherwise a stray `[]` chunk would parse to a zero-filled `APIUsage`
+	// and could overwrite an earlier valid reading at the last-valid-wins
+	// dispatch site below.
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 		return undefined;
 	}
 	// Coerce to non-negative finite numbers. `isApiUsage` only checks
