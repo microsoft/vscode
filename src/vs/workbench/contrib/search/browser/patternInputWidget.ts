@@ -245,6 +245,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			isChecked: false,
 			...defaultToggleStyles
 		}));
+		this.useSearchInChangedFilesBox.disable();
 		this._register(this.useSearchInChangedFilesBox.onChange(viaKeyboard => {
 			this._onChangeSearchInChangedFilesBoxEmitter.fire();
 			if (!viaKeyboard) {
