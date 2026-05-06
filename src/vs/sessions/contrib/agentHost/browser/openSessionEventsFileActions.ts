@@ -17,6 +17,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 
 // Scheme conventions for `copilotcli` chat sessions:
 // - Local AH:  `agent-host-copilotcli:/<id>`         (LOCAL_RESOURCE_SCHEME_PREFIX + provider)
@@ -128,8 +129,9 @@ export class OpenSessionEventsFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenSessionEventsFileAction.ID,
-			title: localize2('openSessionEventsFile', "Copilot CLI: Open Session Events File"),
+			title: localize2('openSessionEventsFile', "Open Copilot CLI State File"),
 			f1: true,
+			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsAgentHostSession),
 		});
 	}
