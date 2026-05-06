@@ -52,8 +52,15 @@ const ZERO_USAGE: APIUsage = {
  * interface; the parser is permissive and accepts any object whose
  * numeric fields can be coerced — missing fields default to 0 — so a
  * provider can emit a partial payload (e.g. only `prompt_tokens` and
- * `completion_tokens`) without breaking the host. Returns `undefined` on
- * `JSON.parse` failure or when the payload is not an object.
+ * `completion_tokens`) without breaking the host. Returns `undefined`
+ * when:
+ *   - `JSON.parse` throws,
+ *   - the payload is not a plain object (primitive, array, or `null`),
+ *   - or the coerced result carries no positive signal (every top-level
+ *     counter is 0 and no nested detail field is positive). The last
+ *     case prevents an empty / malformed-but-shaped payload from
+ *     overwriting an earlier valid reading at the last-valid-wins
+ *     dispatch site in `makeChatRequest2`.
  *
  * Defensive coercion: every numeric field — top-level and inside the
  * optional `prompt_tokens_details` / `completion_tokens_details` nested
@@ -158,6 +165,31 @@ export function parseExtensionContributedUsage(data: Uint8Array): APIUsage | und
 	const completionDetails = buildCompletionDetails(obj.completion_tokens_details);
 	if (completionDetails) {
 		result.completion_tokens_details = completionDetails;
+	}
+	// Reject payloads that produced an all-zero, detail-less `APIUsage`.
+	// Examples: `{}`, `{foo: 'bar'}`, `{prompt_tokens_details: 'oops'}`,
+	// `{completion_tokens: -3}` (clamped to 0), `{prompt_tokens_details: {}}`
+	// (which yields `{cached_tokens: 0}` — still no usable signal). A truthy
+	// return overwrites any earlier valid reading at the last-valid-wins
+	// dispatch site in `makeChatRequest2`, so we treat "no signal" as "this
+	// payload says nothing" rather than "all counts are zero". The strict-
+	// path back-compat shape (`prompt_tokens_details: {cached_tokens: 0}` on
+	// a fully-shaped `APIUsage`) does not count as a signal on its own — a
+	// strict zero-payload still has at least one explicit `0` top-level
+	// counter from the provider, but every counter being 0 with no nested
+	// data means the provider is saying nothing useful.
+	const hasMeaningfulData =
+		result.prompt_tokens > 0 ||
+		result.completion_tokens > 0 ||
+		result.total_tokens > 0 ||
+		(!!promptDetails && (promptDetails.cached_tokens > 0 || (promptDetails.cache_creation_input_tokens ?? 0) > 0)) ||
+		(!!completionDetails && (
+			completionDetails.reasoning_tokens > 0 ||
+			completionDetails.accepted_prediction_tokens > 0 ||
+			completionDetails.rejected_prediction_tokens > 0
+		));
+	if (!hasMeaningfulData) {
+		return undefined;
 	}
 	return result;
 }
@@ -354,8 +386,25 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						const decoded = decodeStatefulMarker(chunk.data);
 						await streamRecorder.callback?.(text, 0, { text: '', statefulMarker: decoded.marker });
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.ContextManagement) {
-						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
-						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+						// Tolerate malformed payloads: the data part is provider-
+						// supplied and shouldn't be able to abort the whole request
+						// stream just by emitting bad bytes or a non-object shape.
+						// Mirror the first-step shape rejection from
+						// `parseExtensionContributedUsage` (non-objects, arrays,
+						// `null`); content-shape validation of the `ContextManagementResponse`
+						// itself is left to the downstream consumer.
+						let contextManagement: ContextManagementResponse | undefined;
+						try {
+							const raw: unknown = JSON.parse(new TextDecoder().decode(chunk.data));
+							if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+								contextManagement = raw as ContextManagementResponse;
+							}
+						} catch {
+							// fall through with contextManagement === undefined
+						}
+						if (contextManagement) {
+							await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+						}
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						// Last-valid-wins: if a provider emits multiple Usage parts
 						// the final *parseable* one is reported. This matches the

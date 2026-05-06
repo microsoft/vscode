@@ -143,12 +143,14 @@ describe('parseExtensionContributedUsage', () => {
 	it('coerces non-numeric fields to 0', () => {
 		// `JSON.stringify(NaN)` becomes `null`, so use only types that
 		// actually round-trip through the wire format. Non-finite handling
-		// is exercised separately below.
+		// is exercised separately below. `total_tokens: 1` keeps the
+		// payload above the no-signal-rejection threshold so the coercion
+		// of the other two fields is observable.
 		const bytes = new TextEncoder().encode(JSON.stringify({
-			prompt_tokens: 'oops', completion_tokens: null, total_tokens: [],
+			prompt_tokens: 'oops', completion_tokens: null, total_tokens: 1,
 		}));
 		expect(parseExtensionContributedUsage(bytes)).toEqual({
-			prompt_tokens: 0, completion_tokens: 0, total_tokens: 0,
+			prompt_tokens: 0, completion_tokens: 0, total_tokens: 1,
 		});
 	});
 
@@ -170,19 +172,40 @@ describe('parseExtensionContributedUsage', () => {
 
 	it('clamps negative numeric fields to 0 even when isApiUsage is satisfied', () => {
 		// Defends ChatResponseModel.setUsage's monotonic completion-token
-		// counter against a misbehaving provider emitting negatives.
+		// counter against a misbehaving provider emitting negatives. The
+		// positive `total_tokens: 1` keeps the payload above the no-signal
+		// threshold so the negative-clamp on the other fields is observable.
 		const bytes = new TextEncoder().encode(JSON.stringify({
 			prompt_tokens: -100,
 			completion_tokens: -50,
-			total_tokens: -150,
+			total_tokens: 1,
 			prompt_tokens_details: { cached_tokens: -10 },
 		}));
 		expect(parseExtensionContributedUsage(bytes)).toEqual({
 			prompt_tokens: 0,
 			completion_tokens: 0,
-			total_tokens: 0,
+			total_tokens: 1,
 			prompt_tokens_details: { cached_tokens: 0 },
 		});
+	});
+
+	it('rejects payloads that produce an all-zero, detail-less result after coercion', () => {
+		// These all parse to JSON objects with at least one recognised key,
+		// but none survives coercion as a positive signal. Treating them as
+		// valid would let a misbehaving provider clobber an earlier valid
+		// reading at the last-valid-wins dispatch site in `makeChatRequest2`.
+		expect(parseExtensionContributedUsage(new TextEncoder().encode(
+			JSON.stringify({ prompt_tokens_details: 'oops' })
+		))).toBeUndefined();
+		expect(parseExtensionContributedUsage(new TextEncoder().encode(
+			JSON.stringify({ completion_tokens_details: null })
+		))).toBeUndefined();
+		expect(parseExtensionContributedUsage(new TextEncoder().encode(
+			JSON.stringify({ prompt_tokens_details: {} })
+		))).toBeUndefined();
+		expect(parseExtensionContributedUsage(new TextEncoder().encode(
+			JSON.stringify({ prompt_tokens: -3, completion_tokens: -5 })
+		))).toBeUndefined();
 	});
 
 	it('preserves provider-supplied extra fields on the strict path', () => {
@@ -254,6 +277,30 @@ describe('parseExtensionContributedUsage', () => {
 		// and could overwrite an earlier valid reading at the dispatch site.
 		expect(parseExtensionContributedUsage(new TextEncoder().encode('[]'))).toBeUndefined();
 		expect(parseExtensionContributedUsage(new TextEncoder().encode('[1,2,3]'))).toBeUndefined();
+	});
+
+	it('returns undefined for empty / keyless objects', () => {
+		// `{}` and `{foo:'bar'}` parse to all-zero `APIUsage` and would
+		// clobber an earlier valid reading at the last-valid-wins dispatch
+		// site. The Usage data-part is for *reporting* counts, so a payload
+		// with no recognised key (or no positive signal — see the
+		// adjacent all-zero-rejection test) is treated as "this payload
+		// says nothing" rather than "all counts are zero".
+		expect(parseExtensionContributedUsage(new TextEncoder().encode('{}'))).toBeUndefined();
+		expect(parseExtensionContributedUsage(new TextEncoder().encode('{"foo":"bar"}'))).toBeUndefined();
+	});
+
+	it('accepts a payload that carries only a non-zero nested-detail signal', () => {
+		// A provider that only meaningfully reports `cached_tokens` (e.g. a
+		// cache-hit scenario) without surfacing top-level counters is still
+		// communicating useful information and must be propagated.
+		const bytes = new TextEncoder().encode(JSON.stringify({ prompt_tokens_details: { cached_tokens: 5 } }));
+		expect(parseExtensionContributedUsage(bytes)).toEqual({
+			prompt_tokens: 0,
+			completion_tokens: 0,
+			total_tokens: 0,
+			prompt_tokens_details: { cached_tokens: 5 },
+		});
 	});
 });
 
@@ -367,6 +414,42 @@ describe('ExtensionContributedChatEndpoint.makeChatRequest2 – usage propagatio
 		if (result.type === ChatFetchResponseType.Success) {
 			expect(result.usage?.prompt_tokens).toBe(42);
 			expect(result.usage?.completion_tokens).toBe(7);
+		}
+	});
+
+	it('keeps the previous valid Usage when a later part is an empty object', async () => {
+		// `{}` parses to JSON successfully but carries no usage keys, so
+		// it must be treated as "this part says nothing" and not overwrite
+		// the earlier valid reading.
+		const endpoint = createEndpoint([
+			new vscode.LanguageModelTextPart('x'),
+			usagePart({ prompt_tokens: 42, completion_tokens: 7, total_tokens: 49 }),
+			usagePart({}),
+		]);
+		const result = await endpoint.makeChatRequest2({
+			debugName: 't', messages: [helloMessage], finishedCb: noopFinish, location: ChatLocation.Other,
+		}, noToken);
+		if (result.type === ChatFetchResponseType.Success) {
+			expect(result.usage?.prompt_tokens).toBe(42);
+			expect(result.usage?.completion_tokens).toBe(7);
+		}
+	});
+
+	it('tolerates malformed JSON on a ContextManagement data part without aborting the stream', async () => {
+		// `ContextManagement` is also extension-provided, so a bad payload
+		// shouldn't be able to throw out of the response loop. The endpoint
+		// should still emit the text and a fresh usage tally that follows.
+		const endpoint = createEndpoint([
+			new vscode.LanguageModelTextPart('x'),
+			new vscode.LanguageModelDataPart(new TextEncoder().encode('not json'), CustomDataPartMimeTypes.ContextManagement),
+			usagePart({ prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }),
+		]);
+		const result = await endpoint.makeChatRequest2({
+			debugName: 't', messages: [helloMessage], finishedCb: noopFinish, location: ChatLocation.Other,
+		}, noToken);
+		expect(result.type).toBe(ChatFetchResponseType.Success);
+		if (result.type === ChatFetchResponseType.Success) {
+			expect(result.usage?.prompt_tokens).toBe(5);
 		}
 	});
 });
