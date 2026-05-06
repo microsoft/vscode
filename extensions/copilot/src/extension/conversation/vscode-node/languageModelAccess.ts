@@ -68,7 +68,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens >= 900_000) {
 		return [
 			{ value: 200_000, description: vscode.l10n.t('Standard context window'), isDefault: true },
-			{ value: maxTokens, description: vscode.l10n.t('Larger context window, long conversations may incur significant costs'), isDefault: false },
+			{ value: maxTokens, description: vscode.l10n.t('Larger context window. Long conversations may incur significant costs'), isDefault: false },
 		];
 	}
 
@@ -76,10 +76,11 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 }
 
 function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		return `${(count / 1_000_000).toFixed(1)}M`;
+	if (count >= 900_000) {
+		const value = Math.ceil(count / 1_000_000);
+		return `${value}M`;
 	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
+		return `${Math.round(count / 1000)}K`;
 	}
 	return count.toString();
 }
@@ -126,7 +127,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
 					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
 					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
-					case 'xhigh': return vscode.l10n.t('Maximum reasoning depth but slower');
+					case 'xhigh': return vscode.l10n.t('Highest reasoning depth but slowest');
 					default: return level;
 				}
 			}),

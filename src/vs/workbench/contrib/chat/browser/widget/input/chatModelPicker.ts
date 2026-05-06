@@ -928,7 +928,7 @@ export class ModelPickerWidget extends Disposable {
 			'low': localize('chat.effort.low.description', "Faster responses with less reasoning"),
 			'medium': localize('chat.effort.medium.description', "Balanced reasoning and speed"),
 			'high': localize('chat.effort.high.description', "Greater reasoning depth but slower"),
-			'very_high': localize('chat.effort.veryHigh.description', "Maximum reasoning depth for complex problems"),
+			'xhigh': localize('chat.effort.xhigh.description', "Highest reasoning depth but slowest"),
 		};
 
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
