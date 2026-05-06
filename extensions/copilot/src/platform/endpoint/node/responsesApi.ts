@@ -1152,6 +1152,7 @@ export class OpenAIResponsesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: (chunk as any).copilot_usage,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {
