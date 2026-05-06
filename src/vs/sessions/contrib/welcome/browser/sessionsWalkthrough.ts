@@ -342,6 +342,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	// Theme Step
 
 	private _renderThemeStep(): void {
+		// Theme grid layout doesn't fit phone viewports — skip the step
+		// and complete the walkthrough with the default theme.
+		if (isWeb) {
+			this._isShowingWelcome = false;
+			this._isShowingThemeStep = false;
+			this.complete();
+			return;
+		}
+
 		const stepDisposables = this.stepDisposables.value = new DisposableStore();
 		this._isShowingWelcome = true;
 		this._isShowingThemeStep = true;
