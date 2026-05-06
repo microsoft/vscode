@@ -316,6 +316,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					if (requestOptions) {
 						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
 					}
+					const requestShape = pickRequestShapeMetadata(requestBody);
+					if (requestShape) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_SHAPE, truncateForOTel(JSON.stringify(requestShape), this._otelService.config.maxAttributeSizeChars));
+					}
 				}
 				tokenCount = await countTokens();
 				const extensionId = source?.extensionId ?? EXTENSION_ID;
@@ -2291,6 +2295,36 @@ function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, un
 		if (value !== undefined) {
 			out[key] = value;
 		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Sanitized request-shape metadata for debug views. This intentionally omits
+ * identifiers such as `previous_response_id` itself and never includes message
+ * or tool contents; it only records whether a Responses API continuation marker
+ * was present and which top-level input item kinds were sent on the wire.
+ */
+function pickRequestShapeMetadata(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	if (Array.isArray(body.input)) {
+		out.api = 'responses';
+		out.inputItemCount = body.input.length;
+		out.inputItemTypes = body.input.map(item => {
+			if (item && typeof item === 'object') {
+				const type = (item as Record<string, unknown>).type;
+				if (typeof type === 'string') {
+					return type;
+				}
+			}
+			return 'unknown';
+		});
+	} else if (Array.isArray(body.messages)) {
+		out.api = 'messages';
+		out.messageCount = body.messages.length;
+	}
+	if (typeof body.previous_response_id === 'string') {
+		out.hasPreviousResponseId = true;
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
 }
