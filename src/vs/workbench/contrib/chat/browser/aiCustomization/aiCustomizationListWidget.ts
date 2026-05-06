@@ -258,6 +258,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
+		// Don't include the per-row inline actions in the document tab order — otherwise
+		// pressing Tab while a row is focused jumps into the action bar of the focused row
+		// (and successive Tab presses cycle through every row's actions). Users still
+		// reach the actions via the row's context menu / keyboard shortcut.
+		actionBar.setFocusable(false);
 
 		return {
 			container,
