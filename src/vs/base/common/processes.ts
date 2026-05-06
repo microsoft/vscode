@@ -99,6 +99,25 @@ export interface ProcessItem {
 }
 
 /**
+ * Escapes an argument for safe use in a `cmd.exe` command line.
+ *
+ * When spawning `.bat`/`.cmd` files on Windows with `shell: true`,
+ * arguments are interpreted by `cmd.exe` which treats characters like
+ * `&`, `|`, `>`, `<`, `^` as command separators/operators. This
+ * function escapes those metacharacters and wraps the argument in
+ * double quotes to prevent command injection.
+ *
+ * See CVE-2024-27980 (BatBadBut) for background on this class of
+ * vulnerability.
+ */
+export function escapeCmdExeArg(s: string): string {
+	s = s.replace(/"/g, '""');
+	s = s.replace(/([><!^&|])/g, '^$1');
+	s = s.replace(/%/g, '%%');
+	return `"${s}"`;
+}
+
+/**
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
 export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {

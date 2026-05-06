@@ -10,6 +10,21 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 suite('Processes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('escapeCmdExeArg', () => {
+		assert.strictEqual(processes.escapeCmdExeArg('simple'), '"simple"');
+		assert.strictEqual(processes.escapeCmdExeArg('with space'), '"with space"');
+		assert.strictEqual(processes.escapeCmdExeArg('has"quote'), '"has""quote"');
+		assert.strictEqual(processes.escapeCmdExeArg('foo&bar'), '"foo^&bar"');
+		assert.strictEqual(processes.escapeCmdExeArg('a|b'), '"a^|b"');
+		assert.strictEqual(processes.escapeCmdExeArg('a>b'), '"a^>b"');
+		assert.strictEqual(processes.escapeCmdExeArg('a<b'), '"a^<b"');
+		assert.strictEqual(processes.escapeCmdExeArg('a^b'), '"a^^b"');
+		assert.strictEqual(processes.escapeCmdExeArg('a!b'), '"a^!b"');
+		assert.strictEqual(processes.escapeCmdExeArg('%PATH%'), '"%%PATH%%"');
+		assert.strictEqual(processes.escapeCmdExeArg('foo&calc'), '"foo^&calc"');
+		assert.strictEqual(processes.escapeCmdExeArg(''), '""');
+	});
+
 	test('sanitizeProcessEnvironment', () => {
 		const env = {
 			FOO: 'bar',
