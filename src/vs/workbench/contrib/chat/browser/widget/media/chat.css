@@ -1877,6 +1877,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: auto;
 	border-radius: 0;
 	position: relative;
+	cursor: default;
 }
 
 /* Dividers: only in the workbench chat input toolbar (not in the agents app) */
@@ -2061,6 +2062,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
 	margin-bottom: 4px;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
+	display: flex;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {

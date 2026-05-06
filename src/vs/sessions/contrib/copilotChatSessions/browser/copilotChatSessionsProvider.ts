@@ -42,10 +42,12 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
+const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
 
 export interface ICopilotChatSession {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -238,6 +240,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.id = toSessionId(providerId, resource);
@@ -255,8 +258,11 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		// Set ISessionData workspace observable
 		this._workspaceData.set(sessionWorkspace, undefined);
 
-		this._isolationMode = 'worktree';
-		this.setOption(ISOLATION_OPTION_ID, 'worktree');
+		const storedMode = storageService.get(STORAGE_KEY_ISOLATION_MODE, StorageScope.PROFILE);
+		const initialMode: IsolationMode = storedMode === 'workspace' ? 'workspace' : 'worktree';
+		this._isolationMode = initialMode;
+		this._isolationModeObservable.set(initialMode, undefined);
+		this.setOption(ISOLATION_OPTION_ID, initialMode);
 
 		// Resolve git repository asynchronously
 		this._resolveGitRepository();
@@ -354,6 +360,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			this._isolationMode = mode;
 			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
+			this.storageService.store(STORAGE_KEY_ISOLATION_MODE, mode, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 			if (mode === 'workspace') {
 				// When switching to workspace mode, update the branch

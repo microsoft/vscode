@@ -10,7 +10,7 @@
 .action-widget .tabbed-action-list-tabbar {
 	display: flex;
 	align-items: center;
-	padding: 4px 4px 8px;
+	padding: 0 0 4px;
 }
 
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio {

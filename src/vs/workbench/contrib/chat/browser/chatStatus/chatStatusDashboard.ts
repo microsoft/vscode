@@ -705,7 +705,7 @@ export class ChatStatusDashboard extends DomWidget {
 		};
 
 		const showCredits = () => {
-			if (typeof currentQuota !== 'string' && currentQuota.entitlement !== undefined) {
+			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
 				const total = currentQuota.entitlement;
 				const used = total * (100 - currentQuota.percentRemaining) / 100;
 				const usedFormatted = this.quotaCreditsFormatter.value.format(used);

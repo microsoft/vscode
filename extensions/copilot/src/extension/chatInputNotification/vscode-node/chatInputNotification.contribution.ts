@@ -58,12 +58,8 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _update(): void {
 		// Priority 1: Quota exhausted — sticky info notification
 		if (this._chatQuotaService.quotaExhausted) {
-			const isAnonymous = this._authService.copilotToken?.isNoAuthUser;
-			const isFree = this._authService.copilotToken?.isFreeUser;
-			if (isAnonymous || isFree) {
-				this._showExhaustedNotification(!!isAnonymous);
-				return;
-			}
+			this._showExhaustedNotification();
+			return;
 		}
 
 		// Priority 2: Quota approaching threshold
@@ -91,7 +87,7 @@ export class ChatInputNotificationContribution extends Disposable {
 
 	private _computeQuotaWarning(): IQuotaWarning | undefined {
 		const info = this._chatQuotaService.quotaInfo;
-		if (!info || info.unlimited || info.additionalUsageEnabled) {
+		if (!info || info.unlimited) {
 			return undefined;
 		}
 		return this._checkThreshold(info, this._shownQuotaThresholds);
@@ -148,27 +144,43 @@ export class ChatInputNotificationContribution extends Disposable {
 
 	// --- Quota exhausted ---------------------------------------------------
 
-	private _showExhaustedNotification(isAnonymous: boolean): void {
+	private _showExhaustedNotification(): void {
 		const notification = this._ensureNotification();
 		this._showingExhausted = true;
 
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
+		notification.message = vscode.l10n.t('Monthly Limit Reached');
+
+		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
+		const isFree = !!this._authService.copilotToken?.isFreeUser;
+		const quotaInfo = this._chatQuotaService.quotaInfo;
+		const hadOverage = quotaInfo ? quotaInfo.additionalUsageUsed > 0 : false;
 
 		if (isAnonymous) {
-			notification.message = vscode.l10n.t('Monthly Limit Reached');
-			notification.description = vscode.l10n.t("You've made the most of Copilot. Sign in to keep going.");
+			notification.description = vscode.l10n.t('Sign in to keep going.');
 			notification.actions = [
 				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Sign In'), commandId: 'workbench.action.chat.triggerSetup' },
 			];
-		} else {
-			notification.message = vscode.l10n.t('Monthly Limit Reached');
-			notification.description = vscode.l10n.t("You've made the most of Copilot Free. Upgrade to keep going.");
+		} else if (isFree) {
+			notification.description = vscode.l10n.t('Upgrade to keep going.');
 			notification.actions = [
 				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
+			];
+		} else if (hadOverage) {
+			notification.description = vscode.l10n.t('Increase your budget to keep building.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
+			];
+		} else {
+			notification.description = vscode.l10n.t('Manage your budget to keep building.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}
 
@@ -185,11 +197,28 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
 		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
-		notification.description = vscode.l10n.t("You're getting the most out of Copilot \u2014 upgrade to keep going.");
-		notification.actions = [
-			{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
-			{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
-		];
+
+		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
+		const isFree = !!this._authService.copilotToken?.isFreeUser;
+
+		if (isAnonymous || isFree) {
+			notification.description = vscode.l10n.t("You're getting the most out of Copilot.");
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
+			];
+		} else if (this._chatQuotaService.additionalUsageEnabled) {
+			notification.description = vscode.l10n.t('Your additional budget will keep Copilot going.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+			];
+		} else {
+			notification.description = vscode.l10n.t('Manage your budget to keep going.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
+			];
+		}
 
 		notification.show();
 	}

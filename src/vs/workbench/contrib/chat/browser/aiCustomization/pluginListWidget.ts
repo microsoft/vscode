@@ -601,13 +601,11 @@ export class PluginListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('pluginGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						if (element.type === 'marketplace-item') {
-							return element.item.name;
-						}
-						if (element.type === 'remote-item') {
-							return element.item.name;
-						}
-						return element.item.name;
+						const name = formatDisplayName(element.item.name);
+						const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
+						return description
+							? localize('pluginItemAriaLabel', "{0}. {1}", name, description)
+							: name;
 					},
 					getWidgetAriaLabel() {
 						return localize('pluginsListAriaLabel', "Plugins");
