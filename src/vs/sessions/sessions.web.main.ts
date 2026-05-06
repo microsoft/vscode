@@ -71,6 +71,7 @@ import '../platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/power/browser/powerService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
+import './services/vscode/browser/themeImporterService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -143,9 +144,6 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
-// Open in VS Code — web uses protocol handler; desktop overrides in electron-browser
-import './contrib/chat/browser/openInVSCode.contribution.js';
-
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
@@ -189,5 +187,6 @@ import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
 import '../workbench/contrib/browserView/browser/browserView.contribution.js';
+import './browser/sessions.web.contribution.js';
 
 //#endregion
