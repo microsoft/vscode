@@ -704,14 +704,38 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			}
 
 			const root = await this._getInstalledPluginsDir();
-			// Watch the top-level installed-plugins directory so we notice when
-			// new marketplace buckets appear/disappear (e.g. first-ever install).
-			const rootWatcher = this._fileService.createWatcher(root, { recursive: false, excludes: [] });
-			watcherStore.add(rootWatcher);
-			watcherStore.add(rootWatcher.onDidChange(() => {
-				scheduler.schedule();
-				setupWatchers();
-			}));
+
+			// Walk up to the deepest existing ancestor and watch each directory
+			// from there down. Non-recursive watchers fail if the target doesn't
+			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
+			// userHome) to detect the first-ever plugin install.
+			const dirsToWatch: URI[] = [];
+			let candidate: URI | undefined = root;
+			while (candidate) {
+				dirsToWatch.unshift(candidate);
+				const parent = joinPath(candidate, '..');
+				if (parent.toString() === candidate.toString()) {
+					break;
+				}
+				if (await this._pathExists(parent)) {
+					dirsToWatch.unshift(parent);
+					break;
+				}
+				candidate = parent;
+			}
+
+			for (const dir of dirsToWatch) {
+				if (!(await this._pathExists(dir))) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => {
+					scheduler.schedule();
+					// Re-attach watchers in case directories appeared/disappeared.
+					setupWatchers().catch(() => { /* watchers are best-effort */ });
+				}));
+			}
 
 			// Watch each marketplace bucket non-recursively for plugin
 			// install/uninstall events.
@@ -795,7 +819,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	private async _promptRemove(resource: URI): Promise<void> {
 		const { confirmed } = await this._dialogService.confirm({
 			message: localize('copilotCliPlugin.remove.confirm', "This plugin was installed by the Copilot CLI. Remove it from disk?"),
-			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be deleted. You can reinstall it later via the Copilot CLI.", resource.fsPath),
+			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be moved to the trash. You can reinstall it later via the Copilot CLI.", resource.fsPath),
 			primaryButton: localize('copilotCliPlugin.remove.primary', "Remove"),
 		});
 		if (!confirmed) {
@@ -803,7 +827,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		}
 
 		try {
-			await this._fileService.del(resource, { recursive: true, useTrash: false });
+			await this._fileService.del(resource, { recursive: true, useTrash: true });
 			this._enablementModel.remove(resource.toString());
 		} catch (error) {
 			this._logService.error('[CopilotCliAgentPluginDiscovery] Failed to remove plugin', error);
