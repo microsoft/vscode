@@ -31,7 +31,7 @@ import {
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { isDefined } from '../../../base/common/types.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 
@@ -607,8 +607,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			authority: agentHostAuthority(address),
 			priority: true,
 			formatting: {
-				label: '${path}',
-				separator: '/',
+				...AGENT_HOST_LABEL_FORMATTER.formatting,
 				workspaceSuffix: name,
 			},
 		});

@@ -57,7 +57,9 @@ class FakeNotificationService implements IChatInputNotificationService {
 
 /**
  * Mock label service that resolves host labels for the {@link AGENT_HOST_SCHEME}
- * by stripping the authority encoding produced by {@link agentHostAuthority}.
+ * by mapping authorities encoded via {@link agentHostAuthority} to the
+ * friendly name registered through {@link StubLabelService.setHostName}.
+ * Unknown authorities are returned unchanged.
  */
 class StubLabelService extends MockLabelService {
 	private readonly _hostLabels = new Map<string, string>();
