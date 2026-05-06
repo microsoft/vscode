@@ -7,8 +7,52 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { IEnvService } from '../../../../../platform/env/common/envService';
+import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { LogServiceImpl } from '../../../../../platform/log/common/logService';
-import { ensureCopilotCLIShims } from '../copilotCli';
+import { mock } from '../../../../../util/common/test/simpleMock';
+import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { CopilotCLISDK } from '../copilotCli';
+
+type CopilotSdkModule = typeof import('@github/copilot/sdk');
+
+class TestExtensionContext extends mock<IVSCodeExtensionContext>() {
+	public override readonly workspaceState = {
+		get: () => ({}),
+		update: async () => { },
+		keys: () => []
+	};
+
+	constructor(public override readonly extensionPath: string) {
+		super();
+	}
+}
+
+class TestEnvService extends mock<IEnvService>() {
+	constructor(public override readonly appRoot: string) {
+		super();
+	}
+}
+
+class TestAuthenticationService extends mock<IAuthenticationService>() { }
+class TestConfigurationService extends mock<IConfigurationService>() { }
+class TestInstantiationService extends mock<IInstantiationService>() { }
+
+class TestCopilotCLISDK extends CopilotCLISDK {
+	protected override async ensureShims(): Promise<void> {
+		return;
+	}
+
+	public runEnsureShims(): Promise<void> {
+		return super.ensureShims();
+	}
+
+	public override async getPackage(): Promise<CopilotSdkModule> {
+		throw new Error('SDK import is disabled in shim tests');
+	}
+}
 
 describe('Copilot CLI shims', () => {
 	let testDir: string;
@@ -22,6 +66,17 @@ describe('Copilot CLI shims', () => {
 		await rm(testDir, { recursive: true, force: true });
 	});
 
+	function createSdk(extensionPath: string, vscodeAppRoot: string): TestCopilotCLISDK {
+		return new TestCopilotCLISDK(
+			new TestExtensionContext(extensionPath),
+			new TestEnvService(vscodeAppRoot),
+			logService,
+			new TestInstantiationService(),
+			new TestAuthenticationService(),
+			new TestConfigurationService()
+		);
+	}
+
 	it('creates ripgrep and node-pty shims before SDK import', async () => {
 		const extensionPath = join(testDir, 'extension');
 		const vscodeAppRoot = join(testDir, 'app');
@@ -33,7 +88,7 @@ describe('Copilot CLI shims', () => {
 		await writeFile(join(nodePtySourceDir, 'pty.node'), 'native-binary');
 		await writeFile(join(nodePtySourceDir, 'spawn-helper'), 'spawn-helper');
 
-		await ensureCopilotCLIShims(extensionPath, vscodeAppRoot, logService);
+		await createSdk(extensionPath, vscodeAppRoot).runEnsureShims();
 
 		await expect(readFile(join(extensionPath, 'node_modules', '@github', 'copilot', 'shims.txt'), 'utf8')).resolves.toBe('Shims created successfully');
 		const sdkRipgrepDir = join(extensionPath, 'node_modules', '@github', 'copilot', 'sdk', 'ripgrep', 'bin', process.platform + '-' + process.arch);
@@ -50,9 +105,9 @@ describe('Copilot CLI shims', () => {
 		await mkdir(join(extensionPath, 'node_modules', '@github', 'copilot'), { recursive: true });
 		await writeFile(placeholder, 'already created');
 
-		await ensureCopilotCLIShims(extensionPath, vscodeAppRoot, logService);
+		await createSdk(extensionPath, vscodeAppRoot).runEnsureShims();
 
 		await expect(readFile(placeholder, 'utf8')).resolves.toBe('already created');
-		await expect(stat(join(extensionPath, 'node_modules', '@github', 'copilot', 'sdk'))).rejects.toThrow();
+		await expect(stat(join(extensionPath, 'node_modules', '@github', 'copilot', 'sdk'))).rejects.toMatchObject({ code: 'ENOENT' });
 	});
 });
