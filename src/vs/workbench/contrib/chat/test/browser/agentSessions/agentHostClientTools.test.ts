@@ -408,6 +408,10 @@ suite('AgentHostClientTools', () => {
 				registerChatSessionItemController: () => toDisposable(() => { }),
 				registerChatSessionContentProvider: () => toDisposable(() => { }),
 				registerChatSessionContribution: () => toDisposable(() => { }),
+				onDidChangeSessionOptions: Event.None,
+				setOptionGroupsForSessionType: () => { },
+				getSessionOption: () => undefined,
+				setSessionOption: () => false,
 			});
 			instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
