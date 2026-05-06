@@ -752,7 +752,9 @@ export class ChatStatusDashboard extends DomWidget {
 		const update = () => {
 			const quotas = this.chatEntitlementService.quotas;
 			const additionalUsageEnabled = quotas.additionalUsageEnabled ?? false;
+			const additionalUsageActive = additionalUsageEnabled && (quotas.additionalUsageCount ?? 0) > 0;
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
+			const isUsageBasedBilling = quotas.premiumChat?.usageBasedBilling === true;
 
 			const allQuotas: IQuotaSnapshot[] = [];
 			if (quotas.chat && !quotas.chat.unlimited) { allQuotas.push(quotas.chat); }
@@ -761,17 +763,21 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 
-			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+			if (maxUsedPercentage >= 100 && additionalUsageActive) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.");
-			} else if (maxUsedPercentage >= 75 && additionalUsageEnabled) {
+				calloutText.textContent = isUsageBasedBilling
+					? localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.")
+					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
+			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.");
-			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
+				calloutText.textContent = isUsageBasedBilling
+					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
+					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
+			} else if (maxUsedPercentage >= 100 && !additionalUsageActive) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
