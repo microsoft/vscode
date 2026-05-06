@@ -103,9 +103,10 @@ export interface ProcessItem {
  *
  * When spawning `.bat`/`.cmd` files on Windows with `shell: true`,
  * arguments are interpreted by `cmd.exe` which treats characters like
- * `&`, `|`, `>`, `<`, `^` as command separators/operators. This
- * function escapes those metacharacters and wraps the argument in
- * double quotes to prevent command injection.
+ * `&`, `|`, `>`, `<`, `^` as command separators/operators, `!` for
+ * delayed variable expansion, and `%` for environment variable
+ * expansion (`%PATH%`). This function escapes all of these and wraps
+ * the argument in double quotes to prevent command injection.
  *
  * See CVE-2024-27980 (BatBadBut) for background on this class of
  * vulnerability.
