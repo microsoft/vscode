@@ -105,3 +105,49 @@
 	user-select: none;
 	-webkit-user-select: none;
 }
+
+/* Inline URL bar select button (shown when sharing with agent) */
+.browser-select-toggle-container {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.browser-select-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 22px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	padding: 0;
+	outline: none !important;
+
+	&:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+
+	&:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder) !important;
+		outline-offset: -1px !important;
+	}
+
+	&.active {
+		color: var(--vscode-textLink-foreground);
+		background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 18%, transparent);
+
+		&:hover {
+			background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 28%, transparent) !important;
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	.codicon {
+		font-size: 16px;
+	}
+}

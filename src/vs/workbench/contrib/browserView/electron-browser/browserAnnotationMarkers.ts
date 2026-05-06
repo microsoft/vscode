@@ -130,6 +130,14 @@ const MARKER_INJECTION_SCRIPT = `
 			.\${CONTAINER_ID}-highlight.vis {
 				opacity: 1;
 			}
+			.\${CONTAINER_ID}-highlight.flash {
+				opacity: 1;
+				animation: __am_flash 0.8s ease-out;
+			}
+			@keyframes __am_flash {
+				0% { opacity: 1; border-color: var(--ann-accent, #0078d4); background: color-mix(in srgb, var(--ann-accent, #0078d4) 20%, transparent); }
+				100% { opacity: 1; border-color: color-mix(in srgb, var(--ann-accent, #0078d4) 60%, transparent); background: color-mix(in srgb, var(--ann-accent, #0078d4) 5%, transparent); }
+			}
 			.\${CONTAINER_ID}-pending {
 				position: absolute;
 				width: 22px;
@@ -318,6 +326,32 @@ const MARKER_INJECTION_SCRIPT = `
 		if (pm) pm.remove();
 	}
 
+	function scrollToMarker(index) {
+		var container = document.getElementById(CONTAINER_ID);
+		if (!container) return;
+		var marker = container.querySelector('[data-annotation-index="' + index + '"]');
+		if (!marker) return;
+		// Find the element in the page and scroll to it
+		var ann = _currentAnnotations.find(function(a) { return a.index === index; });
+		if (ann) {
+			var el = findElement(ann);
+			if (el) {
+				el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}
+		}
+		// Flash the marker
+		marker.style.transform = 'translate(-50%, -50%) scale(1.3)';
+		setTimeout(function() { marker.style.transform = ''; }, 300);
+		// Flash the highlight
+		var highlights = container.querySelectorAll('.' + CONTAINER_ID + '-highlight');
+		var markers = Array.from(container.querySelectorAll('.' + CONTAINER_ID + '-marker'));
+		var markerIdx = markers.indexOf(marker);
+		if (markerIdx >= 0 && highlights[markerIdx]) {
+			highlights[markerIdx].classList.add('flash');
+			setTimeout(function() { highlights[markerIdx].classList.remove('flash'); }, 800);
+		}
+	}
+
 	function clearMarkers() {
 		_currentAnnotations = [];
 		const container = document.getElementById(CONTAINER_ID);
@@ -349,7 +383,8 @@ const MARKER_INJECTION_SCRIPT = `
 		remove: removeAll,
 		waitForMarkerClick: waitForMarkerClick,
 		showPending: showPending,
-		clearPending: clearPending
+		clearPending: clearPending,
+		scrollToMarker: scrollToMarker
 	};
 })();
 `;
@@ -698,17 +733,22 @@ return '<div><span style="color:#9cdcfe;">' + prop + '</span>:<span style="color
 }
 
 popupEl.innerHTML = [
-stylesHtml ? '' : '<div style="display:flex;align-items:center;margin-bottom:6px;"><span style="font-size:11px;line-height:1.4;color:var(--ann-desc-fg, rgba(204,204,204,0.6));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:248px;">' + headerText + '</span></div>',
-stylesHtml,
-quoteHtml,
-'<textarea id="' + HOVER_ID + '-ta" rows="2" aria-label="Annotation comment" placeholder="What should change?" style="',
-'  width:100%;box-sizing:border-box;padding:4px 6px;font-size:13px;line-height:1.4;font-family:inherit;',
-'  background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
-'  border-radius:4px;resize:none;outline:none;"></textarea>',
-'<div style="display:flex;justify-content:flex-end;gap:4px;margin-top:8px;">',
-'  <button id="'+HOVER_ID+'-cancel" aria-label="Cancel" style="padding:4px 8px;font-size:12px;line-height:16px;border-radius:4px;border:1px solid var(--ann-widget-border, rgba(255,255,255,0.1));background:transparent;color:var(--ann-fg, #ccc);cursor:pointer;font-family:inherit;">Cancel</button>',
-'  <button id="'+HOVER_ID+'-submit" aria-label="Add annotation" style="padding:4px 8px;font-size:12px;line-height:16px;border-radius:4px;border:1px solid transparent;background:var(--ann-btn-bg, #0078d4);color:var(--ann-btn-fg, #fff);cursor:pointer;opacity:0.4;font-family:inherit;">Add</button>',
+'<div style="position:relative;">',
+'  <textarea id="' + HOVER_ID + '-ta" rows="2" aria-label="Annotation comment" placeholder="What should change?" style="',
+'    width:100%;box-sizing:border-box;padding:6px 32px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
+'    background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
+'    border-radius:6px;resize:none;outline:none;"></textarea>',
+'  <button id="'+HOVER_ID+'-submit" aria-label="Add annotation" style="',
+'    position:absolute;right:6px;top:50%;transform:translateY(-50%);',
+'    width:22px;height:22px;border:none;background:none;',
+'    color:var(--ann-desc-fg, rgba(204,204,204,0.6));',
+'    cursor:pointer;display:flex;align-items:center;justify-content:center;',
+'    opacity:0.35;transition:opacity 0.15s, color 0.15s;padding:0;">',
+'    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 8.5L1 7.5L11.5 7.5L7 3L7.7 2.3L13.4 8L7.7 13.7L7 13L11.5 8.5L1 8.5Z"/></svg>',
+'  </button>',
 '</div>',
+quoteHtml,
+stylesHtml ? stylesHtml : '<div style="margin-top:4px;"><div id="'+HOVER_ID+'-path-toggle" style="cursor:pointer;font-size:11px;color:var(--ann-desc-fg, rgba(204,204,204,0.6));user-select:none;display:flex;align-items:center;gap:4px;"><span id="'+HOVER_ID+'-path-arrow" style="font-size:9px;transition:transform 0.15s;">&#9654;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+headerText+'</span></div></div>',
 ].join('');
 
 Object.assign(popupEl.style, {
@@ -738,21 +778,36 @@ stArrow.style.transform = open ? '' : 'rotate(90deg)';
 
 var ta = document.getElementById(HOVER_ID+'-ta');
 var sub = document.getElementById(HOVER_ID+'-submit');
-var can = document.getElementById(HOVER_ID+'-cancel');
 setTimeout(function() { if(ta) ta.focus(); }, 50);
-if(ta) ta.addEventListener('input', function() { if (sub) sub.style.opacity = ta.value.trim() ? '1' : '0.4'; });
+if(ta) ta.addEventListener('input', function() { if (sub) { sub.style.opacity = ta.value.trim() ? '1' : '0.35'; sub.style.color = ta.value.trim() ? 'var(--ann-fg, #ccc)' : 'var(--ann-desc-fg, rgba(204,204,204,0.6))'; } });
 if(ta) ta.addEventListener('focus', function() { ta.style.borderColor = 'var(--ann-focus-border, #007acc)'; });
 if(ta) ta.addEventListener('blur', function() { ta.style.borderColor = 'var(--ann-input-border, #3c3c3c)'; });
+
+// Path toggle (when no styles accordion)
+var pathToggle = document.getElementById(HOVER_ID+'-path-toggle');
+var pathArrow = document.getElementById(HOVER_ID+'-path-arrow');
+if (pathToggle && stBody && stArrow) {
+// styles accordion exists — already handled above
+} else if (pathToggle && pathArrow) {
+// no-op for now — path is just a label, no expandable content
+}
 
 if(sub) sub.addEventListener('click', function() {
 var comment = ta ? ta.value.trim() : '';
 if (!comment) { if(popupEl) { popupEl.style.animation = '__ah_shake 0.25s ease-in-out'; setTimeout(function(){if(popupEl)popupEl.style.animation='';},300); } return; }
 resolveClick(comment);
 });
-if(can) can.addEventListener('click', function() { resolveClick(null); });
+// Click away to cancel — use mousedown on document
+var _clickAwayHandler = function(e) {
+if (popupEl && !popupEl.contains(e.target)) {
+document.removeEventListener('mousedown', _clickAwayHandler, true);
+resolveClick(null);
+}
+};
+setTimeout(function() { document.addEventListener('mousedown', _clickAwayHandler, true); }, 100);
 if(ta) ta.addEventListener('keydown', function(e) {
 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if(sub) sub.click(); }
-if (e.key === 'Escape') { e.preventDefault(); if(can) can.click(); }
+if (e.key === 'Escape') { e.preventDefault(); document.removeEventListener('mousedown', _clickAwayHandler, true); resolveClick(null); }
 });
 }
 
@@ -1271,6 +1326,28 @@ export class BrowserAnnotationMarkers extends Disposable {
 	resetInjectionState(): void {
 		this._markersInjected = false;
 		this._hoverInjected = false;
+	}
+
+	/**
+	 * Scroll to and briefly highlight a specific annotation marker in the page.
+	 */
+	async scrollToAnnotation(annotationIndex: number): Promise<void> {
+		try {
+			if (!this._markersInjected) {
+				return;
+			}
+			await this._playwrightService.invokeFunctionRaw(
+				this._browserId,
+				`async (page, index) => {
+					await page.evaluate((idx) => {
+						window.__annotationMarkers?.scrollToMarker(idx);
+					}, index);
+				}`,
+				annotationIndex,
+			);
+		} catch (e) {
+			this._logService.warn('BrowserAnnotationMarkers: Failed to scroll to annotation', e);
+		}
 	}
 
 	/**

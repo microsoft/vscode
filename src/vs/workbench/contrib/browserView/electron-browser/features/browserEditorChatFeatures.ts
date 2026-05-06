@@ -41,6 +41,7 @@ import { workbenchConfigurationNodeBase } from '../../../../common/configuration
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
 import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
+import { BrowserAnnotationFeature } from './browserAnnotationFeature.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -464,7 +465,11 @@ class AddElementToChatAction extends Action2 {
 			icon: Codicon.inspect,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
-			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
+			toggled: ContextKeyExpr.or(
+				CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
+				ContextKeyExpr.equals('browserAnnotationModeActive', true),
+				ContextKeyExpr.equals('browserHasAnnotations', true),
+			),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
@@ -483,9 +488,30 @@ class AddElementToChatAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addElementToChat();
+		if (!(browserEditor instanceof BrowserEditor)) {
+			return;
 		}
+
+		// When Browser Select is enabled, use the annotation toggle
+		const configService = accessor.get(IConfigurationService);
+		if (configService.getValue<boolean>('workbench.browser.enableSelect') === true) {
+			const feature = browserEditor.getContribution(BrowserAnnotationFeature);
+			if (feature) {
+				const annotations = feature.getAnnotations();
+				if (feature.isAnnotationModeActive() || annotations.length > 0) {
+					// Active or has annotations → stop and clear
+					feature.stopAnnotationMode();
+					feature.clearAnnotations();
+				} else {
+					// Start annotation mode
+					await feature.toggleAnnotationMode();
+				}
+				return;
+			}
+		}
+
+		// Default: original add-element-to-chat behavior
+		await browserEditor.getContribution(BrowserEditorChatIntegration)?.addElementToChat();
 	}
 }
 

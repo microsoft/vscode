@@ -29,7 +29,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 
 import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR } from '../browserEditor.js';
 import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory } from '../browserViewActions.js';
-import { IBrowserViewModel } from '../../common/browserView.js';
+import { IBrowserViewModel, BrowserViewSharingState } from '../../common/browserView.js';
 import { IBrowserAnnotation, BrowserAnnotationDetailLevel, createBrowserAnnotation } from '../../common/browserAnnotation.js';
 import { generateAnnotationOutput } from '../browserAnnotationOutput.js';
 import { BrowserAnnotationMarkers, IAnnotationThemeColors, IAnnotationEditRequest, IAnnotationClickResult } from '../browserAnnotationMarkers.js';
@@ -164,6 +164,8 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 				}
 			}
 		}));
+		// Update toolbar when sharing state changes (hides/shows Send to Chat button)
+		store.add(model.onDidChangeSharingState(() => this._updateToolbarUI()));
 		if (!this._isFeatureEnabled()) {
 			return;
 		}
@@ -230,6 +232,20 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	}
 
 	// -- Public API (called from actions) ----------------------------------
+
+	/**
+	 * Whether annotation mode is currently active.
+	 */
+	isAnnotationModeActive(): boolean {
+		return this._annotationModeActive;
+	}
+
+	/**
+	 * Stop annotation mode without clearing annotations.
+	 */
+	stopAnnotationMode(): void {
+		this._stopAnnotationMode();
+	}
 
 	/**
 	 * Toggle annotation mode on/off.
@@ -311,6 +327,43 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	}
 
 	/**
+	 * Auto-send a single annotation directly to chat when sharing with agent is active.
+	 * Instead of adding a separate attachment, the annotation content is appended
+	 * directly to the chat input prompt along with any screenshot.
+	 */
+	private async _autoSendAnnotationToChat(annotation: IBrowserAnnotation): Promise<void> {
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const url = this.editor.model?.url ?? '';
+		const output = generateAnnotationOutput([annotation], url, this._detailLevel);
+
+		// Append annotation text directly to the current input
+		const currentInput = widget.getInput();
+		const separator = currentInput.length > 0 ? '\n\n' : '';
+		widget.setInput(currentInput + separator + output);
+
+		// Attach screenshot as image if enabled
+		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		if (attachImages && annotation.screenshotBase64) {
+			const binary = atob(annotation.screenshotBase64);
+			const bytes = new Uint8Array(binary.length);
+			for (let i = 0; i < binary.length; i++) {
+				bytes[i] = binary.charCodeAt(i);
+			}
+			widget.attachmentModel?.addContext({
+				id: `annotation-screenshot-${annotation.id}`,
+				name: `#${annotation.index} Screenshot`,
+				fullName: `Element Screenshot for ${annotation.displayName}`,
+				kind: 'image',
+				value: bytes.buffer,
+			});
+		}
+	}
+
+	/**
 	 * Clear all annotations.
 	 */
 	clearAnnotations(): void {
@@ -331,6 +384,38 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 			this._markers.value?.clearMarkers();
 		}
 		this._updateToolbarUI();
+	}
+
+	private _focusedAnnotationIndex = 0;
+
+	/**
+	 * Navigate to the next annotation.
+	 */
+	async nextAnnotation(): Promise<void> {
+		if (this._annotations.length === 0) {
+			return;
+		}
+		this._focusedAnnotationIndex = (this._focusedAnnotationIndex + 1) % this._annotations.length;
+		await this._scrollToCurrentAnnotation();
+	}
+
+	/**
+	 * Navigate to the previous annotation.
+	 */
+	async previousAnnotation(): Promise<void> {
+		if (this._annotations.length === 0) {
+			return;
+		}
+		this._focusedAnnotationIndex = (this._focusedAnnotationIndex - 1 + this._annotations.length) % this._annotations.length;
+		await this._scrollToCurrentAnnotation();
+	}
+
+	private async _scrollToCurrentAnnotation(): Promise<void> {
+		const annotation = this._annotations[this._focusedAnnotationIndex];
+		if (!annotation) {
+			return;
+		}
+		await this._markers.value?.scrollToAnnotation(annotation.index);
 	}
 
 	/**
@@ -614,6 +699,11 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 
 				this.logService.debug(`BrowserAnnotationFeature: Added annotation #${annotation.index} for ${annotation.displayName}`);
 
+				// If sharing with agent is active, auto-send to chat immediately
+				if (model.sharingState === BrowserViewSharingState.Shared) {
+					await this._autoSendAnnotationToChat(annotation);
+				}
+
 				// Re-focus the browser and re-activate hover for next selection
 				this.editor.ensureBrowserFocus();
 
@@ -735,6 +825,7 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	private _clearAnnotations(): void {
 		this._annotations.length = 0;
 		this._markersVisible = true;
+		this._focusedAnnotationIndex = 0;
 		this._updateHasAnnotationsContext();
 		this._markers.value?.clearMarkers();
 		this._saveAnnotationsToStorage();
@@ -788,8 +879,17 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	private _updateToolbarUI(): void {
 		const hasModel = !!this.editor.model?.url;
 		const hasAnnotations = this._annotations.length > 0;
+		const isShared = this.editor.model?.sharingState === BrowserViewSharingState.Shared;
+		const isFeatureEnabled = this._isFeatureEnabled();
 
-		// Always show the toolbar when a page is loaded
+		// When sharing with agent is active, hide the floating toolbar entirely
+		// — the existing toolbar inspect icon handles the toggle
+		if (isShared && isFeatureEnabled) {
+			this._toolbarElement.classList.remove('visible');
+			return;
+		}
+
+		// Not sharing — show floating toolbar
 		this._toolbarElement.classList.toggle('visible', hasModel);
 		this._toggleBtn.classList.toggle('active', this._annotationModeActive);
 		this._toggleBtn.setAttribute('aria-pressed', String(this._annotationModeActive));
@@ -1020,3 +1120,58 @@ class ManageAnnotationsAction extends Action2 {
 }
 
 registerAction2(ManageAnnotationsAction);
+
+class NextAnnotationAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.nextAnnotation';
+
+	constructor() {
+		super({
+			id: NextAnnotationAction.ID,
+			title: localize2('browser.nextAnnotation', 'Next Annotation'),
+			category: BrowserActionCategory,
+			f1: false,
+			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.DownArrow,
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserAnnotationFeature)?.nextAnnotation();
+		}
+	}
+}
+
+class PreviousAnnotationAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.previousAnnotation';
+
+	constructor() {
+		super({
+			id: PreviousAnnotationAction.ID,
+			title: localize2('browser.previousAnnotation', 'Previous Annotation'),
+			category: BrowserActionCategory,
+			f1: false,
+			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.UpArrow,
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserAnnotationFeature)?.previousAnnotation();
+		}
+	}
+}
+
+registerAction2(NextAnnotationAction);
+registerAction2(PreviousAnnotationAction);
