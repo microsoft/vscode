@@ -1352,7 +1352,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			},
 		};
 
-		super(action, { actionProvider, listOptions: {} }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);
